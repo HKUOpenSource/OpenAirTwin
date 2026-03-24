@@ -1,0 +1,1076 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HKU-RT</title>
+  <style>
+    :root{
+      --bg:#eef1f6;
+      --bg2:#f7f8fb;
+      --panel:rgba(255,255,255,.88);
+      --line:rgba(130,140,160,.28);
+      --text:#1d2738;
+      --muted:#6c7b93;
+      --accent:#3478f6;
+      --accent2:#1eb980;
+      --warn:#f2b74c;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;background:radial-gradient(1200px 700px at 80% -10%, #dbe4f4 0%, transparent 45%),linear-gradient(180deg,var(--bg2),var(--bg));color:var(--text);}
+    #view{width:100vw;height:100vh;display:block;}
+
+    .shell{position:fixed;inset:0;pointer-events:none;}
+    .topLeftRow{position:absolute;left:20px;top:16px;display:flex;align-items:stretch;gap:6px;pointer-events:none}
+    .brand{position:static;display:flex;gap:10px;align-items:center;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.78);backdrop-filter:blur(8px);pointer-events:auto;} 
+    .modeSwitchWrap{display:flex;align-items:center;gap:8px;pointer-events:auto}
+    .modeCard{position:static;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.88);backdrop-filter:blur(8px);pointer-events:auto;display:flex;align-items:center}
+    .modeSwitchWrap span{font-size:11px;color:#5f7393;font-weight:700}
+    .modeSwitch{position:relative;width:42px;height:24px;display:inline-block}
+    .modeSwitch input{display:none}
+    .modeSwitch i{position:absolute;inset:0;background:#d6deeb;border-radius:999px;transition:.18s}
+    .modeSwitch i:after{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:.18s}
+    .modeSwitch input:checked + i{background:#2d7cff}
+    .modeSwitch input:checked + i:after{transform:translateX(18px)}
+    .logoBar{position:absolute;right:18px;top:14px;display:flex;gap:12px;align-items:center;background:#ffffff;border:1px solid rgba(130,140,160,.28);border-radius:12px;padding:10px 12px;box-shadow:0 8px 18px rgba(25,37,58,.10)}
+    .logoBar img{display:block;height:66px;width:auto;object-fit:contain;border-radius:6px;background:#ffffff;mix-blend-mode:normal}
+    .logoBar img.hku{height:78px}
+    .dot{width:10px;height:10px;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 14px #3bb7ff;}
+    .brand h1{margin:0;font-size:14px;font-weight:650;letter-spacing:.3px}
+    .brand span{font-size:12px;color:var(--muted)}
+
+    #ui{position:absolute;left:20px;top:72px;width:430px;max-width:calc(100vw - 40px);pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 14px 12px;backdrop-filter:blur(12px);box-shadow:0 12px 30px rgba(27,39,58,.18);display:none;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 8px;}
+    .card{padding:8px 10px;border-radius:10px;background:rgba(248,250,255,.92);border:1px solid rgba(130,140,160,.22);}
+    .card b{display:block;font-size:12px;color:var(--muted);font-weight:500}
+    .card span{font-size:16px;font-weight:700;letter-spacing:.2px}
+
+    #barWrap{height:8px;background:#e6ebf4;border:1px solid #c8d2e2;border-radius:999px;overflow:hidden;}
+    #bar{height:100%;width:0;background:linear-gradient(90deg,#2ea0ff,#56eeb5);transition:width .2s;}
+    #phase{font-size:12px;color:#64748b;margin-top:7px}
+
+    #cbWrap{margin-top:10px}
+    #cb{height:10px;border-radius:999px;border:1px solid #334e76;background: linear-gradient(90deg,#3e4c9a 0%, #3f74c6 16%, #4f9ad0 32%, #5fbfc0 48%, #89cf8a 64%, #c7c97b 80%, #d7a975 90%, #c68a8c 100%);}    
+    #cbLabels{display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:#111111}
+
+    #info{margin-top:10px;padding:10px;border-radius:10px;background:rgba(246,249,255,.9);border:1px dashed rgba(130,140,160,.35);font-size:12.5px;line-height:1.45;white-space:pre-line;display:none}
+    #legend{margin-top:8px;font-size:11.5px;line-height:1.42;color:#64748b}
+
+    #txPanel{margin-top:10px;padding:9px 10px;border-radius:12px;background:linear-gradient(180deg,#f7fbff,#eef5ff);border:1px solid rgba(106,142,201,.35);display:none}
+    #txPanel b{display:block;font-size:11px;color:#5a6f93;letter-spacing:.45px;text-transform:uppercase;margin-bottom:3px}
+    #txCoord{font-size:14px;font-weight:700;color:#16325f}
+
+    #rxPanel{margin-top:10px;padding:10px;border-radius:12px;background:rgba(248,251,255,.95);border:1px solid rgba(130,140,160,.28);display:none}
+    #rxTitle{font-size:11px;color:#64748b;letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px}
+    .rxGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .rxItem{background:#fff;border:1px solid rgba(130,140,160,.2);border-radius:9px;padding:8px}
+    .rxItem b{display:block;font-size:11px;color:#70809b;font-weight:550;margin-bottom:2px}
+    .rxItem span{font-size:14px;color:#1f2c42;font-weight:700}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+    .pill.yes{background:#e6f9ef;color:#1a8a55}
+    .pill.no{background:#f2f4f8;color:#6b778c}
+
+    #pathButtons{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+    .pbtn{border:1px solid rgba(130,140,160,.35);background:#fff;color:#1f2c42;border-radius:7px;padding:4px 7px;font-size:11px;font-weight:650;cursor:pointer}
+    .pbtn.active{background:#1f6fff;color:#fff;border-color:#1f6fff}
+
+    .zCtrl{margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .zCard{background:#fff;border:1px solid rgba(130,140,160,.25);border-radius:9px;padding:7px}
+    .zCard label{display:block;font-size:11px;color:#6d7d98;margin-bottom:4px}
+    .zCard input[type="range"]{width:100%}
+    .zVal{font-size:12px;color:#1f2c42;font-weight:700;margin-bottom:6px;text-align:center;padding:6px 8px;background:#f4f8ff;border:1px solid rgba(130,140,160,.22);border-radius:8px}
+    .axisRow{margin-bottom:4px}
+    .axisRow small{display:inline-block;width:18px;color:#6d7d98}
+
+    .showcaseOnly{display:none !important}
+
+    .rtConfig{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+    .rtCol{background:linear-gradient(180deg,#ffffff,#f8fbff);border:1px solid rgba(130,140,160,.32);border-radius:12px;padding:10px;box-shadow:0 4px 10px rgba(24,38,62,.06)}
+    .rtHead{font-size:12px;font-weight:800;color:#1f2c42;margin-bottom:8px;letter-spacing:.2px}
+    .rtPickBtn{width:100%;margin-bottom:8px;background:linear-gradient(180deg,#fefefe,#f1f6ff)}
+    .axisRow{display:grid;grid-template-columns:22px 1fr;align-items:center;gap:6px;margin-bottom:6px}
+    .axisRow small{display:block;width:auto;color:#5f7393;font-weight:700}
+    .rtSolve{margin-top:10px}
+    .rtSolve .btn{width:100%;max-width:100%}
+    .solverCfg{margin-top:8px;padding:10px;border-radius:10px;background:#fff;border:1px solid rgba(130,140,160,.28)}
+    .solverCfgGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
+    .solverCfg label{display:flex;align-items:center;gap:6px;font-size:12px;color:#44556f}
+    .solverCfg input[type="checkbox"]{width:14px;height:14px;accent-color:#3478f6}
+    .solverCol{display:flex;flex-direction:column;gap:8px}
+    .solverChecks{justify-content:flex-start;height:100%}
+    .solverField{display:flex;flex-direction:column}
+    .solverField > label{display:block;margin-bottom:4px}
+    .solverCfg select,.solverCfg input[type="number"],.solverCfg input[type="text"]{width:100%;padding:6px 8px;border-radius:8px;border:1px solid rgba(130,140,160,.35);background:#fff;height:34px;line-height:20px}
+    .rtResult{margin-top:8px;padding:10px;border-radius:12px;background:#fff;border:1px solid rgba(130,140,160,.32);box-shadow:0 4px 10px rgba(24,38,62,.05);display:none}
+
+    .actions{display:flex;gap:8px;margin-top:10px}
+    .btn{flex:1;border:1px solid #b8c4d8;background:rgba(255,255,255,.96);color:#243248;padding:8px 10px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;transition:.16s}
+    .btn:hover{transform:translateY(-1px);border-color:#7aa2e8}
+
+    .hint{position:absolute;right:16px;bottom:14px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.78);border:1px solid rgba(130,140,160,.28);font-size:11px;color:#5c6f8f;pointer-events:none}
+
+    #panelToggle{width:22px;height:22px;border:1px solid rgba(130,140,160,.45);background:rgba(255,255,255,.96);border-radius:999px;padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    #panelToggle .bar{width:10px;height:2px;background:#1f2c42;border-radius:2px;display:block}
+    .uiHead{display:flex;justify-content:flex-start;margin-bottom:8px}
+
+    #loadingScreen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+    .loadingCard{width:min(520px,88vw);padding:18px 20px;border-radius:14px;background:rgba(255,255,255,.86);border:1px solid rgba(130,140,160,.25);box-shadow:0 14px 28px rgba(25,37,58,.16);}
+    .loadingTitle{font-size:14px;font-weight:700;color:#1f2c42;margin-bottom:10px}
+    #loadingPhase{font-size:12px;color:#64748b;margin-top:7px}
+
+    @media (max-width: 720px){
+      #ui{width:calc(100vw - 24px);left:12px;top:62px}
+      .topLeftRow{left:12px;top:10px}
+      .hint{display:none}
+      .rtConfig{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <div class="shell">
+    <div class="topLeftRow">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1>HKU Ray Tracing Showcase</h1>
+      </div>
+    </div>
+
+    <div class="modeCard">
+      <div class="modeSwitchWrap">
+        <span>Free Mode</span>
+        <label class="modeSwitch"><input id="modeSwitchTop" type="checkbox" checked /><i></i></label>
+      </div>
+    </div>
+    </div>
+
+    <div class="logoBar">
+      <img class="hku" src="/assets/hku_logo.jpg" alt="HKU logo" />
+      <img src="/assets/hku_ece_logo.jpg" alt="HKU-ECE logo" />
+    </div>
+
+    <div id="loadingScreen">
+      <div class="loadingCard">
+        <div class="loadingTitle">Loading Scene</div>
+        <div id="barWrap"><div id="bar"></div></div>
+        <div id="loadingPhase">Initializing...</div>
+      </div>
+    </div>
+
+    <div id="ui">
+      <div class="uiHead"><button id="panelToggle" aria-label="Toggle panel"><span class="bar"></span></button></div>
+      <div id="uiBody">
+      <div id="phase" style="display:none"></div>
+
+      <div class="grid showcaseOnly">
+        <div class="card"><b>Grid Points</b><span id="stTotal">--</span></div>
+        <div class="card"><b>Valid Paths</b><span id="stValid">--</span></div>
+        <div class="card"><b>Buildings</b><span id="stMesh">--</span></div>
+        <div class="card"><b>Selected Rx</b><span id="stSel">None</span></div>
+      </div>
+
+      <div id="cbWrap" class="showcaseOnly">
+        <div id="cb"></div>
+        <div id="cbLabels"><span id="cbMin">Low</span><span>Radio Power Scale</span><span id="cbMax">High</span></div>
+      </div>
+
+      <div id="info">Loading model & precomputed paths...</div>
+
+      <div id="txPanel" class="showcaseOnly">
+        <b>Tx Coordinates</b>
+        <div id="txCoord">--</div>
+      </div>
+
+      <div class="rtConfig">
+        <div class="rtCol">
+          <div class="rtHead">Tx Control</div>
+          <button class="btn rtPickBtn" id="btnSetTx">Pick Tx in Scene</button>
+          <div class="zVal" id="txPickHint" style="display:none">Click on scene to place Tx</div>
+          <div class="zVal" id="txXYZVal">[72.0, 37.0, 40.0]</div>
+          <div class="axisRow"><small>ΔX</small><input id="txX" type="range" min="-80" max="80" step="0.1" value="0" /></div>
+          <div class="axisRow"><small>ΔY</small><input id="txY" type="range" min="-80" max="80" step="0.1" value="0" /></div>
+          <div class="axisRow"><small>ΔZ</small><input id="txZ" type="range" min="-60" max="60" step="0.1" value="0" /></div>
+        </div>
+        <div class="rtCol">
+          <div class="rtHead">Rx Control</div>
+          <button class="btn rtPickBtn" id="btnSetRx">Pick Rx in Scene</button>
+          <div class="zVal" id="rxPickHint" style="display:none">Click on scene to place Rx</div>
+          <div class="zVal" id="rxXYZVal">[72.0, 37.0, 1.5]</div>
+          <div class="axisRow"><small>ΔX</small><input id="rxX" type="range" min="-80" max="80" step="0.1" value="0" /></div>
+          <div class="axisRow"><small>ΔY</small><input id="rxY" type="range" min="-80" max="80" step="0.1" value="0" /></div>
+          <div class="axisRow"><small>ΔZ</small><input id="rxZ" type="range" min="-60" max="60" step="0.1" value="0" /></div>
+        </div>
+      </div>
+
+      <div id="legend" class="showcaseOnly"></div>
+
+      <div class="solverCfg">
+        <div class="solverCfgGrid">
+          <div class="solverCol">
+            <div class="solverField">
+              <label for="cfgMaxDepth">Max Depth</label>
+              <select id="cfgMaxDepth">
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4" selected>4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+              </select>
+            </div>
+            <div class="solverField">
+              <label for="cfgFrequency">Frequency (GHz)</label>
+              <input id="cfgFrequency" type="number" step="0.1" value="28" />
+            </div>
+          </div>
+          <div class="solverCol solverChecks">
+            <div class="solverField">
+              <label>Interactions with Objects</label>
+            </div>
+            <label><input id="cfgSpecular" type="checkbox" checked /> Specular Reflection</label>
+            <label><input id="cfgDiffuse" type="checkbox" /> Diffuse Reflection</label>
+            <label><input id="cfgRefraction" type="checkbox" checked /> Refraction</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions rtSolve">
+        <button class="btn" id="btnSolve">Solve Channel</button>
+      </div>
+
+      <div id="rxPanel" class="rtResult">
+        <div id="rxTitle">Channel Result</div>
+        <div class="rxGrid">
+          <div class="rxItem"><b>Signal Strength</b><span id="rxPower">--</span></div>
+          <div class="rxItem"><b>Strongest Path</b><span id="rxBest">--</span></div>
+          <div class="rxItem"><b>Total Paths</b><span id="rxPaths">--</span></div>
+          <div class="rxItem"><b>LoS</b><span id="rxLos" class="pill no">No</span></div>
+        </div>
+      </div>
+      <div id="pathButtons"></div>
+
+      <div class="actions" style="margin-top:6px">
+        <button class="btn" id="btnReset">Reset View</button>
+        <button class="btn" id="btnAuto">Auto Rotate</button>
+        <button class="btn" id="btnClear">Clear Paths</button>
+        <button class="btn" id="btnMode" style="display:none">Mode: Free Mode</button>
+      </div>
+
+      </div>
+    </div>
+
+    <div class="hint">Free Mode · Drag: Orbit · Wheel: Zoom · Set Tx/Rx then Solve</div>
+  </div>
+
+<script type="module">
+import * as THREE from '/lib/three.module.js';
+import { OrbitControls } from '/lib/OrbitControls.js';
+import { PLYLoader } from '/lib/PLYLoader.js';
+import { Line2 } from '/lib/Line2.js';
+import { LineMaterial } from '/lib/LineMaterial.js';
+import { LineGeometry } from '/lib/LineGeometry.js';
+
+const canvas = document.getElementById('view');
+const info = document.getElementById('info');
+const phase = document.getElementById('phase');
+const loadingPhase = document.getElementById('loadingPhase');
+const bar = document.getElementById('bar');
+const loadingScreen = document.getElementById('loadingScreen');
+const uiPanel = document.getElementById('ui');
+const uiBody = document.getElementById('uiBody');
+
+const stTotal = document.getElementById('stTotal');
+const stValid = document.getElementById('stValid');
+const stMesh = document.getElementById('stMesh');
+const stSel = document.getElementById('stSel');
+
+const btnReset = document.getElementById('btnReset');
+const btnAuto = document.getElementById('btnAuto');
+const btnClear = document.getElementById('btnClear');
+const modeSwitchTop = document.getElementById('modeSwitchTop');
+const btnMode = document.getElementById('btnMode');
+const btnSetTx = document.getElementById('btnSetTx');
+const btnSetRx = document.getElementById('btnSetRx');
+const btnSolve = document.getElementById('btnSolve');
+const panelToggle = document.getElementById('panelToggle');
+
+const txPanel = document.getElementById('txPanel');
+const txCoord = document.getElementById('txCoord');
+
+const rxPanel = document.getElementById('rxPanel');
+const rxPower = document.getElementById('rxPower');
+const rxPaths = document.getElementById('rxPaths');
+const rxLos = document.getElementById('rxLos');
+const rxBest = document.getElementById('rxBest');
+const pathButtons = document.getElementById('pathButtons');
+const txX = document.getElementById('txX');
+const txY = document.getElementById('txY');
+const txZ = document.getElementById('txZ');
+const rxX = document.getElementById('rxX');
+const rxY = document.getElementById('rxY');
+const rxZ = document.getElementById('rxZ');
+const txXYZVal = document.getElementById('txXYZVal');
+const rxXYZVal = document.getElementById('rxXYZVal');
+const txPickHint = document.getElementById('txPickHint');
+const rxPickHint = document.getElementById('rxPickHint');
+
+const cfgMaxDepth = document.getElementById('cfgMaxDepth');
+const cfgFrequency = document.getElementById('cfgFrequency');
+const cfgSpecular = document.getElementById('cfgSpecular');
+const cfgDiffuse = document.getElementById('cfgDiffuse');
+const cfgRefraction = document.getElementById('cfgRefraction');
+
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xe7eaef);
+scene.fog = new THREE.Fog(0xe7eaef, 420, 1800);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 3000);
+// Use Z-up to match the scene coordinates and avoid "tilted" default view
+camera.up.set(0, 0, 1);
+
+const DEFAULT_VIEW = {
+  pos: new THREE.Vector3(-120, -180, 150),
+  target: new THREE.Vector3(72, 37, 10),
+};
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+// lock orbit range: keep camera above the scene, prevent going under the model
+controls.minPolarAngle = 0.10;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.minDistance = 35;
+controls.maxDistance = 520;
+
+function applyDefaultView(){
+  camera.position.copy(DEFAULT_VIEW.pos);
+  camera.up.set(0, 0, 1);
+  controls.target.copy(DEFAULT_VIEW.target);
+  camera.lookAt(DEFAULT_VIEW.target);
+  controls.update();
+}
+
+applyDefaultView();
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.12));
+scene.add(new THREE.HemisphereLight(0xffffff, 0xd8dce3, 0.62));
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.95);
+keyLight.position.set(260, -150, 340);
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.44);
+fillLight.position.set(-200, 260, 180);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xf5f7ff, 0.25);
+rimLight.position.set(10, -280, 130);
+scene.add(rimLight);
+
+const loader = new PLYLoader();
+const modelGroup = new THREE.Group();
+scene.add(modelGroup);
+
+const txSphere = new THREE.Mesh(new THREE.SphereGeometry(1.8, 20, 20), new THREE.MeshBasicMaterial({color:0x00e5ff}));
+scene.add(txSphere);
+
+const rxMarker = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), new THREE.MeshBasicMaterial({color:0x39ff8f}));
+rxMarker.visible = false;
+scene.add(rxMarker);
+
+const radioGroup = new THREE.Group();
+radioGroup.visible = false; // realtime page does not show radio map tiles
+scene.add(radioGroup);
+
+const overlayGroup = new THREE.Group();
+scene.add(overlayGroup);
+
+const pathGroup = new THREE.Group();
+scene.add(pathGroup);
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+let pointsData = null;
+let pickables = [];
+let autoRotate = false;
+let pathLineMaterials = [];
+let selectedRxIdx = null;
+let selectedPathIdx = -1; // -1 means show all
+let rtResultPaths = [];
+
+let mode = 'realtime'; // showcase | realtime
+let placeTarget = null; // tx | rx | null
+let rtTx = [72.0, 37.0, 40.0];
+let rtRx = [72.0, 37.0, 1.5];
+let baseTx = [...rtTx];
+let baseRx = [...rtRx];
+
+const TILE_SCALE_REF_DIST = 230;
+const TILE_SCALE_MIN = 0.52;
+// avoid far-view overlap between neighboring tiles
+const TILE_SCALE_MAX = 1.02;
+
+function setInfo(text){
+  const t = (text || '').trim();
+  info.textContent = t;
+  info.style.display = t ? 'block' : 'none';
+}
+function setProgress(p, text){
+  const v = Math.max(0, Math.min(100, p));
+  bar.style.width = v.toFixed(1)+'%';
+  if (text) {
+    phase.textContent = text;
+    loadingPhase.textContent = text;
+  }
+}
+
+function updateRadioTileScale(){
+  const d = camera.position.distanceTo(controls.target);
+  const s = Math.max(TILE_SCALE_MIN, Math.min(TILE_SCALE_MAX, Math.pow(d / TILE_SCALE_REF_DIST, 0.78)));
+  for (const m of pickables) m.scale.setScalar(s);
+}
+
+function syncZControls(){
+  txXYZVal.textContent = `(${rtTx.map(v=>Number(v).toFixed(1)).join(', ')})`;
+  rxXYZVal.textContent = `(${rtRx.map(v=>Number(v).toFixed(1)).join(', ')})`;
+}
+
+function resetDeltaSliders(){
+  txX.value = '0'; txY.value = '0'; txZ.value = '0';
+  rxX.value = '0'; rxY.value = '0'; rxZ.value = '0';
+}
+
+function setTxPanel(tx){
+  txCoord.textContent = `[${tx.map(v=>Number(v).toFixed(1)).join(', ')}]`;
+  txPanel.style.display = 'block';
+  syncZControls();
+}
+
+function refreshModeUI(){
+  const rt = mode === 'realtime';
+  btnMode.textContent = rt ? 'Mode: Free Mode' : 'Mode: Showcase';
+  btnSetTx.style.opacity = rt ? '1' : '0.5';
+  btnSetRx.style.opacity = rt ? '1' : '0.5';
+  btnSolve.style.opacity = rt ? '1' : '0.5';
+  rxMarker.visible = rt;
+  if (!rt){
+    txPickHint.style.display = 'none';
+    rxPickHint.style.display = 'none';
+  }
+}
+
+function worldPointAtZ(ev, z=1.5){
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0,0,1), -z);
+  const out = new THREE.Vector3();
+  const ok = raycaster.ray.intersectPlane(plane, out);
+  return ok ? out : null;
+}
+
+function worldPoint3D(ev){
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  // prefer true 3D intersection with scene meshes (free z)
+  const hits = raycaster.intersectObjects(modelGroup.children, false);
+  if (hits && hits.length) return hits[0].point;
+
+  // fallback to ground plane
+  return worldPointAtZ(ev, 0.0);
+}
+
+function drawPathList(list){
+  while(pathGroup.children.length) pathGroup.remove(pathGroup.children[0]);
+  pathLineMaterials = [];
+
+  (list || []).forEach(path => {
+    const pts = path.polyline.map(v => new THREE.Vector3(v[0], v[1], v[2]));
+    if (pts.length < 2) return;
+    const t = (typeof path.path_power_norm === 'number') ? path.path_power_norm : 0.0;
+    const c = pathColor(t);
+    const flat = [];
+    pts.forEach(v => flat.push(v.x, v.y, v.z));
+    const geom = new LineGeometry();
+    geom.setPositions(flat);
+    const mat = new LineMaterial({
+      color:c, linewidth: 1.5 + 1.7*t, transparent:true, opacity:0.66 + 0.20*t,
+      depthTest:true, depthWrite:false, toneMapped:false
+    });
+    mat.resolution.set(innerWidth, innerHeight);
+    pathLineMaterials.push(mat);
+    const line = new Line2(geom, mat);
+    line.computeLineDistances();
+    pathGroup.add(line);
+  });
+}
+
+function renderRtPathButtons(){
+  pathButtons.innerHTML = '';
+  if (!rtResultPaths.length) return;
+
+  const mk = (label, idx) => {
+    const b = document.createElement('button');
+    b.className = 'pbtn' + ((selectedPathIdx === idx) ? ' active' : '');
+    b.textContent = label;
+    b.addEventListener('click', ()=>{
+      selectedPathIdx = idx;
+      const list = (idx < 0) ? rtResultPaths : [rtResultPaths[idx]].filter(Boolean);
+      drawPathList(list);
+      renderRtPathButtons();
+    });
+    return b;
+  };
+
+  pathButtons.appendChild(mk('All', -1));
+  rtResultPaths.forEach((_, i)=> pathButtons.appendChild(mk(`Path ${i+1}`, i)));
+}
+
+async function solveRealtimePair(){
+  setInfo('Computing realtime paths...');
+  const freqGHz = Number(cfgFrequency.value);
+  const res = await fetch('/api/solve_pair', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      tx: rtTx,
+      rx: rtRx,
+      max_depth: Number(cfgMaxDepth.value),
+      frequency: Number.isFinite(freqGHz) ? (freqGHz * 1e9) : 28e9,
+      samples_per_src: 30000,
+      los: true,
+      specular_reflection: !!cfgSpecular.checked,
+      diffuse_reflection: !!cfgDiffuse.checked,
+      refraction: !!cfgRefraction.checked,
+      seed: 10
+    })
+  });
+  const j = await res.json();
+  if (!res.ok || !j.ok) throw new Error(j.error || 'realtime solve failed');
+
+  selectedRxIdx = null;
+  selectedPathIdx = -1;
+  rtResultPaths = (j.paths || []);
+  drawPathList(rtResultPaths);
+  renderRtPathButtons();
+
+  setTxPanel(rtTx);
+  rxPanel.style.display = 'block';
+  const pList = (j.paths || []).map(p => Number(p.path_power_db)).filter(v => Number.isFinite(v));
+  let sigDb = null;
+  if (pList.length){
+    const sumLin = pList.reduce((a,db)=> a + Math.pow(10, db/10), 0);
+    sigDb = 10 * Math.log10(Math.max(sumLin, 1e-30));
+  }
+  rxPower.textContent = Number.isFinite(sigDb) ? `${sigDb.toFixed(2)} dB` : 'N/A';
+  const bestDb = pList.length ? Math.max(...pList) : null;
+  rxBest.textContent = Number.isFinite(bestDb) ? `${bestDb.toFixed(2)} dB` : 'N/A';
+  rxPaths.textContent = `${j.valid_paths ?? 0}`;
+  const hasLos = (j.los_paths || 0) > 0;
+  rxLos.textContent = hasLos ? 'Yes' : 'No';
+  rxLos.className = `pill ${hasLos ? 'yes' : 'no'}`;
+  stSel.textContent = 'RT';
+  setInfo('');
+}
+
+function hideRxPanel(){
+  rxPanel.style.display = 'none';
+}
+
+function showRxPanel(p){
+  rxPower.textContent = `${(typeof p.power_db === 'number') ? p.power_db.toFixed(2) : 'N/A'} dB`;
+  rxPaths.textContent = `${p.valid_paths ?? 0}`;
+  const hasLos = (p.los_paths || 0) > 0;
+  rxLos.textContent = hasLos ? 'Yes' : 'No';
+  rxLos.className = `pill ${hasLos ? 'yes' : 'no'}`;
+  rxPanel.style.display = 'block';
+}
+
+function quantile(arr, q){
+  if(!arr.length) return 0;
+  const a=[...arr].sort((x,y)=>x-y);
+  const pos=(a.length-1)*q;
+  const lo=Math.floor(pos), hi=Math.ceil(pos);
+  if(lo===hi) return a[lo];
+  return a[lo] + (a[hi]-a[lo])*(pos-lo);
+}
+
+function normByRange(v, vmin, vmax){
+  if(vmax<=vmin) return 0;
+  return Math.max(0, Math.min(1, (v-vmin)/(vmax-vmin)));
+}
+
+function colorMap(t){
+  t=Math.max(0,Math.min(1,t));
+  // Classic jet (low-saturation): blue -> cyan -> green -> yellow -> red
+  const stops=[
+    {t:0.00,c:[44,66,168]},
+    {t:0.16,c:[54,108,198]},
+    {t:0.33,c:[69,156,206]},
+    {t:0.50,c:[90,188,170]},
+    {t:0.66,c:[146,200,116]},
+    {t:0.82,c:[201,178,101]},
+    {t:1.00,c:[196,113,113]},
+  ];
+  for(let i=0;i<stops.length-1;i++){
+    const a=stops[i], b=stops[i+1];
+    if(t>=a.t && t<=b.t){
+      const u=(t-a.t)/(b.t-a.t);
+      const r=Math.round(a.c[0]+(b.c[0]-a.c[0])*u);
+      const g=Math.round(a.c[1]+(b.c[1]-a.c[1])*u);
+      const bl=Math.round(a.c[2]+(b.c[2]-a.c[2])*u);
+      const base = new THREE.Color(`rgb(${r},${g},${bl})`);
+      const gray = new THREE.Color(0xb0b6bf);
+      return base.lerp(gray, 0.12);
+    }
+  }
+  return new THREE.Color('rgb(196,113,113)');
+}
+
+
+
+function addRadioMapOverlay(data, lo, hi){
+  while(overlayGroup.children.length) overlayGroup.remove(overlayGroup.children[0]);
+
+  const g = data.meta?.grid || {};
+  const nx = g.nx || 0, ny = g.ny || 0;
+  if (!nx || !ny) return;
+
+  const canvasTex = document.createElement('canvas');
+  canvasTex.width = nx;
+  canvasTex.height = ny;
+  const ctx = canvasTex.getContext('2d');
+
+  // points are serialized row-major by y, then x
+  for (let iy=0; iy<ny; iy++){
+    for (let ix=0; ix<nx; ix++){
+      const idx = iy*nx + ix;
+      const p = data.points[idx];
+      let col = new THREE.Color('#9097a3');
+      if (p && (p.valid_paths||0) > 0){
+        const t = normByRange(p.power_db, lo, hi);
+        col = colorMap(t);
+      }
+      ctx.fillStyle = `rgb(${Math.round(col.r*255)},${Math.round(col.g*255)},${Math.round(col.b*255)})`;
+      ctx.fillRect(ix, iy, 1, 1);
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(canvasTex);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.NearestFilter;
+
+  const w = (g.xmax - g.xmin) + (g.step || 0);
+  const h = (g.ymax - g.ymin) + (g.step || 0);
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({map:tex, transparent:true, opacity:0.88, depthWrite:false, side:THREE.DoubleSide})
+  );
+  // Radio map lives on z=0 plane as requested
+  plane.position.set((g.xmin + g.xmax)/2, (g.ymin + g.ymax)/2, 0.01);
+  overlayGroup.add(plane);
+}
+
+function addRadioMapPoints(data){
+  // Tile size follows grid step to avoid sparse/checkerboard look
+  const step = data?.meta?.grid?.step || 2.0;
+  const tileSize = Math.max(0.8, step * 0.94);
+  const geo = new THREE.PlaneGeometry(tileSize, tileSize);
+  const validDb = data.points.filter(p => (p.valid_paths||0) > 0 && Number.isFinite(p.power_db)).map(p => p.power_db);
+  const dispMin = quantile(validDb, 0.02);
+  const dispMax = quantile(validDb, 0.98);
+
+  const cbMin = document.getElementById('cbMin');
+  const cbMax = document.getElementById('cbMax');
+  const lo = Number.isFinite(dispMin)?dispMin:-120;
+  const hi = Number.isFinite(dispMax)?dispMax:-70;
+  cbMin.textContent = `${lo.toFixed(1)} dB`;
+  cbMax.textContent = `${hi.toFixed(1)} dB`;
+
+  // keep a single visible layer (clickable tiles) to guarantee consistency
+  data.points.forEach((p, idx) => {
+    let col;
+    if ((p.valid_paths||0) <= 0) col = new THREE.Color('#555b66');
+    else {
+      const t = normByRange(p.power_db, lo, hi);
+      p.display_norm = t;
+      col = colorMap(t);
+    }
+    const m = new THREE.MeshBasicMaterial({color:col, side:THREE.DoubleSide, transparent:false, opacity:1.0});
+    const s = new THREE.Mesh(geo, m);
+    s.position.set(p.rx[0], p.rx[1], p.rx[2] + 0.05);
+    s.userData.idx = idx;
+    s.userData.baseColor = col.getHex();
+    radioGroup.add(s);
+    pickables.push(s);
+  });
+}
+
+async function loadAll(){
+  setProgress(2, 'Loading scene assets...');
+  const [manifest, data] = await Promise.all([
+    fetch('/api/manifest').then(r=>r.json()),
+    fetch('/api/data').then(r=>r.json())
+  ]);
+
+  pointsData = data;
+  const tx = data.meta.tx;
+  rtTx = [...tx];
+  txSphere.position.set(tx[0], tx[1], tx[2]);
+  setTxPanel(tx);
+
+  addRadioMapPoints(data);
+  stTotal.textContent = String(data.meta.points_total ?? '--');
+  stValid.textContent = String(data.meta.points_with_paths ?? '--');
+  stMesh.textContent = String(manifest.count ?? '--');
+
+  setInfo('');
+  setProgress(12, 'Loading building meshes...');
+
+  for (let i=0;i<manifest.meshes.length;i++){
+    const m = manifest.meshes[i];
+    try {
+      const geo = await loader.loadAsync('/meshes/' + encodeURIComponent(m.file));
+      geo.computeVertexNormals();
+      geo.computeBoundingBox();
+
+      // Clean presentation style: neutral dark buildings on bright background
+      // Robust ground detection: filename hints + geometry shape hints
+      const name = (m.file || '').toLowerCase();
+      const byName =
+        (name.includes('terrain') || name.includes('road') || name.includes('street') || name.includes('sidewalk') || name.includes('ground_plane'))
+        && !name.includes('building') && !name.includes('wall') && !name.includes('roof');
+
+      let byShape = false;
+      const bb = geo.boundingBox;
+      if (bb){
+        const sx = bb.max.x - bb.min.x;
+        const sy = bb.max.y - bb.min.y;
+        const sz = bb.max.z - bb.min.z;
+        const areaLike = sx * sy;
+        // large + very flat + near ground level => likely ground slab
+        byShape = (areaLike > 1200) && (sz < 2.5) && (bb.max.z < 6.0);
+      }
+
+      const isGround = byName || byShape;
+      const prettyColor = isGround ? new THREE.Color('#e7eaef') : new THREE.Color('#5b5d61');
+
+      const mat = isGround
+        ? new THREE.MeshBasicMaterial({
+            color: prettyColor,
+            side: THREE.DoubleSide
+          })
+        : new THREE.MeshStandardMaterial({
+            color: prettyColor,
+            roughness: 0.88,
+            metalness: 0.0,
+            side: THREE.DoubleSide
+          });
+      const mesh = new THREE.Mesh(geo, mat);
+      modelGroup.add(mesh);
+    } catch(e){ console.warn('mesh load failed', m.file, e); }
+    const p = 12 + (i+1)/manifest.count * 88;
+    setProgress(p, `Loading buildings ${i+1}/${manifest.count}`);
+    if ((i+1) % 25 === 0) await new Promise(r=>setTimeout(r,0));
+  }
+
+  setProgress(100, 'Load complete');
+  setInfo('');
+  loadingScreen.style.display = 'none';
+  uiPanel.style.display = 'block';
+  if (mode === 'realtime') {
+    rxPanel.style.display = 'none';
+    rxMarker.position.set(rtRx[0], rtRx[1], rtRx[2]);
+    rxMarker.visible = true;
+    baseTx = [...rtTx];
+    baseRx = [...rtRx];
+    resetDeltaSliders();
+    syncZControls();
+  }
+}
+
+function pathColor(t){
+  t=Math.max(0,Math.min(1,t));
+  // Higher-saturation palette for better path readability
+  const stops=[
+    {t:0.00,c:[10,70,255]},
+    {t:0.24,c:[0,210,255]},
+    {t:0.50,c:[170,70,255]},
+    {t:0.78,c:[255,55,95]},
+    {t:1.00,c:[255,120,20]},
+  ];
+  for(let i=0;i<stops.length-1;i++){
+    const a=stops[i], b=stops[i+1];
+    if(t>=a.t && t<=b.t){
+      const u=(t-a.t)/(b.t-a.t);
+      const r=Math.round(a.c[0]+(b.c[0]-a.c[0])*u);
+      const g=Math.round(a.c[1]+(b.c[1]-a.c[1])*u);
+      const bl=Math.round(a.c[2]+(b.c[2]-a.c[2])*u);
+      return new THREE.Color(`rgb(${r},${g},${bl})`);
+    }
+  }
+  return new THREE.Color('rgb(255,120,20)');
+}
+
+function clearPaths(){
+  while(pathGroup.children.length) pathGroup.remove(pathGroup.children[0]);
+  pathLineMaterials = [];
+  pathButtons.innerHTML = '';
+  selectedRxIdx = null;
+  selectedPathIdx = -1;
+  pickables.forEach(p => {
+    if (typeof p.userData.baseColor === 'number') p.material.color.setHex(p.userData.baseColor);
+    else p.material.color.set('#555b66');
+  });
+  stSel.textContent = 'None';
+  hideRxPanel();
+}
+
+function renderSelectedPaths(){
+  while(pathGroup.children.length) pathGroup.remove(pathGroup.children[0]);
+  pathLineMaterials = [];
+  if (selectedRxIdx === null) return;
+
+  const p = pointsData.points[selectedRxIdx];
+  const list = (selectedPathIdx >= 0) ? [p.paths[selectedPathIdx]].filter(Boolean) : p.paths;
+
+  list.forEach(path => {
+    const pts = path.polyline.map(v => new THREE.Vector3(v[0], v[1], v[2]));
+    if (pts.length < 2) return;
+
+    const t = (typeof path.path_power_norm === 'number') ? path.path_power_norm : 0.0;
+    const c = pathColor(t);
+
+    const flat = [];
+    pts.forEach(v => { flat.push(v.x, v.y, v.z); });
+
+    const geom = new LineGeometry();
+    geom.setPositions(flat);
+
+    const mat = new LineMaterial({
+      color: c,
+      linewidth: 1.5 + 1.7 * t,
+      transparent: true,
+      opacity: 0.66 + 0.20 * t,
+      depthTest: true,
+      depthWrite: false,
+      toneMapped: false
+    });
+    mat.resolution.set(innerWidth, innerHeight);
+    pathLineMaterials.push(mat);
+
+    const line = new Line2(geom, mat);
+    line.computeLineDistances();
+    pathGroup.add(line);
+  });
+}
+
+function renderPathButtons(p){
+  pathButtons.innerHTML = '';
+  if (!p || !Array.isArray(p.paths) || p.paths.length === 0) return;
+
+  const mkBtn = (label, idx) => {
+    const b = document.createElement('button');
+    b.className = 'pbtn' + ((selectedPathIdx === idx) ? ' active' : '');
+    b.textContent = label;
+    b.addEventListener('click', () => {
+      selectedPathIdx = idx;
+      renderSelectedPaths();
+      renderPathButtons(pointsData.points[selectedRxIdx]);
+    });
+    return b;
+  };
+
+  pathButtons.appendChild(mkBtn('All', -1));
+  p.paths.forEach((_, i) => pathButtons.appendChild(mkBtn(`Path ${i+1}`, i)));
+}
+
+function showPoint(idx){
+  while(pathGroup.children.length) pathGroup.remove(pathGroup.children[0]);
+  pathLineMaterials = [];
+  pickables.forEach(p => {
+    if (typeof p.userData.baseColor === 'number') p.material.color.setHex(p.userData.baseColor);
+    else p.material.color.set('#555b66');
+  });
+
+  selectedRxIdx = idx;
+  selectedPathIdx = -1;
+
+  const p = pointsData.points[idx];
+  const hit = pickables.find(x=>x.userData.idx===idx);
+  if (hit) hit.material.color.setHex(0xff66cc);
+
+  renderSelectedPaths();
+  renderPathButtons(p);
+
+  stSel.textContent = String(idx);
+  showRxPanel(p);
+  setInfo('');
+}
+
+canvas.addEventListener('click', (ev) => {
+  if (mode === 'realtime'){
+    if (placeTarget){
+      const p = worldPoint3D(ev);
+      if (!p) return;
+      if (placeTarget === 'tx'){
+        rtTx = [p.x, p.y, p.z];
+        baseTx = [...rtTx];
+        txSphere.position.set(rtTx[0], rtTx[1], rtTx[2]);
+        setTxPanel(rtTx);
+        txX.value='0'; txY.value='0'; txZ.value='0';
+        txPickHint.style.display = 'none';
+        syncZControls();
+        setInfo('');
+      } else if (placeTarget === 'rx'){
+        rtRx = [p.x, p.y, p.z];
+        baseRx = [...rtRx];
+        rxMarker.position.set(rtRx[0], rtRx[1], rtRx[2]);
+        rxMarker.visible = true;
+        rxX.value='0'; rxY.value='0'; rxZ.value='0';
+        rxPickHint.style.display = 'none';
+        syncZControls();
+        setInfo('');
+      }
+      placeTarget = null;
+    }
+    return; // block showcase point picking in realtime mode
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(pickables, false);
+  if (hits.length) showPoint(hits[0].object.userData.idx);
+});
+
+btnReset.addEventListener('click', ()=>{
+  autoRotate = false;
+  btnAuto.textContent = 'Auto Rotate';
+  applyDefaultView();
+});
+btnAuto.addEventListener('click', ()=>{
+  autoRotate = !autoRotate;
+  btnAuto.textContent = autoRotate ? 'Stop Rotate' : 'Auto Rotate';
+});
+btnClear.addEventListener('click', ()=> clearPaths());
+modeSwitchTop.checked = true;
+modeSwitchTop.addEventListener('change', ()=>{ window.location.href = modeSwitchTop.checked ? '/realtime.html' : '/'; });
+btnMode.addEventListener('click', ()=>{
+  mode = (mode === 'showcase') ? 'realtime' : 'showcase';
+  placeTarget = null;
+  refreshModeUI();
+  if (mode === 'realtime'){
+    clearPaths();
+    rxPanel.style.display = 'none';
+    rxMarker.position.set(rtRx[0], rtRx[1], rtRx[2]);
+    rxMarker.visible = true;
+    syncZControls();
+    setInfo('Free Mode: pick Tx/Rx, fine-tune ΔXYZ, then Solve.');
+  } else {
+    // restore showcase default Tx when leaving realtime mode
+    const tx0 = pointsData?.meta?.tx;
+    if (Array.isArray(tx0) && tx0.length === 3){
+      rtTx = [...tx0];
+      txSphere.position.set(rtTx[0], rtTx[1], rtTx[2]);
+      setTxPanel(rtTx);
+    }
+    rxMarker.visible = false;
+    setInfo('');
+  }
+});
+btnSetTx.addEventListener('click', ()=>{
+  if (mode !== 'realtime') return;
+  placeTarget = 'tx';
+  txPickHint.style.display = 'block';
+  rxPickHint.style.display = 'none';
+  setInfo('');
+});
+btnSetRx.addEventListener('click', ()=>{
+  if (mode !== 'realtime') return;
+  placeTarget = 'rx';
+  rxPickHint.style.display = 'block';
+  txPickHint.style.display = 'none';
+  setInfo('');
+});
+btnSolve.addEventListener('click', async ()=>{
+  if (mode !== 'realtime') return;
+  try { await solveRealtimePair(); } catch(e){ setInfo('Free Mode solve failed: ' + e.message); }
+});
+
+function applyTxFromSliders(){
+  rtTx = [baseTx[0] + Number(txX.value), baseTx[1] + Number(txY.value), baseTx[2] + Number(txZ.value)];
+  txSphere.position.set(rtTx[0], rtTx[1], rtTx[2]);
+  setTxPanel(rtTx);
+  syncZControls();
+}
+
+function applyRxFromSliders(){
+  rtRx = [baseRx[0] + Number(rxX.value), baseRx[1] + Number(rxY.value), baseRx[2] + Number(rxZ.value)];
+  rxMarker.position.set(rtRx[0], rtRx[1], rtRx[2]);
+  rxMarker.visible = true;
+  syncZControls();
+}
+
+txX.addEventListener('input', applyTxFromSliders);
+txY.addEventListener('input', applyTxFromSliders);
+txZ.addEventListener('input', applyTxFromSliders);
+rxX.addEventListener('input', applyRxFromSliders);
+rxY.addEventListener('input', applyRxFromSliders);
+rxZ.addEventListener('input', applyRxFromSliders);
+
+panelToggle.addEventListener('click', ()=>{
+  const hidden = uiBody.style.display === 'none';
+  uiBody.style.display = hidden ? 'block' : 'none';
+});
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  pathLineMaterials.forEach(m => m.resolution.set(innerWidth, innerHeight));
+});
+
+function animate(){
+  if (autoRotate) {
+    const t = performance.now() * 0.00016;
+    const r = 230;
+    camera.position.x = 72 + Math.cos(t) * r;
+    camera.position.y = 37 + Math.sin(t) * r;
+    camera.up.set(0, 0, 1);
+    controls.target.set(72, 37, 20);
+    camera.lookAt(controls.target);
+  }
+  controls.update();
+  updateRadioTileScale();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+refreshModeUI();
+syncZControls();
+
+loadAll().then(()=>animate()).catch(err=>{
+  console.error(err);
+  setInfo('Load failed: ' + err.message);
+  setProgress(100, 'Load failed');
+  loadingScreen.style.display = 'flex';
+});
+</script>
+</body>
+</html>

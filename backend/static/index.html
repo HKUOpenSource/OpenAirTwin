@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HKU-RT v3.0</title>
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <div class="shell">
+    <div class="topLeftRow">
+      <div class="brand">
+        <div class="dot"></div>
+        <div>
+          <h1>HKU Wireless Digital Twin Platform</h1>
+          <span>Realtime Link Solver & Radio Map</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="logoBar">
+      <img class="hku" src="/assets/hku_logo.jpg" alt="HKU logo" />
+      <img src="/assets/hku_ece_logo.jpg" alt="HKU-ECE logo" />
+    </div>
+
+    <div id="loadingScreen">
+      <div class="loadingCard">
+        <div class="loadingTitle" id="loadingTitle">Loading Scene</div>
+        <div id="barWrap"><div id="bar"></div></div>
+        <div id="loadingPhase">Initializing...</div>
+      </div>
+    </div>
+
+    <div id="ui">
+      <div class="uiHead">
+        <button id="panelToggle" aria-label="Toggle panel"><span class="bar"></span></button>
+      </div>
+      <div id="uiBody">
+        <div class="grid">
+          <div class="card"><b>Scene Meshes</b><span id="stSceneMeshes">--</span></div>
+          <div class="card"><b>Loaded Meshes</b><span id="stLoadedMeshes">0</span></div>
+          <div class="card"><b>Loaded Tiles</b><span id="stLoadedTiles">0</span></div>
+          <div class="card"><b>Active Mode</b><span id="stMode">Link</span></div>
+        </div>
+
+        <div class="modeTabs">
+          <button class="modeTab active" data-mode="link" id="tabLink">Link Mode</button>
+          <button class="modeTab" data-mode="radiomap" id="tabRadiomap">Radio Map</button>
+        </div>
+
+        <div class="sectionCard">
+          <div class="sectionTitle">Scene Loader</div>
+          <div class="tileToolbar">
+            <button class="miniBtn" id="btnSelectAllTiles" type="button">Select All</button>
+            <button class="miniBtn" id="btnClearTiles" type="button">Clear</button>
+            <button class="miniBtn" id="btnMatchLoadedTiles" type="button">Use Loaded</button>
+          </div>
+          <div id="tileSummary" class="tileSummary">0 selected · 0 loaded · 0 pending</div>
+          <div id="tileList" class="tileList"></div>
+          <div class="actions compact">
+            <button class="btn" id="btnLoadScene">Sync Tile Bundles</button>
+          </div>
+        </div>
+
+        <div class="solverCfg">
+          <div class="solverCfgGrid">
+            <div class="solverCol">
+              <div class="solverField">
+                <label for="cfgFrequency">Frequency (GHz)</label>
+                <input id="cfgFrequency" type="number" step="0.1" value="3.5" />
+              </div>
+              <div class="solverField">
+                <label for="cfgMaxDepth">Max Depth</label>
+                <select id="cfgMaxDepth">
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4" selected>4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
+                </select>
+              </div>
+            </div>
+            <div class="solverCol solverChecks">
+              <label><input id="cfgLos" type="checkbox" checked /> LoS</label>
+              <label><input id="cfgSpecular" type="checkbox" checked /> Specular Reflection</label>
+              <label><input id="cfgDiffuse" type="checkbox" /> Diffuse Reflection</label>
+              <label><input id="cfgRefraction" type="checkbox" checked /> Refraction</label>
+            </div>
+          </div>
+        </div>
+
+        <section id="linkPanel" class="modePanel">
+          <div class="rtConfig">
+            <div class="rtCol">
+              <div class="rtHead">Tx Control</div>
+              <button class="btn rtPickBtn" id="btnPickLinkTx">Pick Tx On Surface</button>
+              <div class="coordGrid">
+                <label>X <input id="linkTxX" type="number" step="0.1" value="72.0" /></label>
+                <label>Y <input id="linkTxY" type="number" step="0.1" value="37.0" /></label>
+                <label>Z <input id="linkTxZ" type="number" step="0.1" value="40.0" /></label>
+              </div>
+            </div>
+            <div class="rtCol">
+              <div class="rtHead">Rx Control</div>
+              <button class="btn rtPickBtn" id="btnPickLinkRx">Pick Rx On Surface</button>
+              <div class="coordGrid">
+                <label>X <input id="linkRxX" type="number" step="0.1" value="90.0" /></label>
+                <label>Y <input id="linkRxY" type="number" step="0.1" value="52.0" /></label>
+                <label>Z <input id="linkRxZ" type="number" step="0.1" value="1.5" /></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions rtSolve">
+            <button class="btn" id="btnSolveLink">Solve Link</button>
+          </div>
+
+          <div id="linkResult" class="rtResult">
+            <div id="rxTitle">Channel Result</div>
+            <div class="rxGrid">
+              <div class="rxItem"><b>Received Power</b><span id="linkPower">--</span></div>
+              <div class="rxItem"><b>Strongest Path</b><span id="linkBest">--</span></div>
+              <div class="rxItem"><b>Total Paths</b><span id="linkPaths">--</span></div>
+              <div class="rxItem"><b>LoS</b><span id="linkLos" class="pill no">No</span></div>
+            </div>
+          </div>
+          <div id="pathButtons" class="pathButtons"></div>
+          <div id="pathDetailSection" class="sectionCard hidden">
+            <div class="sectionTitle">Path Details</div>
+            <div id="pathDetailList" class="pathDetailList"></div>
+          </div>
+        </section>
+
+        <section id="radiomapPanel" class="modePanel hidden">
+          <div class="rtConfig">
+            <div class="rtCol">
+              <div class="rtHead">Tx Control</div>
+              <button class="btn rtPickBtn" id="btnPickRmTx">Pick Tx On Surface</button>
+              <div class="coordGrid">
+                <label>X <input id="rmTxX" type="number" step="0.1" value="72.0" /></label>
+                <label>Y <input id="rmTxY" type="number" step="0.1" value="37.0" /></label>
+                <label>Z <input id="rmTxZ" type="number" step="0.1" value="40.0" /></label>
+              </div>
+            </div>
+            <div class="rtCol">
+              <div class="rtHead">Terrain Patch</div>
+              <div class="coordGrid">
+                <label>Size X <input id="rmSizeX" type="number" step="1" value="160.0" /></label>
+                <label>Size Y <input id="rmSizeY" type="number" step="1" value="160.0" /></label>
+                <label>Height Offset <input id="rmHeightOffset" type="number" step="0.1" value="1.5" /></label>
+                <label>Density <input id="rmDensityLevel" type="number" step="1" min="1" max="3" value="2" /></label>
+                <label>Color Min <input id="rmColorMin" type="number" step="1" value="-140" /></label>
+                <label>Color Max <input id="rmColorMax" type="number" step="1" value="-80" /></label>
+              </div>
+              <div class="tileSummary">The XY range is centered on the selected Tx and follows the terrain mesh.</div>
+            </div>
+          </div>
+
+          <div class="actions rtSolve">
+            <button class="btn" id="btnRunRadiomap">Run Radio Map</button>
+          </div>
+
+          <div id="radiomapResult" class="rtResult">
+            <div id="rxTitle">Radio Map Result</div>
+            <div class="rxGrid">
+              <div class="rxItem"><b>Status</b><span id="rmStatus">Idle</span></div>
+              <div class="rxItem"><b>Metric</b><span id="rmMetric">path_gain</span></div>
+              <div class="rxItem"><b>Cells</b><span id="rmGrid">--</span></div>
+              <div class="rxItem"><b>Range</b><span id="rmRange">--</span></div>
+            </div>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button class="btn" id="btnResetView">Reset View</button>
+          <button class="btn" id="btnClearOverlay">Clear Overlay</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hint" id="hintText">Left drag orbits, right drag pans, wheel zooms, Shift+drag free-looks, and W/A/S/D + Q/E moves the camera.</div>
+  </div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

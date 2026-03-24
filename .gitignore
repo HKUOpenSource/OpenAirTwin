@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+._*
+HKU_scenes/
+HKU_scenes/cache/
+.venv/
+venv/
