@@ -33,6 +33,79 @@
       </div>
     </div>
 
+    <div id="entryScreen" class="hidden">
+      <div class="entryCard">
+        <section class="entryIntro">
+          <span class="entryKicker">Tile Index</span>
+          <h2 id="entryRegionTitle">11-SW Tile Index</h2>
+          <p id="entryRegionLead">
+            Start from the regional tile overview, select one or more available tiles, then enter the
+            3D digital twin scene for link and radio-map analysis.
+          </p>
+
+          <div class="entryStats">
+            <div class="entryStat">
+              <b>Available Tiles</b>
+              <span id="entryAvailableTiles">--</span>
+            </div>
+            <div class="entryStat">
+              <b>Selected Tiles</b>
+              <span id="entrySelectedTiles">0</span>
+            </div>
+            <div class="entryStat">
+              <b>Selected Meshes</b>
+              <span id="entrySelectedMeshes">0</span>
+            </div>
+            <div class="entryStat">
+              <b>Loaded Tiles</b>
+              <span id="entryLoadedTiles">0</span>
+            </div>
+          </div>
+
+          <div class="entryLegend">
+            <span class="legendItem"><i class="legendSwatch available"></i> Available</span>
+            <span class="legendItem"><i class="legendSwatch selected"></i> Selected</span>
+            <span class="legendItem"><i class="legendSwatch loaded"></i> Loaded</span>
+            <span class="legendItem"><i class="legendSwatch unavailable"></i> No Data</span>
+          </div>
+
+          <div class="entryActions">
+            <button class="miniBtn" id="btnEntrySelectAll" type="button">Select Available</button>
+            <button class="miniBtn" id="btnEntryClear" type="button">Clear</button>
+            <button class="btn primary" id="btnEnterScene" type="button" disabled>Enter 3D Scene</button>
+          </div>
+        </section>
+
+        <section class="entryMapPanel">
+          <div class="entryMapHead">
+            <div>
+              <div class="entryMapTitle" id="entryMapTitle">11-SW Regional Tile Map</div>
+              <div class="entryMapSub" id="entryMapSub">
+                The entry map follows the HK Island tile reference. Select directly on the regional map.
+              </div>
+            </div>
+            <div class="entryMapMeta" id="entrySelectionMeta">Select one or more tiles to continue.</div>
+          </div>
+
+          <div class="entryMapViewport">
+            <div class="entryMapFigure" id="entryMapFigure">
+              <img class="entryMapImage hidden" id="entryMapImage" alt="Regional tile reference map" />
+              <div id="tileOverview" class="tileOverview"></div>
+            </div>
+          </div>
+
+          <div class="entryMapFooter">
+            <div class="entryMapFooterText">
+              Selected tiles will be loaded as optimized tile bundles before entering the 3D scene.
+            </div>
+            <button class="btn primary entryFooterBtn" id="btnEnterSceneFooter" type="button" disabled>
+              Load Selected Tiles
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+
     <div id="ui">
       <div class="uiHead">
         <button id="panelToggle" aria-label="Toggle panel"><span class="bar"></span></button>
@@ -53,6 +126,7 @@
         <div class="sectionCard">
           <div class="sectionTitle">Scene Loader</div>
           <div class="tileToolbar">
+            <button class="miniBtn" id="btnOpenTileIndex" type="button">Tile Index</button>
             <button class="miniBtn" id="btnSelectAllTiles" type="button">Select All</button>
             <button class="miniBtn" id="btnClearTiles" type="button">Clear</button>
             <button class="miniBtn" id="btnMatchLoadedTiles" type="button">Use Loaded</button>

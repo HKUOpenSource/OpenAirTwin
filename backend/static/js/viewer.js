@@ -10,6 +10,11 @@ const DEFAULT_VIEW = {
   target: new THREE.Vector3(72, 37, 10),
 };
 
+const CAMERA_NEAR_MIN = 0.05;
+const CAMERA_NEAR_MAX = 5;
+const CAMERA_FAR_MIN = 20000;
+const CAMERA_FAR_MULTIPLIER = 150;
+
 const MATERIAL_COLORS = {
   itu_concrete: "#5b5d61",
   itu_medium_dry_ground: "#d9cfbb",
@@ -154,9 +159,9 @@ export class Viewer {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xe7eaef);
-    this.scene.fog = new THREE.Fog(0xe7eaef, 420, 1800);
+    this.scene.fog = null;
 
-    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 4000);
+    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, CAMERA_NEAR_MIN, CAMERA_FAR_MIN);
     this.camera.up.set(0, 0, 1);
     this.camera.position.copy(DEFAULT_VIEW.position);
 
@@ -165,6 +170,7 @@ export class Viewer {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
     this.controls.screenSpacePanning = true;
+    this.controls.maxDistance = CAMERA_FAR_MIN * 0.5;
 
     this.loader = new GLBGeometryLoader();
     this.modelGroup = new THREE.Group();
@@ -261,7 +267,23 @@ export class Viewer {
     if (!this.freeLook.active) {
       this.controls.update(deltaSeconds);
     }
+    this.#syncClipPlanes();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  #syncClipPlanes() {
+    const orbitDistance = Math.max(this.camera.position.distanceTo(this.controls.target), 1);
+    const nextNear = THREE.MathUtils.clamp(orbitDistance / 5000, CAMERA_NEAR_MIN, CAMERA_NEAR_MAX);
+    const nextFar = Math.max(orbitDistance * CAMERA_FAR_MULTIPLIER, CAMERA_FAR_MIN);
+
+    if (Math.abs(this.camera.near - nextNear) < 1e-6 && Math.abs(this.camera.far - nextFar) < 1e-3) {
+      return;
+    }
+
+    this.camera.near = nextNear;
+    this.camera.far = nextFar;
+    this.controls.maxDistance = nextFar * 0.5;
+    this.camera.updateProjectionMatrix();
   }
 
   #cameraDirection() {
@@ -483,6 +505,51 @@ export class Viewer {
 
   setRx(position) {
     this.rxMarker.position.set(position[0], position[1], position[2]);
+  }
+
+  focusOnTiles(tileIds = [...this.loadedTileIds], {padding = 1.35, minDistance = 120} = {}) {
+    const ids = new Set(tileIds);
+    const box = new THREE.Box3();
+    let hasGeometry = false;
+
+    for (const entry of this.modelEntries.values()) {
+      if (!ids.has(entry.bundle.tile)) {
+        continue;
+      }
+      entry.object.updateWorldMatrix(true, false);
+      box.expandByObject(entry.object);
+      hasGeometry = true;
+    }
+
+    if (!hasGeometry || box.isEmpty()) {
+      return false;
+    }
+
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = Math.max(size.length() * 0.5, 1);
+    const verticalFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * this.camera.aspect);
+    const fitHeight = size.y / (2 * Math.tan(verticalFov / 2));
+    const fitWidth = size.x / (2 * Math.tan(horizontalFov / 2));
+    const fitDepth = size.z * 1.1;
+    const distance = Math.max(fitHeight, fitWidth, fitDepth, radius, minDistance) * padding;
+
+    const direction = this.camera.position.clone().sub(this.controls.target);
+    if (direction.lengthSq() < 1e-6) {
+      direction.set(-1, -1.35, 0.9);
+    }
+    direction.normalize();
+
+    this.controls.target.copy(center);
+    this.camera.position.copy(center).addScaledVector(direction, distance);
+    this.#syncClipPlanes();
+    this.camera.lookAt(this.controls.target);
+    this.#cancelFreeLook();
+    this.canvas.style.cursor = "";
+    this.controls.enabled = true;
+    this.controls.update();
+    return true;
   }
 
   #setRayFromClient(clientX, clientY) {
