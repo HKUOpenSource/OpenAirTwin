@@ -69,6 +69,23 @@
             <span class="legendItem"><i class="legendSwatch unavailable"></i> No Data</span>
           </div>
 
+          <div class="entryManual">
+            <label class="entryManualLabel" for="entryTileInput">Manual Tile IDs</label>
+            <div class="entryManualRow">
+              <input
+                id="entryTileInput"
+                class="entryManualInput"
+                type="text"
+                placeholder="e.g. 11-SW-7A, 11-SW-7B"
+                autocomplete="off"
+              />
+              <button class="miniBtn" id="btnEntryApplyIds" type="button">Apply IDs</button>
+            </div>
+            <div class="entryManualHint" id="entryManualHint">
+              Use commas, spaces, or new lines. Only tiles with scene data will be selected.
+            </div>
+          </div>
+
           <div class="entryActions">
             <button class="miniBtn" id="btnEntrySelectAll" type="button">Select Available</button>
             <button class="miniBtn" id="btnEntryClear" type="button">Clear</button>
@@ -79,18 +96,32 @@
         <section class="entryMapPanel">
           <div class="entryMapHead">
             <div>
-              <div class="entryMapTitle" id="entryMapTitle">11-SW Regional Tile Map</div>
+              <div class="entryMapTitle" id="entryMapTitle">Hong Kong Tile Map</div>
               <div class="entryMapSub" id="entryMapSub">
-                The entry map follows the HK Island tile reference. Select directly on the regional map.
+                The entry map follows the Open3DHK tile convention. Select directly on the map or paste IDs.
               </div>
             </div>
             <div class="entryMapMeta" id="entrySelectionMeta">Select one or more tiles to continue.</div>
           </div>
 
-          <div class="entryMapViewport">
+          <div class="entryMapToolbar">
+            <button class="miniBtn" id="btnEntryFitMap" type="button">Fit Map</button>
+            <button class="miniBtn" id="btnEntryFocusSelection" type="button">Focus Selected</button>
+            <button class="miniBtn" id="btnEntryZoomIn" type="button">Zoom In</button>
+            <button class="miniBtn" id="btnEntryZoomOut" type="button">Zoom Out</button>
+          </div>
+
+          <div class="entryMapViewport" id="entryMapViewport">
             <div class="entryMapFigure" id="entryMapFigure">
-              <img class="entryMapImage hidden" id="entryMapImage" alt="Regional tile reference map" />
-              <div id="tileOverview" class="tileOverview"></div>
+              <div class="entryMapScene" id="entryMapScene">
+                <img class="entryMapImage" id="entryMapImage" alt="Hong Kong tile reference map" />
+                <svg class="entryMapOverlay" id="entryMapOverlay" aria-label="Hong Kong tile overlay"></svg>
+              </div>
+              <div class="entryMapTooltip hidden" id="entryMapTooltip"></div>
+              <div class="entryMapBadge">
+                <b>Last Tile</b>
+                <span id="entryMapBadgeValue">None</span>
+              </div>
             </div>
           </div>
 
