@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HKU-RT v3.0</title>
+  <link rel="stylesheet" href="/lib/leaflet/leaflet.css" />
   <link rel="stylesheet" href="/css/app.css" />
 </head>
 <body>
@@ -113,10 +114,7 @@
 
           <div class="entryMapViewport" id="entryMapViewport">
             <div class="entryMapFigure" id="entryMapFigure">
-              <div class="entryMapScene" id="entryMapScene">
-                <img class="entryMapImage" id="entryMapImage" alt="Hong Kong tile reference map" />
-                <svg class="entryMapOverlay" id="entryMapOverlay" aria-label="Hong Kong tile overlay"></svg>
-              </div>
+              <div class="entryMapScene" id="entryMapScene"></div>
               <div class="entryMapTooltip hidden" id="entryMapTooltip"></div>
               <div class="entryMapBadge">
                 <b>Last Tile</b>
@@ -288,6 +286,8 @@
     <div class="hint" id="hintText">Left drag orbits, right drag pans, wheel zooms, Shift+drag free-looks, and W/A/S/D + Q/E moves the camera.</div>
   </div>
 
+  <script src="/lib/leaflet/leaflet.js"></script>
+  <script src="/lib/proj4/proj4.js"></script>
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>

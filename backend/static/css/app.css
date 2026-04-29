@@ -54,23 +54,17 @@ html,body{margin:0;height:100%;font-family:Inter,"Segoe UI",system-ui,-apple-sys
 .entryMapSub{margin-top:4px;font-size:13px;color:#64748b}
 .entryMapMeta{font-size:12px;font-weight:800;color:#1f64e0;text-align:right}
 .entryMapToolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
-.entryMapViewport{position:relative;flex:1 1 auto;min-height:0;border-radius:18px;border:1px solid rgba(130,140,160,.18);background:linear-gradient(180deg,#f7faff,#edf3fb);overflow:hidden}
-.entryMapFigure{position:relative;width:100%;height:100%;min-height:420px;cursor:grab;overflow:hidden;touch-action:none;user-select:none}
-.entryMapFigure.dragging{cursor:grabbing}
-.entryMapScene{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
-.entryMapImage{position:absolute;left:0;top:0;display:block;max-width:none;width:auto;height:auto;border:none;border-radius:0;box-shadow:none;pointer-events:none}
-.entryMapOverlay{position:absolute;left:0;top:0;overflow:visible}
-.entryMajorBoundary{fill:transparent;stroke:rgba(18,30,48,.42);stroke-width:2}
-.entryMajorLabel{font-size:28px;font-weight:800;fill:rgba(18,30,48,.78);text-anchor:middle;dominant-baseline:middle;pointer-events:none}
-.entryTileCell{fill:rgba(31,111,255,.012);stroke:rgba(31,111,255,.16);stroke-width:.58;vector-effect:non-scaling-stroke;cursor:default}
-.entryTileCell.available{cursor:pointer}
-.entryTileCell.available:hover{fill:rgba(31,111,255,.12);stroke:rgba(31,111,255,.72)}
-.entryTileCell.unavailable{fill:rgba(240,244,248,.06);stroke:rgba(108,123,147,.12)}
-.entryTileCell.selected{fill:rgba(31,111,255,.24);stroke:rgba(31,111,255,.98)}
-.entryTileCell.loaded{fill:rgba(30,185,128,.18);stroke:rgba(27,139,87,.92)}
-.entryTileCell.loaded.selected{fill:rgba(30,185,128,.24);stroke:rgba(27,139,87,.98)}
-.entryMapTooltip{position:absolute;z-index:3;left:0;top:0;max-width:240px;padding:8px 10px;border-radius:10px;background:rgba(17,24,39,.94);color:#fff;font-size:12px;line-height:1.35;pointer-events:none;box-shadow:0 10px 24px rgba(0,0,0,.16)}
-.entryMapBadge{position:absolute;left:14px;bottom:14px;display:flex;flex-direction:column;gap:4px;min-width:184px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.94);border:1px solid rgba(130,140,160,.2);box-shadow:0 10px 22px rgba(27,39,58,.12);backdrop-filter:blur(6px);z-index:3}
+.entryMapViewport{position:relative;flex:1 1 auto;min-height:0;border-radius:18px;border:1px solid rgba(130,140,160,.18);background:#fff;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.82)}
+.entryMapFigure{position:relative;width:100%;height:100%;min-height:420px;overflow:hidden;user-select:none;background:#fff}
+.entryMapScene{position:absolute;inset:0;overflow:hidden;background:#fff}
+.entryMapScene.leaflet-container{width:100%;height:100%;font:inherit;background:#fff}
+.entryMapScene .leaflet-control-attribution{font-size:10px;color:#64748b;background:rgba(255,255,255,.82);backdrop-filter:blur(5px)}
+.entryMapScene .leaflet-tile{filter:saturate(.86) contrast(.95) brightness(1.03)}
+.entryGridCanvasLayer{pointer-events:none;will-change:transform}
+.entryFallbackImageLayer{filter:saturate(.9) contrast(.98) brightness(1.01)}
+.entryMapFigure.fallback .entryMapScene .leaflet-control-attribution{display:none}
+.entryMapTooltip{position:absolute;z-index:730;left:0;top:0;max-width:240px;padding:8px 10px;border-radius:10px;background:rgba(17,24,39,.94);color:#fff;font-size:12px;line-height:1.35;pointer-events:none;box-shadow:0 10px 24px rgba(0,0,0,.16)}
+.entryMapBadge{position:absolute;left:14px;bottom:14px;display:flex;flex-direction:column;gap:4px;min-width:184px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.94);border:1px solid rgba(130,140,160,.2);box-shadow:0 10px 22px rgba(27,39,58,.12);backdrop-filter:blur(6px);z-index:720}
 .entryMapBadge b{font-size:11px;font-weight:800;color:#677a94;letter-spacing:.24px;text-transform:uppercase}
 .entryMapBadge span{font-size:18px;font-weight:800;color:#1f64e0}
 .entryMapFooter{display:flex;align-items:center;justify-content:space-between;gap:14px;flex:0 0 auto;margin-top:14px;padding-top:14px;border-top:1px solid rgba(130,140,160,.16)}
