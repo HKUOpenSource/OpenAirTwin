@@ -32,6 +32,8 @@ class TileBundleRecord:
     bsdf_id: str
     mesh_count: int
     source_relative_paths: tuple[str, ...]
+    size_bytes: int | None = None
+    cache_exists: bool = False
 
     def to_api_dict(self) -> dict:
         return {
@@ -42,6 +44,8 @@ class TileBundleRecord:
             "category": self.category,
             "bsdf_id": self.bsdf_id,
             "mesh_count": self.mesh_count,
+            "size_bytes": self.size_bytes,
+            "cache_exists": self.cache_exists,
         }
 
 
@@ -60,7 +64,7 @@ class _PlyHeader:
     face_count: int
 
 
-def build_tile_bundle_records(meshes: list[object]) -> list[TileBundleRecord]:
+def build_tile_bundle_records(meshes: list[object], scene_root: Path | None = None) -> list[TileBundleRecord]:
     grouped: dict[tuple[str, str, str], list[str]] = defaultdict(list)
     for mesh in meshes:
         grouped[(mesh.tile, mesh.category, mesh.bsdf_id)].append(mesh.relative_path)
@@ -68,15 +72,21 @@ def build_tile_bundle_records(meshes: list[object]) -> list[TileBundleRecord]:
     bundles: list[TileBundleRecord] = []
     for tile, category, bsdf_id in sorted(grouped):
         mesh_paths = tuple(sorted(grouped[(tile, category, bsdf_id)]))
+        relative_path = f"cache/render_bundles/{tile}/{category}__{bsdf_id}.glb"
+        bundle_path = None if scene_root is None else scene_root / relative_path
+        cache_exists = bool(bundle_path is not None and bundle_path.exists())
+        size_bytes = bundle_path.stat().st_size if cache_exists and bundle_path is not None else None
         bundles.append(
             TileBundleRecord(
                 bundle_id=f"{tile}__{category}__{bsdf_id}",
-                relative_path=f"cache/render_bundles/{tile}/{category}__{bsdf_id}.glb",
+                relative_path=relative_path,
                 tile=tile,
                 category=category,
                 bsdf_id=bsdf_id,
                 mesh_count=len(mesh_paths),
                 source_relative_paths=mesh_paths,
+                size_bytes=size_bytes,
+                cache_exists=cache_exists,
             )
         )
     return bundles

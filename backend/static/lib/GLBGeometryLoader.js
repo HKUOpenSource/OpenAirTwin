@@ -24,13 +24,144 @@ const TYPE_SIZES = {
   VEC4: 4,
 };
 
+function finitePositiveNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
 export class GLBGeometryLoader {
-  async loadAsync(url) {
+  async loadAsync(url, {onProgress = () => {}} = {}) {
+    const requestStart = performance.now();
+    onProgress({
+      phase: "waiting",
+      loadedBytes: 0,
+      totalBytes: null,
+      speedBytesPerSec: 0,
+      ttfbMs: null,
+      downloadMs: 0,
+      parseMs: 0,
+      streamSupported: Boolean(window.ReadableStream),
+    });
+
     const response = await fetch(url);
+    const responseStart = performance.now();
+    const ttfbMs = responseStart - requestStart;
     if (!response.ok) {
       throw new Error(`Failed to load GLB geometry: ${response.status} ${response.statusText}`);
     }
-    return this.parse(await response.arrayBuffer());
+    const headerTotalBytes = finitePositiveNumber(response.headers.get("Content-Length"));
+    const totalBytes = headerTotalBytes;
+
+    let arrayBuffer;
+    if (response.body?.getReader) {
+      arrayBuffer = await this.#readStream(response.body, {
+        totalBytes,
+        startedAt: responseStart,
+        ttfbMs,
+        onProgress,
+      });
+    } else {
+      onProgress({
+        phase: "downloading",
+        loadedBytes: 0,
+        totalBytes,
+        speedBytesPerSec: 0,
+        ttfbMs,
+        downloadMs: 0,
+        parseMs: 0,
+        streamSupported: false,
+      });
+      arrayBuffer = await response.arrayBuffer();
+      const downloadMs = performance.now() - responseStart;
+      onProgress({
+        phase: "downloading",
+        loadedBytes: arrayBuffer.byteLength,
+        totalBytes: totalBytes || arrayBuffer.byteLength,
+        speedBytesPerSec: downloadMs > 0 ? (arrayBuffer.byteLength / downloadMs) * 1000 : 0,
+        ttfbMs,
+        downloadMs,
+        parseMs: 0,
+        streamSupported: false,
+      });
+    }
+
+    const parseStart = performance.now();
+    onProgress({
+      phase: "parsing",
+      loadedBytes: arrayBuffer.byteLength,
+      totalBytes: totalBytes || arrayBuffer.byteLength,
+      speedBytesPerSec: 0,
+      ttfbMs,
+      downloadMs: parseStart - responseStart,
+      parseMs: 0,
+      streamSupported: Boolean(response.body?.getReader),
+    });
+    const geometry = this.parse(arrayBuffer);
+    const parseMs = performance.now() - parseStart;
+    onProgress({
+      phase: "ready",
+      loadedBytes: arrayBuffer.byteLength,
+      totalBytes: totalBytes || arrayBuffer.byteLength,
+      speedBytesPerSec: 0,
+      ttfbMs,
+      downloadMs: parseStart - responseStart,
+      parseMs,
+      streamSupported: Boolean(response.body?.getReader),
+    });
+    return geometry;
+  }
+
+  async #readStream(body, {totalBytes, startedAt, ttfbMs, onProgress}) {
+    const reader = body.getReader();
+    const chunks = [];
+    let loadedBytes = 0;
+    let lastReportAt = 0;
+
+    while (true) {
+      const {done, value} = await reader.read();
+      const now = performance.now();
+      if (done) {
+        break;
+      }
+
+      chunks.push(value);
+      loadedBytes += value.byteLength;
+      if (now - lastReportAt > 120 || loadedBytes === totalBytes) {
+        const downloadMs = now - startedAt;
+        onProgress({
+          phase: "downloading",
+          loadedBytes,
+          totalBytes,
+          speedBytesPerSec: downloadMs > 0 ? (loadedBytes / downloadMs) * 1000 : 0,
+          ttfbMs,
+          downloadMs,
+          parseMs: 0,
+          streamSupported: true,
+        });
+        lastReportAt = now;
+      }
+    }
+
+    const finishedAt = performance.now();
+    const downloadMs = finishedAt - startedAt;
+    onProgress({
+      phase: "downloading",
+      loadedBytes,
+      totalBytes: totalBytes || loadedBytes,
+      speedBytesPerSec: downloadMs > 0 ? (loadedBytes / downloadMs) * 1000 : 0,
+      ttfbMs,
+      downloadMs,
+      parseMs: 0,
+      streamSupported: true,
+    });
+
+    const buffer = new Uint8Array(loadedBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      buffer.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return buffer.buffer;
   }
 
   parse(arrayBuffer) {

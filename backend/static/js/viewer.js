@@ -14,6 +14,7 @@ const CAMERA_NEAR_MIN = 0.05;
 const CAMERA_NEAR_MAX = 5;
 const CAMERA_FAR_MIN = 20000;
 const CAMERA_FAR_MULTIPLIER = 150;
+const BUNDLE_LOAD_CONCURRENCY = 2;
 
 const MATERIAL_COLORS = {
   itu_concrete: "#5b5d61",
@@ -145,6 +146,11 @@ function displayLayerForBundle(bundle) {
     polygonOffsetUnits: 0,
     depthWrite: true,
   };
+}
+
+function bundleSizeBytes(bundle) {
+  const size = Number(bundle.size_bytes);
+  return Number.isFinite(size) && size > 0 ? size : null;
 }
 
 export class Viewer {
@@ -601,13 +607,73 @@ export class Viewer {
 
     const toAdd = bundles.filter((bundle) => !this.modelEntries.has(bundle.bundle_id));
     const total = toRemove.length + toAdd.length;
+    const progressByBundle = new Map();
+    const activeBundleStates = new Map();
+    const knownTotalBytes = toAdd.reduce((sum, bundle) => sum + (bundleSizeBytes(bundle) || 0), 0);
+    const hasUnknownBytes = toAdd.some((bundle) => bundleSizeBytes(bundle) === null);
     let completed = 0;
 
-    onProgress({
+    const report = (payload) => {
+      const downloadedBytes = [...progressByBundle.values()].reduce((sum, bytes) => sum + bytes, 0);
+      const activeBundles = [...activeBundleStates.values()].sort((left, right) => left.bundleIndex - right.bundleIndex);
+      const activeSpeedBytesPerSec = activeBundles.reduce((sum, item) => {
+        return sum + (item.phase === "downloading" && Number.isFinite(item.speedBytesPerSec) ? item.speedBytesPerSec : 0);
+      }, 0);
+      const phaseSummary = activeBundles
+        .slice(0, BUNDLE_LOAD_CONCURRENCY)
+        .map((item) => `${item.phase}:${item.bundleId}`)
+        .join(",");
+      onProgress({
+        completed,
+        total,
+        added: toAdd.length,
+        removed: toRemove.length,
+        completedDownloads: Math.max(0, completed - toRemove.length),
+        downloadedBytes,
+        totalBytes: knownTotalBytes,
+        hasUnknownBytes,
+        speedBytesPerSec: activeSpeedBytesPerSec,
+        activeBundles,
+        phaseSummary,
+        ...payload,
+      });
+    };
+
+    const updateActiveBundle = (bundle, bundleIndex, event = {}) => {
+      const previous = activeBundleStates.get(bundle.bundle_id) || {};
+      const loadedBytes = Number.isFinite(event.loadedBytes)
+        ? event.loadedBytes
+        : previous.loadedBytes || 0;
+      const sizeBytes = bundleSizeBytes(bundle);
+      const totalBytes = Number.isFinite(event.totalBytes)
+        ? event.totalBytes
+        : sizeBytes;
+      const nextState = {
+        bundle,
+        bundleId: bundle.bundle_id,
+        tile: bundle.tile,
+        category: bundle.category,
+        bundleIndex,
+        bundleTotal: toAdd.length,
+        phase: event.phase || previous.phase || "waiting",
+        loadedBytes,
+        totalBytes,
+        sizeBytes,
+        speedBytesPerSec: Number.isFinite(event.speedBytesPerSec) ? event.speedBytesPerSec : 0,
+        downloadMs: Number.isFinite(event.downloadMs) ? event.downloadMs : previous.downloadMs || 0,
+        parseMs: Number.isFinite(event.parseMs) ? event.parseMs : previous.parseMs || 0,
+        streamSupported: event.streamSupported ?? previous.streamSupported ?? true,
+      };
+      activeBundleStates.set(bundle.bundle_id, nextState);
+      if (Number.isFinite(loadedBytes)) {
+        progressByBundle.set(bundle.bundle_id, loadedBytes);
+      }
+      return nextState;
+    };
+
+    report({
       phase: total > 0 ? "start" : "idle",
-      completed,
-      total,
-      mesh: null,
+      bundle: null,
     });
 
     for (let index = 0; index < toRemove.length; index += 1) {
@@ -615,10 +681,8 @@ export class Viewer {
       const entry = this.modelEntries.get(bundleId);
       this.#removeBundle(bundleId);
       completed += 1;
-      onProgress({
+      report({
         phase: "removing",
-        completed,
-        total,
         bundle: entry?.bundle ?? null,
       });
       if ((index + 1) % 20 === 0) {
@@ -626,20 +690,49 @@ export class Viewer {
       }
     }
 
-    for (let index = 0; index < toAdd.length; index += 1) {
-      const bundle = toAdd[index];
-      const object = await this.#createBundleObject(bundle);
-      this.#storeBundle(bundle, object);
-      completed += 1;
-      onProgress({
-        phase: "loading",
-        completed,
-        total,
-        bundle,
-      });
-      if ((index + 1) % 20 === 0) {
-        await new Promise((resolve) => window.setTimeout(resolve, 0));
+    let nextBundleIndex = 0;
+    let firstLoadError = null;
+    const loadNextBundle = async () => {
+      while (nextBundleIndex < toAdd.length && firstLoadError === null) {
+        const index = nextBundleIndex;
+        nextBundleIndex += 1;
+        const bundle = toAdd[index];
+        progressByBundle.set(bundle.bundle_id, 0);
+
+        let object;
+        try {
+          object = await this.#createBundleObject(bundle, (event) => {
+            const activeBundle = updateActiveBundle(bundle, index + 1, event);
+            report({
+              phase: "loading",
+              activeBundle,
+            });
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          firstLoadError = new Error(`Failed to load ${bundle.bundle_id}: ${message}`);
+          return;
+        }
+
+        const addingBundle = updateActiveBundle(bundle, index + 1, {phase: "adding"});
+        report({phase: "loading", activeBundle: addingBundle});
+        this.#storeBundle(bundle, object);
+        completed += 1;
+        progressByBundle.set(bundle.bundle_id, bundleSizeBytes(bundle) || progressByBundle.get(bundle.bundle_id) || 0);
+        const readyBundle = updateActiveBundle(bundle, index + 1, {
+          phase: "ready",
+          loadedBytes: progressByBundle.get(bundle.bundle_id) || bundleSizeBytes(bundle) || 0,
+          totalBytes: bundleSizeBytes(bundle),
+        });
+        report({phase: "loading", activeBundle: readyBundle, force: true});
+        activeBundleStates.delete(bundle.bundle_id);
       }
+    };
+
+    const workerCount = Math.min(BUNDLE_LOAD_CONCURRENCY, toAdd.length);
+    await Promise.all(Array.from({length: workerCount}, () => loadNextBundle()));
+    if (firstLoadError) {
+      throw firstLoadError;
     }
 
     return {
@@ -792,9 +885,13 @@ export class Viewer {
     this.radiomapMesh = mesh;
   }
 
-  async #createBundleObject(bundle) {
-    const geometry = await this.loader.loadAsync(`/api/scene/bundle/${encodeURIComponent(bundle.bundle_id)}`);
+  async #createBundleObject(bundle, onProgress = () => {}) {
+    const geometry = await this.loader.loadAsync(
+      `/api/scene/bundle/${encodeURIComponent(bundle.bundle_id)}`,
+      {onProgress},
+    );
     if (!geometry.getAttribute("normal")) {
+      onProgress({phase: "parsing", loadedBytes: bundleSizeBytes(bundle), totalBytes: bundleSizeBytes(bundle)});
       geometry.computeVertexNormals();
     }
 
