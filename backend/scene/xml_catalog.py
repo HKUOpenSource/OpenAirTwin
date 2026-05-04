@@ -120,7 +120,7 @@ def load_scene_manifest(scene_root: Path, scene_xml: Path) -> SceneManifest:
         "missing_mesh_samples": missing_files[:16],
     }
 
-    bundles = build_tile_bundle_records(meshes)
+    bundles = build_tile_bundle_records(meshes, scene_root)
 
     return SceneManifest(
         scene_id="hku_main",
