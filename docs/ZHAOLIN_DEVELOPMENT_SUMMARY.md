@@ -12,6 +12,71 @@ This document records Zhaolin's development context, dated feature work, validat
 
 Use `worktree-zhaolin` for Zhaolin's validation work. Do not restart or kill another developer's worktree, especially `worktree-zihao` on port `18091`, unless explicitly requested.
 
+## 2026-05-05 - Load Scene Acceleration and Multi-Tile 3D Performance
+
+This development round focused on keeping geometry exact while improving large scene delivery and browser-side interaction performance when many tile bundles are loaded.
+
+Implemented functionality:
+
+- Added pre-compressed `.glb.gz` tile bundle support using Python's standard `gzip` module.
+- Extended the scene manifest with non-breaking bundle metadata: `cache_key`, `compressed_size_bytes`, and `compressed_cache_exists`.
+- Versioned frontend bundle URLs with `?v={cache_key}` so browser caching can safely use immutable cache headers.
+- Updated `/api/scene/bundle/{bundle_id}` to serve gzip when the browser sends `Accept-Encoding: gzip`, with raw GLB fallback.
+- Added strong bundle response headers: `Cache-Control: public, max-age=31536000, immutable`, `ETag`, `Last-Modified`, `Vary: Accept-Encoding`, `Content-Encoding: gzip`, and original/compressed size headers.
+- Added 304 handling for cached bundle requests.
+- Added `--compress` to `backend.tools.build_tile_bundles` so remote deployments can pre-warm compressed bundle caches.
+- Updated frontend load progress to distinguish transfer size from raw GLB size, avoiding misleading progress when browsers auto-decompress gzip responses.
+- Kept manifest responses `no-store` so clients still discover fresh bundle cache keys.
+
+3D rendering and interaction performance:
+
+- Added `Performance Mode` controls: `Auto`, `Quality`, and `Fast`, with `Auto` as the default.
+- Set the Three.js renderer `powerPreference` to `high-performance`.
+- Reduced the default DPR cap from `2.0` to `1.5`.
+- In `Auto`, lowers DPR to `1.0` during camera interaction and restores after the interaction settles.
+- In `Fast`, keeps DPR fixed at `1.0`; in `Quality`, uses the capped high-quality DPR path.
+- Added a lightweight material mode that uses `MeshLambertMaterial` for large scene bundles while preserving color, transparency, render order, polygon offset, and double-sided rendering.
+- Added category visibility controls with loaded faces/vertices estimates per category.
+- Added `Show All` and `Hide Heavy`; the heavy shortcut hides `VEGETATION_TB` and `GENERIC`.
+- Added a performance HUD showing rolling FPS, DPR, draw calls, renderer triangles, visible faces/vertices, loaded tiles, and loaded bundles.
+- Added a frame yield after adding large bundles to the scene to reduce long main-thread stalls during multi-bundle loading.
+- Kept geometry coordinates, bundle selection, solver inputs, radio-map overlays, Tx/Rx picking, and visual scene correctness unchanged.
+
+Performance panel layout:
+
+- Moved the complete Performance controls out of the main left-side workflow panel.
+- Added a separate top-right Performance dock below the logo block.
+- The dock is hidden on the entry map and during loading, and appears only in the 3D page.
+- The dock defaults to collapsed and shows a compact summary for FPS, DPR, and visible/total bundle load.
+- Expanding the dock reveals all performance mode, material, HUD, and category visibility controls.
+- Matched the Performance dock width and border radius to the original logo block's natural width rather than stretching it across the viewport.
+
+Validation performed during this feature round:
+
+- `node --check backend/static/js/app.js`
+- `node --check backend/static/js/viewer.js`
+- `node --check backend/static/lib/GLBGeometryLoader.js`
+- `python3 -m compileall -q backend scripts tests`
+- `python3 -m unittest tests.test_bundle_acceleration`
+- Verified duplicate HTML IDs after the dock move; the only existing duplicate was the older `rxTitle`, not introduced by this work.
+- Synced code to `/home/defaultuser/worktree-zhaolin`.
+- Pre-compressed remote render bundles before remote validation.
+- Restarted only the Zhaolin `8090` service when backend or frontend runtime code changed.
+- Confirmed `/api/health` returned OK after remote updates.
+- Confirmed remote bundle responses returned gzip, immutable caching headers, original/compressed size headers, and 304 cache hits.
+- Confirmed remote `/index.html`, `/js/app.js`, and `/css/app.css` served the latest Performance dock and layout changes.
+
+Final runtime files introduced by this work:
+
+- `tests/test_bundle_acceleration.py`
+
+Cleanup for this round:
+
+- Final scan found no unused generated files to delete.
+- Final scan found no `__pycache__`, `.pyc`, `.DS_Store`, `.tmp`, or `.bak` leftovers.
+- Kept `tests/test_bundle_acceleration.py` because it validates the new gzip bundle cache and HTTP cache behavior.
+- No scene cache, remote asset, vendored library, or unrelated source file was removed during final cleanup.
+
 ## 2026-05-04 - Entry Map UX, Place Search, and Bundle Loading
 
 This development round replaced the old manual tile-entry flow with a branded map-first workflow, added searchable Hong Kong place lookup, improved GLB bundle loading diagnostics, and made the entry map and loaded 3D scene feel like one continuous digital twin experience.
@@ -156,6 +221,7 @@ Keep generated caches, Python bytecode, `.DS_Store`, log files, and scene cache 
 
 Cleanup history:
 
+- 2026-05-05: final cleanup scan found no unused generated files to delete; kept `tests/test_bundle_acceleration.py` as a functional regression test.
 - 2026-05-04: final cleanup scan found no unused generated files to delete.
 - 2026-04-29: removed intermediate map exploration files after the final OSM / Canvas design was selected:
   - `backend/static/assets/tile_landmask.svg`

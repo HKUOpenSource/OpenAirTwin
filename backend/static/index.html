@@ -16,6 +16,54 @@
       <img src="/assets/hku_ece_logo.jpg" alt="HKU-ECE logo" />
     </div>
 
+    <div id="performanceDock" class="performanceDock hidden collapsed" aria-hidden="true">
+      <button
+        class="performanceDockHead"
+        id="btnPerformanceDockToggle"
+        type="button"
+        aria-label="Expand performance panel"
+        aria-expanded="false"
+      >
+        <span class="performanceDockTitle">Performance</span>
+        <span class="performanceDockSummary">
+          <span><b>FPS</b><i id="perfSummaryFps">--</i></span>
+          <span><b>DPR</b><i id="perfSummaryDpr">--</i></span>
+          <span><b>Load</b><i id="perfSummaryLoaded">--</i></span>
+        </span>
+        <span class="performanceDockChevron" aria-hidden="true">⌄</span>
+      </button>
+      <div class="performanceDockBody">
+        <div class="controlLabel">Performance Mode</div>
+        <div class="perfModeTabs" role="group" aria-label="Performance mode">
+          <button class="perfModeBtn active" data-performance-mode="auto" id="perfModeAuto" type="button">Auto</button>
+          <button class="perfModeBtn" data-performance-mode="quality" id="perfModeQuality" type="button">Quality</button>
+          <button class="perfModeBtn" data-performance-mode="fast" id="perfModeFast" type="button">Fast</button>
+        </div>
+        <label class="perfCheck">
+          <input id="perfLightMaterials" type="checkbox" checked />
+          Lightweight materials
+        </label>
+        <div class="perfHud" id="perfHud">
+          <div class="perfHudGrid">
+            <div class="perfHudItem"><b>FPS</b><span id="perfFps">--</span></div>
+            <div class="perfHudItem"><b>DPR</b><span id="perfDpr">--</span></div>
+            <div class="perfHudItem"><b>Calls</b><span id="perfDrawCalls">--</span></div>
+            <div class="perfHudItem"><b>Triangles</b><span id="perfTriangles">--</span></div>
+            <div class="perfHudItem wide"><b>Visible Faces / Vertices</b><span id="perfFaces">--</span></div>
+            <div class="perfHudItem wide"><b>Loaded Tiles / Bundles</b><span id="perfLoaded">--</span></div>
+          </div>
+        </div>
+        <div class="categoryHead">
+          <span>Category Visibility</span>
+          <div class="categoryActions">
+            <button class="miniBtn" id="btnShowAllCategories" type="button">Show All</button>
+            <button class="miniBtn" id="btnHideHeavyCategories" type="button">Hide Heavy</button>
+          </div>
+        </div>
+        <div id="categoryVisibility" class="categoryVisibility"></div>
+      </div>
+    </div>
+
     <div id="loadingScreen">
       <div class="loadingCard">
         <div class="loadingTitle" id="loadingTitle">Loading Scene</div>

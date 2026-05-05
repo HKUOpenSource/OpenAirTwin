@@ -29,6 +29,50 @@ function finitePositiveNumber(value) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
+function responseByteMeta(response) {
+  const contentEncoding = (response.headers.get("Content-Encoding") || "identity").toLowerCase();
+  const contentLengthBytes = finitePositiveNumber(response.headers.get("Content-Length"));
+  const originalBytes = finitePositiveNumber(response.headers.get("X-Original-Content-Length"));
+  const compressedBytes = finitePositiveNumber(response.headers.get("X-Compressed-Content-Length"));
+  const isGzip = contentEncoding.split(",").map((item) => item.trim()).includes("gzip");
+  const decodedTotalBytes = originalBytes || (isGzip ? null : contentLengthBytes);
+  const transferTotalBytes = compressedBytes || contentLengthBytes;
+
+  return {
+    contentEncoding,
+    compressed: isGzip && compressedBytes !== null,
+    decodedTotalBytes,
+    transferTotalBytes,
+    originalSizeBytes: originalBytes,
+    compressedSizeBytes: compressedBytes,
+  };
+}
+
+function progressBytes(decodedLoadedBytes, meta) {
+  let transferLoadedBytes = decodedLoadedBytes;
+  if (meta.transferTotalBytes && meta.decodedTotalBytes) {
+    transferLoadedBytes = Math.min(
+      meta.transferTotalBytes,
+      (decodedLoadedBytes / meta.decodedTotalBytes) * meta.transferTotalBytes,
+    );
+  } else if (meta.transferTotalBytes && decodedLoadedBytes >= meta.transferTotalBytes && !meta.compressed) {
+    transferLoadedBytes = meta.transferTotalBytes;
+  }
+
+  return {
+    loadedBytes: transferLoadedBytes,
+    totalBytes: meta.transferTotalBytes || meta.decodedTotalBytes,
+    transferLoadedBytes,
+    transferTotalBytes: meta.transferTotalBytes,
+    decodedLoadedBytes,
+    decodedTotalBytes: meta.decodedTotalBytes,
+    originalSizeBytes: meta.originalSizeBytes,
+    compressedSizeBytes: meta.compressedSizeBytes,
+    contentEncoding: meta.contentEncoding,
+    compressed: meta.compressed,
+  };
+}
+
 export class GLBGeometryLoader {
   async loadAsync(url, {onProgress = () => {}} = {}) {
     const requestStart = performance.now();
@@ -49,13 +93,12 @@ export class GLBGeometryLoader {
     if (!response.ok) {
       throw new Error(`Failed to load GLB geometry: ${response.status} ${response.statusText}`);
     }
-    const headerTotalBytes = finitePositiveNumber(response.headers.get("Content-Length"));
-    const totalBytes = headerTotalBytes;
+    const byteMeta = responseByteMeta(response);
 
     let arrayBuffer;
     if (response.body?.getReader) {
       arrayBuffer = await this.#readStream(response.body, {
-        totalBytes,
+        byteMeta,
         startedAt: responseStart,
         ttfbMs,
         onProgress,
@@ -63,8 +106,7 @@ export class GLBGeometryLoader {
     } else {
       onProgress({
         phase: "downloading",
-        loadedBytes: 0,
-        totalBytes,
+        ...progressBytes(0, byteMeta),
         speedBytesPerSec: 0,
         ttfbMs,
         downloadMs: 0,
@@ -73,11 +115,11 @@ export class GLBGeometryLoader {
       });
       arrayBuffer = await response.arrayBuffer();
       const downloadMs = performance.now() - responseStart;
+      const byteProgress = progressBytes(arrayBuffer.byteLength, byteMeta);
       onProgress({
         phase: "downloading",
-        loadedBytes: arrayBuffer.byteLength,
-        totalBytes: totalBytes || arrayBuffer.byteLength,
-        speedBytesPerSec: downloadMs > 0 ? (arrayBuffer.byteLength / downloadMs) * 1000 : 0,
+        ...byteProgress,
+        speedBytesPerSec: downloadMs > 0 ? (byteProgress.loadedBytes / downloadMs) * 1000 : 0,
         ttfbMs,
         downloadMs,
         parseMs: 0,
@@ -86,10 +128,10 @@ export class GLBGeometryLoader {
     }
 
     const parseStart = performance.now();
+    const completeByteProgress = progressBytes(arrayBuffer.byteLength, byteMeta);
     onProgress({
       phase: "parsing",
-      loadedBytes: arrayBuffer.byteLength,
-      totalBytes: totalBytes || arrayBuffer.byteLength,
+      ...completeByteProgress,
       speedBytesPerSec: 0,
       ttfbMs,
       downloadMs: parseStart - responseStart,
@@ -100,8 +142,7 @@ export class GLBGeometryLoader {
     const parseMs = performance.now() - parseStart;
     onProgress({
       phase: "ready",
-      loadedBytes: arrayBuffer.byteLength,
-      totalBytes: totalBytes || arrayBuffer.byteLength,
+      ...completeByteProgress,
       speedBytesPerSec: 0,
       ttfbMs,
       downloadMs: parseStart - responseStart,
@@ -111,10 +152,10 @@ export class GLBGeometryLoader {
     return geometry;
   }
 
-  async #readStream(body, {totalBytes, startedAt, ttfbMs, onProgress}) {
+  async #readStream(body, {byteMeta, startedAt, ttfbMs, onProgress}) {
     const reader = body.getReader();
     const chunks = [];
-    let loadedBytes = 0;
+    let decodedLoadedBytes = 0;
     let lastReportAt = 0;
 
     while (true) {
@@ -125,14 +166,14 @@ export class GLBGeometryLoader {
       }
 
       chunks.push(value);
-      loadedBytes += value.byteLength;
-      if (now - lastReportAt > 120 || loadedBytes === totalBytes) {
+      decodedLoadedBytes += value.byteLength;
+      if (now - lastReportAt > 120 || decodedLoadedBytes === byteMeta.decodedTotalBytes) {
         const downloadMs = now - startedAt;
+        const byteProgress = progressBytes(decodedLoadedBytes, byteMeta);
         onProgress({
           phase: "downloading",
-          loadedBytes,
-          totalBytes,
-          speedBytesPerSec: downloadMs > 0 ? (loadedBytes / downloadMs) * 1000 : 0,
+          ...byteProgress,
+          speedBytesPerSec: downloadMs > 0 ? (byteProgress.loadedBytes / downloadMs) * 1000 : 0,
           ttfbMs,
           downloadMs,
           parseMs: 0,
@@ -144,18 +185,18 @@ export class GLBGeometryLoader {
 
     const finishedAt = performance.now();
     const downloadMs = finishedAt - startedAt;
+    const byteProgress = progressBytes(decodedLoadedBytes, byteMeta);
     onProgress({
       phase: "downloading",
-      loadedBytes,
-      totalBytes: totalBytes || loadedBytes,
-      speedBytesPerSec: downloadMs > 0 ? (loadedBytes / downloadMs) * 1000 : 0,
+      ...byteProgress,
+      speedBytesPerSec: downloadMs > 0 ? (byteProgress.loadedBytes / downloadMs) * 1000 : 0,
       ttfbMs,
       downloadMs,
       parseMs: 0,
       streamSupported: true,
     });
 
-    const buffer = new Uint8Array(loadedBytes);
+    const buffer = new Uint8Array(decodedLoadedBytes);
     let offset = 0;
     for (const chunk of chunks) {
       buffer.set(chunk, offset);

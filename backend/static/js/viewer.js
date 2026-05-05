@@ -15,6 +15,14 @@ const CAMERA_NEAR_MAX = 5;
 const CAMERA_FAR_MIN = 20000;
 const CAMERA_FAR_MULTIPLIER = 150;
 const BUNDLE_LOAD_CONCURRENCY = 2;
+const DEFAULT_PERFORMANCE_MODE = "auto";
+const PERFORMANCE_MODES = new Set(["auto", "quality", "fast"]);
+const AUTO_INTERACTION_PIXEL_RATIO = 1.0;
+const QUALITY_PIXEL_RATIO_CAP = 1.5;
+const AUTO_RESTORE_DELAY_MS = 600;
+const LARGE_BUNDLE_YIELD_VERTEX_THRESHOLD = 500000;
+const LARGE_BUNDLE_YIELD_FACE_THRESHOLD = 150000;
+const FPS_SAMPLE_WINDOW_MS = 1000;
 
 const MATERIAL_COLORS = {
   itu_concrete: "#5b5d61",
@@ -153,11 +161,34 @@ function bundleSizeBytes(bundle) {
   return Number.isFinite(size) && size > 0 ? size : null;
 }
 
+function bundleCompressedSizeBytes(bundle) {
+  const size = Number(bundle.compressed_size_bytes);
+  return bundle.compressed_cache_exists && Number.isFinite(size) && size > 0 ? size : null;
+}
+
+function bundleTransferSizeBytes(bundle) {
+  return bundleCompressedSizeBytes(bundle) || bundleSizeBytes(bundle);
+}
+
+function bundleUrl(bundle) {
+  const url = `/api/scene/bundle/${encodeURIComponent(bundle.bundle_id)}`;
+  return bundle.cache_key ? `${url}?v=${encodeURIComponent(bundle.cache_key)}` : url;
+}
+
 export class Viewer {
   constructor(canvas) {
     this.canvas = canvas;
-    this.renderer = new THREE.WebGLRenderer({canvas, antialias: true});
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: "high-performance",
+    });
+    this.performanceMode = DEFAULT_PERFORMANCE_MODE;
+    this.lightweightMaterials = true;
+    this.hiddenCategories = new Set();
+    this.lastInteractionAt = 0;
+    this.currentPixelRatio = this.#targetPixelRatio();
+    this.renderer.setPixelRatio(this.currentPixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -177,6 +208,9 @@ export class Viewer {
     this.controls.dampingFactor = 0.05;
     this.controls.screenSpacePanning = true;
     this.controls.maxDistance = CAMERA_FAR_MIN * 0.5;
+    this.controls.addEventListener("start", () => this.#markInteraction());
+    this.controls.addEventListener("change", () => this.#markInteraction());
+    this.controls.addEventListener("end", () => this.#markInteraction());
 
     this.loader = new GLBGeometryLoader();
     this.modelGroup = new THREE.Group();
@@ -191,6 +225,19 @@ export class Viewer {
     this.tileMeshCounts = new Map();
     this.meshesLoaded = 0;
     this.loadedTileIds = new Set();
+    this.fpsSamples = [];
+    this.performanceStats = {
+      fps: 0,
+      dpr: this.currentPixelRatio,
+      renderCalls: 0,
+      renderTriangles: 0,
+      estimatedFaces: 0,
+      estimatedVertices: 0,
+      bundleCount: 0,
+      visibleBundleCount: 0,
+      loadedTileCount: 0,
+      visibleTileCount: 0,
+    };
 
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
@@ -242,6 +289,139 @@ export class Viewer {
     this.#animate();
   }
 
+  #qualityPixelRatio() {
+    return Math.min(window.devicePixelRatio || 1, QUALITY_PIXEL_RATIO_CAP);
+  }
+
+  #targetPixelRatio(now = performance.now()) {
+    if (this.performanceMode === "fast") {
+      return AUTO_INTERACTION_PIXEL_RATIO;
+    }
+    if (this.performanceMode === "quality") {
+      return this.#qualityPixelRatio();
+    }
+    return now - this.lastInteractionAt < AUTO_RESTORE_DELAY_MS
+      ? AUTO_INTERACTION_PIXEL_RATIO
+      : this.#qualityPixelRatio();
+  }
+
+  #setRendererPixelRatio(pixelRatio, forceResize = false) {
+    const nextRatio = Math.max(0.5, Number(pixelRatio) || 1);
+    const ratioChanged = Math.abs(nextRatio - this.currentPixelRatio) > 0.01;
+    if (ratioChanged) {
+      this.currentPixelRatio = nextRatio;
+      this.renderer.setPixelRatio(nextRatio);
+    }
+    if (forceResize || ratioChanged) {
+      this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+      for (const material of this.pathMaterials || []) {
+        material.resolution.set(window.innerWidth, window.innerHeight);
+      }
+    }
+    if (this.performanceStats) {
+      this.performanceStats.dpr = this.currentPixelRatio;
+    }
+  }
+
+  #syncRendererPixelRatio(now = performance.now()) {
+    this.#setRendererPixelRatio(this.#targetPixelRatio(now));
+  }
+
+  #markInteraction(now = performance.now()) {
+    this.lastInteractionAt = now;
+    this.#syncRendererPixelRatio(now);
+  }
+
+  setPerformanceMode(mode) {
+    if (!PERFORMANCE_MODES.has(mode)) {
+      return;
+    }
+    this.performanceMode = mode;
+    this.#syncRendererPixelRatio();
+  }
+
+  setLightweightMaterials(enabled) {
+    const next = Boolean(enabled);
+    if (this.lightweightMaterials === next) {
+      return;
+    }
+    this.lightweightMaterials = next;
+    for (const entry of this.modelEntries.values()) {
+      this.#replaceBundleMaterial(entry);
+    }
+    this.meshMaterials = [...this.modelEntries.values()].map((entry) => entry.object.material);
+  }
+
+  setCategoryVisible(category, visible) {
+    if (!category) {
+      return;
+    }
+    if (visible) {
+      this.hiddenCategories.delete(category);
+    } else {
+      this.hiddenCategories.add(category);
+    }
+    for (const entry of this.modelEntries.values()) {
+      if (entry.bundle.category === category) {
+        entry.object.visible = this.isCategoryVisible(category);
+      }
+    }
+    this.#refreshPerformanceStats();
+  }
+
+  isCategoryVisible(category) {
+    return !this.hiddenCategories.has(category);
+  }
+
+  getLoadedCategoryStats() {
+    const byCategory = new Map();
+    for (const entry of this.modelEntries.values()) {
+      const category = entry.bundle.category || "UNKNOWN";
+      const stats = byCategory.get(category) || {
+        category,
+        bundles: 0,
+        visibleBundles: 0,
+        tiles: new Set(),
+        visibleTiles: new Set(),
+        faces: 0,
+        vertices: 0,
+        visibleFaces: 0,
+        visibleVertices: 0,
+        visible: this.isCategoryVisible(category),
+      };
+      stats.bundles += 1;
+      stats.tiles.add(entry.bundle.tile);
+      stats.faces += entry.faceCount;
+      stats.vertices += entry.vertexCount;
+      stats.visible = this.isCategoryVisible(category);
+      if (entry.object.visible) {
+        stats.visibleBundles += 1;
+        stats.visibleTiles.add(entry.bundle.tile);
+        stats.visibleFaces += entry.faceCount;
+        stats.visibleVertices += entry.vertexCount;
+      }
+      byCategory.set(category, stats);
+    }
+
+    return [...byCategory.values()].map((stats) => ({
+      category: stats.category,
+      bundles: stats.bundles,
+      visibleBundles: stats.visibleBundles,
+      tiles: stats.tiles.size,
+      visibleTiles: stats.visibleTiles.size,
+      faces: stats.faces,
+      vertices: stats.vertices,
+      visibleFaces: stats.visibleFaces,
+      visibleVertices: stats.visibleVertices,
+      visible: stats.visible,
+    }));
+  }
+
+  getPerformanceStats() {
+    this.#refreshPerformanceStats();
+    return {...this.performanceStats};
+  }
+
   #createMarker(color, radius) {
     const geometry = new THREE.SphereGeometry(radius, 24, 24);
     const material = new THREE.MeshStandardMaterial({
@@ -257,7 +437,7 @@ export class Viewer {
   #onResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.#setRendererPixelRatio(this.#targetPixelRatio(), true);
     for (const material of this.pathMaterials) {
       material.resolution.set(window.innerWidth, window.innerHeight);
     }
@@ -268,13 +448,57 @@ export class Viewer {
     const deltaSeconds = Math.min((time - this.lastFrameTime) / 1000, 0.05);
     this.lastFrameTime = time;
     if (this.#hasFlyMovement()) {
+      this.#markInteraction(time);
       this.#updateFlyMotion(deltaSeconds);
     }
     if (!this.freeLook.active) {
       this.controls.update(deltaSeconds);
     }
+    this.#syncRendererPixelRatio(time);
     this.#syncClipPlanes();
     this.renderer.render(this.scene, this.camera);
+    this.#updatePerformanceStats(time, deltaSeconds);
+  }
+
+  #updatePerformanceStats(time, deltaSeconds) {
+    if (deltaSeconds > 0) {
+      this.fpsSamples.push({time, fps: 1 / deltaSeconds});
+      while (this.fpsSamples.length && time - this.fpsSamples[0].time > FPS_SAMPLE_WINDOW_MS) {
+        this.fpsSamples.shift();
+      }
+      const fpsTotal = this.fpsSamples.reduce((sum, sample) => sum + sample.fps, 0);
+      this.performanceStats.fps = this.fpsSamples.length ? fpsTotal / this.fpsSamples.length : 0;
+    }
+
+    const renderInfo = this.renderer.info.render;
+    this.performanceStats.dpr = this.currentPixelRatio;
+    this.performanceStats.renderCalls = renderInfo.calls || 0;
+    this.performanceStats.renderTriangles = renderInfo.triangles || 0;
+    this.#refreshPerformanceStats();
+  }
+
+  #refreshPerformanceStats() {
+    let estimatedFaces = 0;
+    let estimatedVertices = 0;
+    let visibleBundleCount = 0;
+    const visibleTiles = new Set();
+
+    for (const entry of this.modelEntries.values()) {
+      if (!entry.object.visible) {
+        continue;
+      }
+      visibleBundleCount += 1;
+      visibleTiles.add(entry.bundle.tile);
+      estimatedFaces += entry.faceCount;
+      estimatedVertices += entry.vertexCount;
+    }
+
+    this.performanceStats.estimatedFaces = estimatedFaces;
+    this.performanceStats.estimatedVertices = estimatedVertices;
+    this.performanceStats.bundleCount = this.modelEntries.size;
+    this.performanceStats.visibleBundleCount = visibleBundleCount;
+    this.performanceStats.loadedTileCount = this.loadedTileIds.size;
+    this.performanceStats.visibleTileCount = visibleTiles.size;
   }
 
   #syncClipPlanes() {
@@ -401,6 +625,7 @@ export class Viewer {
     }
     const handled = this.#setFlyMovementKey(event.code, true);
     if (handled) {
+      this.#markInteraction();
       event.preventDefault();
     }
   }
@@ -411,6 +636,7 @@ export class Viewer {
     }
     const handled = this.#setFlyMovementKey(event.code, false);
     if (handled) {
+      this.#markInteraction();
       event.preventDefault();
     }
   }
@@ -454,6 +680,7 @@ export class Viewer {
     this.canvas.style.cursor = "grabbing";
     this.#syncLookAngles(this.freeLook);
     this.#syncLookAngles(this.fly);
+    this.#markInteraction();
     try {
       this.canvas.setPointerCapture(event.pointerId);
     } catch {}
@@ -475,6 +702,7 @@ export class Viewer {
     this.#applyLookOrientation(this.freeLook.yaw, this.freeLook.pitch);
     this.fly.yaw = this.freeLook.yaw;
     this.fly.pitch = this.freeLook.pitch;
+    this.#markInteraction();
     event.preventDefault();
     event.stopPropagation();
   }
@@ -487,6 +715,7 @@ export class Viewer {
     this.freeLook.pointerId = null;
     this.controls.enabled = true;
     this.canvas.style.cursor = "";
+    this.#markInteraction();
     try {
       this.canvas.releasePointerCapture(event.pointerId);
     } catch {}
@@ -567,7 +796,7 @@ export class Viewer {
 
   pickOnSurface(clientX, clientY, markerOffset = 0) {
     this.#setRayFromClient(clientX, clientY);
-    const hits = this.raycaster.intersectObjects(this.modelGroup.children, false);
+    const hits = this.raycaster.intersectObjects(this.modelGroup.children.filter((object) => object.visible), false);
     if (!hits.length) {
       return null;
     }
@@ -609,8 +838,10 @@ export class Viewer {
     const total = toRemove.length + toAdd.length;
     const progressByBundle = new Map();
     const activeBundleStates = new Map();
-    const knownTotalBytes = toAdd.reduce((sum, bundle) => sum + (bundleSizeBytes(bundle) || 0), 0);
-    const hasUnknownBytes = toAdd.some((bundle) => bundleSizeBytes(bundle) === null);
+    const knownTotalBytes = toAdd.reduce((sum, bundle) => sum + (bundleTransferSizeBytes(bundle) || 0), 0);
+    const knownOriginalTotalBytes = toAdd.reduce((sum, bundle) => sum + (bundleSizeBytes(bundle) || 0), 0);
+    const hasUnknownBytes = toAdd.some((bundle) => bundleTransferSizeBytes(bundle) === null);
+    const hasCompressedBundles = toAdd.some((bundle) => bundleCompressedSizeBytes(bundle) !== null);
     let completed = 0;
 
     const report = (payload) => {
@@ -631,7 +862,9 @@ export class Viewer {
         completedDownloads: Math.max(0, completed - toRemove.length),
         downloadedBytes,
         totalBytes: knownTotalBytes,
+        originalTotalBytes: knownOriginalTotalBytes,
         hasUnknownBytes,
+        hasCompressedBundles,
         speedBytesPerSec: activeSpeedBytesPerSec,
         activeBundles,
         phaseSummary,
@@ -644,7 +877,9 @@ export class Viewer {
       const loadedBytes = Number.isFinite(event.loadedBytes)
         ? event.loadedBytes
         : previous.loadedBytes || 0;
-      const sizeBytes = bundleSizeBytes(bundle);
+      const sizeBytes = bundleTransferSizeBytes(bundle);
+      const originalSizeBytes = bundleSizeBytes(bundle);
+      const compressedSizeBytes = bundleCompressedSizeBytes(bundle);
       const totalBytes = Number.isFinite(event.totalBytes)
         ? event.totalBytes
         : sizeBytes;
@@ -659,6 +894,9 @@ export class Viewer {
         loadedBytes,
         totalBytes,
         sizeBytes,
+        originalSizeBytes,
+        compressedSizeBytes,
+        compressed: event.compressed ?? (compressedSizeBytes !== null),
         speedBytesPerSec: Number.isFinite(event.speedBytesPerSec) ? event.speedBytesPerSec : 0,
         downloadMs: Number.isFinite(event.downloadMs) ? event.downloadMs : previous.downloadMs || 0,
         parseMs: Number.isFinite(event.parseMs) ? event.parseMs : previous.parseMs || 0,
@@ -716,16 +954,19 @@ export class Viewer {
 
         const addingBundle = updateActiveBundle(bundle, index + 1, {phase: "adding"});
         report({phase: "loading", activeBundle: addingBundle});
-        this.#storeBundle(bundle, object);
+        const entry = this.#storeBundle(bundle, object);
         completed += 1;
-        progressByBundle.set(bundle.bundle_id, bundleSizeBytes(bundle) || progressByBundle.get(bundle.bundle_id) || 0);
+        progressByBundle.set(bundle.bundle_id, bundleTransferSizeBytes(bundle) || progressByBundle.get(bundle.bundle_id) || 0);
         const readyBundle = updateActiveBundle(bundle, index + 1, {
           phase: "ready",
-          loadedBytes: progressByBundle.get(bundle.bundle_id) || bundleSizeBytes(bundle) || 0,
-          totalBytes: bundleSizeBytes(bundle),
+          loadedBytes: progressByBundle.get(bundle.bundle_id) || bundleTransferSizeBytes(bundle) || 0,
+          totalBytes: bundleTransferSizeBytes(bundle),
         });
         report({phase: "loading", activeBundle: readyBundle, force: true});
         activeBundleStates.delete(bundle.bundle_id);
+        if (this.#shouldYieldAfterBundleAdd(entry)) {
+          await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+        }
       }
     };
 
@@ -751,6 +992,7 @@ export class Viewer {
     this.loadedTileIds.clear();
     this.tileMeshCounts.clear();
     this.modelEntries.clear();
+    this.#refreshPerformanceStats();
   }
 
   clearOverlay() {
@@ -887,7 +1129,7 @@ export class Viewer {
 
   async #createBundleObject(bundle, onProgress = () => {}) {
     const geometry = await this.loader.loadAsync(
-      `/api/scene/bundle/${encodeURIComponent(bundle.bundle_id)}`,
+      bundleUrl(bundle),
       {onProgress},
     );
     if (!geometry.getAttribute("normal")) {
@@ -895,13 +1137,18 @@ export class Viewer {
       geometry.computeVertexNormals();
     }
 
+    const layer = displayLayerForBundle(bundle);
+    const material = this.#createBundleMaterial(bundle);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.renderOrder = layer.renderOrder;
+    return mesh;
+  }
+
+  #createBundleMaterial(bundle) {
     const transparent = bundle.bsdf_id === "itu_wet_ground";
     const layer = displayLayerForBundle(bundle);
-
-    const material = new THREE.MeshStandardMaterial({
+    const base = {
       color: colorForMesh(bundle),
-      roughness: 0.88,
-      metalness: 0.0,
       side: THREE.DoubleSide,
       transparent,
       opacity: transparent ? 0.86 : 1.0,
@@ -909,22 +1156,61 @@ export class Viewer {
       polygonOffset: layer.polygonOffsetFactor !== 0 || layer.polygonOffsetUnits !== 0,
       polygonOffsetFactor: layer.polygonOffsetFactor,
       polygonOffsetUnits: layer.polygonOffsetUnits,
-    });
+    };
 
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.renderOrder = layer.renderOrder;
-    return mesh;
+    if (this.lightweightMaterials) {
+      return new THREE.MeshLambertMaterial(base);
+    }
+
+    return new THREE.MeshStandardMaterial({
+      ...base,
+      roughness: 0.88,
+      metalness: 0.0,
+    });
+  }
+
+  #replaceBundleMaterial(entry) {
+    const previous = entry.object.material;
+    entry.object.material = this.#createBundleMaterial(entry.bundle);
+    previous?.dispose?.();
+  }
+
+  #geometryVertexCount(geometry) {
+    const position = geometry?.getAttribute?.("position");
+    return Number.isFinite(position?.count) ? position.count : 0;
+  }
+
+  #geometryFaceCount(geometry) {
+    const indexCount = geometry?.index?.count;
+    if (Number.isFinite(indexCount) && indexCount > 0) {
+      return Math.floor(indexCount / 3);
+    }
+    return Math.floor(this.#geometryVertexCount(geometry) / 3);
+  }
+
+  #shouldYieldAfterBundleAdd(entry) {
+    return entry.vertexCount >= LARGE_BUNDLE_YIELD_VERTEX_THRESHOLD
+      || entry.faceCount >= LARGE_BUNDLE_YIELD_FACE_THRESHOLD;
   }
 
   #storeBundle(bundle, object) {
+    object.visible = this.isCategoryVisible(bundle.category);
     this.modelGroup.add(object);
-    this.modelEntries.set(bundle.bundle_id, {bundle, object});
+    const entry = {
+      bundle,
+      object,
+      vertexCount: this.#geometryVertexCount(object.geometry),
+      faceCount: this.#geometryFaceCount(object.geometry),
+    };
+    this.modelEntries.set(bundle.bundle_id, entry);
     this.meshMaterials.push(object.material);
     this.meshesLoaded += bundle.mesh_count;
 
     const nextCount = (this.tileMeshCounts.get(bundle.tile) || 0) + bundle.mesh_count;
     this.tileMeshCounts.set(bundle.tile, nextCount);
     this.loadedTileIds.add(bundle.tile);
+    this.#refreshPerformanceStats();
+    return entry;
   }
 
   #removeBundle(bundleId) {
@@ -947,5 +1233,6 @@ export class Viewer {
     } else {
       this.tileMeshCounts.set(entry.bundle.tile, nextCount);
     }
+    this.#refreshPerformanceStats();
   }
 }

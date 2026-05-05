@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+import gzip
 import json
+import os
 from pathlib import Path
+import shutil
 import struct
 from threading import Lock
 
@@ -34,6 +37,9 @@ class TileBundleRecord:
     source_relative_paths: tuple[str, ...]
     size_bytes: int | None = None
     cache_exists: bool = False
+    cache_key: str | None = None
+    compressed_size_bytes: int | None = None
+    compressed_cache_exists: bool = False
 
     def to_api_dict(self) -> dict:
         return {
@@ -46,6 +52,9 @@ class TileBundleRecord:
             "mesh_count": self.mesh_count,
             "size_bytes": self.size_bytes,
             "cache_exists": self.cache_exists,
+            "cache_key": self.cache_key,
+            "compressed_size_bytes": self.compressed_size_bytes,
+            "compressed_cache_exists": self.compressed_cache_exists,
         }
 
 
@@ -56,6 +65,9 @@ class TileBundleBuildResult:
     built: bool
     vertex_count: int
     face_count: int
+    compressed_path: Path | None = None
+    compressed: bool = False
+    compressed_size_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -75,7 +87,16 @@ def build_tile_bundle_records(meshes: list[object], scene_root: Path | None = No
         relative_path = f"cache/render_bundles/{tile}/{category}__{bsdf_id}.glb"
         bundle_path = None if scene_root is None else scene_root / relative_path
         cache_exists = bool(bundle_path is not None and bundle_path.exists())
-        size_bytes = bundle_path.stat().st_size if cache_exists and bundle_path is not None else None
+        size_bytes = None
+        cache_key = None
+        compressed_cache_exists = False
+        compressed_size_bytes = None
+        if cache_exists and bundle_path is not None:
+            size_bytes = bundle_path.stat().st_size
+            cache_key = bundle_cache_key(bundle_path)
+            compressed_path = compressed_tile_bundle_path(bundle_path)
+            compressed_cache_exists = compressed_tile_bundle_is_fresh(bundle_path, compressed_path)
+            compressed_size_bytes = compressed_path.stat().st_size if compressed_cache_exists else None
         bundles.append(
             TileBundleRecord(
                 bundle_id=f"{tile}__{category}__{bsdf_id}",
@@ -87,32 +108,51 @@ def build_tile_bundle_records(meshes: list[object], scene_root: Path | None = No
                 source_relative_paths=mesh_paths,
                 size_bytes=size_bytes,
                 cache_exists=cache_exists,
+                cache_key=cache_key,
+                compressed_size_bytes=compressed_size_bytes,
+                compressed_cache_exists=compressed_cache_exists,
             )
         )
     return bundles
 
 
-def ensure_tile_bundle(scene_root: Path, bundle: TileBundleRecord, force: bool = False) -> TileBundleBuildResult:
+def ensure_tile_bundle(
+    scene_root: Path,
+    bundle: TileBundleRecord,
+    force: bool = False,
+    *,
+    compress: bool = True,
+    compress_existing: bool = False,
+) -> TileBundleBuildResult:
     bundle_path = (scene_root / bundle.relative_path).resolve()
+    built = False
+    compressed = False
+    vertex_count = 0
+    face_count = 0
 
     with _BUNDLE_BUILD_LOCK:
         if force or _bundle_needs_build(scene_root, bundle, bundle_path):
             vertex_count, face_count = _build_tile_bundle(scene_root, bundle, bundle_path)
-            return TileBundleBuildResult(
-                bundle=bundle,
-                bundle_path=bundle_path,
-                built=True,
-                vertex_count=vertex_count,
-                face_count=face_count,
-            )
+            built = True
+        if compress and (built or compress_existing):
+            _, compressed = ensure_compressed_tile_bundle(bundle_path)
 
-    header = _read_glb_geometry_counts(bundle_path)
+    if not built:
+        header = _read_glb_geometry_counts(bundle_path)
+        vertex_count = header.vertex_count
+        face_count = header.face_count
+
+    compressed_path = compressed_tile_bundle_path(bundle_path)
+    compressed_exists = compressed_tile_bundle_is_fresh(bundle_path, compressed_path)
     return TileBundleBuildResult(
         bundle=bundle,
         bundle_path=bundle_path,
-        built=False,
-        vertex_count=header.vertex_count,
-        face_count=header.face_count,
+        built=built,
+        vertex_count=vertex_count,
+        face_count=face_count,
+        compressed_path=compressed_path if compressed_exists else None,
+        compressed=compressed,
+        compressed_size_bytes=compressed_path.stat().st_size if compressed_exists else None,
     )
 
 
@@ -123,13 +163,62 @@ def build_all_tile_bundles(
     tile_ids: set[str] | None = None,
     bundle_ids: set[str] | None = None,
     force: bool = False,
+    compress: bool = True,
+    compress_existing: bool = False,
 ) -> list[TileBundleBuildResult]:
     selected = [
         bundle
         for bundle in bundles
         if (tile_ids is None or bundle.tile in tile_ids) and (bundle_ids is None or bundle.bundle_id in bundle_ids)
     ]
-    return [ensure_tile_bundle(scene_root, bundle, force=force) for bundle in selected]
+    return [
+        ensure_tile_bundle(
+            scene_root,
+            bundle,
+            force=force,
+            compress=compress,
+            compress_existing=compress_existing,
+        )
+        for bundle in selected
+    ]
+
+
+def bundle_cache_key(bundle_path: Path) -> str:
+    stat = bundle_path.stat()
+    return f"{stat.st_mtime_ns:x}-{stat.st_size:x}"
+
+
+def compressed_tile_bundle_path(bundle_path: Path) -> Path:
+    return bundle_path.with_name(f"{bundle_path.name}.gz")
+
+
+def compressed_tile_bundle_is_fresh(bundle_path: Path, compressed_path: Path | None = None) -> bool:
+    compressed_path = compressed_path or compressed_tile_bundle_path(bundle_path)
+    return (
+        bundle_path.exists()
+        and compressed_path.exists()
+        and compressed_path.stat().st_mtime_ns >= bundle_path.stat().st_mtime_ns
+    )
+
+
+def ensure_compressed_tile_bundle(bundle_path: Path, *, force: bool = False) -> tuple[Path, bool]:
+    if not bundle_path.exists():
+        raise FileNotFoundError(f"Cannot compress missing bundle: {bundle_path}")
+
+    compressed_path = compressed_tile_bundle_path(bundle_path)
+    if not force and compressed_tile_bundle_is_fresh(bundle_path, compressed_path):
+        return compressed_path, False
+
+    compressed_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = compressed_path.with_name(f"{compressed_path.name}.tmp")
+    source_stat = bundle_path.stat()
+    with open(bundle_path, "rb") as source, open(temp_path, "wb") as target:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=target, compresslevel=1, mtime=int(source_stat.st_mtime)) as gz:
+            shutil.copyfileobj(source, gz, length=1024 * 1024 * 4)
+
+    temp_path.replace(compressed_path)
+    os.utime(compressed_path, ns=(source_stat.st_mtime_ns, source_stat.st_mtime_ns))
+    return compressed_path, True
 
 
 def _bundle_needs_build(scene_root: Path, bundle: TileBundleRecord, bundle_path: Path) -> bool:

@@ -15,6 +15,24 @@ function createViewerStub() {
     clearPaths() {},
     clearRadiomap() {},
     focusOnTiles() { return false; },
+    getLoadedCategoryStats() { return []; },
+    getPerformanceStats() {
+      return {
+        fps: 0,
+        dpr: 1,
+        renderCalls: 0,
+        renderTriangles: 0,
+        estimatedFaces: 0,
+        estimatedVertices: 0,
+        bundleCount: 0,
+        visibleBundleCount: 0,
+        loadedTileCount: 0,
+        visibleTileCount: 0,
+      };
+    },
+    setCategoryVisible() {},
+    setLightweightMaterials() {},
+    setPerformanceMode() {},
     async syncBundles() {},
     resetView() {},
     pickOnSurface() { return null; },
@@ -73,6 +91,9 @@ const NOMINATIM_MIN_INTERVAL_MS = 1000;
 const NOMINATIM_HK_COUNTRYCODES = "cn,hk";
 const ENTRY_PLACE_SEARCH_ZOOM = 16;
 const LOAD_PROGRESS_RENDER_INTERVAL_MS = 250;
+const DEFAULT_PERFORMANCE_MODE = "auto";
+const PERFORMANCE_MODES = new Set(["auto", "quality", "fast"]);
+const HEAVY_PERFORMANCE_CATEGORIES = new Set(["VEGETATION_TB", "GENERIC"]);
 
 const state = {
   manifest: null,
@@ -80,6 +101,13 @@ const state = {
   pickTarget: null,
   tileLoadBusy: false,
   panelCollapsed: false,
+  performance: {
+    mode: DEFAULT_PERFORMANCE_MODE,
+    lightweightMaterials: true,
+    dockExpanded: false,
+    categories: [],
+    categoryVisibility: new Map(),
+  },
   entry: {
     visible: false,
     sceneReady: false,
@@ -175,6 +203,23 @@ const ui = {
   stLoadedTiles: document.getElementById("stLoadedTiles"),
   stMode: document.getElementById("stMode"),
   btnOpenTileIndex: document.getElementById("btnOpenTileIndex"),
+  performanceDock: document.getElementById("performanceDock"),
+  btnPerformanceDockToggle: document.getElementById("btnPerformanceDockToggle"),
+  perfModeButtons: [...document.querySelectorAll("[data-performance-mode]")],
+  perfLightMaterials: document.getElementById("perfLightMaterials"),
+  perfHud: document.getElementById("perfHud"),
+  perfSummaryFps: document.getElementById("perfSummaryFps"),
+  perfSummaryDpr: document.getElementById("perfSummaryDpr"),
+  perfSummaryLoaded: document.getElementById("perfSummaryLoaded"),
+  perfFps: document.getElementById("perfFps"),
+  perfDpr: document.getElementById("perfDpr"),
+  perfDrawCalls: document.getElementById("perfDrawCalls"),
+  perfTriangles: document.getElementById("perfTriangles"),
+  perfFaces: document.getElementById("perfFaces"),
+  perfLoaded: document.getElementById("perfLoaded"),
+  categoryVisibility: document.getElementById("categoryVisibility"),
+  btnShowAllCategories: document.getElementById("btnShowAllCategories"),
+  btnHideHeavyCategories: document.getElementById("btnHideHeavyCategories"),
   btnSolveLink: document.getElementById("btnSolveLink"),
   btnRunRadiomap: document.getElementById("btnRunRadiomap"),
   btnResetView: document.getElementById("btnResetView"),
@@ -241,6 +286,7 @@ function showOverlay({title = "Working", message = "Loading...", percent = 0, in
   ui.loadingTitle.textContent = title;
   setProgress(percent, message, indeterminate);
   ui.loadingScreen.style.display = "flex";
+  syncPerformanceUi();
 }
 
 function hideOverlay() {
@@ -249,6 +295,7 @@ function hideOverlay() {
   ui.loadingPhase.textContent = "Initializing...";
   ui.progressBar.classList.remove("indeterminate");
   ui.progressBar.style.width = "0%";
+  syncPerformanceUi();
 }
 
 function commonSolverConfig() {
@@ -720,6 +767,184 @@ async function runEntryPlaceSearch() {
   }
 }
 
+function performanceCategoryVisible(category) {
+  return state.performance.categoryVisibility.get(category) !== false;
+}
+
+function applyPerformanceSettingsToViewer() {
+  viewer.setPerformanceMode(state.performance.mode);
+  viewer.setLightweightMaterials(state.performance.lightweightMaterials);
+  for (const category of state.performance.categories) {
+    viewer.setCategoryVisible(category.name, performanceCategoryVisible(category.name));
+  }
+}
+
+function buildPerformanceCategories(manifest) {
+  const byCategory = new Map();
+  for (const bundle of manifest.bundles || []) {
+    const categoryName = bundle.category || "UNKNOWN";
+    const category = byCategory.get(categoryName) || {
+      name: categoryName,
+      bundles: 0,
+      tiles: new Set(),
+      meshCount: 0,
+      bytes: 0,
+      compressedBytes: 0,
+    };
+    category.bundles += 1;
+    category.tiles.add(bundle.tile);
+    category.meshCount += Number(bundle.mesh_count) || 0;
+    category.bytes += Number(bundle.size_bytes) || 0;
+    category.compressedBytes += Number(bundle.compressed_size_bytes) || 0;
+    byCategory.set(categoryName, category);
+  }
+
+  return [...byCategory.values()]
+    .map((category) => ({
+      ...category,
+      tiles: category.tiles.size,
+    }))
+    .sort((left, right) => (right.bytes - left.bytes) || left.name.localeCompare(right.name));
+}
+
+function formatCompactCount(value, digits = 1) {
+  const count = Number(value);
+  if (!Number.isFinite(count) || count <= 0) {
+    return "0";
+  }
+  if (count >= 1000000) {
+    return `${(count / 1000000).toFixed(digits)}M`;
+  }
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(digits)}K`;
+  }
+  return String(Math.round(count));
+}
+
+function categoryManifestFallback(category) {
+  return `${category.tiles} tiles · ${category.bundles} bundles · ${formatBytes(category.bytes)}`;
+}
+
+function setCategoryVisibility(categoryName, visible) {
+  state.performance.categoryVisibility.set(categoryName, Boolean(visible));
+  viewer.setCategoryVisible(categoryName, Boolean(visible));
+  syncPerformanceUi();
+}
+
+function setAllCategoryVisibility(visible, predicate = () => true) {
+  for (const category of state.performance.categories) {
+    if (predicate(category.name)) {
+      state.performance.categoryVisibility.set(category.name, Boolean(visible));
+      viewer.setCategoryVisible(category.name, Boolean(visible));
+    }
+  }
+  syncPerformanceUi();
+}
+
+function populatePerformanceControls(manifest) {
+  state.performance.categories = buildPerformanceCategories(manifest);
+  ui.categoryVisibility.replaceChildren();
+
+  for (const category of state.performance.categories) {
+    if (!state.performance.categoryVisibility.has(category.name)) {
+      state.performance.categoryVisibility.set(category.name, true);
+    }
+
+    const row = document.createElement("label");
+    row.className = "categoryItem";
+    row.dataset.category = category.name;
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = performanceCategoryVisible(category.name);
+    input.addEventListener("change", () => setCategoryVisibility(category.name, input.checked));
+
+    const meta = document.createElement("span");
+    const name = document.createElement("span");
+    name.className = "categoryName";
+    name.textContent = category.name;
+    const stats = document.createElement("span");
+    stats.className = "categoryStats";
+    stats.dataset.categoryStats = category.name;
+    stats.textContent = categoryManifestFallback(category);
+    meta.append(name, stats);
+
+    row.append(input, meta);
+    ui.categoryVisibility.appendChild(row);
+  }
+  syncPerformanceUi();
+}
+
+function syncCategoryVisibilityUi() {
+  const loadedStats = new Map(viewer.getLoadedCategoryStats().map((item) => [item.category, item]));
+  for (const category of state.performance.categories) {
+    const visible = performanceCategoryVisible(category.name);
+    const row = [...ui.categoryVisibility.querySelectorAll(".categoryItem")]
+      .find((item) => item.dataset.category === category.name);
+    const input = row?.querySelector('input[type="checkbox"]');
+    const statsNode = row?.querySelector(".categoryStats");
+    if (row) {
+      row.classList.toggle("hiddenCategory", !visible);
+    }
+    if (input) {
+      input.checked = visible;
+    }
+    if (!statsNode) {
+      continue;
+    }
+
+    const loaded = loadedStats.get(category.name);
+    if (loaded && loaded.bundles > 0) {
+      const faces = visible ? loaded.visibleFaces : loaded.faces;
+      const vertices = visible ? loaded.visibleVertices : loaded.vertices;
+      statsNode.textContent = `${formatCompactCount(faces)} faces · ${formatCompactCount(vertices)} vertices · ${loaded.visibleBundles}/${loaded.bundles} bundles`;
+    } else {
+      statsNode.textContent = categoryManifestFallback(category);
+    }
+  }
+}
+
+function syncPerformanceHud() {
+  const stats = viewer.getPerformanceStats();
+  const fpsText = stats.fps > 0 ? stats.fps.toFixed(0) : "--";
+  const dprText = Number.isFinite(stats.dpr) ? stats.dpr.toFixed(2) : "--";
+  const loadedText = `${stats.visibleTileCount}/${stats.loadedTileCount} tiles · ${stats.visibleBundleCount}/${stats.bundleCount} bundles`;
+  ui.perfFps.textContent = fpsText;
+  ui.perfDpr.textContent = dprText;
+  ui.perfDrawCalls.textContent = formatCompactCount(stats.renderCalls, 0);
+  ui.perfTriangles.textContent = formatCompactCount(stats.renderTriangles);
+  ui.perfFaces.textContent = `${formatCompactCount(stats.estimatedFaces)} / ${formatCompactCount(stats.estimatedVertices)}`;
+  ui.perfLoaded.textContent = loadedText;
+  ui.perfSummaryFps.textContent = fpsText;
+  ui.perfSummaryDpr.textContent = dprText;
+  ui.perfSummaryLoaded.textContent = `${stats.visibleBundleCount}/${stats.bundleCount}`;
+}
+
+function performanceDockVisible() {
+  return viewer.__ready
+    && !state.entry.visible
+    && ui.panel.style.display === "flex"
+    && ui.loadingScreen.style.display === "none";
+}
+
+function syncPerformanceUi() {
+  const dockVisible = performanceDockVisible();
+  ui.performanceDock.classList.toggle("hidden", !dockVisible);
+  ui.performanceDock.classList.toggle("collapsed", !state.performance.dockExpanded);
+  ui.performanceDock.setAttribute("aria-hidden", String(!dockVisible));
+  ui.btnPerformanceDockToggle.setAttribute("aria-expanded", String(state.performance.dockExpanded));
+  ui.btnPerformanceDockToggle.setAttribute(
+    "aria-label",
+    state.performance.dockExpanded ? "Collapse performance panel" : "Expand performance panel",
+  );
+  for (const button of ui.perfModeButtons) {
+    button.classList.toggle("active", button.dataset.performanceMode === state.performance.mode);
+  }
+  ui.perfLightMaterials.checked = state.performance.lightweightMaterials;
+  syncCategoryVisibilityUi();
+  syncPerformanceHud();
+}
+
 async function ensureViewer() {
   if (viewer.__ready) {
     return viewer;
@@ -731,9 +956,11 @@ async function ensureViewer() {
   const realViewer = new Viewer(document.getElementById("view"));
   realViewer.__ready = true;
   viewer = realViewer;
+  applyPerformanceSettingsToViewer();
   syncViewerMarkers();
   syncSceneStats();
   syncTileListUi();
+  syncPerformanceUi();
   return viewer;
 }
 
@@ -1237,6 +1464,7 @@ function showEntryScreen() {
   ui.entryScreen.classList.remove("hidden");
   syncEntrySidebarUi();
   syncControlSidebarUi();
+  syncPerformanceUi();
   window.requestAnimationFrame(() => {
     const selected = tileSelections();
     if (selected.length) {
@@ -1256,6 +1484,7 @@ function hideEntryScreen() {
   state.entry.visible = false;
   ui.entryScreen.classList.add("hidden");
   syncControlSidebarUi();
+  syncPerformanceUi();
 }
 
 function syncEntrySidebarUi() {
@@ -1576,6 +1805,7 @@ function renderAll() {
   syncSceneStats();
   syncTileListUi();
   syncEntryOverviewUi();
+  syncPerformanceUi();
   renderLinkResult();
   renderRadiomapResult();
 }
@@ -1738,13 +1968,13 @@ function bundleDisplayName(bundle) {
 }
 
 function bundleSizeLabel(bundle) {
-  const size = Number(bundle?.size_bytes);
+  const size = Number(bundle?.compressed_cache_exists ? bundle.compressed_size_bytes : bundle?.size_bytes);
   return Number.isFinite(size) && size > 0 ? formatBytes(size) : "unknown size";
 }
 
 function loadProgressPercent(event) {
   const bytePercent = event.totalBytes > 0 && !event.hasUnknownBytes
-    ? (event.downloadedBytes / event.totalBytes) * 100
+    ? Math.min(100, (event.downloadedBytes / event.totalBytes) * 100)
     : null;
   const countPercent = event.total > 0 ? (event.completed / event.total) * 100 : 100;
   if (bytePercent !== null && Number.isFinite(bytePercent)) {
@@ -1753,13 +1983,25 @@ function loadProgressPercent(event) {
   return countPercent;
 }
 
+function compressionSummary(event) {
+  const originalTotalBytes = Number(event.originalTotalBytes);
+  const totalBytes = Number(event.totalBytes);
+  if (!event.hasCompressedBundles || !Number.isFinite(originalTotalBytes) || !Number.isFinite(totalBytes)) {
+    return "";
+  }
+  if (originalTotalBytes <= totalBytes) {
+    return "";
+  }
+  return ` (${formatBytes(originalTotalBytes)} raw)`;
+}
+
 function loadProgressMessage(event) {
   if (event.phase === "idle") {
     return "Tile bundles already in sync";
   }
   if (event.phase === "start") {
     const totalSize = event.totalBytes > 0
-      ? `${formatBytes(event.totalBytes)}${event.hasUnknownBytes ? " + unknown" : ""}`
+      ? `${formatBytes(event.totalBytes)} transfer${compressionSummary(event)}${event.hasUnknownBytes ? " + unknown" : ""}`
       : "unknown size";
     return `Applying ${event.total} bundle changes · ${event.added || 0} downloads · ${totalSize}`;
   }
@@ -1772,7 +2014,7 @@ function loadProgressMessage(event) {
   const bundleTotal = event.added || 0;
   const visibleBundleCount = Math.min(bundleTotal, (event.completedDownloads || 0) + activeCount);
   const totalSize = event.totalBytes > 0
-    ? `${formatBytes(event.downloadedBytes)} / ${formatBytes(event.totalBytes)}${event.hasUnknownBytes ? " + unknown" : ""}`
+    ? `${formatBytes(event.downloadedBytes)} / ${formatBytes(event.totalBytes)} transfer${compressionSummary(event)}${event.hasUnknownBytes ? " + unknown" : ""}`
     : `${formatBytes(event.downloadedBytes)} / unknown`;
   const rate = formatByteRate(event.speedBytesPerSec);
   return `Loading ${visibleBundleCount}/${bundleTotal} bundles · ${totalSize} · ${rate}`;
@@ -1867,6 +2109,7 @@ async function loadScene() {
     showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100});
     await new Promise((resolve) => window.setTimeout(resolve, 160));
     hideOverlay();
+    syncPerformanceUi();
     return;
   }
 
@@ -1899,6 +2142,7 @@ async function loadScene() {
     hideOverlay();
     syncSceneStats();
     syncTileListUi();
+    syncPerformanceUi();
   }
 }
 
@@ -2062,6 +2306,38 @@ function attachEvents() {
     showEntryScreen();
   });
 
+  for (const button of ui.perfModeButtons) {
+    button.addEventListener("click", () => {
+      const mode = button.dataset.performanceMode;
+      if (!PERFORMANCE_MODES.has(mode)) {
+        return;
+      }
+      state.performance.mode = mode;
+      viewer.setPerformanceMode(mode);
+      syncPerformanceUi();
+    });
+  }
+  ui.perfLightMaterials.addEventListener("change", () => {
+    state.performance.lightweightMaterials = ui.perfLightMaterials.checked;
+    viewer.setLightweightMaterials(state.performance.lightweightMaterials);
+    syncPerformanceUi();
+  });
+  ui.btnPerformanceDockToggle.addEventListener("click", () => {
+    state.performance.dockExpanded = !state.performance.dockExpanded;
+    syncPerformanceUi();
+  });
+  ui.btnShowAllCategories.addEventListener("click", () => {
+    setAllCategoryVisibility(true);
+  });
+  ui.btnHideHeavyCategories.addEventListener("click", () => {
+    setAllCategoryVisibility(false, (categoryName) => HEAVY_PERFORMANCE_CATEGORIES.has(categoryName));
+  });
+  window.setInterval(() => {
+    if (viewer.__ready && !state.entry.visible) {
+      syncPerformanceUi();
+    }
+  }, 500);
+
   ui.tabLink.addEventListener("click", () => {
     state.mode = "link";
     viewer.clearOverlay();
@@ -2162,6 +2438,7 @@ async function bootstrap() {
   attachEvents();
   state.manifest = await getManifest();
   populateTileList(state.manifest);
+  populatePerformanceControls(state.manifest);
   state.entry.overview = buildEntryOverview(state.manifest);
   renderEntryOverview();
   setTileSelection([]);
