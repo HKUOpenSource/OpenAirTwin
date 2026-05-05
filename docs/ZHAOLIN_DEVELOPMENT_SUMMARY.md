@@ -12,6 +12,48 @@ This document records Zhaolin's development context, dated feature work, validat
 
 Use `worktree-zhaolin` for Zhaolin's validation work. Do not restart or kill another developer's worktree, especially `worktree-zihao` on port `18091`, unless explicitly requested.
 
+## 2026-05-05 - Backend Solver Runtime Preload and Warm Solve Optimization
+
+This development round optimized the backend path solver and terrain radio-map solver without changing numerical defaults or API responses.
+
+Root cause confirmed before implementation:
+
+- Remote DGX Spark CUDA backend was available through Sionna RT / Mitsuba / Dr.Jit.
+- Low-sample probes showed the actual Sionna `PathSolver` took roughly `0.02s`, while every backend request spent roughly `42s` reloading `scenario_HKU.xml`.
+- Terrain radio-map probes showed the same repeated scene-load cost before the real patch and solver work.
+
+Implemented functionality:
+
+- Added a cached RT runtime that preloads `scenario_HKU.xml` once during backend startup.
+- Moved solver serialization from a module-level lock to the cached runtime's lock.
+- Updated the link solver to reuse the cached scene, temporarily add Tx/Rx, copy path outputs, and remove temporary devices in `finally`.
+- Updated the terrain radio-map solver to reuse the cached scene, temporarily add Tx, copy radio-map output, and remove the temporary transmitter in `finally`.
+- Kept existing API response shapes and solver defaults unchanged, including link samples, radio-map samples, and density scaling.
+- Added lightweight `[rt]` timing logs for link, radio-map patch build, radio-map solver, finalization, and total solve time.
+
+Validation performed during this feature round:
+
+- `python3 -m compileall -q backend scripts tests`
+- `python3 -m unittest discover -s tests`
+- `git diff --check`
+- Synced code to `/home/defaultuser/worktree-zhaolin`.
+- Restarted only the Zhaolin `8090` backend service from `/home/defaultuser/worktree-zhaolin`.
+- Confirmed `/api/health` returned OK after restart.
+- Remote warm link benchmark on `8090` with current UI parameters completed in `0.041s`.
+- Remote default radio-map job on `8090` completed in `1.178s` end-to-end for `29,588` cells; server timing logged `0.417s` terrain patch build, `0.288s` Sionna solver, and `0.706s` backend compute total.
+
+Final runtime files introduced by this work:
+
+- `backend/rt/runtime.py`
+- `tests/test_solver_runtime_cleanup.py`
+
+Cleanup for this round:
+
+- Deleted remote benchmark scratch files from `/tmp`: `worktree-zhaolin-link-benchmark.json` and `worktree-zhaolin-radiomap-benchmark.py`.
+- Kept `/tmp/worktree-zhaolin-8090.log` because the active Zhaolin `8090` backend process writes runtime logs there.
+- Final local cleanup scan found no `__pycache__`, `.pyc`, `.DS_Store`, `._*`, `.tmp`, `.bak`, `.log`, or unused generated files to delete.
+- Kept `backend/rt/runtime.py` and `tests/test_solver_runtime_cleanup.py` because they are part of the final runtime implementation and regression coverage.
+
 ## 2026-05-05 - Load Scene Acceleration and Multi-Tile 3D Performance
 
 This development round focused on keeping geometry exact while improving large scene delivery and browser-side interaction performance when many tile bundles are loaded.
@@ -204,13 +246,13 @@ Start or restart the remote backend from the Zhaolin worktree only:
 
 ```bash
 cd /home/defaultuser/worktree-zhaolin
-nohup env \
+setsid env \
   HKU_RT_HOST=0.0.0.0 \
   HKU_RT_PORT=8090 \
   HKU_RT_SCENE_ROOT=/home/defaultuser/worktree-zhaolin/HKU_scenes \
   PYTHONPATH=/home/defaultuser/worktree-zhaolin \
   /home/defaultuser/venvs/sionna-gpu/bin/python -m backend.server \
-  > /tmp/worktree-zhaolin-8090.log 2>&1 &
+  </dev/null > /tmp/worktree-zhaolin-8090.log 2>&1 &
 ```
 
 Before validating GPU-dependent flows, confirm scene assets are available through the worktree's `HKU_scenes` path. The repository does not include `HKU_scenes/`.
@@ -221,7 +263,8 @@ Keep generated caches, Python bytecode, `.DS_Store`, log files, and scene cache 
 
 Cleanup history:
 
-- 2026-05-05: final cleanup scan found no unused generated files to delete; kept `tests/test_bundle_acceleration.py` as a functional regression test.
+- 2026-05-05 backend solver runtime preload: removed remote benchmark scratch files from `/tmp`; final local cleanup scan found no generated leftovers; kept `backend/rt/runtime.py` and `tests/test_solver_runtime_cleanup.py` as final implementation and regression coverage.
+- 2026-05-05 load-scene acceleration: final cleanup scan found no unused generated files to delete; kept `tests/test_bundle_acceleration.py` as a functional regression test.
 - 2026-05-04: final cleanup scan found no unused generated files to delete.
 - 2026-04-29: removed intermediate map exploration files after the final OSM / Canvas design was selected:
   - `backend/static/assets/tile_landmask.svg`
@@ -232,7 +275,7 @@ Cleanup history:
 
 ## Open Follow-up Items
 
-The latest backend review findings are still open and were not part of the map-entry or bundle-loading work:
+The latest backend hardening findings are still open after the solver runtime preload:
 
 - Add server-side caps for solver samples, max depth, frequency, and radio-map density.
 - Add queue/backpressure for radio-map jobs instead of unbounded daemon threads.

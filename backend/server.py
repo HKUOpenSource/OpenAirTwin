@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from backend import config
 from backend.jobs.radiomap_jobs import RadiomapJobManager
+from backend.rt.runtime import RTRuntime
 from backend.rt.solve_link import solve_link
 from backend.scene.tile_bundles import (
     bundle_cache_key,
@@ -24,7 +25,8 @@ class AppState:
     def __init__(self) -> None:
         self.manifest: SceneManifest = load_scene_manifest(config.SCENE_ROOT, config.SCENE_XML)
         self.manifest_lookup = self.manifest.mesh_lookup
-        self.job_manager = RadiomapJobManager(config.SCENE_XML)
+        self.rt_runtime = RTRuntime(config.SCENE_XML, config.DEFAULT_FREQUENCY_HZ)
+        self.job_manager = RadiomapJobManager(self.rt_runtime)
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -256,7 +258,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         try:
             if path == "/api/link/solve":
                 payload = self.read_json_body()
-                result = solve_link(config.SCENE_XML, payload)
+                result = solve_link(self.app_state.rt_runtime, payload)
                 self.send_json(result)
                 return
 

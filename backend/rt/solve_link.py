@@ -1,15 +1,28 @@
 from __future__ import annotations
 
+from time import perf_counter
+
 import numpy as np
 
-from backend import config
-from backend.rt.common import RT_SOLVER_LOCK, build_scene, linear_to_db, parse_link_payload, to_numpy
+from backend.rt.common import linear_to_db, parse_link_payload, to_numpy
+from backend.rt.runtime import log_timing
 
 SPEED_OF_LIGHT_M_PER_S = 299_792_458.0
 
 
-def solve_link(scene_xml, payload: dict) -> dict:
+def _link_dependencies():
     from sionna.rt import InteractionType, PathSolver, Receiver, Transmitter
+
+    return InteractionType, PathSolver, Receiver, Transmitter
+
+
+def solve_link(
+    rt_runtime,
+    payload: dict,
+    *,
+    dependencies=None,
+) -> dict:
+    InteractionType, PathSolver, Receiver, Transmitter = dependencies or _link_dependencies()
 
     interaction_labels = {
         int(InteractionType.NONE): "NONE",
@@ -22,36 +35,48 @@ def solve_link(scene_xml, payload: dict) -> dict:
     params = parse_link_payload(payload)
     tx_position = params["tx_position"]
     rx_position = params["rx_position"]
+    total_started_at = perf_counter()
 
-    with RT_SOLVER_LOCK:
-        scene = build_scene(scene_xml, params["frequency_hz"])
-        scene.add(Transmitter(name="tx_link", position=tx_position, orientation=params["tx_orientation"]))
-        scene.add(Receiver(name="rx_link", position=rx_position, orientation=params["rx_orientation"]))
+    with rt_runtime.lock:
+        scene = rt_runtime.scene
+        rt_runtime.set_frequency(params["frequency_hz"])
+        try:
+            scene.add(Transmitter(name="tx_link", position=tx_position, orientation=params["tx_orientation"]))
+            scene.add(Receiver(name="rx_link", position=rx_position, orientation=params["rx_orientation"]))
+            solver_started_at = perf_counter()
+            paths = PathSolver()(
+                scene,
+                max_depth=params["max_depth"],
+                samples_per_src=params["samples_per_src"],
+                los=params["los"],
+                specular_reflection=params["specular_reflection"],
+                diffuse_reflection=params["diffuse_reflection"],
+                refraction=params["refraction"],
+                synthetic_array=False,
+                seed=params["seed"],
+            )
+            log_timing(
+                "link_solver",
+                solver_started_at,
+                max_depth=params["max_depth"],
+                samples=params["samples_per_src"],
+            )
 
-        paths = PathSolver()(
-            scene,
-            max_depth=params["max_depth"],
-            samples_per_src=params["samples_per_src"],
-            los=params["los"],
-            specular_reflection=params["specular_reflection"],
-            diffuse_reflection=params["diffuse_reflection"],
-            refraction=params["refraction"],
-            synthetic_array=False,
-            seed=params["seed"],
-        )
-
-    valid = to_numpy(paths.valid).reshape(-1)
-    interactions = to_numpy(paths.interactions).reshape(params["max_depth"], -1)
-    vertices = to_numpy(paths.vertices).reshape(params["max_depth"], -1, 3)
-    tau = to_numpy(paths.tau).reshape(-1)
-    theta_t = to_numpy(paths.theta_t).reshape(-1)
-    phi_t = to_numpy(paths.phi_t).reshape(-1)
-    theta_r = to_numpy(paths.theta_r).reshape(-1)
-    phi_r = to_numpy(paths.phi_r).reshape(-1)
-    doppler = to_numpy(paths.doppler).reshape(-1)
-    a_real, a_imag = paths.a
-    a_real = to_numpy(a_real).reshape(-1)
-    a_imag = to_numpy(a_imag).reshape(-1)
+            valid = to_numpy(paths.valid).reshape(-1)
+            interactions = to_numpy(paths.interactions).reshape(params["max_depth"], -1)
+            vertices = to_numpy(paths.vertices).reshape(params["max_depth"], -1, 3)
+            tau = to_numpy(paths.tau).reshape(-1)
+            theta_t = to_numpy(paths.theta_t).reshape(-1)
+            phi_t = to_numpy(paths.phi_t).reshape(-1)
+            theta_r = to_numpy(paths.theta_r).reshape(-1)
+            phi_r = to_numpy(paths.phi_r).reshape(-1)
+            doppler = to_numpy(paths.doppler).reshape(-1)
+            a_real, a_imag = paths.a
+            a_real = to_numpy(a_real).reshape(-1)
+            a_imag = to_numpy(a_imag).reshape(-1)
+        finally:
+            scene.remove("tx_link")
+            scene.remove("rx_link")
 
     path_count = valid.shape[-1]
     path_records = []
@@ -128,6 +153,13 @@ def solve_link(scene_xml, payload: dict) -> dict:
         )
 
     if not path_records:
+        log_timing(
+            "link_total",
+            total_started_at,
+            valid_paths=0,
+            max_depth=params["max_depth"],
+            samples=params["samples_per_src"],
+        )
         return {
             "ok": True,
             "summary": {
@@ -143,6 +175,13 @@ def solve_link(scene_xml, payload: dict) -> dict:
     total_power_db = float(linear_to_db(np.array([np.sum(path_powers_linear)]))[0])
     strongest_path_db = float(np.max(powers_db))
     los_count = sum(1 for path in path_records if path["type"] == "LOS")
+    log_timing(
+        "link_total",
+        total_started_at,
+        valid_paths=len(path_records),
+        max_depth=params["max_depth"],
+        samples=params["samples_per_src"],
+    )
 
     return {
         "ok": True,

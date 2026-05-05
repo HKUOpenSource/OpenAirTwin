@@ -36,8 +36,8 @@ class RadiomapJob:
 
 
 class RadiomapJobManager:
-    def __init__(self, scene_xml) -> None:
-        self._scene_xml = scene_xml
+    def __init__(self, rt_runtime) -> None:
+        self._rt_runtime = rt_runtime
         self._jobs: dict[str, RadiomapJob] = {}
         self._lock = Lock()
 
@@ -75,7 +75,7 @@ class RadiomapJobManager:
         self._update_job(job_id, status="running", progress=0.02, message="Starting")
         try:
             result = solve_terrain_radiomap(
-                self._scene_xml,
+                self._rt_runtime,
                 payload,
                 progress_cb=lambda progress, message: self._update_job(
                     job_id,

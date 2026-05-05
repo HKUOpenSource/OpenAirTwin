@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from threading import Lock
 from typing import Iterable
 
 import numpy as np
 
 from backend import config
-
-
-RT_SOLVER_LOCK = Lock()
 
 
 def parse_vector(values: Iterable[float], *, size: int, name: str) -> tuple[float, ...]:
