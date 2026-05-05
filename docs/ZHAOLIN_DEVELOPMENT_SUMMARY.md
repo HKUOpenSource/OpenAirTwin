@@ -1,6 +1,8 @@
 # Zhaolin Development Summary
 
-This document records Zhaolin's development context, dated feature work, validation results, cleanup notes, and handoff requirements for the HKU wireless digital twin platform.
+This document records Zhaolin's development context, dated feature work,
+validation commands, cleanup results, and handoff notes for the HKU wireless
+digital twin platform.
 
 ## Developer Context
 
@@ -8,235 +10,237 @@ This document records Zhaolin's development context, dated feature work, validat
 - Remote host: `defaultuser@100.65.77.20`
 - Remote work folder: `/home/defaultuser/worktree-zhaolin`
 - Active validation port: `8090`
+- Authoritative GPU runtime: `/home/defaultuser/venvs/sionna-gpu`
 - Shared v3.0 scene assets: `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`
 
-Use `worktree-zhaolin` for Zhaolin's validation work. Do not restart or kill another developer's worktree, especially `worktree-zihao` on port `18091`, unless explicitly requested.
+Use `worktree-zhaolin` for Zhaolin validation. Do not restart, kill, or sync
+over another developer's worktree, especially `worktree-zihao` on port `18091`,
+unless explicitly requested.
 
-## 2026-05-05 - Backend Solver Runtime Preload and Warm Solve Optimization
+## 2026-05-05 - Backend Hardening, Setup, and Remote Smoke
 
-This development round optimized the backend path solver and terrain radio-map solver without changing numerical defaults or API responses.
-
-Root cause confirmed before implementation:
-
-- Remote DGX Spark CUDA backend was available through Sionna RT / Mitsuba / Dr.Jit.
-- Low-sample probes showed the actual Sionna `PathSolver` took roughly `0.02s`, while every backend request spent roughly `42s` reloading `scenario_HKU.xml`.
-- Terrain radio-map probes showed the same repeated scene-load cost before the real patch and solver work.
+This round converted the backend review findings into implementation work and
+added setup documentation for new developers.
 
 Implemented functionality:
 
-- Added a cached RT runtime that preloads `scenario_HKU.xml` once during backend startup.
-- Moved solver serialization from a module-level lock to the cached runtime's lock.
-- Updated the link solver to reuse the cached scene, temporarily add Tx/Rx, copy path outputs, and remove temporary devices in `finally`.
-- Updated the terrain radio-map solver to reuse the cached scene, temporarily add Tx, copy radio-map output, and remove the temporary transmitter in `finally`.
-- Kept existing API response shapes and solver defaults unchanged, including link samples, radio-map samples, and density scaling.
-- Added lightweight `[rt]` timing logs for link, radio-map patch build, radio-map solver, finalization, and total solve time.
+- Added `requirements.txt` with runtime dependency names: `numpy`, `sionna`,
+  `mitsuba`, and `drjit`.
+- Added `docs/SETUP.md` documenting what can run locally without `HKU_scenes`,
+  what needs the remote Sionna/Mitsuba/Dr.Jit GPU runtime, and how Zhaolin
+  should validate on `/home/defaultuser/worktree-zhaolin` port `8090`.
+- Added strict solver payload parsing for finite numbers, bounded ints/floats,
+  coordinate vectors, seeds, and booleans.
+- Added server-side caps and `HKU_RT_*` environment overrides for frequency,
+  max depth, samples, radio-map density/effective samples, seeds, advanced link
+  path limits, FFT size, subcarrier spacing, and tap output size.
+- Rejected invalid solver input with HTTP `400` instead of silently clamping.
+- Replaced radio-map one-thread-per-job behavior with one background worker, a
+  bounded pending queue, max stored job cleanup, and TTL cleanup.
+- Added HTTP `429` for a full radio-map queue.
+- Sanitized failed radio-map job API errors while logging full tracebacks on
+  the server.
+- Replaced prefix-based path containment checks with resolved `Path.relative_to`
+  containment for static files and mesh serving.
+- Added `scripts/smoke_remote_http.py`, an HTTP-only remote smoke script that
+  covers health, manifest, gzip bundle delivery, ETag `304`, low-sample link
+  solve, advanced link solve with taps enabled, and radio-map job/result
+  polling.
 
-Validation performed during this feature round:
+Main files touched:
 
-- `python3 -m compileall -q backend scripts tests`
-- `python3 -m unittest discover -s tests`
-- `git diff --check`
-- Synced code to `/home/defaultuser/worktree-zhaolin`.
-- Restarted only the Zhaolin `8090` backend service from `/home/defaultuser/worktree-zhaolin`.
-- Confirmed `/api/health` returned OK after restart.
-- Remote warm link benchmark on `8090` with current UI parameters completed in `0.041s`.
-- Remote default radio-map job on `8090` completed in `1.178s` end-to-end for `29,588` cells; server timing logged `0.417s` terrain patch build, `0.288s` Sionna solver, and `0.706s` backend compute total.
-
-Final runtime files introduced by this work:
-
-- `backend/rt/runtime.py`
+- `backend/config.py`
+- `backend/rt/common.py`
+- `backend/rt/solve_link.py`
+- `backend/jobs/radiomap_jobs.py`
+- `backend/server.py`
+- `docs/SETUP.md`
+- `requirements.txt`
+- `scripts/smoke_remote_http.py`
+- `tests/test_solver_validation.py`
+- `tests/test_radiomap_jobs.py`
+- `tests/test_server_hardening.py`
 - `tests/test_solver_runtime_cleanup.py`
 
-Cleanup for this round:
+## 2026-05-05 - Advanced Link Solver and Channel Output
 
-- Deleted remote benchmark scratch files from `/tmp`: `worktree-zhaolin-link-benchmark.json` and `worktree-zhaolin-radiomap-benchmark.py`.
-- Kept `/tmp/worktree-zhaolin-8090.log` because the active Zhaolin `8090` backend process writes runtime logs there.
-- Final local cleanup scan found no `__pycache__`, `.pyc`, `.DS_Store`, `._*`, `.tmp`, `.bak`, `.log`, or unused generated files to delete.
-- Kept `backend/rt/runtime.py` and `tests/test_solver_runtime_cleanup.py` because they are part of the final runtime implementation and regression coverage.
-
-## 2026-05-05 - Load Scene Acceleration and Multi-Tile 3D Performance
-
-This development round focused on keeping geometry exact while improving large scene delivery and browser-side interaction performance when many tile bundles are loaded.
+This round borrowed the official Sionna RT GUI's solver model, while keeping
+the existing browser UI and HTTP backend.
 
 Implemented functionality:
 
-- Added pre-compressed `.glb.gz` tile bundle support using Python's standard `gzip` module.
-- Extended the scene manifest with non-breaking bundle metadata: `cache_key`, `compressed_size_bytes`, and `compressed_cache_exists`.
-- Versioned frontend bundle URLs with `?v={cache_key}` so browser caching can safely use immutable cache headers.
-- Updated `/api/scene/bundle/{bundle_id}` to serve gzip when the browser sends `Accept-Encoding: gzip`, with raw GLB fallback.
-- Added strong bundle response headers: `Cache-Control: public, max-age=31536000, immutable`, `ETag`, `Last-Modified`, `Vary: Accept-Encoding`, `Content-Encoding: gzip`, and original/compressed size headers.
-- Added 304 handling for cached bundle requests.
-- Added `--compress` to `backend.tools.build_tile_bundles` so remote deployments can pre-warm compressed bundle caches.
-- Updated frontend load progress to distinguish transfer size from raw GLB size, avoiding misleading progress when browsers auto-decompress gzip responses.
-- Kept manifest responses `no-store` so clients still discover fresh bundle cache keys.
+- Extended link solver validation with `max_num_paths_per_src`,
+  `synthetic_array`, `diffraction`, `edge_diffraction`,
+  `diffraction_lit_region`, and optional `channel.compute_taps`.
+- Passed advanced options into Sionna RT `PathSolver` with defaults that
+  preserve previous link solve behavior.
+- Added compact CIR/taps output when `compute_taps=true`, returning only chart
+  data and summary statistics rather than raw full channel tensors.
+- Validated tap range constraints, tap count caps, FFT size, and subcarrier
+  spacing bounds.
+- Extended the remote smoke script with a low-sample advanced link solve.
 
-3D rendering and interaction performance:
+Frontend functionality:
 
-- Added `Performance Mode` controls: `Auto`, `Quality`, and `Fast`, with `Auto` as the default.
-- Set the Three.js renderer `powerPreference` to `high-performance`.
-- Reduced the default DPR cap from `2.0` to `1.5`.
-- In `Auto`, lowers DPR to `1.0` during camera interaction and restores after the interaction settles.
-- In `Fast`, keeps DPR fixed at `1.0`; in `Quality`, uses the capped high-quality DPR path.
-- Added a lightweight material mode that uses `MeshLambertMaterial` for large scene bundles while preserving color, transparency, render order, polygon offset, and double-sided rendering.
-- Added category visibility controls with loaded faces/vertices estimates per category.
-- Added `Show All` and `Hide Heavy`; the heavy shortcut hides `VEGETATION_TB` and `GENERIC`.
-- Added a performance HUD showing rolling FPS, DPR, draw calls, renderer triangles, visible faces/vertices, loaded tiles, and loaded bundles.
-- Added a frame yield after adding large bundles to the scene to reduce long main-thread stalls during multi-bundle loading.
-- Kept geometry coordinates, bundle selection, solver inputs, radio-map overlays, Tx/Rx picking, and visual scene correctness unchanged.
+- Added a communication-research-oriented parameter model with Physical Layer,
+  Propagation, Solver Budget, and Channel Output groups.
+- Added Physical Layer controls for carrier frequency, bandwidth, OFDM carriers,
+  and derived subcarrier spacing.
+- Converted frontend bandwidth and OFDM carrier count into the existing backend
+  `channel.subcarrier_spacing_hz` payload.
+- Added a right-side Channel Analysis panel for compact CIR/taps stats and an
+  SVG tap-power chart.
 
-Performance panel layout:
+## 2026-05-05 - Frontend Module Split and 3D Research UI
 
-- Moved the complete Performance controls out of the main left-side workflow panel.
-- Added a separate top-right Performance dock below the logo block.
-- The dock is hidden on the entry map and during loading, and appears only in the 3D page.
-- The dock defaults to collapsed and shows a compact summary for FPS, DPR, and visible/total bundle load.
-- Expanding the dock reveals all performance mode, material, HUD, and category visibility controls.
-- Matched the Performance dock width and border radius to the original logo block's natural width rather than stretching it across the viewport.
+This round split the large browser entry file into native ES modules with no
+build step, then refined the 3D control surface for research workflows.
 
-Validation performed during this feature round:
+Implemented module split:
 
-- `node --check backend/static/js/app.js`
-- `node --check backend/static/js/viewer.js`
-- `node --check backend/static/lib/GLBGeometryLoader.js`
-- `python3 -m compileall -q backend scripts tests`
-- `python3 -m unittest tests.test_bundle_acceleration`
-- Verified duplicate HTML IDs after the dock move; the only existing duplicate was the older `rxTitle`, not introduced by this work.
-- Synced code to `/home/defaultuser/worktree-zhaolin`.
-- Pre-compressed remote render bundles before remote validation.
-- Restarted only the Zhaolin `8090` service when backend or frontend runtime code changed.
-- Confirmed `/api/health` returned OK after remote updates.
-- Confirmed remote bundle responses returned gzip, immutable caching headers, original/compressed size headers, and 304 cache hits.
-- Confirmed remote `/index.html`, `/js/app.js`, and `/css/app.css` served the latest Performance dock and layout changes.
+- Kept `/js/app.js` as the single script tag in `index.html`.
+- Converted `app.js` into a bootstrap/orchestrator.
+- Added focused modules:
+  - `backend/static/js/app_state.js`
+  - `backend/static/js/dom_refs.js`
+  - `backend/static/js/tile_model.js`
+  - `backend/static/js/entry_map.js`
+  - `backend/static/js/performance_panel.js`
+  - `backend/static/js/solver_controls.js`
+  - `backend/static/js/scene_render_state.js`
+  - `backend/static/js/param_tooltips.js`
+- Fixed the duplicate `rxTitle` IDs by using non-unique class markup instead.
 
-Final runtime files introduced by this work:
+3D UI functionality:
 
-- `tests/test_bundle_acceleration.py`
+- Reworked the left control panel into research parameter groups.
+- Added hover/focus info tooltips for parameters, rendered through a
+  viewport-level tooltip layer so panel scrolling no longer clips them.
+- Moved physical units into input suffixes, including `GHz`, `MHz`, `kHz`, `m`,
+  and `dB`.
+- Renamed `Carrier Count / N_fft` to `OFDM Carriers`.
+- Moved map return from a text control into a bottom-right round map button.
+- Replaced the previous large Performance panel with a compact FPS block near
+  the quick map button; clicking expands detailed performance and visibility
+  controls.
+- Moved CIR/taps results into the former top-right analysis area.
 
-Cleanup for this round:
+## 2026-05-05 - Device Controls and Map/3D Switching
 
-- Final scan found no unused generated files to delete.
-- Final scan found no `__pycache__`, `.pyc`, `.DS_Store`, `.tmp`, or `.bak` leftovers.
-- Kept `tests/test_bundle_acceleration.py` because it validates the new gzip bundle cache and HTTP cache behavior.
-- No scene cache, remote asset, vendored library, or unrelated source file was removed during final cleanup.
-
-## 2026-05-04 - Entry Map UX, Place Search, and Bundle Loading
-
-This development round replaced the old manual tile-entry flow with a branded map-first workflow, added searchable Hong Kong place lookup, improved GLB bundle loading diagnostics, and made the entry map and loaded 3D scene feel like one continuous digital twin experience.
+This round unified the main 3D action controls and cleaned up map-page
+navigation.
 
 Implemented functionality:
 
-- Replaced the left-side `Manual Tile IDs` control with `Place Search`.
-- Added explicit OSM Nominatim search for Hong Kong places using candidate results rather than autocomplete.
-- Limited place search to user-triggered Search or Enter actions, with simple request throttling to avoid high-frequency public Nominatim calls.
-- Shows up to five candidates with name, address summary, and type metadata.
-- Clicking a candidate fits the entry map to the result bounding box when available, otherwise zooms to the result center.
-- Places a temporary marker at the result center and highlights the containing available tile when one exists.
-- Keeps tile selection manual: search results never auto-select a tile and never auto-load the 3D scene.
-- Shows search errors and empty states without changing current map selection.
+- Replaced the previous Tx/Rx cards and left-panel solve buttons with a bottom
+  centered action bar.
+- Link mode shows `Tx`, `Rx`, and `Solve Link`.
+- Radio Map mode shows `Tx` and `Run Map`.
+- Added a compact Tx/Rx coordinate popover with fixed `1.0 m` number-input
+  spinner steps and `m` suffixes.
+- Removed the separate step input, X/Y/Z nudge buttons, Done button, and Cancel
+  button from the device panel.
+- Made Tx/Rx buttons toggleable: clicking an inactive device opens continuous
+  placement mode; clicking the active device closes it.
+- Changed placement prompts to fixed research-friendly text:
+  `Click any surface to place Tx` and `Click any surface to place Rx`.
+- Split tap picking from camera dragging: only short primary-pointer taps under
+  `350 ms` and `6 px` movement place a device. Dragging, long press, right/mid
+  button, window blur, Escape, mode switches, map return, and solve actions do
+  not move Tx/Rx.
+- Unified map/3D switching:
+  - 3D page: bottom-right map button opens the tile map.
+  - Map page: bottom-right 3D/cube button returns to the already-loaded 3D
+    scene without applying pending tile selection.
+  - The old map top-right `x` button was removed.
+  - `Load Selected Tiles` / `Apply Tile Selection` remains the only action that
+    changes the loaded tile set.
 
-Entry map and brand experience:
+## 2026-05-05 - Existing Performance and Runtime Work Preserved
 
-- Rebuilt the entry screen into an Apple Maps-style fullscreen map.
-- Added a floating search sidebar, compact in-map legend, selection summary chip, right-side map controls, and a smaller floating `Load Selected Tiles` / `Apply Tile Selection` button.
-- Removed duplicate load buttons, explanatory copy, left-side tile stats, manual tile controls, and visible Nominatim attribution copy outside Leaflet's own map attribution.
-- Changed the map entry title to `HKU Wireless Digital Twin`.
-- Added HKU and ECE branding to the map sidebar as a separate logo block beneath the search block, using the same visual proportions as the 3D page.
-- Updated the map title, status badge, and legend so `Available`, `Selected`, `Loaded`, and `No Data` visually match the map polygons.
+Earlier 2026-05-05 work remains part of the current baseline:
 
-3D scene continuity:
+- Cached Sionna RT runtime preload avoids reloading `scenario_HKU.xml` for every
+  solve request.
+- Link and terrain radio-map solvers reuse the cached runtime and clean up
+  temporary Tx/Rx devices in `finally`.
+- Bundle serving supports pre-compressed `.glb.gz`, immutable cache headers,
+  strong ETags, and `304` cache hits.
+- The scene manifest exposes bundle cache metadata while staying `no-store`.
+- Frontend bundle loading tracks transfer progress, parse/add phases, and
+  visible performance data.
+- Category visibility controls, material mode, DPR mode, and loaded bundle
+  metrics remain available through the compact performance block.
 
-- Updated the loaded 3D page brand text to `HKU Wireless Digital Twin` with the existing realtime solver and radio-map subtitle.
-- Redesigned the 3D control sidebar to match the entry map sidebar's glass-panel visual language.
-- Removed the old visible tile checkbox loader from the 3D page.
-- Replaced the 3D tile-management controls with a `Map Selection` area and a `Choose Tiles on Map` button.
-- Kept the entry map's floating button as the only apply/load path: before entering 3D it loads selected tiles, and after entering 3D it applies updated map selections.
-- Preserved existing tile selection, loaded tile tracking, mesh counts, focus behavior, solver controls, and radio-map controls.
+## Earlier Work
 
-Bundle loading diagnostics and performance:
+### 2026-05-04 - Entry Map UX, Place Search, and Bundle Loading
 
-- Added `size_bytes` and `cache_exists` metadata to tile bundle manifest records.
-- Reads existing GLB cache file sizes without triggering bundle builds.
-- Updated the loading overlay to show bundle count, downloaded MB, total MB when known, and aggregate MB/s.
-- Reworked `GLBGeometryLoader.loadAsync(url, { onProgress })` to stream downloads when supported.
-- Reports bundle phases: `waiting`, `downloading`, `parsing`, `adding`, and `ready`.
-- Tracks TTFB, downloaded bytes, download speed, download duration, and parse duration.
-- Keeps a fallback path for browsers without stream support, with progress marked as unavailable.
-- Changed `Viewer.syncBundles()` from fully serial loading to conservative fixed concurrency of two bundles.
-- Keeps bundle removal synchronous and only adds meshes after each bundle finishes downloading and parsing.
-- Stops loading on bundle failure and reports the specific failed bundle id.
+- Replaced manual tile ID entry with an OSM/Leaflet map-first workflow.
+- Added Hong Kong place search through user-triggered Nominatim requests.
+- Added search result candidates, map fitting, temporary markers, tile
+  highlighting, and manual tile selection.
+- Rebuilt the entry screen with HKU/ECE branding and a floating sidebar.
+- Added bundle loading diagnostics, stream progress when available, conservative
+  bundle concurrency, and clearer loading overlay state.
 
-Loading state and sidebar polish:
+### 2026-04-29 - Initial Map OSM Upgrade
 
-- Aggregated progress across concurrent bundles instead of allowing individual bundle events to replace the whole overlay message.
-- Throttled loading overlay DOM updates and made progress percentage monotonic during each load session.
-- Reduced flicker by avoiding repeated identical status writes.
-- Simplified the overlay to one main loading summary plus concise active-work detail.
-- Replaced the old panel-to-circle collapse animation with horizontal slide-in / slide-out motion.
-- Added independent sidebar toggle buttons for the map page and 3D page.
-- Kept map and 3D sidebar state alive while collapsed, including search input, candidates, and solver controls.
-- Added reduced-motion handling for the sidebar transitions.
-- Fixed the map sidebar collapse button alignment by using the same panel-width, button-size, and inset formula as the 3D sidebar.
+- Rebuilt the initial tile-selection map on Leaflet 1.9.x and Carto Light OSM.
+- Added vendored `proj4` and EPSG:2326 Hong Kong Grid conversion.
+- Preserved the original tile model while replacing dense SVG labels with
+  Canvas tile rendering.
+- Removed discarded intermediate map assets and generation scripts after the
+  OSM/Canvas design was selected.
 
-Validation performed during this feature round:
+## Validation
 
-- `node --check backend/static/js/app.js`
-- `node --check backend/static/js/viewer.js`
-- `node --check backend/static/lib/GLBGeometryLoader.js`
-- `python3 -m compileall -q backend`
-- `git diff --check`
-- Browser validation for entry map layout, place search, candidate selection, tile selection, sidebar collapse / expand behavior, 3D entry, return-to-map flow, and loading overlay stability.
-- Synced code to `/home/defaultuser/worktree-zhaolin`.
-- Restarted only the Zhaolin `8090` service.
-- Confirmed `/api/health` returned OK.
+Local checks used for this development round:
 
-Cleanup for this round:
+```bash
+for file in backend/static/js/*.js; do node --check "$file"; done
+python3 -m compileall -q backend scripts tests
+python3 -m unittest discover -s tests
+git diff --check
+```
 
-- Final scan found no untracked files.
-- Final scan found no `__pycache__`, `.pyc`, `.DS_Store`, or `.log` leftovers.
-- No generated cache, scene asset, vendored library, or tracked source file was removed during final cleanup.
+Additional static checks used during frontend refactors:
 
-## 2026-04-29 - Initial Map OSM Upgrade
+```bash
+python3 - <<'PY'
+from html.parser import HTMLParser
+from pathlib import Path
 
-The initial tile-selection map was rebuilt from a static government tile-map image workflow into an interactive OSM-based map experience.
+class IdParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.ids = {}
 
-Implemented functionality:
+    def handle_starttag(self, tag, attrs):
+        for key, value in attrs:
+            if key == "id":
+                self.ids.setdefault(value, 0)
+                self.ids[value] += 1
 
-- Added a Leaflet 1.9.x / Carto Light OSM basemap for the initial tile index view.
-- Added vendored `proj4` support and EPSG:2326 Hong Kong Grid to WGS84 conversion.
-- Preserved the original `tile_map.png` tile model for sheet, quadrant, numbered cell, and A/B/C/D subtile bounds.
-- Removed dense map text labels from the overlay; tile IDs are surfaced through hover tooltips, badges, search / selection UI, and selection stats.
-- Replaced the old per-node SVG overlay with Leaflet Canvas rendering for smoother zooming, dragging, and tile selection.
-- Represented no-data regions with lightweight grid lines instead of filled blocks.
-- Kept `tile_map.png` as the local fallback image and historical coordinate reference source.
-- Computed fallback image bounds from the original image frame offsets so the useful map frame remains aligned with the tile grid.
+parser = IdParser()
+parser.feed(Path("backend/static/index.html").read_text())
+dupes = {key: count for key, count in parser.ids.items() if count > 1}
+if dupes:
+    raise SystemExit(f"duplicate ids: {dupes}")
+PY
+```
 
-Final runtime assets introduced by this work:
+Remote smoke after syncing/restarting Zhaolin `8090`:
 
-- `backend/static/lib/leaflet/`
-- `backend/static/lib/proj4/`
+```bash
+python3 scripts/smoke_remote_http.py
+```
 
-Discarded intermediate approaches:
+The smoke script is HTTP-only. It must not SSH, sync, kill, or restart services.
 
-- Hybrid static PNG plus SVG overlay.
-- Generated landmask SVG basemap.
-- Generated AI-style static basemap as the primary map.
-- Fixed-screen grid anchored over OSM.
-- Per-frame SVG coordinate reprojection.
+## Remote Workflow
 
-Validation performed during this feature round:
-
-- `node --check backend/static/js/app.js`
-- `PYTHONPYCACHEPREFIX=.codex_pycache python3 -m compileall -q backend scripts`
-- Playwright checks for OSM tile requests, no `tile_map.png` request during normal online loading, no SVG text labels, Canvas grid rendering, zoom, drag, tile selection, fallback behavior, and mobile layout.
-- Synced code to `/home/defaultuser/worktree-zhaolin`.
-- Restarted only the `8090` backend service from `worktree-zhaolin`.
-- Confirmed `/api/health` returned OK.
-- Confirmed `worktree-zihao` / `18091` was not restarted or killed.
-- Verified the initial map at `http://100.65.77.20:8090` with Playwright.
-
-## Remote Workflow Notes
-
-Use the sync scripts with an explicit remote root when validating Zhaolin's work:
+Sync code with an explicit remote root:
 
 ```bash
 HKU_RT_REMOTE_ROOT=/home/defaultuser/worktree-zhaolin bash scripts/sync_code_to_remote.sh
@@ -255,34 +259,28 @@ setsid env \
   </dev/null > /tmp/worktree-zhaolin-8090.log 2>&1 &
 ```
 
-Before validating GPU-dependent flows, confirm scene assets are available through the worktree's `HKU_scenes` path. The repository does not include `HKU_scenes/`.
+Before validating GPU-dependent flows, confirm `HKU_scenes/scenario_HKU.xml`
+and meshes are available through the worktree's `HKU_scenes` path. The
+repository intentionally does not include `HKU_scenes/`.
 
 ## Cleanup Notes
 
-Keep generated caches, Python bytecode, `.DS_Store`, log files, and scene cache output out of version control.
+Final cleanup result for this round on 2026-05-05:
+
+- No `__pycache__`, `.pyc`, `.pytest_cache`, `.DS_Store`, backup files, temp
+  files, or unused generated files were found in the repository cleanup scan.
+- `git clean -nd` only listed intentional new final artifacts: frontend modules,
+  setup documentation, requirements, remote smoke script, and regression tests.
+  They were kept.
+- No scene assets, generated bundle caches, vendored libraries, remote logs, or
+  unrelated files were removed.
 
 Cleanup history:
 
-- 2026-05-05 backend solver runtime preload: removed remote benchmark scratch files from `/tmp`; final local cleanup scan found no generated leftovers; kept `backend/rt/runtime.py` and `tests/test_solver_runtime_cleanup.py` as final implementation and regression coverage.
-- 2026-05-05 load-scene acceleration: final cleanup scan found no unused generated files to delete; kept `tests/test_bundle_acceleration.py` as a functional regression test.
-- 2026-05-04: final cleanup scan found no unused generated files to delete.
-- 2026-04-29: removed intermediate map exploration files after the final OSM / Canvas design was selected:
-  - `backend/static/assets/tile_landmask.svg`
-  - `backend/static/assets/tile_basemap.png`
-  - `scripts/generate_tile_landmask_svg.py`
-  - `scripts/generate_tile_basemap.py`
-  - `scripts/__pycache__/`
-
-## Open Follow-up Items
-
-The latest backend hardening findings are still open after the solver runtime preload:
-
-- Add server-side caps for solver samples, max depth, frequency, and radio-map density.
-- Add queue/backpressure for radio-map jobs instead of unbounded daemon threads.
-- Add TTL cleanup, result deletion, pagination, or persistence for radio-map results.
-- Avoid returning full internal tracebacks to API clients.
-- Replace string-prefix path checks with `Path.resolve()` plus robust containment checks.
-- Improve startup behavior when `HKU_scenes/scenario_HKU.xml` is missing.
+- 2026-05-05 runtime preload work removed remote benchmark scratch files from
+  `/tmp` and kept `/tmp/worktree-zhaolin-8090.log` for the active Zhaolin server.
+- 2026-04-29 map exploration removed discarded generated basemap/landmask files
+  and related scripts after the final OSM/Canvas design was selected.
 
 ## Handoff Checklist
 
@@ -293,3 +291,5 @@ When handing off future Zhaolin work:
 - State whether port `8090` was restarted and which PID is active.
 - State whether `18091` was only checked or intentionally changed.
 - List the exact local and remote checks that passed.
+- Note whether the browser-visible static files were synced after the last UI
+  change.

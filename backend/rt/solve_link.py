@@ -16,6 +16,69 @@ def _link_dependencies():
     return InteractionType, PathSolver, Receiver, Transmitter
 
 
+def _channel_summary(paths, params: dict) -> dict:
+    tap_indices = list(range(params["channel_l_min"], params["channel_l_max"] + 1))
+    tap_count = len(tap_indices)
+    sampling_frequency_hz = float(params["channel_subcarrier_spacing_hz"])
+    bandwidth_hz = int(params["channel_fft_size"]) * sampling_frequency_hz
+
+    taps = np.asarray(
+        paths.taps(
+            bandwidth=bandwidth_hz,
+            l_min=params["channel_l_min"],
+            l_max=params["channel_l_max"],
+            sampling_frequency=sampling_frequency_hz,
+            num_time_steps=params["channel_num_time_steps"],
+            normalize=False,
+            normalize_delays=True,
+            out_type="numpy",
+        )
+    )
+    if taps.size == 0:
+        tap_power_linear = np.zeros(tap_count, dtype=float)
+    elif taps.size % tap_count == 0:
+        tap_power_linear = np.sum(np.abs(taps.reshape(-1, tap_count)) ** 2, axis=0)
+    else:
+        raise ValueError(f"paths.taps returned {taps.size} values for {tap_count} requested taps")
+
+    tap_power_db = linear_to_db(tap_power_linear)
+    total_power_linear = float(np.sum(tap_power_linear))
+    peak_tap_offset = int(np.argmax(tap_power_linear)) if tap_count else -1
+
+    cir = paths.cir(normalize_delays=True, out_type="numpy")
+    coefficients = np.asarray(cir[0] if isinstance(cir, (tuple, list)) and cir else cir)
+    coefficient_abs = np.abs(coefficients).reshape(-1)
+    if coefficient_abs.size:
+        strongest_coefficient_abs = float(np.max(coefficient_abs))
+    else:
+        strongest_coefficient_abs = 0.0
+
+    return {
+        "tap_indices": [int(index) for index in tap_indices],
+        "delays_s": [float(index / sampling_frequency_hz) for index in tap_indices],
+        "power_db": [float(value) for value in tap_power_db],
+        "total_power_db": (
+            float(linear_to_db(np.array([total_power_linear]))[0])
+            if total_power_linear > 0.0
+            else None
+        ),
+        "peak_tap_index": int(tap_indices[peak_tap_offset]) if peak_tap_offset >= 0 else None,
+        "peak_tap_power_db": float(tap_power_db[peak_tap_offset]) if peak_tap_offset >= 0 else None,
+        "cir_summary": {
+            "coefficient_count": int(coefficient_abs.size),
+            "strongest_coefficient_abs": strongest_coefficient_abs,
+        },
+        "config": {
+            "l_min": int(params["channel_l_min"]),
+            "l_max": int(params["channel_l_max"]),
+            "fft_size": int(params["channel_fft_size"]),
+            "subcarrier_spacing_hz": sampling_frequency_hz,
+            "bandwidth_hz": float(bandwidth_hz),
+            "num_time_steps": int(params["channel_num_time_steps"]),
+        },
+    }
+
+
 def solve_link(
     rt_runtime,
     payload: dict,
@@ -47,12 +110,16 @@ def solve_link(
             paths = PathSolver()(
                 scene,
                 max_depth=params["max_depth"],
+                max_num_paths_per_src=params["max_num_paths_per_src"],
                 samples_per_src=params["samples_per_src"],
+                synthetic_array=params["synthetic_array"],
                 los=params["los"],
                 specular_reflection=params["specular_reflection"],
                 diffuse_reflection=params["diffuse_reflection"],
                 refraction=params["refraction"],
-                synthetic_array=False,
+                diffraction=params["diffraction"],
+                edge_diffraction=params["edge_diffraction"],
+                diffraction_lit_region=params["diffraction_lit_region"],
                 seed=params["seed"],
             )
             log_timing(
@@ -74,6 +141,7 @@ def solve_link(
             a_real, a_imag = paths.a
             a_real = to_numpy(a_real).reshape(-1)
             a_imag = to_numpy(a_imag).reshape(-1)
+            channel = _channel_summary(paths, params) if params["compute_taps"] else None
         finally:
             scene.remove("tx_link")
             scene.remove("rx_link")
@@ -160,7 +228,7 @@ def solve_link(
             max_depth=params["max_depth"],
             samples=params["samples_per_src"],
         )
-        return {
+        result = {
             "ok": True,
             "summary": {
                 "valid_paths": 0,
@@ -170,6 +238,9 @@ def solve_link(
             },
             "paths": [],
         }
+        if channel is not None:
+            result["channel"] = channel
+        return result
 
     powers_db = linear_to_db(np.asarray(path_powers_linear))
     total_power_db = float(linear_to_db(np.array([np.sum(path_powers_linear)]))[0])
@@ -183,7 +254,7 @@ def solve_link(
         samples=params["samples_per_src"],
     )
 
-    return {
+    result = {
         "ok": True,
         "summary": {
             "valid_paths": len(path_records),
@@ -193,3 +264,6 @@ def solve_link(
         },
         "paths": path_records,
     }
+    if channel is not None:
+        result["channel"] = channel
+    return result

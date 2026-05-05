@@ -63,9 +63,21 @@ class FakePaths:
         self.doppler = np.asarray([0.0], dtype=np.float32)
         self.a = (np.asarray([1.0], dtype=np.float32), np.asarray([0.0], dtype=np.float32))
 
+    def taps(self, **_kwargs):
+        return np.asarray([[[[[[1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 2.0j]]]]]])
+
+    def cir(self, **_kwargs):
+        return (
+            np.asarray([[[[[[3.0 + 4.0j]]]]]]),
+            np.asarray([[[[[[1e-9]]]]]]),
+        )
+
 
 class FakePathSolver:
-    def __call__(self, scene, *, max_depth, **_kwargs):
+    last_kwargs = None
+
+    def __call__(self, scene, *, max_depth, **kwargs):
+        FakePathSolver.last_kwargs = {"max_depth": max_depth, **kwargs}
         assert "tx_link" in scene.items
         assert "rx_link" in scene.items
         return FakePaths(max_depth)
@@ -110,6 +122,7 @@ def fake_terrain_patch(_scene, **_kwargs):
 class SolverRuntimeCleanupTests(unittest.TestCase):
     def test_link_solver_removes_temporary_devices_after_success(self) -> None:
         runtime = FakeRuntime()
+        FakePathSolver.last_kwargs = None
         result = solve_link(
             runtime,
             {},
@@ -117,6 +130,54 @@ class SolverRuntimeCleanupTests(unittest.TestCase):
         )
 
         self.assertEqual(result["summary"]["valid_paths"], 1)
+        self.assertIsNone(result.get("channel"))
+        self.assertFalse(FakePathSolver.last_kwargs["synthetic_array"])
+        self.assertEqual(runtime.scene.items, {})
+        self.assertEqual(runtime.scene.removed, ["tx_link", "rx_link"])
+
+    def test_link_solver_passes_advanced_options_and_summarizes_channel(self) -> None:
+        runtime = FakeRuntime()
+        FakePathSolver.last_kwargs = None
+        result = solve_link(
+            runtime,
+            {
+                "solver": {
+                    "max_depth": 2,
+                    "samples_per_src": 10,
+                    "max_num_paths_per_src": 20,
+                    "synthetic_array": True,
+                    "diffraction": True,
+                    "edge_diffraction": True,
+                    "diffraction_lit_region": True,
+                },
+                "channel": {
+                    "compute_taps": True,
+                    "l_min": 0,
+                    "l_max": 2,
+                    "fft_size": 16,
+                    "subcarrier_spacing_hz": 1000,
+                },
+            },
+            dependencies=(FakeInteractionType, FakePathSolver, FakeDevice, FakeDevice),
+        )
+
+        self.assertEqual(FakePathSolver.last_kwargs["samples_per_src"], 10)
+        self.assertEqual(FakePathSolver.last_kwargs["max_num_paths_per_src"], 20)
+        self.assertTrue(FakePathSolver.last_kwargs["synthetic_array"])
+        self.assertTrue(FakePathSolver.last_kwargs["diffraction"])
+        self.assertTrue(FakePathSolver.last_kwargs["edge_diffraction"])
+        self.assertTrue(FakePathSolver.last_kwargs["diffraction_lit_region"])
+
+        channel = result["channel"]
+        self.assertEqual(channel["tap_indices"], [0, 1, 2])
+        self.assertEqual(channel["delays_s"], [0.0, 0.001, 0.002])
+        self.assertAlmostEqual(channel["power_db"][0], 0.0, places=6)
+        self.assertAlmostEqual(channel["power_db"][2], 6.020599913, places=6)
+        self.assertEqual(channel["peak_tap_index"], 2)
+        self.assertAlmostEqual(channel["peak_tap_power_db"], 6.020599913, places=6)
+        self.assertAlmostEqual(channel["total_power_db"], 6.989700043, places=6)
+        self.assertEqual(channel["cir_summary"]["coefficient_count"], 1)
+        self.assertEqual(channel["cir_summary"]["strongest_coefficient_abs"], 5.0)
         self.assertEqual(runtime.scene.items, {})
         self.assertEqual(runtime.scene.removed, ["tx_link", "rx_link"])
 

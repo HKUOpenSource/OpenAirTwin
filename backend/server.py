@@ -6,10 +6,12 @@ import json
 import mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import sys
+import traceback
 from urllib.parse import parse_qs, unquote, urlparse
 
 from backend import config
-from backend.jobs.radiomap_jobs import RadiomapJobManager
+from backend.jobs.radiomap_jobs import RadiomapJobManager, RadiomapQueueFull
 from backend.rt.runtime import RTRuntime
 from backend.rt.solve_link import solve_link
 from backend.scene.tile_bundles import (
@@ -19,6 +21,16 @@ from backend.scene.tile_bundles import (
     ensure_tile_bundle,
 )
 from backend.scene.xml_catalog import SceneManifest, load_scene_manifest
+
+
+def resolve_under(root: Path, relative_path: str | Path) -> Path | None:
+    root_path = root.resolve()
+    candidate = (root_path / relative_path).resolve()
+    try:
+        candidate.relative_to(root_path)
+    except ValueError:
+        return None
+    return candidate
 
 
 class AppState:
@@ -153,8 +165,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         return json.loads(raw.decode("utf-8"))
 
     def serve_static_file(self, relative_path: str) -> None:
-        file_path = (config.STATIC_ROOT / relative_path).resolve()
-        if not str(file_path).startswith(str(config.STATIC_ROOT.resolve())) or not file_path.exists():
+        file_path = resolve_under(config.STATIC_ROOT, unquote(relative_path))
+        if file_path is None or not file_path.exists():
             self.send_text("Not Found", code=404)
             return
         content_type, _ = mimetypes.guess_type(str(file_path))
@@ -166,8 +178,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_text("Unknown mesh id", code=404)
             return
 
-        file_path = (config.SCENE_ROOT / mesh.relative_path).resolve()
-        if not str(file_path).startswith(str(config.SCENE_ROOT.resolve())) or not file_path.exists():
+        file_path = resolve_under(config.SCENE_ROOT, mesh.relative_path)
+        if file_path is None or not file_path.exists():
             self.send_text("Mesh file missing", code=404)
             return
         self.send_file(file_path, content_type="application/octet-stream")
@@ -269,10 +281,20 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return
 
             self.send_text("Not Found", code=404)
+        except RadiomapQueueFull as exc:
+            self.send_json(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                    "max_pending_jobs": exc.max_pending_jobs,
+                },
+                code=429,
+            )
         except ValueError as exc:
             self.send_json({"ok": False, "error": str(exc)}, code=400)
         except Exception as exc:
-            self.send_json({"ok": False, "error": str(exc)}, code=500)
+            traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
+            self.send_json({"ok": False, "error": "Internal server error"}, code=500)
 
 
 def main() -> None:

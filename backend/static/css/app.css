@@ -19,7 +19,8 @@
   --top-right-panel-right:18px;
   --top-right-panel-width:min(375px, calc(100vw - 36px));
   --top-right-panel-radius:20px;
-  --performance-dock-top:124px;
+  --analysis-dock-top:124px;
+  --quick-bar-bottom:16px;
   --sidebar-toggle-size:44px;
   --sidebar-toggle-inset:8px;
   --sidebar-toggle-top-offset:12px;
@@ -34,13 +35,25 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 .logoBar img{display:block;height:66px;width:auto;object-fit:contain;border-radius:6px;background:#ffffff;mix-blend-mode:normal}
 .logoBar img.hku{height:78px}
 
-.performanceDock{position:absolute;right:var(--top-right-panel-right);top:var(--performance-dock-top);z-index:14;width:var(--top-right-panel-width);pointer-events:auto;border:1px solid rgba(130,140,160,.24);border-radius:var(--top-right-panel-radius);background:rgba(255,255,255,.9);box-shadow:0 18px 38px rgba(24,38,62,.16);backdrop-filter:blur(14px);overflow:hidden}
+.channelAnalysisDock{position:absolute;right:var(--top-right-panel-right);top:var(--analysis-dock-top);z-index:14;width:var(--top-right-panel-width);pointer-events:auto;border:1px solid rgba(130,140,160,.24);border-radius:var(--top-right-panel-radius);background:rgba(255,255,255,.9);box-shadow:0 18px 38px rgba(24,38,62,.16);backdrop-filter:blur(14px);padding:12px;overflow:hidden}
+.channelAnalysisHead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.channelAnalysisSubtitle{margin-top:2px;font-size:18px;font-weight:850;color:#1f2c42;letter-spacing:0}
+.sceneQuickBar{position:absolute;right:var(--top-right-panel-right);bottom:var(--quick-bar-bottom);z-index:16;display:flex;flex-direction:row-reverse;align-items:flex-end;justify-content:flex-end;gap:10px;pointer-events:auto}
+.quickIconBtn{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(130,140,160,.3);border-radius:999px;background:rgba(255,255,255,.92);color:#1f64e0;box-shadow:0 12px 28px rgba(24,38,62,.16);backdrop-filter:blur(12px);cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+.quickIconBtn:hover{transform:translateY(-1px);border-color:rgba(31,111,255,.52);box-shadow:0 16px 34px rgba(24,38,62,.2)}
+.quickIconBtn:disabled{opacity:.52;cursor:not-allowed;transform:none}
+.quickIconBtn svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.performanceDock{position:relative;z-index:1;width:var(--top-right-panel-width);pointer-events:auto;border:1px solid rgba(130,140,160,.24);border-radius:16px;background:rgba(255,255,255,.9);box-shadow:0 12px 28px rgba(24,38,62,.16);backdrop-filter:blur(14px);overflow:hidden;transition:width var(--sidebar-duration) var(--sidebar-ease)}
+.performanceDock.collapsed{width:104px}
 .performanceDockHead{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;border:0;background:transparent;color:#1f2c42;padding:10px 11px;cursor:pointer;text-align:left;font:inherit}
+.performanceDock.collapsed .performanceDockHead{grid-template-columns:minmax(0,1fr) auto;gap:6px}
 .performanceDockTitle{font-size:12px;font-weight:900;letter-spacing:.28px;text-transform:uppercase;color:#243248}
 .performanceDockSummary{min-width:0;display:grid;grid-template-columns:auto auto auto;justify-content:end;gap:8px;color:#6b7d96}
 .performanceDockSummary span{min-width:0;display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
 .performanceDockSummary b{font-size:9px;font-weight:900;letter-spacing:.22px;text-transform:uppercase;color:#7b8ca5}
 .performanceDockSummary i{font-style:normal;font-size:11px;font-weight:850;color:#1f2c42}
+.performanceDock.collapsed .performanceDockTitle,.performanceDock.collapsed .detailSummary{display:none}
+.performanceDock.collapsed .performanceDockSummary{justify-content:start}
 .performanceDockChevron{width:18px;height:18px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#63758f;transition:transform var(--sidebar-duration) var(--sidebar-ease),background .16s ease}
 .performanceDockHead:hover .performanceDockChevron{background:rgba(31,111,255,.08);color:#1f64e0}
 .performanceDockBody{display:flex;flex-direction:column;gap:8px;max-height:560px;padding:0 10px 10px;opacity:1;transform:translateY(0);transition:max-height var(--sidebar-duration) var(--sidebar-ease),opacity .18s ease,transform var(--sidebar-duration) var(--sidebar-ease),padding var(--sidebar-duration) var(--sidebar-ease)}
@@ -102,9 +115,10 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 .entryMapBadge span{font-size:15px;font-weight:800;color:#1f64e0}
 .entryMapBadge small{font-size:11px;font-weight:700;color:#64748b;line-height:1.35}
 .entryMapLegend{position:absolute;right:20px;top:68px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;padding:9px 11px;border-radius:14px;background:rgba(255,255,255,.9);border:1px solid rgba(130,140,160,.2);box-shadow:0 10px 22px rgba(27,39,58,.1);backdrop-filter:blur(8px);z-index:720}
-.entryLoadAction{position:absolute;right:20px;bottom:36px;z-index:730;display:flex;justify-content:flex-end}
-.entryFooterBtn{min-width:0;height:40px;padding:0 17px;border-radius:999px;font-size:13px;box-shadow:0 12px 26px rgba(31,111,255,.24)}
+.entryLoadAction{position:absolute;right:var(--top-right-panel-right);bottom:var(--quick-bar-bottom);z-index:730;display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.entryFooterBtn{min-width:0;height:44px;padding:0 17px;border-radius:999px;font-size:13px;box-shadow:0 12px 26px rgba(31,111,255,.24)}
 .entryFooterBtn:disabled{background:rgba(255,255,255,.88);color:#7a8798;border-color:rgba(130,140,160,.28);box-shadow:0 8px 18px rgba(25,37,58,.1);cursor:not-allowed}
+#btnEntryReturnScene{flex:0 0 auto}
 
 #panelToggle{left:calc(var(--control-sidebar-left) + var(--control-sidebar-width) - var(--sidebar-toggle-size) - var(--sidebar-toggle-inset));top:calc(var(--control-sidebar-top) + var(--sidebar-toggle-top-offset));z-index:13}
 #panelToggle.panelCollapsed{left:var(--control-sidebar-left);top:var(--control-sidebar-top)}
@@ -177,25 +191,75 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 .categoryName{display:block;min-width:0;font-size:12px;font-weight:800;color:#1f2c42;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .categoryStats{display:block;margin-top:2px;font-size:11px;font-weight:650;color:#70809b;line-height:1.35}
 
-.solverCfg{margin-top:10px;padding:10px;border-radius:10px;background:#fff;border:1px solid rgba(130,140,160,.28)}
-.solverCfgGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
-.solverCol{display:flex;flex-direction:column;gap:8px}
-.solverChecks{justify-content:flex-start;height:100%}
-.solverCfg label{display:flex;align-items:center;gap:6px;font-size:12px;color:#44556f}
-.solverField{display:flex;flex-direction:column}
-.solverField > label{display:block;margin-bottom:4px}
-.solverCfg select,.solverCfg input[type="number"],.solverCfg input[type="text"]{width:100%;padding:6px 8px;border-radius:8px;border:1px solid rgba(130,140,160,.35);background:#fff;height:34px;line-height:20px}
-.solverCfg input[type="checkbox"]{width:14px;height:14px;accent-color:#3478f6}
+.solverCfg{margin-top:10px;padding:10px;border-radius:12px;background:#fff;border:1px solid rgba(130,140,160,.28)}
+.researchParams{display:flex;flex-direction:column;gap:10px}
+.paramGroup{padding:9px;border-radius:11px;background:rgba(248,251,255,.95);border:1px solid rgba(130,140,160,.2)}
+.paramGroupTitle{margin-bottom:8px;font-size:11px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.34px}
+.paramGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.paramField{min-width:0;display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:750;color:#44556f}
+.paramLabel{min-width:0;display:flex;align-items:center;gap:5px;line-height:1.25;white-space:nowrap}
+.paramField input[type="number"],.paramField select{width:100%;min-width:0;height:34px;padding:6px 8px;border-radius:8px;border:1px solid rgba(130,140,160,.35);background:#fff;color:#1f2c42;font:inherit}
+.paramField input[readonly]{background:#f3f6fb;color:#52657f;cursor:default}
+.unitInput{position:relative;display:block;width:100%;min-width:0}
+.unitInput input[type="number"]{padding-right:54px}
+.unitSuffix{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:850;color:#718199;line-height:1;pointer-events:none}
+.unitInput input[readonly] + .unitSuffix{color:#61708a}
+.paramCheckGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.paramCheck{min-width:0;min-height:34px;display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:8px;background:#fff;border:1px solid rgba(130,140,160,.18);font-size:12px;font-weight:750;color:#44556f}
+.paramCheck.wide,.paramCheck.computeCheck,.paramCheck.syntheticCheck{grid-column:1 / -1}
+.paramCheck input{width:14px;height:14px;flex:0 0 auto;accent-color:#3478f6}
+.paramCheck span{min-width:0;display:inline-flex;align-items:center;gap:5px;line-height:1.25}
+.infoTip{position:relative;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:999px;border:1px solid rgba(100,116,139,.38);background:#fff;color:#52657f;font-size:10px;font-weight:900;line-height:1;cursor:help}
+.infoTip:focus{outline:none;box-shadow:0 0 0 3px rgba(31,111,255,.16);border-color:rgba(31,111,255,.55);color:#1f64e0}
+.infoTip .tipBubble{display:none}
+.paramTooltipLayer{position:fixed;left:0;top:0;z-index:1000;width:max-content;max-width:min(280px, calc(100vw - 24px));padding:8px 9px;border-radius:9px;background:rgba(20,31,48,.96);color:#fff;font-size:11px;font-weight:650;line-height:1.38;text-transform:none;letter-spacing:0;box-shadow:0 12px 28px rgba(15,23,42,.22);pointer-events:none;opacity:0;transition:opacity .14s ease}
+.paramTooltipLayer.visible{opacity:1}
+.paramTooltipText{min-width:0;white-space:normal}
+.paramTooltipArrow{position:absolute;left:var(--param-tooltip-arrow-left, 50%);width:10px;height:10px;background:rgba(20,31,48,.96);transform:translateX(-50%) rotate(45deg)}
+.paramTooltipLayer[data-placement="top"] .paramTooltipArrow{bottom:-5px}
+.paramTooltipLayer[data-placement="bottom"] .paramTooltipArrow{top:-5px}
 
 .modePanel{margin-top:10px}
 .hidden{display:none !important}
-.rtConfig{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.rtCol{background:linear-gradient(180deg,#ffffff,#f8fbff);border:1px solid rgba(130,140,160,.32);border-radius:12px;padding:10px;box-shadow:0 4px 10px rgba(24,38,62,.06)}
-.rtHead{font-size:12px;font-weight:800;color:#1f2c42;margin-bottom:8px;letter-spacing:.2px}
-.rtPickBtn{width:100%;margin-bottom:8px;background:linear-gradient(180deg,#fefefe,#f1f6ff)}
-.coordGrid{display:grid;grid-template-columns:1fr;gap:6px}
-.coordGrid label{display:grid;grid-template-columns:64px 1fr;align-items:center;font-size:12px;color:#5f7393;font-weight:700}
-.coordGrid input{width:100%;padding:6px 8px;border-radius:8px;border:1px solid rgba(130,140,160,.35);background:#fff}
+.advancedLinkSolver{margin-top:10px;padding:10px;border-radius:12px;background:#fff;border:1px solid rgba(130,140,160,.28)}
+.advancedLinkSolver summary{cursor:pointer;font-size:12px;font-weight:850;color:#1f2c42;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.advancedLinkSolver summary::-webkit-details-marker{display:none}
+.advancedLinkSolver summary::after{content:"⌄";width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:rgba(31,111,255,.08);color:#1f64e0;transition:transform .16s ease}
+.advancedLinkSolver[open] summary::after{transform:rotate(180deg)}
+.advancedGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.advancedGrid.compact{margin-top:8px}
+.advancedGrid label,.advancedChannel > label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:750;color:#5f7393}
+.advancedGrid input[type="number"]{width:100%;min-width:0;height:34px;padding:6px 8px;border-radius:8px;border:1px solid rgba(130,140,160,.35);background:#fff;color:#1f2c42}
+.advancedGrid .checkField,.advancedChannel > .checkField{min-height:34px;flex-direction:row;align-items:center;color:#44556f}
+.advancedGrid input[type="checkbox"],.advancedChannel input[type="checkbox"]{width:14px;height:14px;accent-color:#3478f6}
+.advancedGrid input:disabled{opacity:.52;cursor:not-allowed;background:#f2f5fa}
+.advancedChannel{margin-top:10px;padding-top:10px;border-top:1px solid rgba(130,140,160,.18)}
+.deviceDock{position:absolute;left:50%;bottom:16px;z-index:17;width:min(380px, calc(100vw - 420px));min-width:320px;display:flex;flex-direction:column;align-items:center;gap:8px;transform:translateX(-50%);pointer-events:none}
+.devicePrecisionPanel{width:min(380px, calc(100vw - 36px));pointer-events:auto;border:1px solid rgba(130,140,160,.26);border-radius:15px;background:rgba(255,255,255,.92);box-shadow:0 16px 36px rgba(24,38,62,.16);backdrop-filter:blur(16px);padding:9px}
+.devicePrecisionHead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:8px}
+.devicePrecisionKicker{font-size:9px;font-weight:900;letter-spacing:.28px;text-transform:uppercase;color:#7a8ba5}
+.devicePrecisionTitle{margin-top:1px;font-size:14px;font-weight:900;color:#1f2c42}
+.devicePrecisionStatus{max-width:170px;color:#1f64e0;font-size:10px;font-weight:800;line-height:1.25;text-align:right}
+.deviceCoordPanels{min-width:0}
+.deviceCoordPanel{min-width:0}
+.deviceCoordGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.deviceCoordGrid label{min-width:0;display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:850;color:#5f7393}
+.deviceCoordGrid input{width:100%;min-width:0;height:32px;border:1px solid rgba(130,140,160,.35);border-radius:9px;background:#fff;color:#1f2c42;padding:6px 8px;font:inherit}
+.deviceCoordGrid .unitInput input[type="number"]{padding-right:42px}
+.deviceCoordGrid .unitSuffix{right:26px}
+.deviceActionBar{pointer-events:auto;display:flex;align-items:center;justify-content:center;gap:8px;padding:8px;border:1px solid rgba(130,140,160,.24);border-radius:999px;background:rgba(255,255,255,.9);box-shadow:0 14px 34px rgba(24,38,62,.18);backdrop-filter:blur(14px)}
+.deviceActionBtn{min-width:84px;height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid rgba(130,140,160,.28);border-radius:999px;background:rgba(255,255,255,.94);color:#243248;padding:0 14px;font-size:12px;font-weight:900;letter-spacing:.05px;cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease,color .16s ease}
+.deviceActionBtn:hover{transform:translateY(-1px);border-color:rgba(31,111,255,.48);box-shadow:0 10px 22px rgba(24,38,62,.12)}
+.deviceActionBtn.active{border-color:rgba(31,111,255,.6);background:rgba(238,245,255,.98);color:#1f64e0;box-shadow:0 0 0 3px rgba(31,111,255,.12),0 12px 26px rgba(24,38,62,.14)}
+.deviceActionBtn.picking{background:rgba(31,111,255,.1)}
+.deviceActionBtn.solve{min-width:128px;background:linear-gradient(180deg,#1f6fff,#2f7eff);border-color:#1f6fff;color:#fff;box-shadow:0 12px 26px rgba(31,100,224,.24)}
+.deviceActionBtn.solve:hover{border-color:#1f6fff;box-shadow:0 16px 32px rgba(31,100,224,.28)}
+.deviceActionBtn:disabled{cursor:not-allowed;opacity:.66;transform:none}
+.deviceActionBtn.busy .deviceActionText::after{content:"..."}
+.deviceActionIcon{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:rgba(31,111,255,.1);color:#1f64e0;flex:0 0 auto}
+.deviceActionBtn.solve .deviceActionIcon{background:rgba(255,255,255,.18);color:#fff}
+.deviceActionIcon svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.deviceActionText{white-space:nowrap}
 
 .actions{display:flex;gap:8px;margin-top:10px}
 .actions.compact{margin-top:8px}
@@ -215,6 +279,16 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
 .pill.yes{background:#e6f9ef;color:#1a8a55}
 .pill.no{background:#f2f4f8;color:#6b778c}
+
+.channelStats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px}
+.channelStats div{background:#fff;border:1px solid rgba(130,140,160,.18);border-radius:8px;padding:7px 8px;min-width:0}
+.channelStats b{display:block;font-size:10px;font-weight:700;color:#70809b;margin-bottom:2px;letter-spacing:.18px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.channelStats span{display:block;font-size:12px;font-weight:800;color:#1f2c42;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tapChart{display:block;width:100%;height:auto;aspect-ratio:360 / 128;border-radius:9px;background:linear-gradient(180deg,#ffffff,#f5f8fd);border:1px solid rgba(130,140,160,.18)}
+.tapAxis{stroke:rgba(100,116,139,.42);stroke-width:1}
+.tapAxisLabel{fill:#70809b;font-size:9px;font-weight:800}
+.tapBar{fill:#70a7ff}
+.tapBar.peak{fill:#1eb980}
 
 .pathButtons{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
 .pathButtons .pbtn{border:1px solid rgba(130,140,160,.35);background:#fff;color:#1f2c42;border-radius:7px;padding:4px 7px;font-size:11px;font-weight:650;cursor:pointer}
@@ -257,7 +331,8 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
     --top-right-panel-right:12px;
     --top-right-panel-width:min(210px, calc(100vw - 24px));
     --top-right-panel-radius:14px;
-    --performance-dock-top:70px;
+    --analysis-dock-top:70px;
+    --quick-bar-bottom:12px;
     --sidebar-toggle-size:40px;
     --sidebar-toggle-inset:12px;
   }
@@ -276,22 +351,36 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
   .entryIconBtn{width:34px;height:34px}
   .entryMapBadge{left:12px;right:auto;bottom:64px;min-width:0;max-width:calc(100% - 110px)}
   .entryMapLegend{left:12px;right:auto;top:auto;bottom:124px;grid-template-columns:1fr}
-  .entryLoadAction{right:12px;bottom:14px}
-  .entryFooterBtn{height:40px;min-width:0}
+  .entryLoadAction{right:12px;bottom:var(--quick-bar-bottom);gap:8px}
+  .entryFooterBtn{height:42px;min-width:0}
   .logoBar{top:10px;gap:8px;padding:7px 8px;border-radius:var(--top-right-panel-radius)}
   .logoBar img{height:36px}
   .logoBar img.hku{height:44px}
-  .performanceDock{border-radius:var(--top-right-panel-radius)}
+  .channelAnalysisDock{top:var(--analysis-dock-top);border-radius:var(--top-right-panel-radius);max-height:calc(100vh - 150px);overflow:auto}
+  .sceneQuickBar{right:12px;bottom:var(--quick-bar-bottom);gap:8px}
+  .quickIconBtn{width:42px;height:42px}
+  .performanceDock{border-radius:var(--top-right-panel-radius);width:min(250px, calc(100vw - 78px))}
+  .performanceDock.collapsed{width:100px}
   .performanceDockSummary{gap:6px}
   .performanceDockBody{max-height:calc(100vh - 92px);overflow:auto}
   .performanceDock.collapsed .performanceDockBody{overflow:hidden}
+  .deviceDock{left:12px;right:12px;bottom:66px;width:auto;min-width:0;transform:none}
+  .devicePrecisionPanel{width:100%;max-width:380px;padding:9px;border-radius:15px}
+  .devicePrecisionHead{gap:8px}
+  .devicePrecisionStatus{max-width:170px}
+  .deviceCoordGrid{grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .deviceActionBar{max-width:100%;gap:6px;padding:7px}
+  .deviceActionBtn{min-width:66px;height:42px;padding:0 10px;gap:6px}
+  .deviceActionBtn.solve{min-width:104px}
+  .deviceActionIcon{width:18px;height:18px}
   #panelToggle.panelCollapsed{left:12px;top:74px;width:46px;height:46px}
   #ui{width:var(--control-sidebar-width);left:var(--control-sidebar-left);top:var(--control-sidebar-top);max-height:calc(100vh - 86px)}
   #ui.panelCollapsed{transform:translateX(calc(-100% - 24px))}
   .hint{display:none}
-  .rtConfig,.solverCfgGrid,.tileList{grid-template-columns:1fr}
+  .paramGrid,.paramCheckGrid,.tileList{grid-template-columns:1fr}
+  .paramCheck.wide,.paramCheck.computeCheck,.paramCheck.syntheticCheck{grid-column:auto}
 }
 
 @media (prefers-reduced-motion: reduce){
-  .entrySidebarStack,#ui,.entrySidebarToggle,#panelToggle,.performanceDockBody,.performanceDockChevron{transition:none}
+  .entrySidebarStack,#ui,.entrySidebarToggle,#panelToggle,.performanceDock,.performanceDockBody,.performanceDockChevron,.quickIconBtn{transition:none}
 }
