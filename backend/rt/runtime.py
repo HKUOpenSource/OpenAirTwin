@@ -5,7 +5,7 @@ from pathlib import Path
 from threading import Lock
 from time import perf_counter
 
-from backend.rt.common import build_scene
+from backend.rt.common import build_scene, create_planar_array
 
 
 def log_timing(label: str, started_at: float, **fields: object) -> None:
@@ -34,3 +34,15 @@ class RTRuntime:
 
     def set_frequency(self, frequency_hz: float) -> None:
         self.scene.frequency = float(frequency_hz)
+
+    def set_tx_array(self, array_config: dict) -> None:
+        self.scene.tx_array = create_planar_array(array_config)
+
+    def set_rx_array(self, array_config: dict) -> None:
+        self.scene.rx_array = create_planar_array(array_config)
+
+    def set_arrays(self, *, tx_array: dict | None = None, rx_array: dict | None = None) -> None:
+        if tx_array is not None:
+            self.set_tx_array(tx_array)
+        if rx_array is not None:
+            self.set_rx_array(rx_array)

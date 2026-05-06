@@ -35,9 +35,13 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 .logoBar img{display:block;height:66px;width:auto;object-fit:contain;border-radius:6px;background:#ffffff;mix-blend-mode:normal}
 .logoBar img.hku{height:78px}
 
-.channelAnalysisDock{position:absolute;right:var(--top-right-panel-right);top:var(--analysis-dock-top);z-index:14;width:var(--top-right-panel-width);pointer-events:auto;border:1px solid rgba(130,140,160,.24);border-radius:var(--top-right-panel-radius);background:rgba(255,255,255,.9);box-shadow:0 18px 38px rgba(24,38,62,.16);backdrop-filter:blur(14px);padding:12px;overflow:hidden}
+.channelAnalysisDock{position:absolute;right:var(--top-right-panel-right);top:var(--analysis-dock-top);z-index:14;width:var(--top-right-panel-width);max-height:calc(100vh - var(--analysis-dock-top) - 18px);pointer-events:auto;border:1px solid rgba(130,140,160,.24);border-radius:var(--top-right-panel-radius);background:rgba(255,255,255,.9);box-shadow:0 18px 38px rgba(24,38,62,.16);backdrop-filter:blur(14px);padding:12px;overflow:auto}
+.channelAnalysisDock::-webkit-scrollbar{width:8px}
+.channelAnalysisDock::-webkit-scrollbar-track{background:rgba(210,219,232,.34);border-radius:999px}
+.channelAnalysisDock::-webkit-scrollbar-thumb{background:rgba(111,129,158,.42);border-radius:999px}
 .channelAnalysisHead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
 .channelAnalysisSubtitle{margin-top:2px;font-size:18px;font-weight:850;color:#1f2c42;letter-spacing:0}
+.channelAnalysisMiniTitle{margin-top:0;font-size:13px;font-weight:850;color:#1f2c42;letter-spacing:0}
 .sceneQuickBar{position:absolute;right:var(--top-right-panel-right);bottom:var(--quick-bar-bottom);z-index:16;display:flex;flex-direction:row-reverse;align-items:flex-end;justify-content:flex-end;gap:10px;pointer-events:auto}
 .quickIconBtn{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(130,140,160,.3);border-radius:999px;background:rgba(255,255,255,.92);color:#1f64e0;box-shadow:0 12px 28px rgba(24,38,62,.16);backdrop-filter:blur(12px);cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
 .quickIconBtn:hover{transform:translateY(-1px);border-color:rgba(31,111,255,.52);box-shadow:0 16px 34px rgba(24,38,62,.2)}
@@ -139,7 +143,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 .card b{display:block;font-size:12px;color:var(--muted);font-weight:500}
 .card span{font-size:16px;font-weight:700;letter-spacing:.2px}
 
-.modeTabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.modeTabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
 .modeTab{border:1px solid rgba(130,140,160,.35);background:#fff;color:#1f2c42;border-radius:9px;padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer}
 .modeTab.active{background:#1f6fff;color:#fff;border-color:#1f6fff}
 
@@ -168,6 +172,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 
 .miniBtn{border:1px solid rgba(130,140,160,.35);background:#fff;color:#34445f;padding:5px 8px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;transition:.16s}
 .miniBtn:hover{transform:translateY(-1px);border-color:#7aa2e8}
+.miniSelect{height:28px;min-width:86px;border:1px solid rgba(130,140,160,.35);border-radius:8px;background:#fff;color:#34445f;padding:4px 7px;font-size:11px;font-weight:800}
 
 .controlLabel{font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.28px}
 .perfModeTabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
@@ -204,6 +209,14 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 .unitInput input[type="number"]{padding-right:54px}
 .unitSuffix{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:850;color:#718199;line-height:1;pointer-events:none}
 .unitInput input[readonly] + .unitSuffix{color:#61708a}
+.trajectoryActions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px}
+.waypointList{display:flex;flex-direction:column;gap:6px;max-height:128px;overflow:auto;margin-bottom:8px;padding-right:2px}
+.waypointItem{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:7px;padding:7px 8px;border-radius:8px;background:#fff;border:1px solid rgba(130,140,160,.2)}
+.waypointIndex{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:999px;background:#eef4ff;color:#1f64e0;font-size:10px;font-weight:900}
+.waypointCoord{min-width:0;font-size:11px;font-weight:750;color:#34445f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.waypointRemove{width:24px;height:24px;border:1px solid rgba(130,140,160,.28);border-radius:7px;background:#fff;color:#718199;font-size:15px;font-weight:800;line-height:1;cursor:pointer}
+.waypointRemove:disabled{opacity:.45;cursor:not-allowed}
+.mobilityEstimate{margin-top:8px;padding:7px 8px;border-radius:8px;background:#fff;border:1px solid rgba(130,140,160,.18);font-size:11px;font-weight:800;color:#61708a;line-height:1.35}
 .paramCheckGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
 .paramCheck{min-width:0;min-height:34px;display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:8px;background:#fff;border:1px solid rgba(130,140,160,.18);font-size:12px;font-weight:750;color:#44556f}
 .paramCheck.wide,.paramCheck.computeCheck,.paramCheck.syntheticCheck{grid-column:1 / -1}
@@ -284,13 +297,27 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 .channelStats div{background:#fff;border:1px solid rgba(130,140,160,.18);border-radius:8px;padding:7px 8px;min-width:0}
 .channelStats b{display:block;font-size:10px;font-weight:700;color:#70809b;margin-bottom:2px;letter-spacing:.18px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .channelStats span{display:block;font-size:12px;font-weight:800;color:#1f2c42;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tapChart{display:block;width:100%;height:auto;aspect-ratio:360 / 128;border-radius:9px;background:linear-gradient(180deg,#ffffff,#f5f8fd);border:1px solid rgba(130,140,160,.18)}
+.linkResultSummary{display:none}
+.linkSummaryStats{margin-bottom:0}
+.linkDockSection{margin-top:10px;padding:10px;border-radius:12px;background:rgba(248,251,255,.95);border:1px solid rgba(130,140,160,.28)}
+.linkDockSection .sectionTitle{margin-bottom:6px}
+.tapChart{display:block;width:100%;height:auto;aspect-ratio:420 / 172;border-radius:9px;background:linear-gradient(180deg,#ffffff,#f5f8fd);border:1px solid rgba(130,140,160,.18)}
 .tapAxis{stroke:rgba(100,116,139,.42);stroke-width:1}
+.tapGrid{stroke:rgba(148,163,184,.18);stroke-width:1}
 .tapAxisLabel{fill:#70809b;font-size:9px;font-weight:800}
+.tapAxisTitle{fill:#46556c;font-size:10px;font-weight:850}
+.tapPeakLabel{fill:#1a8a55}
 .tapBar{fill:#70a7ff}
 .tapBar.peak{fill:#1eb980}
+.mobilityChart{margin-bottom:8px}
+.mobilityLine{fill:none;stroke:#1f6fff;stroke-width:2.2}
+.mobilityPoint{fill:#70a7ff;stroke:#fff;stroke-width:1.5}
+.mobilityPoint.active{fill:#1eb980}
+.mobilityPlayback{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center}
+.mobilityPlayback input[type="range"]{width:100%;accent-color:#1f6fff}
 
-.pathButtons{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.pathButtons{display:flex;flex-wrap:wrap;gap:6px;max-height:92px;overflow:auto;padding-right:2px}
+.pathSelectionCount{white-space:nowrap}
 .pathButtons .pbtn{border:1px solid rgba(130,140,160,.35);background:#fff;color:#1f2c42;border-radius:7px;padding:4px 7px;font-size:11px;font-weight:650;cursor:pointer}
 .pathButtons .pbtn.active{background:#1f6fff;color:#fff;border-color:#1f6fff}
 .pathDetailList{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow:auto;padding-right:2px}

@@ -37,6 +37,10 @@ export function createSceneRenderStateController(context) {
     solver().renderRadiomapResult();
   }
 
+  function renderMobilityResult() {
+    solver().renderMobilityResult();
+  }
+
   function hideEntryScreen() {
     entry().hideEntryScreen();
   }
@@ -136,6 +140,8 @@ function syncControlSidebarUi() {
 }
 function syncModeUi() {
   const isLink = state.mode === "link";
+  const isMobility = state.mode === "mobility";
+  const isLinkLike = isLink || isMobility;
   const sceneControlsVisible = getViewer().__ready
     && !state.entry.visible
     && ui.panel.style.display === "flex"
@@ -145,7 +151,7 @@ function syncModeUi() {
     state.deviceControl.activeTarget = null;
   }
   const activeTarget = state.deviceControl.activeTarget;
-  const activeTargetAllowed = isLink
+  const activeTargetAllowed = isLinkLike
     ? activeTarget === "link-tx" || activeTarget === "link-rx"
     : activeTarget === "rm-tx";
   if (activeTarget && !activeTargetAllowed) {
@@ -154,14 +160,19 @@ function syncModeUi() {
   }
   const nextActiveTarget = state.deviceControl.activeTarget;
   ui.tabLink.classList.toggle("active", isLink);
-  ui.tabRadiomap.classList.toggle("active", !isLink);
+  ui.tabMobility.classList.toggle("active", isMobility);
+  ui.tabRadiomap.classList.toggle("active", state.mode === "radiomap");
   ui.linkPanel.classList.toggle("hidden", !isLink);
-  ui.radiomapPanel.classList.toggle("hidden", isLink);
+  ui.mobilityPanel.classList.toggle("hidden", !isMobility);
+  ui.radiomapPanel.classList.toggle("hidden", state.mode !== "radiomap");
   for (const node of ui.linkOnlyParams) {
-    node.classList.toggle("hidden", !isLink);
+    node.classList.toggle("hidden", !isLinkLike);
+  }
+  for (const node of ui.mobilityOnlyParams) {
+    node.classList.toggle("hidden", !isMobility);
   }
   for (const node of ui.radiomapOnlyParams) {
-    node.classList.toggle("hidden", isLink);
+    node.classList.toggle("hidden", state.mode !== "radiomap");
   }
   ui.deviceDock.classList.toggle("hidden", !sceneControlsVisible);
   ui.deviceDock.setAttribute("aria-hidden", String(!sceneControlsVisible));
@@ -170,11 +181,17 @@ function syncModeUi() {
   ui.linkTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "link-tx");
   ui.linkRxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "link-rx");
   ui.rmTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "rm-tx");
-  ui.btnPickLinkTx.classList.toggle("hidden", !isLink);
-  ui.btnPickLinkRx.classList.toggle("hidden", !isLink);
-  ui.btnPickRmTx.classList.toggle("hidden", isLink);
+  ui.btnPickLinkTx.classList.toggle("hidden", !isLinkLike);
+  ui.btnPickLinkRx.classList.toggle("hidden", !isLinkLike);
+  ui.btnPickRmTx.classList.toggle("hidden", state.mode !== "radiomap");
   ui.btnSolveLink.classList.toggle("hidden", !isLink);
-  ui.btnRunRadiomap.classList.toggle("hidden", isLink);
+  ui.btnRunMobility.classList.toggle("hidden", !isMobility);
+  ui.btnRunRadiomap.classList.toggle("hidden", state.mode !== "radiomap");
+  const orbitingTx = getViewer().isTxOrbiting();
+  ui.btnOrbitTx.classList.toggle("active", orbitingTx);
+  ui.btnOrbitTx.setAttribute("aria-pressed", String(orbitingTx));
+  ui.btnOrbitTx.setAttribute("aria-label", orbitingTx ? "Stop transmitter orbit" : "Orbit around transmitter");
+  ui.btnOrbitTx.querySelector(".deviceActionText").textContent = orbitingTx ? "Stop" : "Orbit";
   ui.btnPickLinkTx.classList.toggle("active", nextActiveTarget === "link-tx");
   ui.btnPickLinkRx.classList.toggle("active", nextActiveTarget === "link-rx");
   ui.btnPickRmTx.classList.toggle("active", nextActiveTarget === "rm-tx");
@@ -186,7 +203,7 @@ function syncModeUi() {
     : nextActiveTarget === "rm-tx"
       ? "Radio Map Tx"
       : "Tx Control";
-  ui.stMode.textContent = isLink ? "Link" : "Radio Map";
+  ui.stMode.textContent = isLink ? "Link" : isMobility ? "Mobility" : "Radio Map";
 }
 function syncSceneStats() {
   ui.stSceneMeshes.textContent = state.manifest ? String(state.manifest.mesh_count) : "--";
@@ -203,6 +220,7 @@ function renderAll() {
   syncEntryOverviewUi();
   syncPerformanceUi();
   renderLinkResult();
+  renderMobilityResult();
   renderRadiomapResult();
 }
 

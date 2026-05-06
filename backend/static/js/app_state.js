@@ -11,7 +11,12 @@ function createViewerStub() {
     renderPaths() {},
     clearOverlay() {},
     clearPaths() {},
+    clearMobility() {},
+    startTxOrbit() { return false; },
+    stopTxOrbit() {},
+    isTxOrbiting() { return false; },
     clearRadiomap() {},
+    renderMobilityTrajectory() {},
     focusOnTiles() { return false; },
     getLoadedCategoryStats() { return []; },
     getPerformanceStats() {
@@ -39,6 +44,18 @@ function createViewerStub() {
 
 export const DEFAULT_PERFORMANCE_MODE = "auto";
 export const PERFORMANCE_MODES = new Set(["auto", "quality", "fast"]);
+export const DEFAULT_ANTENNA_ARRAY = Object.freeze({
+  numRows: 1,
+  numCols: 1,
+  verticalSpacing: 0.5,
+  horizontalSpacing: 0.5,
+  pattern: "iso",
+  polarization: "V",
+});
+
+function createDefaultAntennaArray() {
+  return {...DEFAULT_ANTENNA_ARRAY};
+}
 
 export const viewerRef = {
   current: createViewerStub(),
@@ -47,6 +64,7 @@ export const viewerRef = {
 
 export const state = {
   manifest: null,
+  rtCapabilities: null,
   mode: "link",
   pickTarget: null,
   tileLoadBusy: false,
@@ -110,6 +128,31 @@ export const state = {
     jobId: null,
     result: null,
     status: "Idle",
+  },
+  mobility: {
+    trajectory: {
+      points: [
+        [90.0, 52.0, 1.5],
+        [105.0, 60.0, 1.5],
+      ],
+      velocityMps: 1.5,
+      timeStepS: 1.0,
+      maxSteps: 50,
+    },
+    jobId: null,
+    result: null,
+    status: "Idle",
+    selectedStep: 0,
+    selectedPath: -1,
+    metric: "received_power_db",
+    playing: false,
+    playbackSpeed: 1.0,
+    playbackTimer: null,
+    tapsDefaulted: false,
+  },
+  antenna: {
+    txArray: createDefaultAntennaArray(),
+    rxArray: createDefaultAntennaArray(),
   },
 };
 

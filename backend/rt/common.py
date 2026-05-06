@@ -88,6 +88,10 @@ def parse_vector(values: Iterable[float], *, size: int, name: str) -> tuple[floa
     return vector
 
 
+def vector_length(values: Iterable[float]) -> float:
+    return math.sqrt(sum(float(value) * float(value) for value in values))
+
+
 def parse_bool(payload: dict, key: str, default: bool, *, name: str) -> bool:
     if key not in payload:
         return default
@@ -122,27 +126,148 @@ def linear_to_db(values: np.ndarray, floor: float = 1e-30) -> np.ndarray:
     return 10.0 * np.log10(np.maximum(values, floor))
 
 
+def antenna_array_default_config() -> dict:
+    return {
+        "num_rows": int(config.DEFAULT_ANTENNA_ARRAY_NUM_ROWS),
+        "num_cols": int(config.DEFAULT_ANTENNA_ARRAY_NUM_COLS),
+        "vertical_spacing": float(config.DEFAULT_ANTENNA_ARRAY_VERTICAL_SPACING),
+        "horizontal_spacing": float(config.DEFAULT_ANTENNA_ARRAY_HORIZONTAL_SPACING),
+        "pattern": str(config.DEFAULT_ANTENNA_ARRAY_PATTERN),
+        "polarization": str(config.DEFAULT_ANTENNA_ARRAY_POLARIZATION),
+    }
+
+
+def _registry_values(kind: str, fallback: list[str]) -> list[str]:
+    try:
+        from sionna.rt.antenna_pattern import antenna_pattern_registry, polarization_registry
+
+        registry = antenna_pattern_registry if kind == "pattern" else polarization_registry
+        values = list(registry.list())
+    except Exception:
+        values = fallback
+
+    cleaned: list[str] = []
+    for value in values:
+        if isinstance(value, str) and value and value not in cleaned:
+            cleaned.append(value)
+    for value in fallback:
+        if value not in cleaned:
+            cleaned.append(value)
+    return cleaned
+
+
+def antenna_array_capabilities() -> dict:
+    defaults = antenna_array_default_config()
+    patterns = _registry_values("pattern", [defaults["pattern"], "iso"])
+    polarizations = _registry_values("polarization", [defaults["polarization"], "V"])
+    return {
+        "antenna_arrays": {
+            "defaults": defaults,
+            "limits": {
+                "num_rows": {
+                    "min": int(config.MIN_ANTENNA_ARRAY_ROWS),
+                    "max": int(config.MAX_ANTENNA_ARRAY_ROWS),
+                },
+                "num_cols": {
+                    "min": int(config.MIN_ANTENNA_ARRAY_COLS),
+                    "max": int(config.MAX_ANTENNA_ARRAY_COLS),
+                },
+                "element_count": {
+                    "max": int(config.MAX_ANTENNA_ARRAY_ELEMENTS),
+                },
+                "vertical_spacing": {
+                    "min": float(config.MIN_ANTENNA_ARRAY_SPACING),
+                    "max": float(config.MAX_ANTENNA_ARRAY_SPACING),
+                },
+                "horizontal_spacing": {
+                    "min": float(config.MIN_ANTENNA_ARRAY_SPACING),
+                    "max": float(config.MAX_ANTENNA_ARRAY_SPACING),
+                },
+            },
+            "patterns": patterns,
+            "polarizations": polarizations,
+        }
+    }
+
+
+def parse_antenna_array_payload(value: object, *, name: str) -> dict:
+    defaults = antenna_array_default_config()
+    payload = parse_object(value, name=name) if value is not None else {}
+    capabilities = antenna_array_capabilities()["antenna_arrays"]
+
+    num_rows = parse_bounded_int(
+        payload.get("num_rows", defaults["num_rows"]),
+        name=f"{name}.num_rows",
+        min_value=config.MIN_ANTENNA_ARRAY_ROWS,
+        max_value=config.MAX_ANTENNA_ARRAY_ROWS,
+    )
+    num_cols = parse_bounded_int(
+        payload.get("num_cols", defaults["num_cols"]),
+        name=f"{name}.num_cols",
+        min_value=config.MIN_ANTENNA_ARRAY_COLS,
+        max_value=config.MAX_ANTENNA_ARRAY_COLS,
+    )
+    if num_rows * num_cols > config.MAX_ANTENNA_ARRAY_ELEMENTS:
+        raise ValueError(f"{name} element count must be at most {config.MAX_ANTENNA_ARRAY_ELEMENTS}")
+
+    vertical_spacing = parse_bounded_float(
+        payload.get("vertical_spacing", defaults["vertical_spacing"]),
+        name=f"{name}.vertical_spacing",
+        min_value=config.MIN_ANTENNA_ARRAY_SPACING,
+        max_value=config.MAX_ANTENNA_ARRAY_SPACING,
+    )
+    horizontal_spacing = parse_bounded_float(
+        payload.get("horizontal_spacing", defaults["horizontal_spacing"]),
+        name=f"{name}.horizontal_spacing",
+        min_value=config.MIN_ANTENNA_ARRAY_SPACING,
+        max_value=config.MAX_ANTENNA_ARRAY_SPACING,
+    )
+
+    pattern = payload.get("pattern", defaults["pattern"])
+    if not isinstance(pattern, str):
+        raise ValueError(f"{name}.pattern must be a string")
+    pattern = pattern.strip()
+    if pattern not in capabilities["patterns"]:
+        raise ValueError(f"{name}.pattern must be one of: {', '.join(capabilities['patterns'])}")
+
+    polarization = payload.get("polarization", defaults["polarization"])
+    if not isinstance(polarization, str):
+        raise ValueError(f"{name}.polarization must be a string")
+    polarization = polarization.strip()
+    if polarization not in capabilities["polarizations"]:
+        raise ValueError(f"{name}.polarization must be one of: {', '.join(capabilities['polarizations'])}")
+
+    return {
+        "num_rows": num_rows,
+        "num_cols": num_cols,
+        "vertical_spacing": vertical_spacing,
+        "horizontal_spacing": horizontal_spacing,
+        "pattern": pattern,
+        "polarization": polarization,
+    }
+
+
+def create_planar_array(array_config: dict):
+    from sionna.rt import PlanarArray
+
+    return PlanarArray(
+        num_rows=array_config["num_rows"],
+        num_cols=array_config["num_cols"],
+        vertical_spacing=array_config["vertical_spacing"],
+        horizontal_spacing=array_config["horizontal_spacing"],
+        pattern=array_config["pattern"],
+        polarization=array_config["polarization"],
+    )
+
+
 def build_scene(scene_xml: Path, frequency_hz: float):
-    from sionna.rt import PlanarArray, load_scene
+    from sionna.rt import load_scene
 
     scene = load_scene(str(scene_xml))
     scene.frequency = float(frequency_hz)
-    scene.tx_array = PlanarArray(
-        num_rows=1,
-        num_cols=1,
-        vertical_spacing=0.5,
-        horizontal_spacing=0.5,
-        pattern="iso",
-        polarization="V",
-    )
-    scene.rx_array = PlanarArray(
-        num_rows=1,
-        num_cols=1,
-        vertical_spacing=0.5,
-        horizontal_spacing=0.5,
-        pattern="iso",
-        polarization="V",
-    )
+    default_array = antenna_array_default_config()
+    scene.tx_array = create_planar_array(default_array)
+    scene.rx_array = create_planar_array(default_array)
     return scene
 
 
@@ -177,12 +302,18 @@ def parse_link_payload(payload: dict) -> dict:
         min_value=1,
         max_value=1,
     )
+    tx_array = parse_antenna_array_payload(solver.get("tx_array"), name="solver.tx_array")
+    rx_array = parse_antenna_array_payload(solver.get("rx_array"), name="solver.rx_array")
 
     return {
         "tx_position": parse_vector(tx.get("position", config.DEFAULT_TX_POSITION), size=3, name="tx.position"),
         "tx_orientation": parse_vector(tx.get("orientation", (0.0, 0.0, 0.0)), size=3, name="tx.orientation"),
+        "tx_velocity": parse_vector(tx.get("velocity", (0.0, 0.0, 0.0)), size=3, name="tx.velocity"),
         "rx_position": parse_vector(rx.get("position", config.DEFAULT_RX_POSITION), size=3, name="rx.position"),
         "rx_orientation": parse_vector(rx.get("orientation", (0.0, 0.0, 0.0)), size=3, name="rx.orientation"),
+        "rx_velocity": parse_vector(rx.get("velocity", (0.0, 0.0, 0.0)), size=3, name="rx.velocity"),
+        "tx_array": tx_array,
+        "rx_array": rx_array,
         "frequency_hz": parse_bounded_float(
             solver.get("frequency_hz", config.DEFAULT_FREQUENCY_HZ),
             name="solver.frequency_hz",
@@ -241,6 +372,140 @@ def parse_link_payload(payload: dict) -> dict:
     }
 
 
+def _trajectory_position_at_distance(
+    points: list[tuple[float, float, float]],
+    cumulative_distances: list[float],
+    distance_m: float,
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    safe_distance = max(0.0, min(float(distance_m), cumulative_distances[-1]))
+    end_index = int(np.searchsorted(np.asarray(cumulative_distances), safe_distance, side="left"))
+    end_index = min(max(end_index, 1), len(points) - 1)
+    start_index = end_index - 1
+    start_distance = cumulative_distances[start_index]
+    end_distance = cumulative_distances[end_index]
+    segment_distance = end_distance - start_distance
+    start = points[start_index]
+    end = points[end_index]
+    direction = tuple(end[axis] - start[axis] for axis in range(3))
+    if segment_distance <= 0.0:
+        unit_direction = (0.0, 0.0, 0.0)
+        t = 0.0
+    else:
+        unit_direction = tuple(value / segment_distance for value in direction)
+        t = (safe_distance - start_distance) / segment_distance
+    position = tuple(start[axis] + t * direction[axis] for axis in range(3))
+    return position, unit_direction
+
+
+def sample_rx_trajectory(
+    points: list[tuple[float, float, float]],
+    velocity_mps: float,
+    time_step_s: float,
+    max_steps: int,
+) -> dict:
+    cumulative_distances = [0.0]
+    for index in range(1, len(points)):
+        segment = tuple(points[index][axis] - points[index - 1][axis] for axis in range(3))
+        segment_length = vector_length(segment)
+        if segment_length <= 0.0:
+            raise ValueError("rx_trajectory.points must not contain repeated consecutive waypoints")
+        cumulative_distances.append(cumulative_distances[-1] + segment_length)
+
+    total_distance_m = cumulative_distances[-1]
+    duration_s = total_distance_m / velocity_mps
+    times = [0.0]
+    next_time = time_step_s
+    while next_time < duration_s:
+        times.append(next_time)
+        next_time += time_step_s
+    if duration_s > 0.0 and (not math.isclose(times[-1], duration_s, rel_tol=0.0, abs_tol=1e-9)):
+        times.append(duration_s)
+
+    if len(times) < config.MIN_MOBILITY_STEPS:
+        raise ValueError(f"rx_trajectory computed steps must be at least {config.MIN_MOBILITY_STEPS}")
+    if len(times) > max_steps:
+        raise ValueError(
+            f"rx_trajectory computed steps must be at most {max_steps}; "
+            "increase rx_trajectory.max_steps, increase rx_trajectory.time_step_s, or shorten the trajectory"
+        )
+
+    samples = []
+    for step_index, time_s in enumerate(times):
+        distance_m = min(time_s * velocity_mps, total_distance_m)
+        position, direction = _trajectory_position_at_distance(points, cumulative_distances, distance_m)
+        velocity = tuple(direction[axis] * velocity_mps for axis in range(3))
+        samples.append(
+            {
+                "step_index": step_index,
+                "time_s": float(time_s),
+                "distance_m": float(distance_m),
+                "position": tuple(float(value) for value in position),
+                "velocity": tuple(float(value) for value in velocity),
+            }
+        )
+
+    return {
+        "points": points,
+        "velocity_mps": float(velocity_mps),
+        "time_step_s": float(time_step_s),
+        "max_steps": int(max_steps),
+        "total_distance_m": float(total_distance_m),
+        "duration_s": float(duration_s),
+        "samples": samples,
+    }
+
+
+def parse_mobility_payload(payload: dict) -> dict:
+    payload = parse_object(payload, name="payload")
+    trajectory = parse_object(payload.get("rx_trajectory", {}), name="rx_trajectory")
+
+    raw_points = trajectory.get("points")
+    if not isinstance(raw_points, list):
+        raise ValueError("rx_trajectory.points must be a list")
+    if len(raw_points) < config.MIN_MOBILITY_WAYPOINTS:
+        raise ValueError(f"rx_trajectory.points must contain at least {config.MIN_MOBILITY_WAYPOINTS} waypoints")
+    if len(raw_points) > config.MAX_MOBILITY_WAYPOINTS:
+        raise ValueError(f"rx_trajectory.points must contain at most {config.MAX_MOBILITY_WAYPOINTS} waypoints")
+    points = [
+        parse_vector(point, size=3, name=f"rx_trajectory.points[{index}]")
+        for index, point in enumerate(raw_points)
+    ]
+
+    velocity_mps = parse_bounded_float(
+        trajectory.get("velocity_mps", 1.5),
+        name="rx_trajectory.velocity_mps",
+        min_value=config.MIN_MOBILITY_VELOCITY_MPS,
+        max_value=config.MAX_MOBILITY_VELOCITY_MPS,
+    )
+    time_step_s = parse_bounded_float(
+        trajectory.get("time_step_s", 1.0),
+        name="rx_trajectory.time_step_s",
+        min_value=config.MIN_MOBILITY_TIME_STEP_S,
+        max_value=config.MAX_MOBILITY_TIME_STEP_S,
+    )
+    max_steps = parse_bounded_int(
+        trajectory.get("max_steps", config.DEFAULT_MOBILITY_MAX_STEPS),
+        name="rx_trajectory.max_steps",
+        min_value=config.MIN_MOBILITY_STEPS,
+        max_value=config.MAX_MOBILITY_STEPS,
+    )
+
+    channel = dict(parse_object(payload.get("channel", {}), name="channel"))
+    channel.setdefault("compute_taps", True)
+    link_payload = {
+        "tx": payload.get("tx", {}),
+        "rx": {
+            "position": points[0],
+            "orientation": parse_object(payload.get("rx", {}), name="rx").get("orientation", (0.0, 0.0, 0.0)),
+        },
+        "solver": payload.get("solver", {}),
+        "channel": channel,
+    }
+    link_params = parse_link_payload(link_payload)
+    trajectory_samples = sample_rx_trajectory(points, velocity_mps, time_step_s, max_steps)
+    return {**link_params, "rx_trajectory": trajectory_samples}
+
+
 def parse_radiomap_payload(payload: dict) -> dict:
     payload = parse_object(payload, name="payload")
     tx = parse_object(payload.get("tx", {}), name="tx")
@@ -285,10 +550,12 @@ def parse_radiomap_payload(payload: dict) -> dict:
             "solver.samples_per_tx after density scaling must be at most "
             f"{config.MAX_RADIOMAP_EFFECTIVE_SAMPLES}"
         )
+    tx_array = parse_antenna_array_payload(solver.get("tx_array"), name="solver.tx_array")
 
     return {
         "tx_position": parse_vector(tx.get("position", config.DEFAULT_TX_POSITION), size=3, name="tx.position"),
         "tx_orientation": parse_vector(tx.get("orientation", (0.0, 0.0, 0.0)), size=3, name="tx.orientation"),
+        "tx_array": tx_array,
         "surface_size": size,
         "surface_height_offset": height_offset,
         "surface_density_level": density_level,

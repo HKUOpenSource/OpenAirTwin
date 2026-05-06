@@ -39,6 +39,7 @@ def solve_terrain_radiomap(
         report(0.05, "Using cached scene")
         scene = rt_runtime.scene
         rt_runtime.set_frequency(params["frequency_hz"])
+        rt_runtime.set_arrays(tx_array=params["tx_array"])
         try:
             scene.add(
                 Transmitter(

@@ -1,284 +1,256 @@
 # Zhaolin Development Summary
 
-This document records Zhaolin's development context, dated feature work,
-validation commands, cleanup results, and handoff notes for the HKU wireless
-digital twin platform.
+This document records Zhaolin's dated development work, validation context,
+cleanup notes, and handoff guidance for the HKU wireless digital twin platform.
 
 ## Developer Context
 
 - Developer: Zhaolin
 - Remote host: `defaultuser@100.65.77.20`
 - Remote work folder: `/home/defaultuser/worktree-zhaolin`
-- Active validation port: `8090`
-- Authoritative GPU runtime: `/home/defaultuser/venvs/sionna-gpu`
-- Shared v3.0 scene assets: `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`
+- Main validation port: `8090`
+- Demo port used this round: `9000`
+- GPU runtime: `/home/defaultuser/venvs/sionna-gpu`
+- Scene root for remote runtime: `/home/defaultuser/worktree-zhaolin/HKU_scenes`
 
 Use `worktree-zhaolin` for Zhaolin validation. Do not restart, kill, or sync
-over another developer's worktree, especially `worktree-zihao` on port `18091`,
-unless explicitly requested.
+over another developer's worktree, especially `worktree-zihao`, unless explicitly
+requested.
 
-## 2026-05-05 - Backend Hardening, Setup, and Remote Smoke
+## 2026-05-06 - Advanced RT UI, Antenna Arrays, Mobility, and Showcase Mode
 
-This round converted the backend review findings into implementation work and
-added setup documentation for new developers.
+This round moved the platform from static Link/Radio Map experiments toward an
+interactive communication-research demo: array-aware link solving, geometry-path
+aggregation, dynamic Rx mobility, cleaner result analysis, and a camera orbit
+showcase button.
 
-Implemented functionality:
+### Review Fixes
 
-- Added `requirements.txt` with runtime dependency names: `numpy`, `sionna`,
-  `mitsuba`, and `drjit`.
-- Added `docs/SETUP.md` documenting what can run locally without `HKU_scenes`,
-  what needs the remote Sionna/Mitsuba/Dr.Jit GPU runtime, and how Zhaolin
-  should validate on `/home/defaultuser/worktree-zhaolin` port `8090`.
+- Fixed partial bundle failure accounting so a tile is marked loaded only after
+  all expected bundles for that tile are present.
+- Hardened bundle GET error handling so cache/build failures return controlled
+  HTTP errors instead of dropping the connection.
+- Fixed entry-map search focus so focusing a search result no longer resets the
+  tile selection badge to a zero-count state.
+
+### Antenna Array Control
+
+- Added `GET /api/rt/capabilities` for antenna-array defaults, limits, available
+  patterns, and polarizations.
+- Added array payloads for Link and Radio Map:
+  - Link: `solver.tx_array` and `solver.rx_array`
+  - Radio Map: `solver.tx_array`
+- Added backend validation for rows, columns, element count, spacing, pattern,
+  and polarization.
+- Added runtime scene array configuration before each solve.
+- Added frontend `Antenna Arrays` controls with options populated from
+  `/api/rt/capabilities`.
+
+### Array Path Aggregation
+
+- Changed Link result semantics from antenna-pair path contributions to
+  geometry-path display.
+- `summary.valid_paths` now reports aggregated geometry paths.
+- Added `summary.array_pair_paths` for diagnostic antenna-pair contribution
+  count.
+- Each displayed path sums power over valid antenna pairs and exposes
+  `array_pair_count`, `strongest_pair_power_db`, and
+  `power_policy: "sum_over_antenna_pairs"`.
+- Path details in the UI now show array-pair diagnostics.
+
+### Link Results Dock and Channel Chart
+
+- Consolidated Link result summary, Path Details, optional Channel Analysis, and
+  path selection into the top-right result dock.
+- Renamed the dock to `Link Results` for Link mode and `Mobility Results` for
+  Mobility mode.
+- Moved variable-length path buttons into a dedicated bottom `Paths` block so
+  path count changes no longer disrupt the middle of the analysis dock.
+- Improved the CIR/tap chart with non-clipped labels, `Power (dB)` and
+  `Tap Index` axis titles, max/mid/min Y ticks, first/peak/last X ticks, and
+  clearer tooltip text.
+
+### Mobility Mode
+
+- Added a third `Mobility` tab for Rx trajectory experiments with fixed Tx.
+- Added asynchronous Mobility job APIs:
+  - `POST /api/mobility/jobs`
+  - `GET /api/mobility/jobs/{job_id}`
+  - `GET /api/mobility/jobs/{job_id}/result`
+- Implemented polyline waypoint sampling with velocity and time-step inputs,
+  always including the trajectory endpoint.
+- Reused Link solver configuration, antenna arrays, and optional CIR/taps for
+  every mobility sample.
+- Added Rx velocity to temporary Sionna devices so returned path Doppler has
+  physical meaning.
+- Added result series for time, distance, received power, valid paths, strongest
+  path, max absolute Doppler, and peak tap power.
+- Added frontend trajectory controls, waypoint preview, sample markers,
+  timeline chart, step scrubber, playback, speed selection, and looping.
+- Added configurable `rx_trajectory.max_steps`, default `50`, with user-adjustable
+  range `2..500`.
+
+### Tx Orbit Showcase
+
+- Added a bottom-bar `Orbit` button for demonstration.
+- Link and Mobility modes orbit around `state.link.txVisual`.
+- Radio Map mode orbits around `state.radiomap.txVisual`.
+- The button toggles between `Orbit` and `Stop`, and stops automatically on
+  manual camera interaction, Reset View, WASD/free-look, or mode switch.
+- This is a pure frontend camera feature and does not change solver payloads or
+  backend APIs.
+
+### Remote Demo
+
+- Kept the normal validation instance on port `8090`.
+- Started a separate demo instance on port `9000` from the same Zhaolin worktree
+  when the port was confirmed free.
+- The demo instance serves the same latest UI and is intended for presentation
+  use without disturbing the main `8090` validation service.
+
+## Current API Surface Added on 2026-05-06
+
+- `GET /api/rt/capabilities`
+- `POST /api/mobility/jobs`
+- `GET /api/mobility/jobs/{job_id}`
+- `GET /api/mobility/jobs/{job_id}/result`
+- Link solver payload additions: `solver.tx_array`, `solver.rx_array`
+- Radio Map solver payload addition: `solver.tx_array`
+- Mobility trajectory payload addition: `rx_trajectory.max_steps`
+
+## New Final Files Kept
+
+These files were created during this round and are intentional final artifacts:
+
+- `backend/jobs/mobility_jobs.py`
+- `backend/rt/solve_mobility.py`
+- `tests/test_frontend_regressions.py`
+- `tests/test_mobility_jobs.py`
+
+They are referenced by server, solver, and regression tests, so they should not
+be removed during cleanup.
+
+## 2026-05-05 - Backend Hardening, Setup, and Advanced Link Output
+
 - Added strict solver payload parsing for finite numbers, bounded ints/floats,
-  coordinate vectors, seeds, and booleans.
-- Added server-side caps and `HKU_RT_*` environment overrides for frequency,
-  max depth, samples, radio-map density/effective samples, seeds, advanced link
-  path limits, FFT size, subcarrier spacing, and tap output size.
-- Rejected invalid solver input with HTTP `400` instead of silently clamping.
-- Replaced radio-map one-thread-per-job behavior with one background worker, a
-  bounded pending queue, max stored job cleanup, and TTL cleanup.
-- Added HTTP `429` for a full radio-map queue.
-- Sanitized failed radio-map job API errors while logging full tracebacks on
-  the server.
-- Replaced prefix-based path containment checks with resolved `Path.relative_to`
-  containment for static files and mesh serving.
-- Added `scripts/smoke_remote_http.py`, an HTTP-only remote smoke script that
-  covers health, manifest, gzip bundle delivery, ETag `304`, low-sample link
-  solve, advanced link solve with taps enabled, and radio-map job/result
-  polling.
-
-Main files touched:
-
-- `backend/config.py`
-- `backend/rt/common.py`
-- `backend/rt/solve_link.py`
-- `backend/jobs/radiomap_jobs.py`
-- `backend/server.py`
-- `docs/SETUP.md`
-- `requirements.txt`
-- `scripts/smoke_remote_http.py`
-- `tests/test_solver_validation.py`
-- `tests/test_radiomap_jobs.py`
-- `tests/test_server_hardening.py`
-- `tests/test_solver_runtime_cleanup.py`
-
-## 2026-05-05 - Advanced Link Solver and Channel Output
-
-This round borrowed the official Sionna RT GUI's solver model, while keeping
-the existing browser UI and HTTP backend.
-
-Implemented functionality:
-
-- Extended link solver validation with `max_num_paths_per_src`,
-  `synthetic_array`, `diffraction`, `edge_diffraction`,
-  `diffraction_lit_region`, and optional `channel.compute_taps`.
-- Passed advanced options into Sionna RT `PathSolver` with defaults that
-  preserve previous link solve behavior.
-- Added compact CIR/taps output when `compute_taps=true`, returning only chart
-  data and summary statistics rather than raw full channel tensors.
-- Validated tap range constraints, tap count caps, FFT size, and subcarrier
-  spacing bounds.
-- Extended the remote smoke script with a low-sample advanced link solve.
-
-Frontend functionality:
-
-- Added a communication-research-oriented parameter model with Physical Layer,
-  Propagation, Solver Budget, and Channel Output groups.
-- Added Physical Layer controls for carrier frequency, bandwidth, OFDM carriers,
-  and derived subcarrier spacing.
-- Converted frontend bandwidth and OFDM carrier count into the existing backend
-  `channel.subcarrier_spacing_hz` payload.
-- Added a right-side Channel Analysis panel for compact CIR/taps stats and an
-  SVG tap-power chart.
+  coordinate vectors, seeds, booleans, and channel settings.
+- Added server-side caps and `HKU_RT_*` overrides for solver, radio-map, tap, and
+  queue settings.
+- Replaced radio-map one-thread-per-job behavior with a bounded background job
+  manager and queue-full HTTP `429`.
+- Hardened static and mesh path containment checks.
+- Added setup documentation and remote validation notes in `docs/SETUP.md`.
+- Added advanced Link solver options and compact CIR/taps output.
+- Added Physical Layer, Propagation, Solver Budget, and Channel Output control
+  groups in the UI.
 
 ## 2026-05-05 - Frontend Module Split and 3D Research UI
 
-This round split the large browser entry file into native ES modules with no
-build step, then refined the 3D control surface for research workflows.
-
-Implemented module split:
-
-- Kept `/js/app.js` as the single script tag in `index.html`.
-- Converted `app.js` into a bootstrap/orchestrator.
-- Added focused modules:
-  - `backend/static/js/app_state.js`
-  - `backend/static/js/dom_refs.js`
-  - `backend/static/js/tile_model.js`
-  - `backend/static/js/entry_map.js`
-  - `backend/static/js/performance_panel.js`
-  - `backend/static/js/solver_controls.js`
-  - `backend/static/js/scene_render_state.js`
-  - `backend/static/js/param_tooltips.js`
-- Fixed the duplicate `rxTitle` IDs by using non-unique class markup instead.
-
-3D UI functionality:
-
-- Reworked the left control panel into research parameter groups.
-- Added hover/focus info tooltips for parameters, rendered through a
-  viewport-level tooltip layer so panel scrolling no longer clips them.
-- Moved physical units into input suffixes, including `GHz`, `MHz`, `kHz`, `m`,
-  and `dB`.
-- Renamed `Carrier Count / N_fft` to `OFDM Carriers`.
-- Moved map return from a text control into a bottom-right round map button.
-- Replaced the previous large Performance panel with a compact FPS block near
-  the quick map button; clicking expands detailed performance and visibility
-  controls.
-- Moved CIR/taps results into the former top-right analysis area.
-
-## 2026-05-05 - Device Controls and Map/3D Switching
-
-This round unified the main 3D action controls and cleaned up map-page
-navigation.
-
-Implemented functionality:
-
-- Replaced the previous Tx/Rx cards and left-panel solve buttons with a bottom
-  centered action bar.
-- Link mode shows `Tx`, `Rx`, and `Solve Link`.
-- Radio Map mode shows `Tx` and `Run Map`.
-- Added a compact Tx/Rx coordinate popover with fixed `1.0 m` number-input
-  spinner steps and `m` suffixes.
-- Removed the separate step input, X/Y/Z nudge buttons, Done button, and Cancel
-  button from the device panel.
-- Made Tx/Rx buttons toggleable: clicking an inactive device opens continuous
-  placement mode; clicking the active device closes it.
-- Changed placement prompts to fixed research-friendly text:
-  `Click any surface to place Tx` and `Click any surface to place Rx`.
-- Split tap picking from camera dragging: only short primary-pointer taps under
-  `350 ms` and `6 px` movement place a device. Dragging, long press, right/mid
-  button, window blur, Escape, mode switches, map return, and solve actions do
-  not move Tx/Rx.
-- Unified map/3D switching:
-  - 3D page: bottom-right map button opens the tile map.
-  - Map page: bottom-right 3D/cube button returns to the already-loaded 3D
-    scene without applying pending tile selection.
-  - The old map top-right `x` button was removed.
-  - `Load Selected Tiles` / `Apply Tile Selection` remains the only action that
-    changes the loaded tile set.
-
-## 2026-05-05 - Existing Performance and Runtime Work Preserved
-
-Earlier 2026-05-05 work remains part of the current baseline:
-
-- Cached Sionna RT runtime preload avoids reloading `scenario_HKU.xml` for every
-  solve request.
-- Link and terrain radio-map solvers reuse the cached runtime and clean up
-  temporary Tx/Rx devices in `finally`.
-- Bundle serving supports pre-compressed `.glb.gz`, immutable cache headers,
-  strong ETags, and `304` cache hits.
-- The scene manifest exposes bundle cache metadata while staying `no-store`.
-- Frontend bundle loading tracks transfer progress, parse/add phases, and
-  visible performance data.
-- Category visibility controls, material mode, DPR mode, and loaded bundle
-  metrics remain available through the compact performance block.
+- Kept `/js/app.js` as the browser entrypoint and split implementation into
+  focused native ES modules.
+- Added modules for state, DOM refs, tile modeling, entry map, performance panel,
+  solver controls, scene rendering, and parameter tooltips.
+- Reworked the control panel into research parameter groups with unit suffixes
+  and viewport-level tooltips.
+- Added a compact performance dock with category visibility, material mode, DPR
+  mode, and loaded bundle metrics.
+- Replaced previous device cards with the bottom-centered Tx/Rx action bar and
+  compact coordinate popover.
+- Improved map/3D switching so tile selection changes only when explicitly
+  applied.
 
 ## Earlier Work
 
 ### 2026-05-04 - Entry Map UX, Place Search, and Bundle Loading
 
 - Replaced manual tile ID entry with an OSM/Leaflet map-first workflow.
-- Added Hong Kong place search through user-triggered Nominatim requests.
-- Added search result candidates, map fitting, temporary markers, tile
-  highlighting, and manual tile selection.
+- Added Hong Kong place search, search result candidates, map fitting, temporary
+  markers, tile highlighting, and manual tile selection.
 - Rebuilt the entry screen with HKU/ECE branding and a floating sidebar.
-- Added bundle loading diagnostics, stream progress when available, conservative
-  bundle concurrency, and clearer loading overlay state.
+- Added bundle loading diagnostics, stream progress where available,
+  conservative bundle concurrency, and clearer loading overlay state.
 
 ### 2026-04-29 - Initial Map OSM Upgrade
 
 - Rebuilt the initial tile-selection map on Leaflet 1.9.x and Carto Light OSM.
 - Added vendored `proj4` and EPSG:2326 Hong Kong Grid conversion.
-- Preserved the original tile model while replacing dense SVG labels with
-  Canvas tile rendering.
+- Preserved the original tile model while replacing dense SVG labels with Canvas
+  tile rendering.
 - Removed discarded intermediate map assets and generation scripts after the
   OSM/Canvas design was selected.
 
 ## Validation
 
-Local checks used for this development round:
+Run this local validation set before handoff:
 
 ```bash
-for file in backend/static/js/*.js; do node --check "$file"; done
 python3 -m compileall -q backend scripts tests
 python3 -m unittest discover -s tests
+for file in backend/static/js/*.js; do node --check "$file"; done && node --check backend/static/lib/GLBGeometryLoader.js
 git diff --check
 ```
 
-Additional static checks used during frontend refactors:
-
-```bash
-python3 - <<'PY'
-from html.parser import HTMLParser
-from pathlib import Path
-
-class IdParser(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.ids = {}
-
-    def handle_starttag(self, tag, attrs):
-        for key, value in attrs:
-            if key == "id":
-                self.ids.setdefault(value, 0)
-                self.ids[value] += 1
-
-parser = IdParser()
-parser.feed(Path("backend/static/index.html").read_text())
-dupes = {key: count for key, count in parser.ids.items() if count > 1}
-if dupes:
-    raise SystemExit(f"duplicate ids: {dupes}")
-PY
-```
-
-Remote smoke after syncing/restarting Zhaolin `8090`:
-
-```bash
-python3 scripts/smoke_remote_http.py
-```
-
-The smoke script is HTTP-only. It must not SSH, sync, kill, or restart services.
-
-## Remote Workflow
-
-Sync code with an explicit remote root:
-
-```bash
-HKU_RT_REMOTE_ROOT=/home/defaultuser/worktree-zhaolin bash scripts/sync_code_to_remote.sh
-```
-
-Start or restart the remote backend from the Zhaolin worktree only:
+Remote targeted validation should use the Sionna GPU venv:
 
 ```bash
 cd /home/defaultuser/worktree-zhaolin
-setsid env \
-  HKU_RT_HOST=0.0.0.0 \
-  HKU_RT_PORT=8090 \
-  HKU_RT_SCENE_ROOT=/home/defaultuser/worktree-zhaolin/HKU_scenes \
-  PYTHONPATH=/home/defaultuser/worktree-zhaolin \
-  /home/defaultuser/venvs/sionna-gpu/bin/python -m backend.server \
-  </dev/null > /tmp/worktree-zhaolin-8090.log 2>&1 &
+/home/defaultuser/venvs/sionna-gpu/bin/python -m compileall -q backend scripts tests
+/home/defaultuser/venvs/sionna-gpu/bin/python -m unittest tests.test_frontend_regressions tests.test_mobility_jobs tests.test_server_hardening
+for file in backend/static/js/*.js; do node --input-type=module --check < "$file" >/dev/null; done
+node --input-type=module --check < backend/static/lib/GLBGeometryLoader.js >/dev/null
+git diff --check
 ```
 
-Before validating GPU-dependent flows, confirm `HKU_scenes/scenario_HKU.xml`
-and meshes are available through the worktree's `HKU_scenes` path. The
-repository intentionally does not include `HKU_scenes/`.
+Useful remote smoke checks:
+
+```bash
+curl -fsS http://127.0.0.1:8090/api/health
+curl -fsS http://127.0.0.1:8090/api/rt/capabilities
+curl -fsS http://127.0.0.1:9000/api/health
+```
+
+## Remote Workflow
+
+Start or restart the main Zhaolin backend from the Zhaolin worktree:
+
+```bash
+cd /home/defaultuser/worktree-zhaolin
+export HKU_RT_HOST=0.0.0.0
+export HKU_RT_PORT=8090
+export HKU_RT_SCENE_ROOT=/home/defaultuser/worktree-zhaolin/HKU_scenes
+nohup /home/defaultuser/venvs/sionna-gpu/bin/python -m backend.server >> server-8090.log 2>&1 &
+```
+
+Start a presentation instance only after confirming port `9000` is free:
+
+```bash
+cd /home/defaultuser/worktree-zhaolin
+export HKU_RT_HOST=0.0.0.0
+export HKU_RT_PORT=9000
+export HKU_RT_SCENE_ROOT=/home/defaultuser/worktree-zhaolin/HKU_scenes
+nohup /home/defaultuser/venvs/sionna-gpu/bin/python -m backend.server >> server-9000.log 2>&1 &
+```
+
+Before syncing to the remote worktree, back up overwritten files and remote diffs
+under `/home/defaultuser/backups/...`. Do not touch other developers' worktrees.
 
 ## Cleanup Notes
 
-Final cleanup result for this round on 2026-05-05:
+Final cleanup result for 2026-05-06:
 
-- No `__pycache__`, `.pyc`, `.pytest_cache`, `.DS_Store`, backup files, temp
-  files, or unused generated files were found in the repository cleanup scan.
-- `git clean -nd` only listed intentional new final artifacts: frontend modules,
-  setup documentation, requirements, remote smoke script, and regression tests.
-  They were kept.
-- No scene assets, generated bundle caches, vendored libraries, remote logs, or
-  unrelated files were removed.
+- Removed local `.DS_Store` from the repository root.
+- Removed remote AppleDouble `._*` files that macOS tar created during sync.
+- No unused source, test, generated asset, or scratch implementation file remains
+  in the local cleanup scan.
+- The new Mobility source and regression tests are intentionally kept because
+  they are referenced by the server, solver runtime, or test suite.
+- Remote `server-8090.log` and `server-9000.log` are runtime logs on the remote
+  worktree and are not repository-tracked artifacts.
 
 Cleanup history:
 
 - 2026-05-05 runtime preload work removed remote benchmark scratch files from
-  `/tmp` and kept `/tmp/worktree-zhaolin-8090.log` for the active Zhaolin server.
+  `/tmp` and kept the active Zhaolin server log for diagnostics.
 - 2026-04-29 map exploration removed discarded generated basemap/landmask files
   and related scripts after the final OSM/Canvas design was selected.
 
@@ -288,8 +260,7 @@ When handing off future Zhaolin work:
 
 - State the local branch or worktree used.
 - State whether code was synced to `/home/defaultuser/worktree-zhaolin`.
-- State whether port `8090` was restarted and which PID is active.
-- State whether `18091` was only checked or intentionally changed.
-- List the exact local and remote checks that passed.
-- Note whether the browser-visible static files were synced after the last UI
-  change.
+- State whether `8090` was restarted and which validation checks passed.
+- State whether `9000` is running as a demo instance.
+- Confirm that browser-visible static files were synced after the last UI change.
+- List any cleanup performed and any intentionally kept new final artifacts.

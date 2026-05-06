@@ -217,7 +217,7 @@ function focusEntryPlaceResult(index) {
   const tileId = tileIdAtLatLng(latLng);
   setEntrySearchFocus(latLng, tileId);
   if (tileId) {
-    updateEntryMapBadge(tileId);
+    syncEntryOverviewUi();
     setEntrySearchHint(`Located in ${toDisplayTileId(tileId)}. Click the tile on the map to select it.`);
   } else {
     setEntrySearchHint("Located the place, but the current manifest has no available tile at that point.", true);

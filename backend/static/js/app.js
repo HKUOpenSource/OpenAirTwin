@@ -1,4 +1,14 @@
-import {createRadiomapJob, getManifest, getRadiomapJob, getRadiomapResult, solveLink} from "/js/api.js";
+import {
+  createMobilityJob,
+  createRadiomapJob,
+  getManifest,
+  getMobilityJob,
+  getMobilityResult,
+  getRadiomapJob,
+  getRadiomapResult,
+  getRtCapabilities,
+  solveLink,
+} from "/js/api.js";
 import {entryMap, PERFORMANCE_MODES, state, viewerRef} from "/js/app_state.js";
 import {inputs, ui} from "/js/dom_refs.js";
 import {createEntryMapController} from "/js/entry_map.js";
@@ -15,8 +25,12 @@ const context = {
   viewerRef,
   api: {
     createRadiomapJob,
+    createMobilityJob,
+    getMobilityJob,
+    getMobilityResult,
     getRadiomapJob,
     getRadiomapResult,
+    getRtCapabilities,
     solveLink,
   },
   controllers: {},
@@ -63,6 +77,16 @@ function isLinkDeviceTarget(target) {
   return target === "link-tx" || target === "link-rx";
 }
 
+function invalidateMobilityResult() {
+  if (state.mode !== "mobility") {
+    return;
+  }
+  solverControls.stopMobilityPlayback();
+  state.mobility.result = null;
+  state.mobility.selectedStep = 0;
+  state.mobility.selectedPath = -1;
+}
+
 function clearPickTapCandidate() {
   pickTapCandidate = null;
 }
@@ -102,6 +126,38 @@ function readActiveDeviceInputs() {
   if (state.deviceControl.activeTarget === "rm-tx") {
     solverControls.readRadiomapInputs();
   }
+}
+
+function txOrbitCenterForMode() {
+  return state.mode === "radiomap" ? state.radiomap.txVisual : state.link.txVisual;
+}
+
+function readTxInputsForCurrentMode() {
+  if (state.mode === "radiomap") {
+    solverControls.readRadiomapInputs();
+    return;
+  }
+  solverControls.readLinkInputs();
+}
+
+function stopTxOrbit() {
+  currentViewer().stopTxOrbit();
+}
+
+function toggleTxOrbit() {
+  const viewer = currentViewer();
+  if (viewer.isTxOrbiting()) {
+    viewer.stopTxOrbit();
+    sceneRenderState.renderAll();
+    return;
+  }
+  readTxInputsForCurrentMode();
+  clearPickTapCandidate();
+  state.pickTarget = null;
+  state.deviceControl.activeTarget = null;
+  setPickStatus();
+  viewer.startTxOrbit(txOrbitCenterForMode());
+  sceneRenderState.renderAll();
 }
 
 async function runSolveFromDock(button, run) {
@@ -297,6 +353,8 @@ function attachEvents() {
 
   ui.tabLink.addEventListener("click", () => {
     paramTooltips.hideTooltip();
+    solverControls.stopMobilityPlayback();
+    stopTxOrbit();
     state.mode = "link";
     clearPickTapCandidate();
     state.pickTarget = null;
@@ -305,8 +363,26 @@ function attachEvents() {
     currentViewer().clearOverlay();
     sceneRenderState.renderAll();
   });
+  ui.tabMobility.addEventListener("click", () => {
+    paramTooltips.hideTooltip();
+    stopTxOrbit();
+    state.mode = "mobility";
+    if (!state.mobility.tapsDefaulted) {
+      state.link.advanced.computeTaps = true;
+      state.mobility.tapsDefaulted = true;
+    }
+    clearPickTapCandidate();
+    state.pickTarget = null;
+    state.deviceControl.activeTarget = null;
+    setPickStatus();
+    currentViewer().clearOverlay();
+    solverControls.renderMobilityTrajectoryPreview();
+    sceneRenderState.renderAll();
+  });
   ui.tabRadiomap.addEventListener("click", () => {
     paramTooltips.hideTooltip();
+    solverControls.stopMobilityPlayback();
+    stopTxOrbit();
     state.mode = "radiomap";
     clearPickTapCandidate();
     state.pickTarget = null;
@@ -324,13 +400,21 @@ function attachEvents() {
     sceneRenderState.hideOverlay();
     window.alert(error.message);
   }));
+  ui.btnRunMobility.addEventListener("click", () => runSolveFromDock(ui.btnRunMobility, () => solverControls.runMobility()).catch((error) => {
+    sceneRenderState.hideOverlay();
+    solverControls.stopMobilityPlayback();
+    window.alert(error.message);
+  }));
   ui.btnResetView.addEventListener("click", () => {
+    stopTxOrbit();
     if (!currentViewer().focusOnTiles([...currentViewer().loadedTileIds])) {
       currentViewer().resetView();
     }
+    sceneRenderState.renderAll();
   });
   ui.btnClearOverlay.addEventListener("click", () => currentViewer().clearOverlay());
 
+  ui.btnOrbitTx.addEventListener("click", toggleTxOrbit);
   ui.btnPickLinkTx.addEventListener("click", () => openDevicePrecision("link-tx"));
   ui.btnPickLinkRx.addEventListener("click", () => openDevicePrecision("link-rx"));
   ui.btnPickRmTx.addEventListener("click", () => openDevicePrecision("rm-tx"));
@@ -341,12 +425,51 @@ function attachEvents() {
   ]) {
     input.addEventListener("change", () => {
       solverControls.readLinkInputs();
+      invalidateMobilityResult();
       if (isLinkDeviceTarget(state.deviceControl.activeTarget)) {
         setPickStatus(placementPromptForTarget(state.deviceControl.activeTarget));
       }
       sceneRenderState.renderAll();
     });
   }
+
+  for (const input of [inputs.mobilityVelocity, inputs.mobilityTimeStep, inputs.mobilityMaxSteps]) {
+    input.addEventListener("change", () => {
+      solverControls.readMobilityInputs();
+      state.mobility.result = null;
+      state.mobility.selectedStep = 0;
+      state.mobility.selectedPath = -1;
+      sceneRenderState.renderAll();
+    });
+  }
+
+  ui.btnMobilityAddRxPoint.addEventListener("click", () => solverControls.addCurrentRxWaypoint());
+  ui.btnMobilityClearPoints.addEventListener("click", () => {
+    solverControls.readLinkInputs();
+    solverControls.resetMobilityTrajectoryFromRx();
+    sceneRenderState.renderAll();
+  });
+  ui.mobilityMetric.addEventListener("change", () => {
+    state.mobility.metric = ui.mobilityMetric.value;
+    solverControls.renderMobilityResult();
+  });
+  ui.mobilityStepSlider.addEventListener("input", () => {
+    solverControls.selectMobilityStep(Number(ui.mobilityStepSlider.value));
+  });
+  ui.mobilityPlaybackSpeed.addEventListener("change", () => {
+    state.mobility.playbackSpeed = Number(ui.mobilityPlaybackSpeed.value);
+    if (state.mobility.playing) {
+      solverControls.startMobilityPlayback();
+    }
+  });
+  ui.btnMobilityPlay.addEventListener("click", () => {
+    if (state.mobility.playing) {
+      solverControls.stopMobilityPlayback();
+      solverControls.renderMobilityResult();
+      return;
+    }
+    solverControls.startMobilityPlayback();
+  });
 
   for (const input of [
     inputs.linkSamplesPerSrc,
@@ -363,6 +486,28 @@ function attachEvents() {
   ]) {
     input.addEventListener("change", () => {
       solverControls.readLinkInputs();
+      invalidateMobilityResult();
+      sceneRenderState.renderAll();
+    });
+  }
+
+  for (const input of [
+    inputs.txArrayPattern,
+    inputs.txArrayPolarization,
+    inputs.txArrayRows,
+    inputs.txArrayCols,
+    inputs.txArrayVerticalSpacing,
+    inputs.txArrayHorizontalSpacing,
+    inputs.rxArrayPattern,
+    inputs.rxArrayPolarization,
+    inputs.rxArrayRows,
+    inputs.rxArrayCols,
+    inputs.rxArrayVerticalSpacing,
+    inputs.rxArrayHorizontalSpacing,
+  ]) {
+    input.addEventListener("change", () => {
+      solverControls.readAntennaArrayInputs();
+      invalidateMobilityResult();
       sceneRenderState.renderAll();
     });
   }
@@ -398,6 +543,9 @@ function attachEvents() {
   window.addEventListener("pointerup", handlePickPointerUp);
   window.addEventListener("pointercancel", clearPickTapCandidate);
   window.addEventListener("blur", clearPickTapCandidate);
+  window.addEventListener("hku-tx-orbit-change", () => {
+    sceneRenderState.renderAll();
+  });
 
   window.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || !state.deviceControl.activeTarget) {
@@ -424,6 +572,10 @@ function attachEvents() {
 async function bootstrap() {
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 10});
   attachEvents();
+  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading RT capabilities...", percent: 14});
+  state.rtCapabilities = await getRtCapabilities();
+  solverControls.applyRtCapabilities(state.rtCapabilities);
+  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 18});
   state.manifest = await getManifest();
   sceneRenderState.populateTileList(state.manifest);
   performancePanel.populatePerformanceControls(state.manifest);

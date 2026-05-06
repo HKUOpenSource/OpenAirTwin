@@ -24,17 +24,77 @@
     <div id="linkChannelSection" class="channelAnalysisDock hidden" aria-hidden="true">
       <div class="channelAnalysisHead">
         <div>
-          <div class="sectionTitle">Channel Analysis</div>
-          <div class="channelAnalysisSubtitle">CIR / Taps</div>
+          <div class="sectionTitle" id="resultDockTitle">Link Results</div>
+          <div class="channelAnalysisSubtitle" id="resultDockSubtitle">Paths / Channel</div>
         </div>
       </div>
-      <div class="channelStats">
-        <div><b>Total</b><span id="linkTapTotalPower">--</span></div>
-        <div><b>Peak</b><span id="linkTapPeak">--</span></div>
-        <div><b>CIR Coefficients</b><span id="linkCirCoeffCount">--</span></div>
-        <div><b>Strongest |a|</b><span id="linkCirStrongest">--</span></div>
+      <div id="linkResult" class="linkResultSummary">
+        <div class="channelStats linkSummaryStats">
+          <div><b>Received Power</b><span id="linkPower">--</span></div>
+          <div><b>Strongest Path</b><span id="linkBest">--</span></div>
+          <div><b>Total Paths</b><span id="linkPaths">--</span></div>
+          <div><b>LoS</b><span id="linkLos" class="pill no">No</span></div>
+        </div>
       </div>
-      <svg id="linkTapChart" class="tapChart" viewBox="0 0 360 128" role="img" aria-label="Channel tap power chart"></svg>
+      <div id="mobilityResult" class="linkResultSummary">
+        <div class="channelStats linkSummaryStats">
+          <div><b>Steps</b><span id="mobilitySteps">--</span></div>
+          <div><b>Power Range</b><span id="mobilityPowerRange">--</span></div>
+          <div><b>Duration</b><span id="mobilityDuration">--</span></div>
+          <div><b>Max Doppler</b><span id="mobilityMaxDoppler">--</span></div>
+        </div>
+      </div>
+      <div id="mobilityTimelineSection" class="linkDockSection hidden" aria-hidden="true">
+        <div class="sectionTitleRow">
+          <div>
+            <div class="sectionTitle">Mobility Timeline</div>
+            <div class="channelAnalysisMiniTitle" id="mobilityStepLabel">Step --</div>
+          </div>
+          <select id="mobilityMetric" class="miniSelect" aria-label="Mobility metric">
+            <option value="received_power_db">Power</option>
+            <option value="valid_paths">Paths</option>
+            <option value="max_abs_doppler_hz">Doppler</option>
+            <option value="peak_tap_power_db">Peak Tap</option>
+          </select>
+        </div>
+        <svg id="mobilitySeriesChart" class="tapChart mobilityChart" viewBox="0 0 420 172" role="img" aria-label="Mobility time series chart"></svg>
+        <div class="mobilityPlayback">
+          <button class="miniBtn" id="btnMobilityPlay" type="button">Play</button>
+          <input id="mobilityStepSlider" type="range" min="0" max="0" step="1" value="0" aria-label="Mobility step" />
+          <select id="mobilityPlaybackSpeed" class="miniSelect" aria-label="Mobility playback speed">
+            <option value="0.5">0.5x</option>
+            <option value="1" selected>1x</option>
+            <option value="2">2x</option>
+            <option value="5">5x</option>
+          </select>
+        </div>
+      </div>
+      <div id="pathDetailSection" class="linkDockSection hidden">
+        <div class="sectionTitle">Path Details</div>
+        <div id="pathDetailList" class="pathDetailList"></div>
+      </div>
+      <div id="linkTapAnalysisSection" class="linkDockSection hidden" aria-hidden="true">
+        <div class="sectionTitleRow">
+          <div>
+            <div class="sectionTitle">Channel Analysis</div>
+            <div class="channelAnalysisMiniTitle">CIR / Taps</div>
+          </div>
+        </div>
+        <div class="channelStats">
+          <div><b>Total</b><span id="linkTapTotalPower">--</span></div>
+          <div><b>Peak</b><span id="linkTapPeak">--</span></div>
+          <div><b>CIR Coefficients</b><span id="linkCirCoeffCount">--</span></div>
+          <div><b>Strongest |a|</b><span id="linkCirStrongest">--</span></div>
+        </div>
+        <svg id="linkTapChart" class="tapChart" viewBox="0 0 420 172" role="img" aria-label="Channel tap power chart: x-axis Tap Index, y-axis Power in dB"></svg>
+      </div>
+      <div id="pathSelectionSection" class="linkDockSection hidden" aria-hidden="true">
+        <div class="sectionTitleRow">
+          <div class="sectionTitle">Paths</div>
+          <div class="channelAnalysisMiniTitle pathSelectionCount" id="pathSelectionCount">0 paths</div>
+        </div>
+        <div id="pathButtons" class="pathButtons"></div>
+      </div>
     </div>
 
     <div id="loadingScreen">
@@ -147,6 +207,7 @@
 
         <div class="modeTabs">
           <button class="modeTab active" data-mode="link" id="tabLink">Link Mode</button>
+          <button class="modeTab" data-mode="mobility" id="tabMobility">Mobility</button>
           <button class="modeTab" data-mode="radiomap" id="tabRadiomap">Radio Map</button>
         </div>
 
@@ -196,6 +257,137 @@
                 <input id="linkTapSubcarrierSpacing" type="hidden" value="30000" />
               </label>
             </div>
+          </section>
+
+          <section class="paramGroup">
+            <div class="paramGroupTitle">Antenna Arrays</div>
+            <div class="paramGrid">
+              <label class="paramField" for="txArrayPattern">
+                <span class="paramLabel">Tx Pattern
+                  <span class="infoTip" tabindex="0" aria-label="Tx antenna pattern details">i<span class="tipBubble" role="tooltip">Sionna antenna pattern used for transmitters. Options come from the backend Sionna registry.</span></span>
+                </span>
+                <select id="txArrayPattern">
+                  <option value="iso" selected>iso</option>
+                </select>
+              </label>
+              <label class="paramField" for="txArrayPolarization">
+                <span class="paramLabel">Tx Polarization
+                  <span class="infoTip" tabindex="0" aria-label="Tx polarization details">i<span class="tipBubble" role="tooltip">Transmit antenna polarization. Options come from the backend Sionna registry.</span></span>
+                </span>
+                <select id="txArrayPolarization">
+                  <option value="V" selected>V</option>
+                </select>
+              </label>
+              <label class="paramField" for="txArrayRows">
+                <span class="paramLabel">Tx Rows
+                  <span class="infoTip" tabindex="0" aria-label="Tx rows details">i<span class="tipBubble" role="tooltip">Number of vertical elements in the transmit PlanarArray. Backend caps the total array size.</span></span>
+                </span>
+                <input id="txArrayRows" type="number" step="1" min="1" max="16" value="1" />
+              </label>
+              <label class="paramField" for="txArrayCols">
+                <span class="paramLabel">Tx Cols
+                  <span class="infoTip" tabindex="0" aria-label="Tx columns details">i<span class="tipBubble" role="tooltip">Number of horizontal elements in the transmit PlanarArray. Backend caps the total array size.</span></span>
+                </span>
+                <input id="txArrayCols" type="number" step="1" min="1" max="16" value="1" />
+              </label>
+              <label class="paramField" for="txArrayVerticalSpacing">
+                <span class="paramLabel">Tx V Spacing
+                  <span class="infoTip" tabindex="0" aria-label="Tx vertical spacing details">i<span class="tipBubble" role="tooltip">Vertical element spacing relative to the carrier wavelength. Default 0.5.</span></span>
+                </span>
+                <span class="unitInput">
+                  <input id="txArrayVerticalSpacing" type="number" step="0.01" min="0.01" max="10" value="0.5" />
+                  <span class="unitSuffix" aria-hidden="true">lambda</span>
+                </span>
+              </label>
+              <label class="paramField" for="txArrayHorizontalSpacing">
+                <span class="paramLabel">Tx H Spacing
+                  <span class="infoTip" tabindex="0" aria-label="Tx horizontal spacing details">i<span class="tipBubble" role="tooltip">Horizontal element spacing relative to the carrier wavelength. Default 0.5.</span></span>
+                </span>
+                <span class="unitInput">
+                  <input id="txArrayHorizontalSpacing" type="number" step="0.01" min="0.01" max="10" value="0.5" />
+                  <span class="unitSuffix" aria-hidden="true">lambda</span>
+                </span>
+              </label>
+              <label class="paramField linkOnlyParam" for="rxArrayPattern">
+                <span class="paramLabel">Rx Pattern
+                  <span class="infoTip" tabindex="0" aria-label="Rx antenna pattern details">i<span class="tipBubble" role="tooltip">Sionna antenna pattern used for link receivers. Options come from the backend Sionna registry.</span></span>
+                </span>
+                <select id="rxArrayPattern">
+                  <option value="iso" selected>iso</option>
+                </select>
+              </label>
+              <label class="paramField linkOnlyParam" for="rxArrayPolarization">
+                <span class="paramLabel">Rx Polarization
+                  <span class="infoTip" tabindex="0" aria-label="Rx polarization details">i<span class="tipBubble" role="tooltip">Receiver antenna polarization for link solves. Radio maps only use the Tx array.</span></span>
+                </span>
+                <select id="rxArrayPolarization">
+                  <option value="V" selected>V</option>
+                </select>
+              </label>
+              <label class="paramField linkOnlyParam" for="rxArrayRows">
+                <span class="paramLabel">Rx Rows
+                  <span class="infoTip" tabindex="0" aria-label="Rx rows details">i<span class="tipBubble" role="tooltip">Number of vertical elements in the receiver PlanarArray.</span></span>
+                </span>
+                <input id="rxArrayRows" type="number" step="1" min="1" max="16" value="1" />
+              </label>
+              <label class="paramField linkOnlyParam" for="rxArrayCols">
+                <span class="paramLabel">Rx Cols
+                  <span class="infoTip" tabindex="0" aria-label="Rx columns details">i<span class="tipBubble" role="tooltip">Number of horizontal elements in the receiver PlanarArray.</span></span>
+                </span>
+                <input id="rxArrayCols" type="number" step="1" min="1" max="16" value="1" />
+              </label>
+              <label class="paramField linkOnlyParam" for="rxArrayVerticalSpacing">
+                <span class="paramLabel">Rx V Spacing
+                  <span class="infoTip" tabindex="0" aria-label="Rx vertical spacing details">i<span class="tipBubble" role="tooltip">Vertical receiver element spacing relative to the carrier wavelength. Default 0.5.</span></span>
+                </span>
+                <span class="unitInput">
+                  <input id="rxArrayVerticalSpacing" type="number" step="0.01" min="0.01" max="10" value="0.5" />
+                  <span class="unitSuffix" aria-hidden="true">lambda</span>
+                </span>
+              </label>
+              <label class="paramField linkOnlyParam" for="rxArrayHorizontalSpacing">
+                <span class="paramLabel">Rx H Spacing
+                  <span class="infoTip" tabindex="0" aria-label="Rx horizontal spacing details">i<span class="tipBubble" role="tooltip">Horizontal receiver element spacing relative to the carrier wavelength. Default 0.5.</span></span>
+                </span>
+                <span class="unitInput">
+                  <input id="rxArrayHorizontalSpacing" type="number" step="0.01" min="0.01" max="10" value="0.5" />
+                  <span class="unitSuffix" aria-hidden="true">lambda</span>
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section class="paramGroup mobilityOnlyParam hidden">
+            <div class="paramGroupTitle">Rx Trajectory</div>
+            <div class="trajectoryActions">
+              <button class="miniBtn" id="btnMobilityAddRxPoint" type="button">Add Current Rx</button>
+              <button class="miniBtn" id="btnMobilityClearPoints" type="button">Clear</button>
+            </div>
+            <div id="mobilityWaypointList" class="waypointList"></div>
+            <div class="paramGrid">
+              <label class="paramField" for="mobilityVelocity">
+                <span class="paramLabel">Velocity</span>
+                <span class="unitInput">
+                  <input id="mobilityVelocity" type="number" step="0.1" min="0.1" max="30" value="1.5" />
+                  <span class="unitSuffix" aria-hidden="true">m/s</span>
+                </span>
+              </label>
+              <label class="paramField" for="mobilityTimeStep">
+                <span class="paramLabel">Time Step</span>
+                <span class="unitInput">
+                  <input id="mobilityTimeStep" type="number" step="0.1" min="0.1" max="10" value="1.0" />
+                  <span class="unitSuffix" aria-hidden="true">s</span>
+                </span>
+              </label>
+              <label class="paramField" for="mobilityMaxSteps">
+                <span class="paramLabel">Max Steps</span>
+                <span class="unitInput">
+                  <input id="mobilityMaxSteps" type="number" step="1" min="2" max="500" value="50" />
+                  <span class="unitSuffix" aria-hidden="true">steps</span>
+                </span>
+              </label>
+            </div>
+            <div id="mobilityEstimate" class="mobilityEstimate">--</div>
           </section>
 
           <section class="paramGroup">
@@ -325,22 +517,8 @@
           </section>
         </div>
 
-        <section id="linkPanel" class="modePanel">
-          <div id="linkResult" class="rtResult">
-            <div class="rxTitle">Channel Result</div>
-            <div class="rxGrid">
-              <div class="rxItem"><b>Received Power</b><span id="linkPower">--</span></div>
-              <div class="rxItem"><b>Strongest Path</b><span id="linkBest">--</span></div>
-              <div class="rxItem"><b>Total Paths</b><span id="linkPaths">--</span></div>
-              <div class="rxItem"><b>LoS</b><span id="linkLos" class="pill no">No</span></div>
-            </div>
-          </div>
-          <div id="pathButtons" class="pathButtons"></div>
-          <div id="pathDetailSection" class="sectionCard hidden">
-            <div class="sectionTitle">Path Details</div>
-            <div id="pathDetailList" class="pathDetailList"></div>
-          </div>
-        </section>
+        <section id="linkPanel" class="modePanel"></section>
+        <section id="mobilityPanel" class="modePanel hidden"></section>
 
         <section id="radiomapPanel" class="modePanel hidden">
           <div id="radiomapResult" class="rtResult">
@@ -415,11 +593,23 @@
           </span>
           <span class="deviceActionText">Tx</span>
         </button>
+        <button class="deviceActionBtn" id="btnOrbitTx" type="button" aria-label="Orbit around transmitter" aria-pressed="false">
+          <span class="deviceActionIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 12a8 5 0 1 0 16 0 8 5 0 1 0-16 0"></path><path d="M12 7v10"></path><path d="m9 14 3 3 3-3"></path></svg>
+          </span>
+          <span class="deviceActionText">Orbit</span>
+        </button>
         <button class="deviceActionBtn solve" id="btnSolveLink" type="button">
           <span class="deviceActionIcon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="m6 17 5-5-5-5"></path><path d="M13 17h5"></path></svg>
           </span>
           <span class="deviceActionText">Solve Link</span>
+        </button>
+        <button class="deviceActionBtn solve hidden" id="btnRunMobility" type="button">
+          <span class="deviceActionIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 18c4-10 10-14 14-12"></path><path d="M17 6h2v2"></path><path d="M6 18h.01"></path><path d="M12 11h.01"></path><path d="M18 6h.01"></path></svg>
+          </span>
+          <span class="deviceActionText">Run Mobility</span>
         </button>
         <button class="deviceActionBtn solve hidden" id="btnRunRadiomap" type="button">
           <span class="deviceActionIcon" aria-hidden="true">

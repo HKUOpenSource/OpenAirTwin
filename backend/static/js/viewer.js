@@ -23,6 +23,11 @@ const AUTO_RESTORE_DELAY_MS = 600;
 const LARGE_BUNDLE_YIELD_VERTEX_THRESHOLD = 500000;
 const LARGE_BUNDLE_YIELD_FACE_THRESHOLD = 150000;
 const FPS_SAMPLE_WINDOW_MS = 1000;
+const TX_ORBIT_SPEED_RAD_PER_SEC = THREE.MathUtils.degToRad(18);
+const TX_ORBIT_MIN_RADIUS = 45;
+const TX_ORBIT_DEFAULT_RADIUS = 130;
+const TX_ORBIT_MIN_HEIGHT = 20;
+const TX_ORBIT_DEFAULT_HEIGHT = 55;
 
 const MATERIAL_COLORS = {
   itu_concrete: "#5b5d61",
@@ -208,7 +213,10 @@ export class Viewer {
     this.controls.dampingFactor = 0.05;
     this.controls.screenSpacePanning = true;
     this.controls.maxDistance = CAMERA_FAR_MIN * 0.5;
-    this.controls.addEventListener("start", () => this.#markInteraction());
+    this.controls.addEventListener("start", () => {
+      this.stopTxOrbit();
+      this.#markInteraction();
+    });
     this.controls.addEventListener("change", () => this.#markInteraction());
     this.controls.addEventListener("end", () => this.#markInteraction());
 
@@ -216,13 +224,16 @@ export class Viewer {
     this.modelGroup = new THREE.Group();
     this.pathGroup = new THREE.Group();
     this.overlayGroup = new THREE.Group();
+    this.mobilityGroup = new THREE.Group();
     this.markerGroup = new THREE.Group();
-    this.scene.add(this.modelGroup, this.pathGroup, this.overlayGroup, this.markerGroup);
+    this.scene.add(this.modelGroup, this.pathGroup, this.overlayGroup, this.mobilityGroup, this.markerGroup);
 
     this.pathMaterials = [];
     this.meshMaterials = [];
     this.modelEntries = new Map();
     this.tileMeshCounts = new Map();
+    this.tileBundleCounts = new Map();
+    this.tileExpectedBundleCounts = new Map();
     this.meshesLoaded = 0;
     this.loadedTileIds = new Set();
     this.fpsSamples = [];
@@ -262,6 +273,14 @@ export class Viewer {
         down: false,
         boost: false,
       },
+    };
+    this.txOrbit = {
+      active: false,
+      center: new THREE.Vector3(),
+      radius: TX_ORBIT_DEFAULT_RADIUS,
+      height: TX_ORBIT_DEFAULT_HEIGHT,
+      angle: 0,
+      speed: TX_ORBIT_SPEED_RAD_PER_SEC,
     };
     this.lastFrameTime = performance.now();
 
@@ -330,6 +349,12 @@ export class Viewer {
   #markInteraction(now = performance.now()) {
     this.lastInteractionAt = now;
     this.#syncRendererPixelRatio(now);
+  }
+
+  #dispatchTxOrbitChange() {
+    window.dispatchEvent(new CustomEvent("hku-tx-orbit-change", {
+      detail: {active: this.txOrbit.active},
+    }));
   }
 
   setPerformanceMode(mode) {
@@ -447,7 +472,9 @@ export class Viewer {
     requestAnimationFrame((nextTime) => this.#animate(nextTime));
     const deltaSeconds = Math.min((time - this.lastFrameTime) / 1000, 0.05);
     this.lastFrameTime = time;
-    if (this.#hasFlyMovement()) {
+    if (this.txOrbit.active) {
+      this.#updateTxOrbit(deltaSeconds, time);
+    } else if (this.#hasFlyMovement()) {
       this.#markInteraction(time);
       this.#updateFlyMotion(deltaSeconds);
     }
@@ -619,12 +646,29 @@ export class Viewer {
     this.camera.lookAt(this.controls.target);
   }
 
+  #updateTxOrbit(deltaSeconds, time) {
+    if (!this.txOrbit.active || deltaSeconds <= 0) {
+      return;
+    }
+    this.txOrbit.angle += this.txOrbit.speed * deltaSeconds;
+    const center = this.txOrbit.center;
+    this.controls.target.copy(center);
+    this.camera.position.set(
+      center.x + Math.cos(this.txOrbit.angle) * this.txOrbit.radius,
+      center.y + Math.sin(this.txOrbit.angle) * this.txOrbit.radius,
+      center.z + this.txOrbit.height,
+    );
+    this.camera.lookAt(center);
+    this.#markInteraction(time);
+  }
+
   #onKeyDown(event) {
     if (this.#isFormTarget(event.target)) {
       return;
     }
     const handled = this.#setFlyMovementKey(event.code, true);
     if (handled) {
+      this.stopTxOrbit();
       this.#markInteraction();
       event.preventDefault();
     }
@@ -674,6 +718,7 @@ export class Viewer {
     if (event.button !== 0 || !event.shiftKey || this.freeLook.active) {
       return;
     }
+    this.stopTxOrbit();
     this.freeLook.active = true;
     this.freeLook.pointerId = event.pointerId;
     this.controls.enabled = false;
@@ -725,6 +770,7 @@ export class Viewer {
   }
 
   resetView() {
+    this.stopTxOrbit();
     this.camera.position.copy(DEFAULT_VIEW.position);
     this.controls.target.copy(DEFAULT_VIEW.target);
     this.camera.lookAt(this.controls.target);
@@ -736,13 +782,65 @@ export class Viewer {
 
   setTx(position) {
     this.txMarker.position.set(position[0], position[1], position[2]);
+    if (this.txOrbit.active) {
+      this.startTxOrbit(position);
+    }
   }
 
   setRx(position) {
     this.rxMarker.position.set(position[0], position[1], position[2]);
   }
 
+  startTxOrbit(center) {
+    const nextCenter = new THREE.Vector3(center?.[0], center?.[1], center?.[2]);
+    if (![nextCenter.x, nextCenter.y, nextCenter.z].every(Number.isFinite)) {
+      return false;
+    }
+
+    const wasActive = this.txOrbit.active;
+    this.#cancelFreeLook();
+    this.#clearFlyMovement();
+    this.txOrbit.active = true;
+    this.txOrbit.center.copy(nextCenter);
+
+    const offset = this.camera.position.clone().sub(nextCenter);
+    const horizontalRadius = Math.hypot(offset.x, offset.y);
+    this.txOrbit.radius = horizontalRadius >= TX_ORBIT_MIN_RADIUS
+      ? horizontalRadius
+      : TX_ORBIT_DEFAULT_RADIUS;
+    this.txOrbit.height = Math.abs(offset.z) >= TX_ORBIT_MIN_HEIGHT
+      ? offset.z
+      : TX_ORBIT_DEFAULT_HEIGHT;
+    this.txOrbit.angle = horizontalRadius >= 1e-6 ? Math.atan2(offset.y, offset.x) : -Math.PI / 4;
+
+    this.controls.enabled = true;
+    this.controls.target.copy(nextCenter);
+    this.camera.lookAt(nextCenter);
+    this.controls.update();
+    this.#markInteraction();
+    if (!wasActive) {
+      this.#dispatchTxOrbitChange();
+    }
+    return true;
+  }
+
+  stopTxOrbit() {
+    if (!this.txOrbit.active) {
+      return false;
+    }
+    this.txOrbit.active = false;
+    this.controls.enabled = true;
+    this.controls.update();
+    this.#dispatchTxOrbitChange();
+    return true;
+  }
+
+  isTxOrbiting() {
+    return this.txOrbit.active;
+  }
+
   focusOnTiles(tileIds = [...this.loadedTileIds], {padding = 1.35, minDistance = 120} = {}) {
+    this.stopTxOrbit();
     const ids = new Set(tileIds);
     const box = new THREE.Box3();
     let hasGeometry = false;
@@ -827,6 +925,8 @@ export class Viewer {
 
   async syncBundles(bundles, onProgress = () => {}) {
     const desiredBundleIds = new Set(bundles.map((bundle) => bundle.bundle_id));
+    this.tileExpectedBundleCounts = this.#bundleCountsByTile(bundles);
+    this.#refreshLoadedTileIds();
     const toRemove = [];
     for (const bundleId of this.modelEntries.keys()) {
       if (!desiredBundleIds.has(bundleId)) {
@@ -991,6 +1091,8 @@ export class Viewer {
     this.meshesLoaded = 0;
     this.loadedTileIds.clear();
     this.tileMeshCounts.clear();
+    this.tileBundleCounts.clear();
+    this.tileExpectedBundleCounts.clear();
     this.modelEntries.clear();
     this.#refreshPerformanceStats();
   }
@@ -999,6 +1101,7 @@ export class Viewer {
     this.clearPaths();
     this.clearRadiomap();
     this.clearSurfacePreview();
+    this.clearMobility();
   }
 
   clearPaths() {
@@ -1008,6 +1111,56 @@ export class Viewer {
       object.material?.dispose();
     }
     this.pathMaterials = [];
+  }
+
+  clearMobility() {
+    while (this.mobilityGroup.children.length) {
+      const object = this.mobilityGroup.children.pop();
+      object.geometry?.dispose();
+      object.material?.dispose();
+    }
+  }
+
+  renderMobilityTrajectory(points = [], samples = [], selectedIndex = -1) {
+    this.clearMobility();
+    if (!Array.isArray(points) || points.length < 2) {
+      return;
+    }
+
+    const flat = [];
+    for (const point of points) {
+      flat.push(point[0], point[1], point[2]);
+    }
+    const geometry = new LineGeometry();
+    geometry.setPositions(flat);
+    const material = new LineMaterial({
+      color: new THREE.Color("#1f6fff"),
+      linewidth: 2.6,
+      transparent: true,
+      opacity: 0.78,
+      depthTest: true,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    material.resolution.set(window.innerWidth, window.innerHeight);
+    this.mobilityGroup.add(new Line2(geometry, material));
+
+    const samplePoints = Array.isArray(samples) && samples.length
+      ? samples.map((sample) => sample.rx_position)
+      : points;
+    samplePoints.forEach((point, index) => {
+      const isSelected = index === selectedIndex;
+      const markerMaterial = new THREE.MeshBasicMaterial({
+        color: isSelected ? "#1eb980" : "#70a7ff",
+        transparent: true,
+        opacity: isSelected ? 0.95 : 0.7,
+        depthWrite: false,
+      });
+      const marker = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 12), markerMaterial);
+      marker.position.set(point[0], point[1], point[2]);
+      marker.scale.setScalar(isSelected ? 1.35 : 1.0);
+      this.mobilityGroup.add(marker);
+    });
   }
 
   renderPaths(paths, selectedIndex = -1) {
@@ -1193,6 +1346,24 @@ export class Viewer {
       || entry.faceCount >= LARGE_BUNDLE_YIELD_FACE_THRESHOLD;
   }
 
+  #bundleCountsByTile(bundles) {
+    const counts = new Map();
+    for (const bundle of bundles) {
+      counts.set(bundle.tile, (counts.get(bundle.tile) || 0) + 1);
+    }
+    return counts;
+  }
+
+  #refreshLoadedTileIds() {
+    this.loadedTileIds.clear();
+    for (const [tileId, expectedCount] of this.tileExpectedBundleCounts.entries()) {
+      const loadedCount = this.tileBundleCounts.get(tileId) || 0;
+      if (expectedCount > 0 && loadedCount === expectedCount) {
+        this.loadedTileIds.add(tileId);
+      }
+    }
+  }
+
   #storeBundle(bundle, object) {
     object.visible = this.isCategoryVisible(bundle.category);
     this.modelGroup.add(object);
@@ -1208,7 +1379,9 @@ export class Viewer {
 
     const nextCount = (this.tileMeshCounts.get(bundle.tile) || 0) + bundle.mesh_count;
     this.tileMeshCounts.set(bundle.tile, nextCount);
-    this.loadedTileIds.add(bundle.tile);
+    const nextBundleCount = (this.tileBundleCounts.get(bundle.tile) || 0) + 1;
+    this.tileBundleCounts.set(bundle.tile, nextBundleCount);
+    this.#refreshLoadedTileIds();
     this.#refreshPerformanceStats();
     return entry;
   }
@@ -1229,10 +1402,16 @@ export class Viewer {
     const nextCount = (this.tileMeshCounts.get(entry.bundle.tile) || entry.bundle.mesh_count) - entry.bundle.mesh_count;
     if (nextCount <= 0) {
       this.tileMeshCounts.delete(entry.bundle.tile);
-      this.loadedTileIds.delete(entry.bundle.tile);
     } else {
       this.tileMeshCounts.set(entry.bundle.tile, nextCount);
     }
+    const nextBundleCount = (this.tileBundleCounts.get(entry.bundle.tile) || 1) - 1;
+    if (nextBundleCount <= 0) {
+      this.tileBundleCounts.delete(entry.bundle.tile);
+    } else {
+      this.tileBundleCounts.set(entry.bundle.tile, nextBundleCount);
+    }
+    this.#refreshLoadedTileIds();
     this.#refreshPerformanceStats();
   }
 }

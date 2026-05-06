@@ -11,7 +11,9 @@ import traceback
 from urllib.parse import parse_qs, unquote, urlparse
 
 from backend import config
+from backend.jobs.mobility_jobs import MobilityJobManager, MobilityQueueFull
 from backend.jobs.radiomap_jobs import RadiomapJobManager, RadiomapQueueFull
+from backend.rt.common import antenna_array_capabilities
 from backend.rt.runtime import RTRuntime
 from backend.rt.solve_link import solve_link
 from backend.scene.tile_bundles import (
@@ -39,6 +41,7 @@ class AppState:
         self.manifest_lookup = self.manifest.mesh_lookup
         self.rt_runtime = RTRuntime(config.SCENE_XML, config.DEFAULT_FREQUENCY_HZ)
         self.job_manager = RadiomapJobManager(self.rt_runtime)
+        self.mobility_job_manager = MobilityJobManager(self.rt_runtime)
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -190,7 +193,12 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_text("Unknown bundle id", code=404)
             return
 
-        result = ensure_tile_bundle(config.SCENE_ROOT, bundle)
+        try:
+            result = ensure_tile_bundle(config.SCENE_ROOT, bundle)
+        except Exception as exc:
+            traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
+            self.send_json({"ok": False, "error": "Internal server error"}, code=500)
+            return
         self.send_bundle_file(result.bundle_path)
 
     def do_GET(self) -> None:
@@ -221,6 +229,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "mesh_root": str(config.MESH_ROOT),
                 }
             )
+            return
+
+        if path == "/api/rt/capabilities":
+            self.send_json({"ok": True, **antenna_array_capabilities()})
             return
 
         if path == "/api/scene/manifest":
@@ -262,6 +274,31 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_json(payload)
             return
 
+        if path.startswith("/api/mobility/jobs/"):
+            suffix = path.removeprefix("/api/mobility/jobs/")
+            if suffix.endswith("/result"):
+                job_id = suffix.removesuffix("/result")
+                job = self.app_state.mobility_job_manager.get_job(job_id)
+                if job is None:
+                    self.send_text("Unknown job id", code=404)
+                    return
+                if job.status != "succeeded" or job.result is None:
+                    self.send_json({"job_id": job_id, "status": job.status, "message": job.message}, code=409)
+                    return
+                self.send_json({"job_id": job_id, "status": job.status, **job.result})
+                return
+
+            job_id = suffix
+            job = self.app_state.mobility_job_manager.get_job(job_id)
+            if job is None:
+                self.send_text("Unknown job id", code=404)
+                return
+            payload = job.to_status_dict()
+            if job.status == "failed":
+                payload["error"] = job.error
+            self.send_json(payload)
+            return
+
         self.send_text("Not Found", code=404)
 
     def do_POST(self) -> None:
@@ -280,8 +317,23 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
                 return
 
+            if path == "/api/mobility/jobs":
+                payload = self.read_json_body()
+                job = self.app_state.mobility_job_manager.create_job(payload)
+                self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
+                return
+
             self.send_text("Not Found", code=404)
         except RadiomapQueueFull as exc:
+            self.send_json(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                    "max_pending_jobs": exc.max_pending_jobs,
+                },
+                code=429,
+            )
+        except MobilityQueueFull as exc:
             self.send_json(
                 {
                     "ok": False,
