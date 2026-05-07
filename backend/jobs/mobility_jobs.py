@@ -10,8 +10,8 @@ import traceback
 from uuid import uuid4
 
 from backend import config
-from backend.rt.common import parse_radiomap_payload
-from backend.rt.solve_radiomap import solve_terrain_radiomap
+from backend.rt.common import parse_mobility_payload
+from backend.rt.solve_mobility import solve_mobility
 
 
 def _utc_now() -> str:
@@ -19,7 +19,7 @@ def _utc_now() -> str:
 
 
 @dataclass
-class RadiomapJob:
+class MobilityJob:
     job_id: str
     status: str
     progress: float
@@ -42,22 +42,22 @@ class RadiomapJob:
         }
 
 
-class RadiomapQueueFull(RuntimeError):
+class MobilityQueueFull(RuntimeError):
     def __init__(self, max_pending_jobs: int) -> None:
-        super().__init__(f"Radio map job queue is full; try again later")
+        super().__init__("Mobility job queue is full; try again later")
         self.max_pending_jobs = max_pending_jobs
 
 
-class RadiomapJobManager:
+class MobilityJobManager:
     def __init__(
         self,
         rt_runtime,
         *,
-        solver=solve_terrain_radiomap,
-        validate_payload=parse_radiomap_payload,
-        max_pending_jobs: int = config.RADIOMAP_MAX_PENDING_JOBS,
-        max_stored_jobs: int = config.RADIOMAP_MAX_STORED_JOBS,
-        job_ttl_seconds: float = config.RADIOMAP_JOB_TTL_SECONDS,
+        solver=solve_mobility,
+        validate_payload=parse_mobility_payload,
+        max_pending_jobs: int = config.MOBILITY_MAX_PENDING_JOBS,
+        max_stored_jobs: int = config.MOBILITY_MAX_STORED_JOBS,
+        job_ttl_seconds: float = config.MOBILITY_JOB_TTL_SECONDS,
         start_worker: bool = True,
     ) -> None:
         self._rt_runtime = rt_runtime
@@ -66,7 +66,7 @@ class RadiomapJobManager:
         self.max_pending_jobs = int(max_pending_jobs)
         self.max_stored_jobs = int(max_stored_jobs)
         self.job_ttl_seconds = float(job_ttl_seconds)
-        self._jobs: dict[str, RadiomapJob] = {}
+        self._jobs: dict[str, MobilityJob] = {}
         self._lock = Lock()
         self._queue: Queue[tuple[str, dict]] = Queue(maxsize=self.max_pending_jobs)
         self._worker: Thread | None = None
@@ -74,10 +74,10 @@ class RadiomapJobManager:
             self._worker = Thread(target=self._worker_loop, daemon=True)
             self._worker.start()
 
-    def create_job(self, payload: dict) -> RadiomapJob:
+    def create_job(self, payload: dict) -> MobilityJob:
         self._validate_payload(payload)
-        job = RadiomapJob(
-            job_id=f"rm_{uuid4().hex[:12]}",
+        job = MobilityJob(
+            job_id=f"mob_{uuid4().hex[:12]}",
             status="queued",
             progress=0.0,
             message="Queued",
@@ -89,10 +89,10 @@ class RadiomapJobManager:
                 self._queue.put_nowait((job.job_id, payload))
             except Full:
                 self._jobs.pop(job.job_id, None)
-                raise RadiomapQueueFull(self.max_pending_jobs) from None
+                raise MobilityQueueFull(self.max_pending_jobs) from None
         return job
 
-    def get_job(self, job_id: str) -> RadiomapJob | None:
+    def get_job(self, job_id: str) -> MobilityJob | None:
         with self._lock:
             self._cleanup_locked(time.time())
             return self._jobs.get(job_id)
@@ -161,7 +161,7 @@ class RadiomapJobManager:
                 job_id,
                 status="succeeded",
                 progress=1.0,
-                message="Radio map ready",
+                message="Mobility result ready",
                 result=result,
             )
         except Exception as exc:
@@ -170,6 +170,6 @@ class RadiomapJobManager:
                 job_id,
                 status="failed",
                 progress=1.0,
-                message="Radio map job failed",
-                error=str(exc) or "Radio map job failed",
+                message="Mobility job failed",
+                error=str(exc) or "Mobility job failed",
             )

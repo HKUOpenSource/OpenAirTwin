@@ -1,2055 +1,346 @@
-import {createRadiomapJob, getManifest, getRadiomapJob, getRadiomapResult, solveLink} from "/js/api.js";
+import {
+  createMobilityJob,
+  createRadiomapJob,
+  getManifest,
+  getMobilityJob,
+  getMobilityResult,
+  getRadiomapJob,
+  getRadiomapResult,
+  getRtCapabilities,
+  solveLink,
+} from "/js/api.js";
+import {entryMap, PERFORMANCE_MODES, state, viewerRef} from "/js/app_state.js";
+import {inputs, ui} from "/js/dom_refs.js";
+import {createEntryMapController} from "/js/entry_map.js";
+import {createParamTooltipController} from "/js/param_tooltips.js";
+import {createPerformancePanelController} from "/js/performance_panel.js";
+import {createSceneRenderStateController} from "/js/scene_render_state.js";
+import {createSolverControlsController} from "/js/solver_controls.js";
 
-function createViewerStub() {
-  return {
-    __ready: false,
-    loadedTileIds: new Set(),
-    meshesLoaded: 0,
-    txMarkerRadius: 1.25,
-    rxMarkerRadius: 1.25,
-    setTx() {},
-    setRx() {},
-    renderRadiomap() {},
-    renderPaths() {},
-    clearOverlay() {},
-    clearPaths() {},
-    clearRadiomap() {},
-    focusOnTiles() { return false; },
-    async syncBundles() {},
-    resetView() {},
-    pickOnSurface() { return null; },
-  };
-}
-
-let viewer = createViewerStub();
-let viewerModulePromise = null;
-const TILE_ID_PATTERN = /^(\d+)_([A-Z]+)_(\d+)([A-Z])$/;
-const TILE_COLUMNS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const ENTRY_MAP_SOURCE = {
-  width: 3307,
-  height: 2338,
-  frame: {
-    left: 221,
-    top: 168,
-    right: 3094,
-    bottom: 2211,
+const context = {
+  state,
+  entryMap,
+  ui,
+  inputs,
+  viewerRef,
+  api: {
+    createRadiomapJob,
+    createMobilityJob,
+    getMobilityJob,
+    getMobilityResult,
+    getRadiomapJob,
+    getRadiomapResult,
+    getRtCapabilities,
+    solveLink,
   },
-};
-const ENTRY_MAP_IMAGE = {
-  path: "/assets/tile_map.png",
-  width: ENTRY_MAP_SOURCE.width,
-  height: ENTRY_MAP_SOURCE.height,
-};
-const ENTRY_MAP_GRID = {
-  west: 800000,
-  east: 867500,
-  south: 800000,
-  north: 848000,
-};
-const ENTRY_MAP_MODEL = {
-  west: 800000,
-  east: 860000,
-  south: 800000,
-  north: 848000,
-  cols: 4,
-  rows: 4,
-  sheetW: 15000,
-  sheetH: 12000,
-};
-const ENTRY_MAP_QUADRANTS = ["NW", "NE", "SW", "SE"];
-const ENTRY_MAP_SUBTILES = ["A", "B", "C", "D"];
-const ENTRY_MAP_SHEET_COUNT = ENTRY_MAP_MODEL.cols * ENTRY_MAP_MODEL.rows;
-const ENTRY_MAP_INITIAL_ZOOM = 11;
-const ENTRY_MAP_MIN_ZOOM = 9;
-const ENTRY_MAP_MAX_ZOOM = 18;
-const HK_GRID_CRS = "EPSG:2326";
-const WGS84_CRS = "EPSG:4326";
-const HK_GRID_PROJ4 = "+proj=tmerc +lat_0=22.31213333333334 +lon_0=114.1785555555556 +k=1 +x_0=836694.05 +y_0=819069.8 +ellps=intl +towgs84=-162.619,-276.959,-161.764,-0.067753,2.243648,1.158828,-1.094246 +units=m +no_defs +type=crs";
-const CARTO_LIGHT_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-const CARTO_LIGHT_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-const NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
-const NOMINATIM_RESULT_LIMIT = 5;
-const NOMINATIM_MIN_INTERVAL_MS = 1000;
-const NOMINATIM_HK_COUNTRYCODES = "cn,hk";
-const ENTRY_PLACE_SEARCH_ZOOM = 16;
-const LOAD_PROGRESS_RENDER_INTERVAL_MS = 250;
-
-const state = {
-  manifest: null,
-  mode: "link",
-  pickTarget: null,
-  tileLoadBusy: false,
-  panelCollapsed: false,
-  entry: {
-    visible: false,
-    sceneReady: false,
-    overview: null,
-    sidebarCollapsed: false,
-    search: {
-      results: [],
-      selectedIndex: -1,
-      lastRequestAt: 0,
-      inFlight: false,
-    },
-  },
-  link: {
-    tx: [72.0, 37.0, 40.0],
-    txVisual: [72.0, 37.0, 40.0],
-    rx: [90.0, 52.0, 1.5],
-    rxVisual: [90.0, 52.0, 1.5],
-    result: null,
-    selectedPath: -1,
-  },
-  radiomap: {
-    tx: [72.0, 37.0, 40.0],
-    txVisual: [72.0, 37.0, 40.0],
-    surface: {
-      size: [160.0, 160.0],
-      heightOffset: 1.5,
-      densityLevel: 2,
-    },
-    display: {
-      colorMinDb: -140,
-      colorMaxDb: -80,
-    },
-    jobId: null,
-    result: null,
-    status: "Idle",
-  },
+  controllers: {},
 };
 
-const entryMap = {
-  initialized: false,
-  map: null,
-  tileLayer: null,
-  fallbackLayer: null,
-  fallbackEnabled: false,
-  tilesLoaded: 0,
-  fallbackTimer: null,
-  fittedOnce: false,
-  hoveredTileId: null,
-  tilesById: new Map(),
-  gridLayer: null,
-  tileRenderer: null,
-  tileLayerGroup: null,
-  searchMarker: null,
-  searchHighlightLayer: null,
+const performancePanel = createPerformancePanelController(context);
+const entryMapController = createEntryMapController(context);
+const solverControls = createSolverControlsController(context);
+const sceneRenderState = createSceneRenderStateController(context);
+const paramTooltips = createParamTooltipController(context);
+
+context.controllers.performance = performancePanel;
+context.controllers.entry = entryMapController;
+context.controllers.solver = solverControls;
+context.controllers.scene = sceneRenderState;
+context.controllers.tooltips = paramTooltips;
+
+function currentViewer() {
+  return viewerRef.current;
+}
+
+const DEVICE_TARGET_LABELS = {
+  "link-tx": "Link Tx",
+  "link-rx": "Link Rx",
+  "rm-tx": "Radio Map Tx",
 };
 
-const ui = {
-  loadingScreen: document.getElementById("loadingScreen"),
-  loadingTitle: document.getElementById("loadingTitle"),
-  loadingPhase: document.getElementById("loadingPhase"),
-  progressBar: document.getElementById("bar"),
-  entryScreen: document.getElementById("entryScreen"),
-  entryMapTitle: document.getElementById("entryMapTitle"),
-  entryPlaceInput: document.getElementById("entryPlaceInput"),
-  entrySearchHint: document.getElementById("entrySearchHint"),
-  entryPlaceResults: document.getElementById("entryPlaceResults"),
-  entrySidebarStack: document.querySelector(".entrySidebarStack"),
-  entryMapFigure: document.getElementById("entryMapFigure"),
-  entryMapViewport: document.getElementById("entryMapViewport"),
-  entryMapScene: document.getElementById("entryMapScene"),
-  entryMapTooltip: document.getElementById("entryMapTooltip"),
-  entryMapBadgeValue: document.getElementById("entryMapBadgeValue"),
-  entryMapBadgeDetail: document.getElementById("entryMapBadgeDetail"),
-  btnEntrySidebarToggle: document.getElementById("btnEntrySidebarToggle"),
-  btnEntryClear: document.getElementById("btnEntryClear"),
-  btnEntrySearch: document.getElementById("btnEntrySearch"),
-  btnEntryFitMap: document.getElementById("btnEntryFitMap"),
-  btnEntryFocusSelection: document.getElementById("btnEntryFocusSelection"),
-  btnEntryZoomIn: document.getElementById("btnEntryZoomIn"),
-  btnEntryZoomOut: document.getElementById("btnEntryZoomOut"),
-  btnEnterScene: document.getElementById("btnEnterScene"),
-  panel: document.getElementById("ui"),
-  hintText: document.getElementById("hintText"),
-  panelToggle: document.getElementById("panelToggle"),
-  tabLink: document.getElementById("tabLink"),
-  tabRadiomap: document.getElementById("tabRadiomap"),
-  linkPanel: document.getElementById("linkPanel"),
-  radiomapPanel: document.getElementById("radiomapPanel"),
-  tileList: document.getElementById("tileList"),
-  tileSummary: document.getElementById("tileSummary"),
-  stSceneMeshes: document.getElementById("stSceneMeshes"),
-  stLoadedMeshes: document.getElementById("stLoadedMeshes"),
-  stLoadedTiles: document.getElementById("stLoadedTiles"),
-  stMode: document.getElementById("stMode"),
-  btnOpenTileIndex: document.getElementById("btnOpenTileIndex"),
-  btnSolveLink: document.getElementById("btnSolveLink"),
-  btnRunRadiomap: document.getElementById("btnRunRadiomap"),
-  btnResetView: document.getElementById("btnResetView"),
-  btnClearOverlay: document.getElementById("btnClearOverlay"),
-  linkResult: document.getElementById("linkResult"),
-  linkPower: document.getElementById("linkPower"),
-  linkBest: document.getElementById("linkBest"),
-  linkPaths: document.getElementById("linkPaths"),
-  linkLos: document.getElementById("linkLos"),
-  pathButtons: document.getElementById("pathButtons"),
-  pathDetailSection: document.getElementById("pathDetailSection"),
-  pathDetailList: document.getElementById("pathDetailList"),
-  radiomapResult: document.getElementById("radiomapResult"),
-  rmStatus: document.getElementById("rmStatus"),
-  rmMetric: document.getElementById("rmMetric"),
-  rmGrid: document.getElementById("rmGrid"),
-  rmRange: document.getElementById("rmRange"),
-};
+const PICK_TAP_MAX_MOVE_PX = 6;
+const PICK_TAP_MAX_DURATION_MS = 350;
 
-const inputs = {
-  cfgFrequency: document.getElementById("cfgFrequency"),
-  cfgMaxDepth: document.getElementById("cfgMaxDepth"),
-  cfgLos: document.getElementById("cfgLos"),
-  cfgSpecular: document.getElementById("cfgSpecular"),
-  cfgDiffuse: document.getElementById("cfgDiffuse"),
-  cfgRefraction: document.getElementById("cfgRefraction"),
-  linkTxX: document.getElementById("linkTxX"),
-  linkTxY: document.getElementById("linkTxY"),
-  linkTxZ: document.getElementById("linkTxZ"),
-  linkRxX: document.getElementById("linkRxX"),
-  linkRxY: document.getElementById("linkRxY"),
-  linkRxZ: document.getElementById("linkRxZ"),
-  rmTxX: document.getElementById("rmTxX"),
-  rmTxY: document.getElementById("rmTxY"),
-  rmTxZ: document.getElementById("rmTxZ"),
-  rmSizeX: document.getElementById("rmSizeX"),
-  rmSizeY: document.getElementById("rmSizeY"),
-  rmHeightOffset: document.getElementById("rmHeightOffset"),
-  rmDensityLevel: document.getElementById("rmDensityLevel"),
-  rmColorMin: document.getElementById("rmColorMin"),
-  rmColorMax: document.getElementById("rmColorMax"),
-};
+let pickTapCandidate = null;
 
-function setProgress(percent, message, indeterminate = false) {
-  const nextMessage = String(message ?? "");
-  if (indeterminate || !Number.isFinite(percent)) {
-    ui.progressBar.classList.add("indeterminate");
-    if (ui.progressBar.style.width !== "38%") {
-      ui.progressBar.style.width = "38%";
-    }
-  } else {
-    const nextWidth = `${Math.max(0, Math.min(100, percent))}%`;
-    ui.progressBar.classList.remove("indeterminate");
-    if (ui.progressBar.style.width !== nextWidth) {
-      ui.progressBar.style.width = nextWidth;
-    }
-  }
-  if (ui.loadingPhase.textContent !== nextMessage) {
-    ui.loadingPhase.textContent = nextMessage;
-  }
+function setPickStatus(message = "") {
+  ui.hintText.textContent = message || "Click a surface point or adjust coordinates.";
 }
 
-function showOverlay({title = "Working", message = "Loading...", percent = 0, indeterminate = false} = {}) {
-  ui.loadingTitle.textContent = title;
-  setProgress(percent, message, indeterminate);
-  ui.loadingScreen.style.display = "flex";
+function placementPromptForTarget(target) {
+  return target === "link-rx"
+    ? "Click any surface to place Rx"
+    : "Click any surface to place Tx";
 }
 
-function hideOverlay() {
-  ui.loadingScreen.style.display = "none";
-  ui.loadingTitle.textContent = "Loading Scene";
-  ui.loadingPhase.textContent = "Initializing...";
-  ui.progressBar.classList.remove("indeterminate");
-  ui.progressBar.style.width = "0%";
+function isLinkDeviceTarget(target) {
+  return target === "link-tx" || target === "link-rx";
 }
 
-function commonSolverConfig() {
-  return {
-    frequency_hz: Number(inputs.cfgFrequency.value) * 1e9,
-    max_depth: Number(inputs.cfgMaxDepth.value),
-    los: inputs.cfgLos.checked,
-    specular_reflection: inputs.cfgSpecular.checked,
-    diffuse_reflection: inputs.cfgDiffuse.checked,
-    refraction: inputs.cfgRefraction.checked,
-    seed: 42,
-  };
-}
-
-function parseTileId(tileId) {
-  const match = TILE_ID_PATTERN.exec(tileId);
-  if (!match) {
-    return null;
-  }
-  return {
-    sheet: match[1],
-    region: match[2],
-    row: Number(match[3]),
-    column: match[4],
-    regionKey: `${match[1]}_${match[2]}`,
-  };
-}
-
-function formatTileLabel(tileId) {
-  return tileId.replaceAll("_", "-");
-}
-
-function formatRegionLabel(regionKey) {
-  return regionKey.replaceAll("_", "-");
-}
-
-function compareTileIds(leftId, rightId) {
-  const left = parseTileId(leftId);
-  const right = parseTileId(rightId);
-  if (!left || !right) {
-    return leftId.localeCompare(rightId);
-  }
-
-  const sheetDiff = Number(left.sheet) - Number(right.sheet);
-  if (sheetDiff) {
-    return sheetDiff;
-  }
-
-  const regionDiff = left.region.localeCompare(right.region);
-  if (regionDiff) {
-    return regionDiff;
-  }
-
-  const rowDiff = left.row - right.row;
-  if (rowDiff) {
-    return rowDiff;
-  }
-
-  return TILE_COLUMNS.indexOf(left.column) - TILE_COLUMNS.indexOf(right.column);
-}
-
-function internalTileId(sheet, region, number, subTile) {
-  return `${sheet}_${region}_${number}${subTile}`;
-}
-
-function displayTileId(sheet, region, number, subTile) {
-  return `${sheet}-${region}-${number}${subTile}`;
-}
-
-function toDisplayTileId(tileId) {
-  const parsed = parseTileId(tileId);
-  if (!parsed) {
-    return formatTileLabel(tileId);
-  }
-  return displayTileId(parsed.sheet, parsed.region, parsed.row, parsed.column);
-}
-
-function setEntrySearchHint(message, isError = false) {
-  ui.entrySearchHint.textContent = message;
-  ui.entrySearchHint.style.color = isError ? "#b45309" : "#63758f";
-}
-
-function assertEntryMapDeps() {
-  if (!window.L || !window.proj4) {
-    throw new Error("Leaflet and proj4 are required before /js/app.js.");
-  }
-  window.proj4.defs(HK_GRID_CRS, HK_GRID_PROJ4);
-}
-
-function hkToLonLat(east, north) {
-  const [lon, lat] = window.proj4(HK_GRID_CRS, WGS84_CRS, [east, north]);
-  return {lon, lat};
-}
-
-function hkToLatLng(east, north) {
-  const {lon, lat} = hkToLonLat(east, north);
-  return window.L.latLng(lat, lon);
-}
-
-function latLngToHk(latLng) {
-  const [east, north] = window.proj4(WGS84_CRS, HK_GRID_CRS, [latLng.lng, latLng.lat]);
-  return {east, north};
-}
-
-function entryModelBounds() {
-  return {
-    west: ENTRY_MAP_MODEL.west,
-    east: ENTRY_MAP_MODEL.east,
-    south: ENTRY_MAP_MODEL.south,
-    north: ENTRY_MAP_MODEL.north,
-  };
-}
-
-function entryFallbackImageBounds() {
-  const frameWidth = ENTRY_MAP_SOURCE.frame.right - ENTRY_MAP_SOURCE.frame.left;
-  const frameHeight = ENTRY_MAP_SOURCE.frame.bottom - ENTRY_MAP_SOURCE.frame.top;
-  const unitsPerPixelX = (ENTRY_MAP_GRID.east - ENTRY_MAP_GRID.west) / frameWidth;
-  const unitsPerPixelY = (ENTRY_MAP_GRID.north - ENTRY_MAP_GRID.south) / frameHeight;
-
-  return {
-    west: ENTRY_MAP_GRID.west - (ENTRY_MAP_SOURCE.frame.left * unitsPerPixelX),
-    east: ENTRY_MAP_GRID.west + ((ENTRY_MAP_SOURCE.width - ENTRY_MAP_SOURCE.frame.left) * unitsPerPixelX),
-    south: ENTRY_MAP_GRID.north - ((ENTRY_MAP_SOURCE.height - ENTRY_MAP_SOURCE.frame.top) * unitsPerPixelY),
-    north: ENTRY_MAP_GRID.north + (ENTRY_MAP_SOURCE.frame.top * unitsPerPixelY),
-  };
-}
-
-function entryMapCenter(bounds = entryModelBounds()) {
-  return hkToLatLng(
-    (bounds.west + bounds.east) / 2,
-    (bounds.south + bounds.north) / 2,
+function isEditableKeyboardTarget(target) {
+  const tag = target?.tagName?.toLowerCase();
+  return Boolean(
+    target?.isContentEditable
+    || tag === "input"
+    || tag === "textarea"
+    || tag === "select"
   );
 }
 
-function latLngBoundsFromHk(bounds) {
-  return window.L.latLngBounds([
-    hkToLatLng(bounds.west, bounds.south),
-    hkToLatLng(bounds.west, bounds.north),
-    hkToLatLng(bounds.east, bounds.south),
-    hkToLatLng(bounds.east, bounds.north),
-  ]);
-}
-
-function mergeHkBounds(boundsList) {
-  return boundsList.reduce((acc, bounds) => ({
-    west: Math.min(acc.west, bounds.west),
-    east: Math.max(acc.east, bounds.east),
-    south: Math.min(acc.south, bounds.south),
-    north: Math.max(acc.north, bounds.north),
-  }), {
-    west: Number.POSITIVE_INFINITY,
-    east: Number.NEGATIVE_INFINITY,
-    south: Number.POSITIVE_INFINITY,
-    north: Number.NEGATIVE_INFINITY,
-  });
-}
-
-function hkBoundsCorners(bounds) {
-  return [
-    hkToLatLng(bounds.west, bounds.north),
-    hkToLatLng(bounds.east, bounds.north),
-    hkToLatLng(bounds.east, bounds.south),
-    hkToLatLng(bounds.west, bounds.south),
-  ];
-}
-
-function majorBounds(sheetId) {
-  const index = Number(sheetId) - 1;
-  const row = Math.floor(index / ENTRY_MAP_MODEL.cols);
-  const column = index % ENTRY_MAP_MODEL.cols;
-  const west = ENTRY_MAP_MODEL.west + column * ENTRY_MAP_MODEL.sheetW;
-  const east = west + ENTRY_MAP_MODEL.sheetW;
-  const north = ENTRY_MAP_MODEL.north - row * ENTRY_MAP_MODEL.sheetH;
-  const south = north - ENTRY_MAP_MODEL.sheetH;
-  return {west, east, south, north, row, column};
-}
-
-function quadrantBounds(bounds, quadrant) {
-  const midX = (bounds.west + bounds.east) / 2;
-  const midY = (bounds.south + bounds.north) / 2;
-  if (quadrant === "NW") {
-    return {west: bounds.west, east: midX, south: midY, north: bounds.north};
-  }
-  if (quadrant === "NE") {
-    return {west: midX, east: bounds.east, south: midY, north: bounds.north};
-  }
-  if (quadrant === "SW") {
-    return {west: bounds.west, east: midX, south: bounds.south, north: midY};
-  }
-  return {west: midX, east: bounds.east, south: bounds.south, north: midY};
-}
-
-function numberBounds(quadrant, number) {
-  const index = Number(number) - 1;
-  const row = Math.floor(index / 5);
-  const column = index % 5;
-  const cellWidth = (quadrant.east - quadrant.west) / 5;
-  const cellHeight = (quadrant.north - quadrant.south) / 5;
-  const west = quadrant.west + column * cellWidth;
-  const east = west + cellWidth;
-  const north = quadrant.north - row * cellHeight;
-  const south = north - cellHeight;
-  return {west, east, south, north, row, column};
-}
-
-function subBounds(numberCell, subTile) {
-  const midX = (numberCell.west + numberCell.east) / 2;
-  const midY = (numberCell.south + numberCell.north) / 2;
-  if (subTile === "A") {
-    return {west: numberCell.west, east: midX, south: midY, north: numberCell.north};
-  }
-  if (subTile === "B") {
-    return {west: midX, east: numberCell.east, south: midY, north: numberCell.north};
-  }
-  if (subTile === "C") {
-    return {west: numberCell.west, east: midX, south: numberCell.south, north: midY};
-  }
-  return {west: midX, east: numberCell.east, south: numberCell.south, north: midY};
-}
-
-function boundsForTileId(tileId) {
-  const parsed = parseTileId(tileId);
-  if (!parsed || !ENTRY_MAP_QUADRANTS.includes(parsed.region) || !ENTRY_MAP_SUBTILES.includes(parsed.column)) {
-    return null;
-  }
-
-  const major = majorBounds(parsed.sheet);
-  const quadrant = quadrantBounds(major, parsed.region);
-  const number = numberBounds(quadrant, parsed.row);
-  return subBounds(number, parsed.column);
-}
-
-function entrySearchViewbox() {
-  const southWest = hkToLonLat(ENTRY_MAP_GRID.west, ENTRY_MAP_GRID.south);
-  const northEast = hkToLonLat(ENTRY_MAP_GRID.east, ENTRY_MAP_GRID.north);
-  return `${southWest.lon},${southWest.lat},${northEast.lon},${northEast.lat}`;
-}
-
-function pointInHkBounds(point, bounds) {
-  return point.east >= bounds.west
-    && point.east <= bounds.east
-    && point.north >= bounds.south
-    && point.north <= bounds.north;
-}
-
-function tileIdAtLatLng(latLng) {
-  const point = latLngToHk(latLng);
-  for (const [tileId, tileEntry] of entryMap.tilesById.entries()) {
-    if (pointInHkBounds(point, tileEntry.bounds)) {
-      return tileId;
-    }
-  }
-  return null;
-}
-
-function parsePlaceLatLng(result) {
-  const lat = Number(result.lat);
-  const lon = Number(result.lon);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-    return null;
-  }
-  return window.L.latLng(lat, lon);
-}
-
-function parsePlaceBounds(result) {
-  if (!Array.isArray(result.boundingbox) || result.boundingbox.length !== 4) {
-    return null;
-  }
-  const [south, north, west, east] = result.boundingbox.map(Number);
-  if (![south, north, west, east].every(Number.isFinite)) {
-    return null;
-  }
-  return window.L.latLngBounds([
-    [south, west],
-    [north, east],
-  ]);
-}
-
-function placeResultTitle(result) {
-  const displayName = String(result.display_name || "Unknown place");
-  return displayName.split(",")[0].trim() || displayName;
-}
-
-function placeResultDetail(result) {
-  const parts = String(result.display_name || "")
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  return parts.slice(1, 5).join(", ") || "Hong Kong";
-}
-
-function placeResultMeta(result) {
-  const className = String(result.class || "place").replaceAll("_", " ");
-  const typeName = String(result.type || "location").replaceAll("_", " ");
-  return `${className} / ${typeName}`;
-}
-
-function clearEntryPlaceResults() {
-  state.entry.search.results = [];
-  state.entry.search.selectedIndex = -1;
-  ui.entryPlaceResults.replaceChildren();
-}
-
-function renderEntryPlaceResults(results) {
-  ui.entryPlaceResults.replaceChildren();
-  state.entry.search.results = results;
-
-  results.forEach((result, index) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "entryPlaceResult" + (state.entry.search.selectedIndex === index ? " active" : "");
-
-    const title = document.createElement("b");
-    title.textContent = placeResultTitle(result);
-    const detail = document.createElement("span");
-    detail.textContent = placeResultDetail(result);
-    const meta = document.createElement("div");
-    meta.className = "entryPlaceMeta";
-    meta.textContent = placeResultMeta(result);
-
-    button.append(title, detail, meta);
-    button.addEventListener("click", () => focusEntryPlaceResult(index));
-    ui.entryPlaceResults.appendChild(button);
-  });
-}
-
-function clearEntrySearchFocus() {
-  if (entryMap.searchMarker) {
-    entryMap.searchMarker.remove();
-    entryMap.searchMarker = null;
-  }
-  if (entryMap.searchHighlightLayer) {
-    entryMap.searchHighlightLayer.remove();
-    entryMap.searchHighlightLayer = null;
-  }
-}
-
-function setEntrySearchFocus(latLng, tileId) {
-  clearEntrySearchFocus();
-  if (!entryMap.map) {
+function invalidateMobilityResult() {
+  if (state.mode !== "mobility") {
     return;
   }
-
-  entryMap.searchMarker = window.L.circleMarker(latLng, {
-    pane: "entrySearchPane",
-    radius: 7,
-    color: "#b45309",
-    weight: 2,
-    opacity: 1,
-    fillColor: "#f59e0b",
-    fillOpacity: 0.86,
-    interactive: false,
-  }).addTo(entryMap.map);
-
-  if (!tileId) {
-    return;
-  }
-
-  const tileEntry = entryMap.tilesById.get(tileId);
-  if (!tileEntry) {
-    return;
-  }
-  entryMap.searchHighlightLayer = createEntryPolygon(tileEntry.bounds, {
-    pane: "entrySearchPane",
-    color: "#b45309",
-    weight: 2.2,
-    opacity: 1,
-    fillColor: "#f59e0b",
-    fillOpacity: 0.18,
-    interactive: false,
-  }).addTo(entryMap.map);
+  solverControls.stopMobilityPlayback();
+  state.mobility.result = null;
+  state.mobility.selectedStep = 0;
+  state.mobility.selectedPath = -1;
 }
 
-function focusEntryPlaceResult(index) {
-  const result = state.entry.search.results[index];
-  const latLng = result ? parsePlaceLatLng(result) : null;
-  if (!result || !latLng || !entryMap.map) {
-    setEntrySearchHint("This search result has no usable map location.", true);
+function clearPickTapCandidate() {
+  pickTapCandidate = null;
+}
+
+function closeDevicePrecision() {
+  readActiveDeviceInputs();
+  clearPickTapCandidate();
+  state.pickTarget = null;
+  state.deviceControl.activeTarget = null;
+  setPickStatus();
+  sceneRenderState.renderAll();
+}
+
+function openDevicePrecision(target) {
+  if (state.deviceControl.activeTarget === target) {
+    closeDevicePrecision();
     return;
   }
-
-  state.entry.search.selectedIndex = index;
-  renderEntryPlaceResults(state.entry.search.results);
-
-  const bounds = parsePlaceBounds(result);
-  if (bounds?.isValid()) {
-    entryMap.map.fitBounds(bounds, {
-      animate: true,
-      padding: [84, 84],
-      maxZoom: ENTRY_PLACE_SEARCH_ZOOM,
-    });
+  clearPickTapCandidate();
+  readActiveDeviceInputs();
+  if (isLinkDeviceTarget(target)) {
+    solverControls.readLinkInputs();
   } else {
-    entryMap.map.setView(latLng, Math.max(entryMap.map.getZoom(), ENTRY_PLACE_SEARCH_ZOOM), {
-      animate: true,
-    });
+    solverControls.readRadiomapInputs();
   }
+  state.deviceControl.activeTarget = target;
+  state.pickTarget = target;
+  setPickStatus(placementPromptForTarget(target));
+  sceneRenderState.renderAll();
+}
 
-  const tileId = tileIdAtLatLng(latLng);
-  setEntrySearchFocus(latLng, tileId);
-  if (tileId) {
-    updateEntryMapBadge(tileId);
-    setEntrySearchHint(`Located in ${toDisplayTileId(tileId)}. Click the tile on the map to select it.`);
-  } else {
-    setEntrySearchHint("Located the place, but the current manifest has no available tile at that point.", true);
+function readActiveDeviceInputs() {
+  if (isLinkDeviceTarget(state.deviceControl.activeTarget)) {
+    solverControls.readLinkInputs();
+    return;
+  }
+  if (state.deviceControl.activeTarget === "rm-tx") {
+    solverControls.readRadiomapInputs();
   }
 }
 
-function buildEntryPlaceSearchUrl(query) {
-  assertEntryMapDeps();
-  const url = new URL(NOMINATIM_SEARCH_URL);
-  url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("q", query);
-  url.searchParams.set("limit", String(NOMINATIM_RESULT_LIMIT));
-  url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("countrycodes", NOMINATIM_HK_COUNTRYCODES);
-  url.searchParams.set("viewbox", entrySearchViewbox());
-  url.searchParams.set("bounded", "1");
-  url.searchParams.set("accept-language", "en,zh-HK,zh");
-  return url;
+function txOrbitCenterForMode() {
+  return state.mode === "radiomap" ? state.radiomap.txVisual : state.link.txVisual;
 }
 
-async function runEntryPlaceSearch() {
-  const query = ui.entryPlaceInput.value.trim();
-  if (!query) {
-    setEntrySearchHint("Enter a Hong Kong place name, for example HKU or Central.", true);
-    clearEntryPlaceResults();
+function readTxInputsForCurrentMode() {
+  if (state.mode === "radiomap") {
+    solverControls.readRadiomapInputs();
     return;
   }
+  solverControls.readLinkInputs();
+}
 
-  const now = performance.now();
-  const elapsed = now - state.entry.search.lastRequestAt;
-  if (elapsed < NOMINATIM_MIN_INTERVAL_MS) {
-    setEntrySearchHint("Please wait a moment before searching again.", true);
+function stopTxOrbit() {
+  currentViewer().stopTxOrbit();
+}
+
+function toggleTxOrbit() {
+  const viewer = currentViewer();
+  if (viewer.isTxOrbiting()) {
+    viewer.stopTxOrbit();
+    sceneRenderState.renderAll();
     return;
   }
+  readTxInputsForCurrentMode();
+  clearPickTapCandidate();
+  state.pickTarget = null;
+  state.deviceControl.activeTarget = null;
+  setPickStatus();
+  viewer.startTxOrbit(txOrbitCenterForMode());
+  sceneRenderState.renderAll();
+}
 
-  state.entry.search.lastRequestAt = now;
-  state.entry.search.inFlight = true;
-  syncEntryOverviewUi();
-  setEntrySearchHint(`Searching Hong Kong for "${query}"...`);
-  clearEntryPlaceResults();
-
+async function runSolveFromDock(button, run) {
+  clearPickTapCandidate();
+  solverControls.cancelLivePreview();
+  state.pickTarget = null;
+  state.deviceControl.activeTarget = null;
+  setPickStatus();
+  sceneRenderState.renderAll();
+  button.disabled = true;
+  button.classList.add("busy");
+  button.setAttribute("aria-busy", "true");
   try {
-    const response = await fetch(buildEntryPlaceSearchUrl(query).toString(), {
-      headers: {
-        "Accept": "application/json",
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`Search request failed: ${response.status}`);
-    }
-    const results = await response.json();
-    const usableResults = Array.isArray(results)
-      ? results.filter((result) => parsePlaceLatLng(result)).slice(0, NOMINATIM_RESULT_LIMIT)
-      : [];
-
-    if (!usableResults.length) {
-      setEntrySearchHint(`No Hong Kong place found for "${query}".`, true);
-      return;
-    }
-
-    renderEntryPlaceResults(usableResults);
-    setEntrySearchHint(`Found ${usableResults.length} result${usableResults.length === 1 ? "" : "s"}. Choose one to locate it on the map.`);
-  } catch (error) {
-    setEntrySearchHint("Place search is unavailable right now. The current map and tile selection were not changed.", true);
+    await run();
   } finally {
-    state.entry.search.inFlight = false;
-    syncEntryOverviewUi();
+    button.disabled = false;
+    button.classList.remove("busy");
+    button.removeAttribute("aria-busy");
+    sceneRenderState.renderAll();
   }
 }
 
-async function ensureViewer() {
-  if (viewer.__ready) {
-    return viewer;
-  }
-  if (!viewerModulePromise) {
-    viewerModulePromise = import("/js/viewer.js");
-  }
-  const {Viewer} = await viewerModulePromise;
-  const realViewer = new Viewer(document.getElementById("view"));
-  realViewer.__ready = true;
-  viewer = realViewer;
-  syncViewerMarkers();
-  syncSceneStats();
-  syncTileListUi();
-  return viewer;
-}
-
-function buildEntryOverview(manifest) {
-  const tileById = new Map();
-  const grouped = new Map();
-
-  for (const tile of manifest.tiles) {
-    const parsed = parseTileId(tile.id);
-    if (!parsed) {
-      continue;
-    }
-
-    tileById.set(tile.id, tile);
-    const existing = grouped.get(parsed.regionKey) || {
-      regionKey: parsed.regionKey,
-      label: formatRegionLabel(parsed.regionKey),
-      tileCount: 0,
-      meshCount: 0,
-    };
-
-    existing.tileCount += 1;
-    existing.meshCount += tile.mesh_count;
-    grouped.set(parsed.regionKey, existing);
-  }
-
-  const availableTileIds = [...tileById.keys()].sort(compareTileIds);
-  if (!availableTileIds.length) {
-    return null;
-  }
-
-  const regions = [...grouped.values()].sort((left, right) => {
-    if (left.regionKey === "11_SW") {
-      return -1;
-    }
-    if (right.regionKey === "11_SW") {
-      return 1;
-    }
-    return right.tileCount - left.tileCount;
-  });
-
-  const primaryRegion = regions[0];
-
-  return {
-    tileById,
-    availableTileIds,
-    regions,
-    primaryRegion,
-  };
-}
-
-function tileInputFor(tileId) {
-  return ui.tileList.querySelector(`input[value="${tileId}"]`);
-}
-
-function setTileChecked(tileId, checked) {
-  const input = tileInputFor(tileId);
-  if (!input || input.disabled) {
-    return;
-  }
-  input.checked = checked;
-  syncTileListUi();
-}
-
-function toggleTileChecked(tileId) {
-  const input = tileInputFor(tileId);
-  if (!input || input.disabled) {
-    return;
-  }
-  input.checked = !input.checked;
-  syncTileListUi();
-}
-
-function enableEntryMapFallback(reason = "tile unavailable") {
-  if (!entryMap.map || entryMap.fallbackEnabled) {
-    return;
-  }
-  entryMap.fallbackEnabled = true;
-  if (entryMap.tileLayer && entryMap.map.hasLayer(entryMap.tileLayer)) {
-    entryMap.map.removeLayer(entryMap.tileLayer);
-  }
-  if (entryMap.fallbackLayer && !entryMap.map.hasLayer(entryMap.fallbackLayer)) {
-    entryMap.fallbackLayer.addTo(entryMap.map);
-  }
-  ui.entryMapFigure.classList.add("fallback");
-  console.info(`Entry map using local fallback basemap: ${reason}`);
-}
-
-function fitEntryMapToView() {
-  if (!state.entry.visible || !entryMap.initialized || !entryMap.map) {
-    return;
-  }
-
-  entryMap.map.invalidateSize();
-  entryMap.map.fitBounds(latLngBoundsFromHk(entryModelBounds()), {
-    animate: false,
-    padding: [24, 24],
-  });
-  entryMap.fittedOnce = true;
-}
-
-function focusEntryMapTiles(tileIds) {
-  if (!entryMap.map) {
+function pickActiveDeviceAt(clientX, clientY, target, livePhase = "change") {
+  if (!target || state.pickTarget !== target) {
     return false;
   }
-
-  const hkBounds = tileIds
-    .map((tileId) => entryMap.tilesById.get(tileId)?.bounds)
-    .filter(Boolean);
-
-  if (!hkBounds.length) {
-    return false;
-  }
-
-  const bounds = mergeHkBounds(hkBounds);
-  entryMap.map.invalidateSize();
-  entryMap.map.fitBounds(latLngBoundsFromHk(bounds), {
-    animate: true,
-    padding: [84, 84],
-    maxZoom: hkBounds.length === 1 ? 16 : 14,
-  });
-  return true;
-}
-
-function showEntryMapTooltip(clientX, clientY, html) {
-  const viewport = ui.entryMapFigure.getBoundingClientRect();
-  ui.entryMapTooltip.innerHTML = html;
-  ui.entryMapTooltip.style.left = `${clientX - viewport.left + 14}px`;
-  ui.entryMapTooltip.style.top = `${clientY - viewport.top + 14}px`;
-  ui.entryMapTooltip.classList.remove("hidden");
-}
-
-function hideEntryMapTooltip() {
-  ui.entryMapTooltip.classList.add("hidden");
-}
-
-function updateEntryMapBadge({selectedCount = 0, loadedCount = 0, pendingCount = 0, meshCount = 0} = {}) {
-  ui.entryMapBadgeValue.textContent = `${selectedCount} selected`;
-  const detailParts = [
-    `${loadedCount} loaded`,
-    `${pendingCount} pending`,
-  ];
-  if (meshCount > 0) {
-    detailParts.push(`${meshCount.toLocaleString()} meshes`);
-  }
-  ui.entryMapBadgeDetail.textContent = detailParts.join(" · ");
-}
-
-function entryMapTooltipHtml(tileId) {
-  const tile = state.entry.overview?.tileById.get(tileId);
-  if (!tile) {
-    return `<strong>${toDisplayTileId(tileId)}</strong><br>No scene data in the current manifest.`;
-  }
-  return `<strong>${toDisplayTileId(tileId)}</strong><br>${tile.mesh_count.toLocaleString()} meshes • ${tile.bundle_count} bundles`;
-}
-
-function selectEntryMapTile(tileId) {
-  if (!tileId) {
-    return;
-  }
-  if (state.tileLoadBusy) {
-    return;
-  }
-  if (!state.entry.overview?.tileById.has(tileId)) {
-    return;
-  }
-  toggleTileChecked(tileId);
-}
-
-function entryGridStyle(kind = "number") {
-  if (kind === "major") {
-    return {
-      color: "rgba(21,33,53,.38)",
-      weight: 1.7,
-    };
-  }
-  if (kind === "quadrant") {
-    return {
-      color: "rgba(31,100,224,.24)",
-      weight: 0.9,
-    };
-  }
-  return {
-    color: "rgba(71,88,113,.14)",
-    weight: 0.55,
-  };
-}
-
-function entryTileLayerStyle(tileEntry, hover = false) {
-  if (tileEntry.loaded) {
-    return {
-      color: tileEntry.selected ? "rgba(27,139,87,.98)" : "rgba(27,139,87,.92)",
-      weight: tileEntry.selected ? 1.35 : 1,
-      opacity: 1,
-      fillColor: "#1eb980",
-      fillOpacity: tileEntry.selected ? 0.36 : 0.24,
-      renderer: entryMap.tileRenderer,
-    };
-  }
-  if (tileEntry.selected) {
-    return {
-      color: "rgba(31,111,255,.98)",
-      weight: 1.35,
-      opacity: 1,
-      fillColor: "#1f6fff",
-      fillOpacity: 0.34,
-      renderer: entryMap.tileRenderer,
-    };
-  }
-  return {
-    color: hover ? "rgba(31,111,255,.95)" : "rgba(31,111,255,.44)",
-    weight: hover ? 1.25 : 0.85,
-    opacity: 1,
-    fillColor: "#1f6fff",
-    fillOpacity: hover ? 0.22 : 0.075,
-    renderer: entryMap.tileRenderer,
-  };
-}
-
-function syncEntryTileLayerStyle(tileEntry) {
-  if (!tileEntry?.layer) {
-    return;
-  }
-  tileEntry.layer.setStyle(entryTileLayerStyle(tileEntry, entryMap.hoveredTileId === tileEntry.id));
-}
-
-function createEntryPolygon(bounds, options) {
-  return window.L.polygon(hkBoundsCorners(bounds), options);
-}
-
-function createEntryGridCanvasLayer(items = []) {
-  const EntryGridCanvasLayer = window.L.Layer.extend({
-    options: {
-      pane: "entryGridPane",
-      padding: 0.35,
-    },
-
-    initialize(gridItems) {
-      this._items = gridItems;
-    },
-
-    onAdd(map) {
-      this._map = map;
-      this._canvas = window.L.DomUtil.create("canvas", "entryGridCanvasLayer leaflet-zoom-animated");
-      this._ctx = this._canvas.getContext("2d");
-      map.getPane(this.options.pane).appendChild(this._canvas);
-      map.on("moveend zoomend resize viewreset", this._reset, this);
-      if (map.options.zoomAnimation && window.L.Browser.any3d) {
-        map.on("zoomanim", this._animateZoom, this);
-      }
-      this._reset();
-    },
-
-    onRemove(map) {
-      map.off("moveend zoomend resize viewreset", this._reset, this);
-      if (map.options.zoomAnimation && window.L.Browser.any3d) {
-        map.off("zoomanim", this._animateZoom, this);
-      }
-      window.L.DomUtil.remove(this._canvas);
-      this._canvas = null;
-      this._ctx = null;
-    },
-
-    setItems(nextItems) {
-      this._items = nextItems;
-      this._reset();
-    },
-
-    _reset() {
-      if (!this._map || !this._canvas) {
-        return;
-      }
-      const size = this._map.getSize();
-      const topLeft = this._map.containerPointToLayerPoint([0, 0]);
-      const dpr = window.devicePixelRatio || 1;
-      this._topLeft = topLeft;
-      this._canvas.width = Math.ceil(size.x * dpr);
-      this._canvas.height = Math.ceil(size.y * dpr);
-      this._canvas.style.width = `${size.x}px`;
-      this._canvas.style.height = `${size.y}px`;
-      window.L.DomUtil.setPosition(this._canvas, topLeft);
-      this._redraw(size, dpr);
-    },
-
-    _animateZoom(event) {
-      if (!this._map || !this._canvas) {
-        return;
-      }
-      const scale = this._map.getZoomScale(event.zoom);
-      const offset = this._map._latLngBoundsToNewLayerBounds(
-        this._map.getBounds(),
-        event.zoom,
-        event.center,
-      ).min;
-      window.L.DomUtil.setTransform(this._canvas, offset, scale);
-    },
-
-    _redraw(size, dpr) {
-      if (!this._ctx) {
-        return;
-      }
-      const ctx = this._ctx;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, size.x, size.y);
-      ctx.lineJoin = "miter";
-      ctx.lineCap = "butt";
-
-      for (const item of this._items) {
-        const style = entryGridStyle(item.kind);
-        const points = item.corners.map((latLng) => this._map.latLngToLayerPoint(latLng).subtract(this._topLeft));
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        ctx.lineTo(points[1].x, points[1].y);
-        ctx.lineTo(points[2].x, points[2].y);
-        ctx.lineTo(points[3].x, points[3].y);
-        ctx.closePath();
-        ctx.strokeStyle = style.color;
-        ctx.lineWidth = style.weight;
-        ctx.stroke();
-      }
-    },
-  });
-  return new EntryGridCanvasLayer(items);
-}
-
-function createEntryTileLayer(tileEntry) {
-  const layer = createEntryPolygon(tileEntry.bounds, {
-    ...entryTileLayerStyle(tileEntry),
-    interactive: true,
-  });
-
-  layer.on("mouseover", (event) => {
-    entryMap.hoveredTileId = tileEntry.id;
-    syncEntryTileLayerStyle(tileEntry);
-    if (event.originalEvent) {
-      showEntryMapTooltip(event.originalEvent.clientX, event.originalEvent.clientY, entryMapTooltipHtml(tileEntry.id));
-    }
-  });
-  layer.on("mousemove", (event) => {
-    if (event.originalEvent) {
-      showEntryMapTooltip(event.originalEvent.clientX, event.originalEvent.clientY, entryMapTooltipHtml(tileEntry.id));
-    }
-  });
-  layer.on("mouseout", () => {
-    if (entryMap.hoveredTileId === tileEntry.id) {
-      entryMap.hoveredTileId = null;
-    }
-    hideEntryMapTooltip();
-    syncEntryTileLayerStyle(tileEntry);
-  });
-  layer.on("click", (event) => {
-    if (event.originalEvent) {
-      window.L.DomEvent.stopPropagation(event.originalEvent);
-    }
-    selectEntryMapTile(tileEntry.id);
-  });
-
-  return layer;
-}
-
-function ensureEntryMap() {
-  if (entryMap.initialized) {
-    return;
-  }
-
-  assertEntryMapDeps();
-  ui.entryMapScene.replaceChildren();
-
-  entryMap.map = window.L.map(ui.entryMapScene, {
-    zoomControl: false,
-    attributionControl: true,
-    scrollWheelZoom: true,
-    doubleClickZoom: true,
-    touchZoom: true,
-    boxZoom: true,
-    keyboard: true,
-    minZoom: ENTRY_MAP_MIN_ZOOM,
-    maxZoom: ENTRY_MAP_MAX_ZOOM,
-    zoomSnap: 0.25,
-    zoomDelta: 0.5,
-    wheelDebounceTime: 60,
-    wheelPxPerZoomLevel: 90,
-    maxBoundsViscosity: 0.45,
-  });
-  entryMap.map.setMaxBounds(latLngBoundsFromHk(ENTRY_MAP_GRID).pad(0.35));
-  entryMap.map.setView(entryMapCenter(), ENTRY_MAP_INITIAL_ZOOM);
-  entryMap.map.createPane("entryGridPane");
-  entryMap.map.getPane("entryGridPane").style.zIndex = "620";
-  entryMap.map.getPane("entryGridPane").style.pointerEvents = "none";
-  entryMap.map.createPane("entryTilePane");
-  entryMap.map.getPane("entryTilePane").style.zIndex = "650";
-  entryMap.map.getPane("entryTilePane").style.pointerEvents = "auto";
-  entryMap.map.createPane("entrySearchPane");
-  entryMap.map.getPane("entrySearchPane").style.zIndex = "690";
-  entryMap.map.getPane("entrySearchPane").style.pointerEvents = "none";
-  entryMap.tileRenderer = window.L.canvas({
-    pane: "entryTilePane",
-    padding: 0.45,
-  });
-  entryMap.gridLayer = createEntryGridCanvasLayer();
-  entryMap.gridLayer.addTo(entryMap.map);
-  entryMap.tileLayerGroup = window.L.layerGroup().addTo(entryMap.map);
-
-  entryMap.tileLayer = window.L.tileLayer(CARTO_LIGHT_URL, {
-    attribution: CARTO_LIGHT_ATTRIBUTION,
-    subdomains: "abcd",
-    maxZoom: 19,
-    detectRetina: true,
-    crossOrigin: true,
-    className: "entryCartoTileLayer",
-  });
-  entryMap.tileLayer.on("tileload", () => {
-    entryMap.tilesLoaded += 1;
-    if (entryMap.fallbackTimer) {
-      window.clearTimeout(entryMap.fallbackTimer);
-      entryMap.fallbackTimer = null;
-    }
-  });
-  entryMap.tileLayer.on("tileerror", () => enableEntryMapFallback("online tile error"));
-  entryMap.tileLayer.addTo(entryMap.map);
-  entryMap.fallbackTimer = window.setTimeout(() => {
-    if (entryMap.tilesLoaded === 0) {
-      enableEntryMapFallback("online tile timeout");
-    }
-  }, 4000);
-  entryMap.fallbackLayer = window.L.imageOverlay(
-    ENTRY_MAP_IMAGE.path,
-    latLngBoundsFromHk(entryFallbackImageBounds()),
-    {
-      className: "entryFallbackImageLayer",
-      interactive: false,
-      opacity: 1,
-    },
+  const pick = currentViewer().pickOnSurface(
+    clientX,
+    clientY,
+    solverControls.markerRadiusForPickTarget(target),
   );
-
-  entryMap.map.on("movestart zoomstart", () => {
-    hideEntryMapTooltip();
-  });
-  entryMap.map.on("moveend zoomend resize viewreset", () => {
-    hideEntryMapTooltip();
-  });
-  ui.btnEntryZoomIn.disabled = false;
-  ui.btnEntryZoomOut.disabled = false;
-  ui.btnEntryZoomIn.title = "Zoom into the OSM basemap and tile grid.";
-  ui.btnEntryZoomOut.title = "Zoom out from the OSM basemap and tile grid.";
-  entryMap.initialized = true;
+  solverControls.applyPick(pick);
+  if (pick) {
+    state.deviceControl.activeTarget = target;
+    state.pickTarget = target;
+    setPickStatus(placementPromptForTarget(target));
+    solverControls.handleLivePreviewDeviceUpdate(target, livePhase);
+    return true;
+  }
+  setPickStatus(placementPromptForTarget(target));
+  return false;
 }
 
-function buildEntryMap(overview) {
-  ensureEntryMap();
-  entryMap.tilesById.clear();
-  entryMap.hoveredTileId = null;
-  entryMap.tileLayerGroup.clearLayers();
-
-  const gridItems = [];
-  for (let sheet = 1; sheet <= ENTRY_MAP_SHEET_COUNT; sheet += 1) {
-    const major = majorBounds(sheet);
-    gridItems.push({kind: "major", corners: hkBoundsCorners(major)});
-
-    for (const quadrantId of ENTRY_MAP_QUADRANTS) {
-      const quadrant = quadrantBounds(major, quadrantId);
-      gridItems.push({kind: "quadrant", corners: hkBoundsCorners(quadrant)});
-
-      for (let number = 1; number <= 25; number += 1) {
-        const numberCell = numberBounds(quadrant, number);
-        gridItems.push({kind: "number", corners: hkBoundsCorners(numberCell)});
-      }
-    }
-  }
-  entryMap.gridLayer.setItems(gridItems);
-
-  for (const tileId of overview.availableTileIds) {
-    const bounds = boundsForTileId(tileId);
-    if (!bounds) {
-      continue;
-    }
-    const tileEntry = {
-      id: tileId,
-      displayId: toDisplayTileId(tileId),
-      available: true,
-      selected: false,
-      loaded: false,
-      bounds,
-      layer: null,
-    };
-    tileEntry.layer = createEntryTileLayer(tileEntry);
-    tileEntry.layer.addTo(entryMap.tileLayerGroup);
-    entryMap.tilesById.set(tileId, tileEntry);
-  }
-
-  if (!entryMap.fittedOnce) {
-    window.requestAnimationFrame(() => fitEntryMapToView());
-  }
-}
-
-function showEntryScreen() {
-  if (!state.entry.overview) {
+function handlePickPointerDown(event) {
+  if (!state.pickTarget || !event.isPrimary || event.button !== 0 || event.shiftKey) {
+    clearPickTapCandidate();
     return;
   }
-  state.entry.visible = true;
-  ui.entryScreen.classList.remove("hidden");
-  syncEntrySidebarUi();
-  syncControlSidebarUi();
-  window.requestAnimationFrame(() => {
-    const selected = tileSelections();
-    if (selected.length) {
-      focusEntryMapTiles(selected, 1.1);
-      return;
-    }
-    if (!entryMap.fittedOnce) {
-      fitEntryMapToView();
-      return;
-    }
-    entryMap.map?.invalidateSize();
-  });
-  syncEntryOverviewUi();
-}
-
-function hideEntryScreen() {
-  state.entry.visible = false;
-  ui.entryScreen.classList.add("hidden");
-  syncControlSidebarUi();
-}
-
-function syncEntrySidebarUi() {
-  const collapsed = state.entry.sidebarCollapsed;
-  ui.entryScreen.classList.toggle("sidebarCollapsed", collapsed);
-  ui.btnEntrySidebarToggle.textContent = collapsed ? "⌕" : "‹";
-  ui.btnEntrySidebarToggle.setAttribute("aria-label", collapsed ? "Open search sidebar" : "Collapse search sidebar");
-  ui.btnEntrySidebarToggle.setAttribute("aria-expanded", String(!collapsed));
-  if (ui.entrySidebarStack) {
-    ui.entrySidebarStack.inert = collapsed;
-    ui.entrySidebarStack.setAttribute("aria-hidden", String(collapsed));
-  }
-}
-
-function syncControlSidebarUi() {
-  const collapsed = state.panelCollapsed;
-  const visible = ui.panel.style.display === "flex" && !state.entry.visible;
-  ui.panel.classList.toggle("panelCollapsed", collapsed);
-  ui.panelToggle.classList.toggle("panelCollapsed", collapsed);
-  ui.panelToggle.classList.toggle("hidden", !visible);
-  ui.panelToggle.textContent = collapsed ? "☰" : "‹";
-  ui.panelToggle.setAttribute("aria-label", collapsed ? "Open control sidebar" : "Collapse control sidebar");
-  ui.panelToggle.setAttribute("aria-expanded", String(!collapsed));
-  ui.panel.inert = !visible || collapsed;
-  ui.panel.setAttribute("aria-hidden", String(!visible || collapsed));
-}
-
-function syncEntryOverviewUi() {
-  const overview = state.entry.overview;
-  if (!overview) {
-    return;
-  }
-
-  const selected = tileSelections().filter((tileId) => overview.tileById.has(tileId)).sort(compareTileIds);
-  const loaded = [...viewer.loadedTileIds].filter((tileId) => overview.tileById.has(tileId)).sort(compareTileIds);
-  const selectedSet = new Set(selected);
-  const loadedSet = new Set(loaded);
-  const selectedMeshCount = selected.reduce((sum, tileId) => sum + overview.tileById.get(tileId).mesh_count, 0);
-  const selectedLoadedCount = selected.filter((tileId) => loadedSet.has(tileId)).length;
-  const pendingCount = Math.max(0, selected.length - selectedLoadedCount);
-
-  updateEntryMapBadge({
-    selectedCount: selected.length,
-    loadedCount: selected.length ? selectedLoadedCount : loaded.length,
-    pendingCount,
-    meshCount: selectedMeshCount,
-  });
-  const sceneActionDisabled = state.tileLoadBusy || selected.length === 0;
-  const sceneActionLabel = state.entry.sceneReady ? "Apply Tile Selection" : "Load Selected Tiles";
-  ui.btnEnterScene.disabled = sceneActionDisabled;
-  ui.btnEnterScene.textContent = sceneActionLabel;
-  ui.btnEntryClear.disabled = state.tileLoadBusy;
-  ui.btnEntrySearch.disabled = state.tileLoadBusy || state.entry.search.inFlight;
-  ui.entryPlaceInput.disabled = state.tileLoadBusy || state.entry.search.inFlight;
-  ui.btnEntryFocusSelection.disabled = selected.length === 0;
-  ui.btnOpenTileIndex.disabled = state.tileLoadBusy;
-
-  for (const [tileId, tileEntry] of entryMap.tilesById.entries()) {
-    tileEntry.available = overview.tileById.has(tileId);
-    tileEntry.selected = selectedSet.has(tileId);
-    tileEntry.loaded = loadedSet.has(tileId);
-    syncEntryTileLayerStyle(tileEntry);
-  }
-}
-
-function renderEntryOverview() {
-  const overview = state.entry.overview;
-  if (!overview) {
-    return;
-  }
-
-  ui.entryMapTitle.textContent = "HKU Wireless Digital Twin";
-
-  buildEntryMap(overview);
-  syncEntryOverviewUi();
-}
-
-function syncModeUi() {
-  const isLink = state.mode === "link";
-  ui.tabLink.classList.toggle("active", isLink);
-  ui.tabRadiomap.classList.toggle("active", !isLink);
-  ui.linkPanel.classList.toggle("hidden", !isLink);
-  ui.radiomapPanel.classList.toggle("hidden", isLink);
-  ui.stMode.textContent = isLink ? "Link" : "Radio Map";
-  ui.hintText.textContent = isLink
-    ? "Left drag orbits, right drag pans, wheel zooms, Shift+drag free-looks, and W/A/S/D + Q/E moves the camera."
-    : "Left drag orbits, right drag pans, wheel zooms, Shift+drag free-looks, and W/A/S/D + Q/E moves the camera while the radio map follows a terrain patch around the selected Tx.";
-}
-
-function syncNumericInputs() {
-  const [ltx, lty, ltz] = state.link.tx;
-  const [lrx, lry, lrz] = state.link.rx;
-  const [rtx, rty, rtz] = state.radiomap.tx;
-  const [sx, sy] = state.radiomap.surface.size;
-  const heightOffset = state.radiomap.surface.heightOffset;
-  const densityLevel = state.radiomap.surface.densityLevel;
-  const colorMinDb = state.radiomap.display.colorMinDb;
-  const colorMaxDb = state.radiomap.display.colorMaxDb;
-
-  inputs.linkTxX.value = ltx.toFixed(1);
-  inputs.linkTxY.value = lty.toFixed(1);
-  inputs.linkTxZ.value = ltz.toFixed(1);
-  inputs.linkRxX.value = lrx.toFixed(1);
-  inputs.linkRxY.value = lry.toFixed(1);
-  inputs.linkRxZ.value = lrz.toFixed(1);
-  inputs.rmTxX.value = rtx.toFixed(1);
-  inputs.rmTxY.value = rty.toFixed(1);
-  inputs.rmTxZ.value = rtz.toFixed(1);
-  inputs.rmSizeX.value = sx.toFixed(1);
-  inputs.rmSizeY.value = sy.toFixed(1);
-  inputs.rmHeightOffset.value = heightOffset.toFixed(1);
-  inputs.rmDensityLevel.value = String(densityLevel);
-  inputs.rmColorMin.value = colorMinDb.toFixed(0);
-  inputs.rmColorMax.value = colorMaxDb.toFixed(0);
-}
-
-function syncSceneStats() {
-  ui.stSceneMeshes.textContent = state.manifest ? String(state.manifest.mesh_count) : "--";
-  ui.stLoadedMeshes.textContent = String(viewer.meshesLoaded);
-  ui.stLoadedTiles.textContent = String(viewer.loadedTileIds.size);
-}
-
-function setVector(target, values) {
-  target.splice(0, target.length, ...values.map((value) => Number(value)));
-}
-
-function setLogicalAndVisual(logicalTarget, visualTarget, logicalValues, visualValues = logicalValues) {
-  setVector(logicalTarget, logicalValues);
-  setVector(visualTarget, visualValues);
-}
-
-function syncViewerMarkers() {
-  viewer.setTx(state.mode === "link" ? state.link.txVisual : state.radiomap.txVisual);
-  viewer.setRx(state.link.rxVisual);
-}
-
-function markerRadiusForPickTarget(target) {
-  return target === "link-rx" ? viewer.rxMarkerRadius : viewer.txMarkerRadius;
-}
-
-function readLinkInputs() {
-  setLogicalAndVisual(state.link.tx, state.link.txVisual, [
-    Number(inputs.linkTxX.value),
-    Number(inputs.linkTxY.value),
-    Number(inputs.linkTxZ.value),
-  ]);
-  setLogicalAndVisual(state.link.rx, state.link.rxVisual, [
-    Number(inputs.linkRxX.value),
-    Number(inputs.linkRxY.value),
-    Number(inputs.linkRxZ.value),
-  ]);
-}
-
-function readRadiomapInputs() {
-  setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, [
-    Number(inputs.rmTxX.value),
-    Number(inputs.rmTxY.value),
-    Number(inputs.rmTxZ.value),
-  ]);
-  state.radiomap.surface.size = [Number(inputs.rmSizeX.value), Number(inputs.rmSizeY.value)];
-  state.radiomap.surface.heightOffset = Number(inputs.rmHeightOffset.value);
-  state.radiomap.surface.densityLevel = Number(inputs.rmDensityLevel.value);
-  state.radiomap.display.colorMinDb = Number(inputs.rmColorMin.value);
-  state.radiomap.display.colorMaxDb = Number(inputs.rmColorMax.value);
-}
-
-function radiomapColorRange() {
-  const minDb = Number(state.radiomap.display.colorMinDb);
-  const maxDb = Number(state.radiomap.display.colorMaxDb);
-  if (!(minDb < maxDb)) {
-    throw new Error("Radio map color range must satisfy Color Min < Color Max");
-  }
-  return {minDb, maxDb};
-}
-
-function rerenderRadiomapOverlay() {
-  if (!state.radiomap.result) {
-    return;
-  }
-  const colorRange = radiomapColorRange();
-  viewer.renderRadiomap(state.radiomap.result, colorRange);
-}
-
-function formatFixed(value, digits = 2, suffix = "") {
-  return Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : "N/A";
-}
-
-function formatExp(value, digits = 3) {
-  return Number.isFinite(value) ? value.toExponential(digits) : "N/A";
-}
-
-function describeInteractionSequence(path) {
-  return path.interaction_sequence?.length ? path.interaction_sequence.join(" -> ") : "LOS";
-}
-
-function renderPathDetails(paths) {
-  ui.pathDetailList.innerHTML = "";
-  const selectedIndex = state.link.selectedPath;
-  if (selectedIndex < 0 || selectedIndex >= paths.length) {
-    ui.pathDetailSection.classList.add("hidden");
-    return;
-  }
-
-  ui.pathDetailSection.classList.remove("hidden");
-  const path = paths[selectedIndex];
-  const card = document.createElement("div");
-  card.className = "pathDetailCard active";
-
-  const head = document.createElement("div");
-  head.className = "pathDetailHead";
-  const title = document.createElement("div");
-  title.className = "pathDetailTitle";
-  title.textContent = `Path ${selectedIndex + 1}`;
-  const typeTag = document.createElement("span");
-  typeTag.className = "pathTypeTag";
-  typeTag.textContent = path.type;
-  head.append(title, typeTag);
-
-  const grid = document.createElement("div");
-  grid.className = "pathDetailGrid";
-
-  const addField = (label, value, wide = false) => {
-    const item = document.createElement("div");
-    item.className = "pathDetailItem" + (wide ? " wide" : "");
-    const key = document.createElement("b");
-    key.textContent = label;
-    const text = document.createElement("span");
-    text.textContent = value;
-    item.append(key, text);
-    grid.appendChild(item);
+  pickTapCandidate = {
+    pointerId: event.pointerId,
+    target: state.pickTarget,
+    startX: event.clientX,
+    startY: event.clientY,
+    startAt: window.performance.now(),
+    canceled: false,
+    dragging: false,
   };
-
-  addField("Interaction Chain", describeInteractionSequence(path), true);
-  addField("Path Gain", formatFixed(path.path_gain_db, 2, " dB"));
-  addField("Power (Linear)", formatExp(path.path_gain_linear));
-  addField("|a|", formatExp(path.coefficient_abs));
-  addField("Phase", formatFixed(path.coefficient_phase_deg, 1, " deg"));
-  addField("Delay", formatFixed(path.delay_ns, 2, " ns"));
-  addField("Length", formatFixed(path.path_length_m, 2, " m"));
-  addField("Doppler", formatFixed(path.doppler_hz, 2, " Hz"));
-  addField(
-    "AoD (zen/azi)",
-    `${formatFixed(path.departure_zenith_deg, 1)} / ${formatFixed(path.departure_azimuth_deg, 1)} deg`,
-  );
-  addField(
-    "AoA (zen/azi)",
-    `${formatFixed(path.arrival_zenith_deg, 1)} / ${formatFixed(path.arrival_azimuth_deg, 1)} deg`,
-  );
-  addField("Re(a)", formatExp(path.coefficient_real));
-  addField("Im(a)", formatExp(path.coefficient_imag));
-
-  card.append(head, grid);
-  ui.pathDetailList.appendChild(card);
-}
-
-function renderLinkResult() {
-  const result = state.link.result;
-  if (!result) {
-    ui.linkResult.style.display = "none";
-    ui.pathButtons.innerHTML = "";
-    ui.pathDetailList.innerHTML = "";
-    ui.pathDetailSection.classList.add("hidden");
-    return;
-  }
-
-  ui.linkResult.style.display = "block";
-  ui.linkPower.textContent = Number.isFinite(result.summary.received_power_db)
-    ? `${result.summary.received_power_db.toFixed(2)} dB`
-    : "N/A";
-  ui.linkBest.textContent = Number.isFinite(result.summary.strongest_path_db)
-    ? `${result.summary.strongest_path_db.toFixed(2)} dB`
-    : "N/A";
-  ui.linkPaths.textContent = String(result.summary.valid_paths ?? 0);
-  const hasLos = (result.summary.los_paths ?? 0) > 0;
-  ui.linkLos.textContent = hasLos ? "Yes" : "No";
-  ui.linkLos.className = `pill ${hasLos ? "yes" : "no"}`;
-
-  ui.pathButtons.innerHTML = "";
-  renderPathDetails(result.paths);
-  if (!result.paths.length) {
-    return;
-  }
-
-  const addButton = (label, index) => {
-    const button = document.createElement("button");
-    button.className = "pbtn" + (state.link.selectedPath === index ? " active" : "");
-    button.textContent = label;
-    button.addEventListener("click", () => {
-      state.link.selectedPath = index;
-      viewer.renderPaths(result.paths, index);
-      renderLinkResult();
-    });
-    ui.pathButtons.appendChild(button);
-  };
-
-  addButton("All", -1);
-  result.paths.forEach((_, index) => addButton(`Path ${index + 1}`, index));
-}
-
-function renderRadiomapResult() {
-  ui.radiomapResult.style.display = "block";
-  ui.rmStatus.textContent = state.radiomap.status;
-  ui.rmMetric.textContent = "path_gain";
-  if (state.radiomap.result) {
-    ui.rmGrid.textContent = `${state.radiomap.result.surface.cell_count.toLocaleString()} cells - D${state.radiomap.result.surface.density_level}`;
-    ui.rmRange.textContent = `${state.radiomap.result.range.min.toFixed(1)} .. ${state.radiomap.result.range.max.toFixed(1)} dB | color ${state.radiomap.display.colorMinDb.toFixed(0)} .. ${state.radiomap.display.colorMaxDb.toFixed(0)} dB`;
-  } else {
-    ui.rmGrid.textContent = "--";
-    ui.rmRange.textContent = "--";
-  }
-}
-
-function renderAll() {
-  syncModeUi();
-  syncControlSidebarUi();
-  syncViewerMarkers();
-  syncNumericInputs();
-  syncSceneStats();
-  syncTileListUi();
-  syncEntryOverviewUi();
-  renderLinkResult();
-  renderRadiomapResult();
-}
-
-function tileSelections() {
-  return [...ui.tileList.querySelectorAll('input[type="checkbox"]:checked')].map((node) => node.value);
-}
-
-function tileDiff() {
-  const selected = new Set(tileSelections());
-  const loaded = new Set(viewer.loadedTileIds);
-  const toAdd = [...selected].filter((tileId) => !loaded.has(tileId));
-  const toRemove = [...loaded].filter((tileId) => !selected.has(tileId));
-  return {selected, loaded, toAdd, toRemove};
-}
-
-function updateTileSummary() {
-  const {selected, loaded, toAdd, toRemove} = tileDiff();
-  const pending = toAdd.length + toRemove.length;
-
-  if (state.tileLoadBusy) {
-    ui.tileSummary.textContent = "Syncing bundle changes...";
-    return;
-  }
-
-  if (!selected.size && !loaded.size) {
-    ui.tileSummary.textContent = "No tiles loaded yet. Choose tiles on the map to enter the 3D scene.";
-    return;
-  }
-
-  if (!pending) {
-    ui.tileSummary.textContent = `${loaded.size} loaded · ${selected.size} selected · 0 pending`;
-    return;
-  }
-
-  const segments = [];
-  if (toAdd.length) {
-    segments.push(`${toAdd.length} to load`);
-  }
-  if (toRemove.length) {
-    segments.push(`${toRemove.length} to unload`);
-  }
-  ui.tileSummary.textContent = `${loaded.size} loaded · ${selected.size} selected · ${pending} pending (${segments.join(" / ")})`;
-}
-
-function syncTileListUi() {
-  const diff = tileDiff();
-  const tileItems = ui.tileList.querySelectorAll(".tileItem");
-  for (const item of tileItems) {
-    const tileId = item.dataset.tileId;
-    const checkbox = item.querySelector('input[type="checkbox"]');
-    const badge = item.querySelector(".tileStatus");
-    const selected = checkbox.checked;
-    const loaded = diff.loaded.has(tileId);
-    const pendingAdd = selected && !loaded;
-    const pendingRemove = !selected && loaded;
-
-    item.classList.toggle("selected", selected);
-    item.classList.toggle("loaded", loaded);
-    item.classList.toggle("pendingAdd", pendingAdd);
-    item.classList.toggle("pendingRemove", pendingRemove);
-
-    if (pendingAdd) {
-      badge.textContent = "Load";
-      badge.className = "tileStatus pendingAdd";
-    } else if (pendingRemove) {
-      badge.textContent = "Unload";
-      badge.className = "tileStatus pendingRemove";
-    } else if (loaded) {
-      badge.textContent = "Loaded";
-      badge.className = "tileStatus loaded";
-    } else if (selected) {
-      badge.textContent = "Ready";
-      badge.className = "tileStatus";
-    } else {
-      badge.textContent = "Idle";
-      badge.className = "tileStatus";
-    }
-  }
-
-  updateTileSummary();
-  const disableControls = state.tileLoadBusy;
-  ui.tileList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-    input.disabled = disableControls;
-  });
-  syncEntryOverviewUi();
-}
-
-function populateTileList(manifest) {
-  ui.tileList.innerHTML = "";
-  const sortedTiles = [...manifest.tiles].sort((left, right) => compareTileIds(left.id, right.id));
-  for (const tile of sortedTiles) {
-    const wrapper = document.createElement("label");
-    wrapper.className = "tileItem";
-    wrapper.dataset.tileId = tile.id;
-
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.value = tile.id;
-    input.checked = false;
-    input.addEventListener("change", () => syncTileListUi());
-
-    const meta = document.createElement("div");
-    meta.className = "tileMeta";
-    const title = document.createElement("b");
-    title.textContent = toDisplayTileId(tile.id);
-    const detail = document.createElement("span");
-    detail.textContent = `${tile.mesh_count.toLocaleString()} meshes - ${tile.bundle_count} bundles`;
-    const row = document.createElement("div");
-    row.className = "tileRow";
-    const badge = document.createElement("span");
-    badge.className = "tileStatus";
-    badge.textContent = "Ready";
-    row.append(title, badge);
-    meta.append(row, detail);
-
-    wrapper.append(input, meta);
-    ui.tileList.appendChild(wrapper);
-  }
-  syncTileListUi();
-}
-
-function setTileSelection(nextTileIds) {
-  const selected = new Set(nextTileIds);
-  ui.tileList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-    input.checked = selected.has(input.value);
-  });
-  syncTileListUi();
-}
-
-function formatBytes(bytes, digits = 1) {
-  const value = Number(bytes);
-  if (!Number.isFinite(value) || value <= 0) {
-    return "0 MB";
-  }
-  return `${(value / (1024 * 1024)).toFixed(digits)} MB`;
-}
-
-function formatByteRate(bytesPerSecond) {
-  const value = Number(bytesPerSecond);
-  if (!Number.isFinite(value) || value <= 0) {
-    return "-- MB/s";
-  }
-  return `${(value / (1024 * 1024)).toFixed(1)} MB/s`;
-}
-
-function formatDuration(ms) {
-  const value = Number(ms);
-  if (!Number.isFinite(value) || value <= 0) {
-    return "0.0s";
-  }
-  return `${(value / 1000).toFixed(1)}s`;
-}
-
-function bundleDisplayName(bundle) {
-  if (!bundle) {
-    return "bundle";
-  }
-  return `${bundle.tile} / ${bundle.category}`;
-}
-
-function bundleSizeLabel(bundle) {
-  const size = Number(bundle?.size_bytes);
-  return Number.isFinite(size) && size > 0 ? formatBytes(size) : "unknown size";
-}
-
-function loadProgressPercent(event) {
-  const bytePercent = event.totalBytes > 0 && !event.hasUnknownBytes
-    ? (event.downloadedBytes / event.totalBytes) * 100
-    : null;
-  const countPercent = event.total > 0 ? (event.completed / event.total) * 100 : 100;
-  if (bytePercent !== null && Number.isFinite(bytePercent)) {
-    return Math.max(countPercent, bytePercent);
-  }
-  return countPercent;
-}
-
-function loadProgressMessage(event) {
-  if (event.phase === "idle") {
-    return "Tile bundles already in sync";
-  }
-  if (event.phase === "start") {
-    const totalSize = event.totalBytes > 0
-      ? `${formatBytes(event.totalBytes)}${event.hasUnknownBytes ? " + unknown" : ""}`
-      : "unknown size";
-    return `Applying ${event.total} bundle changes · ${event.added || 0} downloads · ${totalSize}`;
-  }
-  if (event.phase === "removing") {
-    return `Removing ${bundleDisplayName(event.bundle)} · ${event.completed}/${event.total}`;
-  }
-
-  const activeBundles = Array.isArray(event.activeBundles) ? event.activeBundles : [];
-  const activeCount = activeBundles.filter((item) => item.phase !== "ready").length;
-  const bundleTotal = event.added || 0;
-  const visibleBundleCount = Math.min(bundleTotal, (event.completedDownloads || 0) + activeCount);
-  const totalSize = event.totalBytes > 0
-    ? `${formatBytes(event.downloadedBytes)} / ${formatBytes(event.totalBytes)}${event.hasUnknownBytes ? " + unknown" : ""}`
-    : `${formatBytes(event.downloadedBytes)} / unknown`;
-  const rate = formatByteRate(event.speedBytesPerSec);
-  return `Loading ${visibleBundleCount}/${bundleTotal} bundles · ${totalSize} · ${rate}`;
-}
-
-function createLoadProgressRenderer() {
-  let lastRenderAt = 0;
-  let lastPercent = 0;
-  let lastMessage = "";
-  let pendingEvent = null;
-  let timerId = null;
-
-  const render = (event, force = false) => {
-    pendingEvent = event;
-    const now = performance.now();
-    if (!force && now - lastRenderAt < LOAD_PROGRESS_RENDER_INTERVAL_MS) {
-      if (timerId === null) {
-        timerId = window.setTimeout(() => {
-          timerId = null;
-          if (pendingEvent) {
-            render(pendingEvent, true);
-          }
-        }, LOAD_PROGRESS_RENDER_INTERVAL_MS - (now - lastRenderAt));
-      }
-      return;
-    }
-
-    if (timerId !== null) {
-      window.clearTimeout(timerId);
-      timerId = null;
-    }
-    pendingEvent = null;
-
-    const nextPercent = Math.max(lastPercent, loadProgressPercent(event));
-    const nextMessage = loadProgressMessage(event);
-    if (force || nextMessage !== lastMessage || Math.abs(nextPercent - lastPercent) >= 0.05) {
-      setProgress(nextPercent, nextMessage);
-      lastPercent = nextPercent;
-      lastMessage = nextMessage;
-      lastRenderAt = now;
-    }
-  };
-
-  return {
-    update(event) {
-      const force = event.phase === "idle"
-        || event.phase === "start"
-        || event.phase === "removing"
-        || event.force === true;
-      render(event, force);
-    },
-    flush() {
-      if (timerId !== null) {
-        window.clearTimeout(timerId);
-        timerId = null;
-      }
-      if (pendingEvent) {
-        render(pendingEvent, true);
-      }
-    },
-  };
-}
-
-async function enterScene() {
-  const selectedTileIds = tileSelections();
-  if (!selectedTileIds.length) {
-    return;
-  }
-  showOverlay({title: "Preparing 3D Scene", message: "Initializing viewer...", indeterminate: true});
-  await ensureViewer();
-  await loadScene();
-  state.entry.sceneReady = true;
-  state.mode = "link";
-  state.pickTarget = null;
-  ui.panel.style.display = "flex";
-  state.panelCollapsed = false;
-  syncControlSidebarUi();
-  hideEntryScreen();
-  viewer.focusOnTiles(selectedTileIds);
-  renderAll();
-}
-
-async function loadScene() {
-  if (!state.manifest) {
-    return;
-  }
-  await ensureViewer();
-  const diff = tileDiff();
-  if (!diff.toAdd.length && !diff.toRemove.length) {
-    syncSceneStats();
-    syncTileListUi();
-    showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100});
-    await new Promise((resolve) => window.setTimeout(resolve, 160));
-    hideOverlay();
-    return;
-  }
-
-  const selectedTiles = diff.selected;
-  const bundles = state.manifest.bundles.filter((bundle) => selectedTiles.has(bundle.tile));
-  state.tileLoadBusy = true;
-  if (diff.toAdd.length || diff.toRemove.length) {
-    state.link.result = null;
-    state.link.selectedPath = -1;
-    state.radiomap.jobId = null;
-    state.radiomap.result = null;
-    state.radiomap.status = "Idle";
-    viewer.clearOverlay();
-  }
-  syncTileListUi();
-  showOverlay({title: "Loading Scene", message: "Syncing tile bundles...", percent: 0});
-  const loadProgressRenderer = createLoadProgressRenderer();
-
+  event.preventDefault();
+  event.stopPropagation();
   try {
-    await viewer.syncBundles(bundles, (event) => {
-      loadProgressRenderer.update(event);
-    });
-    loadProgressRenderer.flush();
-
-    syncViewerMarkers();
-    viewer.focusOnTiles([...selectedTiles]);
-  } finally {
-    loadProgressRenderer.flush();
-    state.tileLoadBusy = false;
-    hideOverlay();
-    syncSceneStats();
-    syncTileListUi();
-  }
+    event.currentTarget.setPointerCapture(event.pointerId);
+  } catch {}
 }
 
-async function runLinkSolve() {
-  readLinkInputs();
-  viewer.clearOverlay();
-  showOverlay({
-    title: "Solving Link",
-    message: "Computing link paths with Sionna RT...",
-    indeterminate: true,
-  });
-  try {
-    const result = await solveLink({
-      tx: {position: state.link.tx, orientation: [0, 0, 0]},
-      rx: {position: state.link.rx, orientation: [0, 0, 0]},
-      solver: {
-        ...commonSolverConfig(),
-        samples_per_src: 30000,
-      },
-    });
-    state.link.result = result;
-    state.link.selectedPath = -1;
-    viewer.renderPaths(result.paths, -1);
-  } finally {
-    hideOverlay();
-    renderAll();
-  }
-}
-
-async function pollRadiomap(jobId, colorRange) {
-  while (true) {
-    const job = await getRadiomapJob(jobId);
-    state.radiomap.status = job.status;
-    renderRadiomapResult();
-
-    if (job.status === "succeeded") {
-      state.radiomap.result = await getRadiomapResult(jobId);
-      viewer.renderRadiomap(state.radiomap.result, colorRange);
-      renderRadiomapResult();
-      hideOverlay();
-      return;
-    }
-
-    if (job.status === "failed") {
-      hideOverlay();
-      throw new Error(job.message || "Radio map job failed");
-    }
-
-    showOverlay({
-      title: "Running Radio Map",
-      message: job.message || "Computing radio map with Sionna RT...",
-      indeterminate: true,
-    });
-    await new Promise((resolve) => window.setTimeout(resolve, 1200));
-  }
-}
-
-async function runRadiomap() {
-  readRadiomapInputs();
-  const colorRange = radiomapColorRange();
-  viewer.clearOverlay();
-
-  state.radiomap.status = "Queued";
-  state.radiomap.result = null;
-  renderRadiomapResult();
-  showOverlay({
-    title: "Running Radio Map",
-    message: "Submitting radio map job...",
-    indeterminate: true,
-  });
-
-  const job = await createRadiomapJob({
-    tx: {position: state.radiomap.tx, orientation: [0, 0, 0]},
-    metric: "path_gain",
-    surface: {
-      type: "terrain_patch",
-      size: state.radiomap.surface.size,
-      height_offset: state.radiomap.surface.heightOffset,
-      density_level: state.radiomap.surface.densityLevel,
-    },
-    solver: {
-      ...commonSolverConfig(),
-      samples_per_tx: 1000000,
-    },
-  });
-
-  state.radiomap.jobId = job.job_id;
-  await pollRadiomap(job.job_id, colorRange);
-}
-
-function applyPick(pick) {
-  if (!pick || !state.pickTarget) {
+function handlePickPointerMove(event) {
+  if (!pickTapCandidate || event.pointerId !== pickTapCandidate.pointerId) {
     return;
   }
-
-  if (state.pickTarget === "link-tx") {
-    setLogicalAndVisual(state.link.tx, state.link.txVisual, pick.logicalPosition, pick.markerPosition);
-  } else if (state.pickTarget === "link-rx") {
-    setLogicalAndVisual(state.link.rx, state.link.rxVisual, pick.logicalPosition, pick.markerPosition);
-  } else if (state.pickTarget === "rm-tx") {
-    setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, pick.logicalPosition, pick.markerPosition);
+  const dx = event.clientX - pickTapCandidate.startX;
+  const dy = event.clientY - pickTapCandidate.startY;
+  if ((dx * dx) + (dy * dy) > PICK_TAP_MAX_MOVE_PX * PICK_TAP_MAX_MOVE_PX) {
+    pickTapCandidate.canceled = true;
+    pickTapCandidate.dragging = true;
   }
+  if (pickTapCandidate.dragging) {
+    pickActiveDeviceAt(event.clientX, event.clientY, pickTapCandidate.target, "move");
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
 
-  state.pickTarget = null;
-  renderAll();
+function handlePickPointerUp(event) {
+  if (!pickTapCandidate || event.pointerId !== pickTapCandidate.pointerId) {
+    return;
+  }
+  const candidate = pickTapCandidate;
+  clearPickTapCandidate();
+  const duration = window.performance.now() - candidate.startAt;
+  const dx = event.clientX - candidate.startX;
+  const dy = event.clientY - candidate.startY;
+  const moved = (dx * dx) + (dy * dy) > PICK_TAP_MAX_MOVE_PX * PICK_TAP_MAX_MOVE_PX;
+  if (candidate.dragging) {
+    pickActiveDeviceAt(event.clientX, event.clientY, candidate.target, "end");
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      document.getElementById("view").releasePointerCapture(event.pointerId);
+    } catch {}
+    return;
+  }
+  if (
+    candidate.canceled
+    || moved
+    || duration > PICK_TAP_MAX_DURATION_MS
+    || state.pickTarget !== candidate.target
+  ) {
+    return;
+  }
+  pickActiveDeviceAt(event.clientX, event.clientY, candidate.target, "end");
+  try {
+    document.getElementById("view").releasePointerCapture(event.pointerId);
+  } catch {}
 }
 
 function attachEvents() {
-  const handleEnterScene = () => enterScene().catch((error) => {
-    hideOverlay();
-    state.tileLoadBusy = false;
-    syncTileListUi();
-    window.alert(error.message);
-  });
+  paramTooltips.attach();
+
+  const handleEnterScene = () => {
+    clearPickTapCandidate();
+    state.pickTarget = null;
+    state.deviceControl.activeTarget = null;
+    return sceneRenderState.enterScene().catch((error) => {
+      sceneRenderState.hideOverlay();
+      state.tileLoadBusy = false;
+      sceneRenderState.syncTileListUi();
+      window.alert(error.message);
+    });
+  };
+  const handleReturnToScene = () => {
+    clearPickTapCandidate();
+    state.pickTarget = null;
+    state.deviceControl.activeTarget = null;
+    setPickStatus();
+    sceneRenderState.resetSelectionToLoadedTiles();
+    entryMapController.hideEntryScreen();
+    sceneRenderState.renderAll();
+  };
 
   ui.panelToggle.addEventListener("click", () => {
+    paramTooltips.hideTooltip();
     state.panelCollapsed = !state.panelCollapsed;
-    syncControlSidebarUi();
+    sceneRenderState.syncControlSidebarUi();
   });
   ui.entryMapFigure.addEventListener("mouseleave", () => {
-    hideEntryMapTooltip();
+    entryMapController.hideEntryMapTooltip();
   });
 
   ui.btnEntrySidebarToggle.addEventListener("click", () => {
     state.entry.sidebarCollapsed = !state.entry.sidebarCollapsed;
-    syncEntrySidebarUi();
+    entryMapController.syncEntrySidebarUi();
     if (!state.entry.sidebarCollapsed) {
       window.setTimeout(() => ui.entryPlaceInput.focus(), 120);
     }
   });
-  ui.btnEntryClear.addEventListener("click", () => {
-    setTileSelection([]);
-  });
+  ui.btnEntryReturnScene.addEventListener("click", handleReturnToScene);
   ui.btnEntrySearch.addEventListener("click", () => {
-    runEntryPlaceSearch();
+    entryMapController.runEntryPlaceSearch();
   });
   ui.entryPlaceInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      runEntryPlaceSearch();
+      entryMapController.runEntryPlaceSearch();
     }
   });
   ui.btnEntryFitMap.addEventListener("click", () => {
-    fitEntryMapToView();
+    entryMapController.fitEntryMapToView();
   });
   ui.btnEntryFocusSelection.addEventListener("click", () => {
-    const selected = tileSelections();
+    const selected = sceneRenderState.tileSelections();
     if (!selected.length) {
       return;
     }
-    focusEntryMapTiles(selected, selected.length > 1 ? 0.98 : 1.08);
+    entryMapController.focusEntryMapTiles(selected, selected.length > 1 ? 0.98 : 1.08);
   });
   ui.btnEntryZoomIn.addEventListener("click", () => {
     entryMap.map?.zoomIn(0.5);
@@ -2059,124 +350,337 @@ function attachEvents() {
   });
   ui.btnEnterScene.addEventListener("click", handleEnterScene);
   ui.btnOpenTileIndex.addEventListener("click", () => {
-    showEntryScreen();
+    clearPickTapCandidate();
+    state.pickTarget = null;
+    state.deviceControl.activeTarget = null;
+    setPickStatus();
+    entryMapController.showEntryScreen();
   });
+
+  for (const button of ui.perfModeButtons) {
+    button.addEventListener("click", () => {
+      const mode = button.dataset.performanceMode;
+      if (!PERFORMANCE_MODES.has(mode)) {
+        return;
+      }
+      state.performance.mode = mode;
+      currentViewer().setPerformanceMode(mode);
+      performancePanel.syncPerformanceUi();
+    });
+  }
+  ui.perfLightMaterials.addEventListener("change", () => {
+    state.performance.lightweightMaterials = ui.perfLightMaterials.checked;
+    currentViewer().setLightweightMaterials(state.performance.lightweightMaterials);
+    performancePanel.syncPerformanceUi();
+  });
+  ui.btnPerformanceDockToggle.addEventListener("click", () => {
+    state.performance.dockExpanded = !state.performance.dockExpanded;
+    performancePanel.syncPerformanceUi();
+  });
+  ui.btnResultDockToggle.addEventListener("click", () => {
+    state.resultDock.expanded = !state.resultDock.expanded;
+    sceneRenderState.syncResultDockUi();
+  });
+  ui.btnShowAllCategories.addEventListener("click", () => {
+    performancePanel.showAllCategories();
+  });
+  ui.btnHideHeavyCategories.addEventListener("click", () => {
+    performancePanel.hideHeavyCategories();
+  });
+  window.setInterval(() => {
+    if (currentViewer().__ready && !state.entry.visible) {
+      performancePanel.syncPerformanceUi();
+    }
+  }, 500);
 
   ui.tabLink.addEventListener("click", () => {
+    paramTooltips.hideTooltip();
+    solverControls.cancelLivePreview();
+    solverControls.stopMobilityPlayback();
+    stopTxOrbit();
     state.mode = "link";
-    viewer.clearOverlay();
-    renderAll();
+    clearPickTapCandidate();
+    state.pickTarget = null;
+    state.deviceControl.activeTarget = null;
+    setPickStatus();
+    currentViewer().clearOverlay();
+    sceneRenderState.renderAll();
+  });
+  ui.tabMobility.addEventListener("click", () => {
+    paramTooltips.hideTooltip();
+    solverControls.cancelLivePreview();
+    stopTxOrbit();
+    state.mode = "mobility";
+    if (!state.mobility.tapsDefaulted) {
+      state.link.advanced.computeTaps = true;
+      state.mobility.tapsDefaulted = true;
+    }
+    clearPickTapCandidate();
+    state.pickTarget = null;
+    state.deviceControl.activeTarget = null;
+    setPickStatus();
+    currentViewer().clearOverlay();
+    solverControls.renderMobilityTrajectoryPreview();
+    sceneRenderState.renderAll();
   });
   ui.tabRadiomap.addEventListener("click", () => {
+    paramTooltips.hideTooltip();
+    solverControls.cancelLivePreview();
+    solverControls.stopMobilityPlayback();
+    stopTxOrbit();
     state.mode = "radiomap";
-    viewer.clearOverlay();
-    renderAll();
+    clearPickTapCandidate();
+    state.pickTarget = null;
+    state.deviceControl.activeTarget = null;
+    setPickStatus();
+    currentViewer().clearOverlay();
+    sceneRenderState.renderAll();
   });
 
-  ui.btnSolveLink.addEventListener("click", () => runLinkSolve().catch((error) => {
-    hideOverlay();
+  ui.btnSolveLink.addEventListener("click", () => runSolveFromDock(ui.btnSolveLink, () => solverControls.runLinkSolve()).catch((error) => {
+    sceneRenderState.hideOverlay();
     window.alert(error.message);
   }));
-  ui.btnRunRadiomap.addEventListener("click", () => runRadiomap().catch((error) => {
-    hideOverlay();
+  ui.btnRunRadiomap.addEventListener("click", () => runSolveFromDock(ui.btnRunRadiomap, () => solverControls.runRadiomap()).catch((error) => {
+    sceneRenderState.hideOverlay();
+    window.alert(error.message);
+  }));
+  ui.btnRunMobility.addEventListener("click", () => runSolveFromDock(ui.btnRunMobility, () => solverControls.runMobility()).catch((error) => {
+    sceneRenderState.hideOverlay();
+    solverControls.stopMobilityPlayback();
     window.alert(error.message);
   }));
   ui.btnResetView.addEventListener("click", () => {
-    if (!viewer.focusOnTiles([...viewer.loadedTileIds])) {
-      viewer.resetView();
+    stopTxOrbit();
+    if (!currentViewer().focusOnTiles([...currentViewer().loadedTileIds])) {
+      currentViewer().resetView();
+    }
+    sceneRenderState.renderAll();
+  });
+  ui.btnClearOverlay.addEventListener("click", () => currentViewer().clearOverlay());
+
+  ui.btnOrbitTx.addEventListener("click", toggleTxOrbit);
+  ui.btnPickLinkTx.addEventListener("click", () => openDevicePrecision("link-tx"));
+  ui.btnPickLinkRx.addEventListener("click", () => openDevicePrecision("link-rx"));
+  ui.btnPickRmTx.addEventListener("click", () => openDevicePrecision("rm-tx"));
+
+  for (const [input, target] of [
+    [inputs.linkTxX, "link-tx"], [inputs.linkTxY, "link-tx"], [inputs.linkTxZ, "link-tx"],
+    [inputs.linkRxX, "link-rx"], [inputs.linkRxY, "link-rx"], [inputs.linkRxZ, "link-rx"],
+  ]) {
+    input.addEventListener("change", () => {
+      solverControls.readLinkInputs();
+      invalidateMobilityResult();
+      if (isLinkDeviceTarget(state.deviceControl.activeTarget)) {
+        setPickStatus(placementPromptForTarget(state.deviceControl.activeTarget));
+      }
+      solverControls.handleLivePreviewDeviceUpdate(target, "change");
+      sceneRenderState.renderAll();
+    });
+  }
+
+  for (const input of [inputs.mobilityVelocity, inputs.mobilityTimeStep, inputs.mobilityMaxSteps]) {
+    input.addEventListener("change", () => {
+      solverControls.readMobilityInputs();
+      state.mobility.result = null;
+      state.mobility.selectedStep = 0;
+      state.mobility.selectedPath = -1;
+      sceneRenderState.renderAll();
+    });
+  }
+
+  ui.btnMobilityAddRxPoint.addEventListener("click", () => solverControls.addCurrentRxWaypoint());
+  ui.btnMobilityClearPoints.addEventListener("click", () => {
+    solverControls.resetMobilityTrajectoryFromRx();
+    sceneRenderState.renderAll();
+  });
+  ui.mobilityMetric.addEventListener("change", () => {
+    state.mobility.metric = ui.mobilityMetric.value;
+    solverControls.renderMobilityResult();
+  });
+  ui.mobilityStepSlider.addEventListener("input", () => {
+    solverControls.selectMobilityStep(Number(ui.mobilityStepSlider.value));
+  });
+  ui.mobilityPlaybackSpeed.addEventListener("change", () => {
+    state.mobility.playbackSpeed = Number(ui.mobilityPlaybackSpeed.value);
+    if (state.mobility.playing) {
+      solverControls.startMobilityPlayback();
     }
   });
-  ui.btnClearOverlay.addEventListener("click", () => viewer.clearOverlay());
-
-  document.getElementById("btnPickLinkTx").addEventListener("click", () => {
-    readLinkInputs();
-    state.pickTarget = "link-tx";
-    ui.hintText.textContent = "Click a visible surface to place Tx at the picked surface point.";
-  });
-  document.getElementById("btnPickLinkRx").addEventListener("click", () => {
-    readLinkInputs();
-    state.pickTarget = "link-rx";
-    ui.hintText.textContent = "Click a visible surface to place Rx at the picked surface point.";
-  });
-  document.getElementById("btnPickRmTx").addEventListener("click", () => {
-    readRadiomapInputs();
-    state.pickTarget = "rm-tx";
-    ui.hintText.textContent = "Click a visible surface to place the radio-map Tx; the terrain patch will stay centered around it in X/Y.";
+  ui.btnMobilityPlay.addEventListener("click", () => {
+    if (state.mobility.playing) {
+      solverControls.stopMobilityPlayback();
+      solverControls.renderMobilityResult();
+      return;
+    }
+    solverControls.startMobilityPlayback();
   });
 
   for (const input of [
-    inputs.linkTxX, inputs.linkTxY, inputs.linkTxZ,
-    inputs.linkRxX, inputs.linkRxY, inputs.linkRxZ,
+    inputs.linkSamplesPerSrc,
+    inputs.linkMaxNumPaths,
+    inputs.linkBandwidthMhz,
+    inputs.linkSyntheticArray,
+    inputs.linkDiffraction,
+    inputs.linkEdgeDiffraction,
+    inputs.linkDiffractionLitRegion,
+    inputs.linkComputeTaps,
+    inputs.linkTapLMin,
+    inputs.linkTapLMax,
+    inputs.linkTapFftSize,
   ]) {
     input.addEventListener("change", () => {
-      readLinkInputs();
-      renderAll();
+      solverControls.readLinkInputs();
+      invalidateMobilityResult();
+      sceneRenderState.renderAll();
     });
   }
 
   for (const input of [
-    inputs.rmTxX, inputs.rmTxY, inputs.rmTxZ,
-    inputs.rmSizeX, inputs.rmSizeY, inputs.rmHeightOffset, inputs.rmDensityLevel,
+    inputs.txArrayPattern,
+    inputs.txArrayPolarization,
+    inputs.txArrayRows,
+    inputs.txArrayCols,
+    inputs.txArrayVerticalSpacing,
+    inputs.txArrayHorizontalSpacing,
+    inputs.rxArrayPattern,
+    inputs.rxArrayPolarization,
+    inputs.rxArrayRows,
+    inputs.rxArrayCols,
+    inputs.rxArrayVerticalSpacing,
+    inputs.rxArrayHorizontalSpacing,
   ]) {
     input.addEventListener("change", () => {
-      readRadiomapInputs();
-      renderAll();
+      solverControls.readAntennaArrayInputs();
+      invalidateMobilityResult();
+      sceneRenderState.renderAll();
     });
   }
 
-  for (const input of [inputs.rmColorMin, inputs.rmColorMax]) {
+  for (const input of [inputs.rmTxX, inputs.rmTxY, inputs.rmTxZ]) {
+    input.addEventListener("change", () => {
+      solverControls.readRadiomapInputs();
+      if (state.deviceControl.activeTarget === "rm-tx") {
+        setPickStatus(placementPromptForTarget(state.deviceControl.activeTarget));
+      }
+      sceneRenderState.renderAll();
+    });
+  }
+
+  for (const input of [
+    inputs.rmSizeX, inputs.rmSizeY, inputs.rmHeightOffset, inputs.rmSamplesPerTx, inputs.rmCellSize, inputs.rmDensityLevel,
+  ]) {
+    input.addEventListener("change", () => {
+      solverControls.readRadiomapInputs();
+      sceneRenderState.renderAll();
+    });
+  }
+
+  for (const input of [
+    inputs.livePreviewEnabled,
+    inputs.livePreviewLinkSamples,
+    inputs.livePreviewPathsDelay,
+  ]) {
+    input.addEventListener("change", () => {
+      solverControls.readLivePreviewInputs();
+      if (!state.livePreview.enabled) {
+        solverControls.cancelLivePreview();
+      }
+      sceneRenderState.renderAll();
+    });
+  }
+
+  inputs.linkSurfaceClearance.addEventListener("change", () => {
+    solverControls.readSurfaceClearanceInput();
+    sceneRenderState.renderAll();
+  });
+
+  for (const input of [inputs.rmColorMin, inputs.rmColorMax, inputs.rmColormap]) {
     input.addEventListener("change", () => {
       try {
-        readRadiomapInputs();
-        rerenderRadiomapOverlay();
-        renderRadiomapResult();
+        solverControls.readRadiomapInputs();
+        solverControls.rerenderRadiomapOverlay();
+        solverControls.renderRadiomapResult();
       } catch (error) {
         window.alert(error.message);
       }
     });
   }
 
-  document.getElementById("view").addEventListener("click", (event) => {
-    if (!state.pickTarget) {
+  const view = document.getElementById("view");
+  view.addEventListener("pointerdown", handlePickPointerDown, {capture: true});
+  window.addEventListener("pointermove", handlePickPointerMove, {capture: true});
+  window.addEventListener("pointerup", handlePickPointerUp, {capture: true});
+  window.addEventListener("pointercancel", clearPickTapCandidate);
+  window.addEventListener("blur", clearPickTapCandidate);
+  window.addEventListener("hku-tx-orbit-change", () => {
+    sceneRenderState.renderAll();
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.deviceControl.activeTarget) {
+      event.preventDefault();
+      clearPickTapCandidate();
+      closeDevicePrecision();
       return;
     }
-    const pick = viewer.pickOnSurface(event.clientX, event.clientY, markerRadiusForPickTarget(state.pickTarget));
-    applyPick(pick);
+    if (
+      state.mode !== "mobility"
+      || state.entry.visible
+      || ui.loadingScreen.style.display !== "none"
+      || isEditableKeyboardTarget(event.target)
+    ) {
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      solverControls.addCurrentRxWaypoint();
+      return;
+    }
+    if (event.key === "Delete" && state.mobility.selectedWaypointIndex >= 0) {
+      event.preventDefault();
+      solverControls.deleteMobilityWaypoint(state.mobility.selectedWaypointIndex);
+    }
   });
 
   window.addEventListener("resize", () => {
     if (!state.entry.visible) {
       return;
     }
-    const selected = tileSelections();
+    const selected = sceneRenderState.tileSelections();
     if (selected.length) {
-      focusEntryMapTiles(selected, selected.length > 1 ? 0.98 : 1.08);
+      entryMapController.focusEntryMapTiles(selected, selected.length > 1 ? 0.98 : 1.08);
       return;
     }
-    fitEntryMapToView();
+    entryMapController.fitEntryMapToView();
   });
 }
 
 async function bootstrap() {
-  showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 10});
+  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 10});
   attachEvents();
+  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading RT capabilities...", percent: 14});
+  state.rtCapabilities = await getRtCapabilities();
+  solverControls.applyRtCapabilities(state.rtCapabilities);
+  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 18});
   state.manifest = await getManifest();
-  populateTileList(state.manifest);
-  state.entry.overview = buildEntryOverview(state.manifest);
-  renderEntryOverview();
-  setTileSelection([]);
-  hideOverlay();
+  sceneRenderState.populateTileList(state.manifest);
+  performancePanel.populatePerformanceControls(state.manifest);
+  state.entry.overview = entryMapController.buildEntryOverview(state.manifest);
+  entryMapController.renderEntryOverview();
+  sceneRenderState.setTileSelection([]);
+  sceneRenderState.hideOverlay();
 
-  renderAll();
+  sceneRenderState.renderAll();
   if (state.entry.overview) {
-    showEntryScreen();
+    entryMapController.showEntryScreen();
   } else {
     ui.panel.style.display = "flex";
-    syncControlSidebarUi();
+    sceneRenderState.syncControlSidebarUi();
   }
 }
 
 bootstrap().catch((error) => {
-  hideOverlay();
+  sceneRenderState.hideOverlay();
   window.alert(error.message);
 });

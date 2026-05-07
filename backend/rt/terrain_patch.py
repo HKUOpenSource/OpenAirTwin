@@ -171,6 +171,192 @@ def _subdivide_triangles(
     )
 
 
+def _max_triangle_edge_length(vertex_positions: np.ndarray, faces: np.ndarray) -> float:
+    triangles = np.asarray(vertex_positions, dtype=np.float32)[np.asarray(faces, dtype=np.int64)]
+    if triangles.size == 0:
+        return 0.0
+    edges = np.stack(
+        [
+            triangles[:, 0, :] - triangles[:, 1, :],
+            triangles[:, 1, :] - triangles[:, 2, :],
+            triangles[:, 2, :] - triangles[:, 0, :],
+        ],
+        axis=1,
+    )
+    return float(np.max(np.linalg.norm(edges, axis=2)))
+
+
+def _check_radiomap_cell_limit(selected_count: int, subdivision_levels: int, descriptor: str) -> int:
+    expected_cell_count = int(selected_count) * (4 ** int(subdivision_levels))
+    if expected_cell_count > config.MAX_RADIOMAP_CELLS:
+        raise ValueError(
+            f"Selected terrain patch contains {expected_cell_count} cells at {descriptor}, "
+            f"which exceeds the configured limit of {config.MAX_RADIOMAP_CELLS}"
+        )
+    return expected_cell_count
+
+
+def _grid_shape_for_cell_size(size_xy: tuple[float, float], cell_size: float) -> tuple[int, int, float, float]:
+    if not np.isfinite(cell_size) or cell_size <= 0.0:
+        raise ValueError("surface.cell_size must be a positive finite number")
+    size_x = float(size_xy[0])
+    size_y = float(size_xy[1])
+    nx = max(1, int(np.ceil(size_x / float(cell_size))))
+    ny = max(1, int(np.ceil(size_y / float(cell_size))))
+    return nx, ny, size_x / nx, size_y / ny
+
+
+def _check_radiomap_grid_limit(nx: int, ny: int, cell_size: float) -> tuple[int, int]:
+    grid_cell_count = int(nx) * int(ny)
+    triangle_count = grid_cell_count * 2
+    if triangle_count > config.MAX_RADIOMAP_CELLS:
+        raise ValueError(
+            f"Radio map cell size {cell_size:g} m creates {grid_cell_count} grid cells "
+            f"({triangle_count} triangles), which exceeds the configured limit of {config.MAX_RADIOMAP_CELLS}"
+        )
+    return grid_cell_count, triangle_count
+
+
+def _barycentric_xy(point: np.ndarray, triangles_xy: np.ndarray, denom: np.ndarray) -> np.ndarray:
+    a = triangles_xy[:, 0, :]
+    b = triangles_xy[:, 1, :]
+    c = triangles_xy[:, 2, :]
+    w0 = ((b[:, 1] - c[:, 1]) * (point[0] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (point[1] - c[:, 1])) / denom
+    w1 = ((c[:, 1] - a[:, 1]) * (point[0] - c[:, 0]) + (a[:, 0] - c[:, 0]) * (point[1] - c[:, 1])) / denom
+    w2 = 1.0 - w0 - w1
+    return np.stack([w0, w1, w2], axis=1)
+
+
+def _triangle_normals(triangles: np.ndarray) -> np.ndarray:
+    normals = np.cross(triangles[:, 1, :] - triangles[:, 0, :], triangles[:, 2, :] - triangles[:, 0, :])
+    lengths = np.linalg.norm(normals, axis=1)
+    valid = lengths > 1e-8
+    normals[valid] = normals[valid] / lengths[valid, None]
+    normals[~valid] = np.asarray([0.0, 0.0, 1.0], dtype=np.float32)
+    normals[normals[:, 2] < 0.0] *= -1.0
+    return normals.astype(np.float32, copy=False)
+
+
+def _interpolate_points_on_terrain(
+    points_xy: np.ndarray,
+    terrain_triangles: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    triangles_xy = terrain_triangles[:, :, :2].astype(np.float64, copy=False)
+    triangles_z = terrain_triangles[:, :, 2].astype(np.float64, copy=False)
+    tri_min = np.min(triangles_xy, axis=1)
+    tri_max = np.max(triangles_xy, axis=1)
+    centroids_xy = np.mean(triangles_xy, axis=1)
+    denom = (
+        (triangles_xy[:, 1, 1] - triangles_xy[:, 2, 1]) * (triangles_xy[:, 0, 0] - triangles_xy[:, 2, 0])
+        + (triangles_xy[:, 2, 0] - triangles_xy[:, 1, 0]) * (triangles_xy[:, 0, 1] - triangles_xy[:, 2, 1])
+    )
+    usable = np.abs(denom) > 1e-8
+    if not np.any(usable):
+        raise ValueError("Selected terrain patch has no usable XY triangles for cell-size grid")
+
+    normals = _triangle_normals(terrain_triangles.astype(np.float32, copy=False))
+    z_values = np.empty(points_xy.shape[0], dtype=np.float32)
+    point_normals = np.empty((points_xy.shape[0], 3), dtype=np.float32)
+    eps = 1e-5
+
+    usable_indices = np.flatnonzero(usable)
+    usable_centroids = centroids_xy[usable_indices]
+    for point_index, point in enumerate(points_xy.astype(np.float64, copy=False)):
+        candidates = np.flatnonzero(
+            usable
+            & (tri_min[:, 0] - eps <= point[0])
+            & (tri_max[:, 0] + eps >= point[0])
+            & (tri_min[:, 1] - eps <= point[1])
+            & (tri_max[:, 1] + eps >= point[1])
+        )
+
+        chosen_index = -1
+        chosen_weights = None
+        if candidates.size:
+            weights = _barycentric_xy(point, triangles_xy[candidates], denom[candidates])
+            inside = np.all(weights >= -eps, axis=1) & np.all(weights <= 1.0 + eps, axis=1)
+            if np.any(inside):
+                local_index = int(np.flatnonzero(inside)[0])
+                chosen_index = int(candidates[local_index])
+                chosen_weights = weights[local_index]
+
+        if chosen_index < 0:
+            nearest_local = int(np.argmin(np.sum((usable_centroids - point) ** 2, axis=1)))
+            chosen_index = int(usable_indices[nearest_local])
+            chosen_weights = _barycentric_xy(
+                point,
+                triangles_xy[chosen_index : chosen_index + 1],
+                denom[chosen_index : chosen_index + 1],
+            )[0]
+
+        z_values[point_index] = float(np.dot(chosen_weights, triangles_z[chosen_index]))
+        point_normals[point_index] = normals[chosen_index]
+
+    return z_values, point_normals
+
+
+def _build_cell_size_grid(
+    vertex_positions: np.ndarray,
+    selected_faces: np.ndarray,
+    *,
+    center_xy: tuple[float, float],
+    size_xy: tuple[float, float],
+    height_offset: float,
+    cell_size: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
+    nx, ny, resolved_x, resolved_y = _grid_shape_for_cell_size(size_xy, cell_size)
+    grid_cell_count, triangle_count = _check_radiomap_grid_limit(nx, ny, cell_size)
+
+    half_size = np.asarray(size_xy, dtype=np.float32) * 0.5
+    lower = np.asarray(center_xy, dtype=np.float32) - half_size
+    upper = np.asarray(center_xy, dtype=np.float32) + half_size
+    xs = np.linspace(float(lower[0]), float(upper[0]), nx + 1, dtype=np.float32)
+    ys = np.linspace(float(lower[1]), float(upper[1]), ny + 1, dtype=np.float32)
+    xx, yy = np.meshgrid(xs, ys)
+    points_xy = np.column_stack([xx.reshape(-1), yy.reshape(-1)]).astype(np.float32, copy=False)
+
+    terrain_triangles = vertex_positions[selected_faces]
+    z_values, point_normals = _interpolate_points_on_terrain(points_xy, terrain_triangles)
+    patch_positions = np.column_stack(
+        [
+            points_xy[:, 0],
+            points_xy[:, 1],
+            z_values + float(height_offset),
+        ]
+    ).astype(np.float32, copy=False)
+
+    faces: list[tuple[int, int, int]] = []
+    row_stride = nx + 1
+    for row in range(ny):
+        for col in range(nx):
+            v00 = row * row_stride + col
+            v10 = v00 + 1
+            v01 = v00 + row_stride
+            v11 = v01 + 1
+            faces.append((v00, v10, v11))
+            faces.append((v00, v11, v01))
+
+    u = (points_xy[:, 0] - float(lower[0])) / max(float(size_xy[0]), 1e-6)
+    v = (points_xy[:, 1] - float(lower[1])) / max(float(size_xy[1]), 1e-6)
+    patch_texcoords = np.column_stack([u, v]).astype(np.float32, copy=False)
+    patch_faces = np.asarray(faces, dtype=np.uint32)
+    meta = {
+        "cell_count": int(triangle_count),
+        "density_level": 1,
+        "resolution_mode": "cell_size_grid",
+        "requested_cell_size": float(cell_size),
+        "resolved_cell_size": float(max(resolved_x, resolved_y)),
+        "resolved_cell_size_x": float(resolved_x),
+        "resolved_cell_size_y": float(resolved_y),
+        "grid_shape": [int(nx), int(ny)],
+        "grid_cell_count": int(grid_cell_count),
+        "triangle_count": int(triangle_count),
+        "subdivision_levels": 0,
+        "sample_multiplier": 1,
+    }
+    return patch_positions, patch_faces, point_normals, patch_texcoords, meta
+
+
 def build_terrain_patch(
     scene,
     *,
@@ -178,6 +364,7 @@ def build_terrain_patch(
     size_xy: tuple[float, float],
     height_offset: float,
     density_level: int,
+    cell_size: float | None = None,
 ):
     import mitsuba as mi
 
@@ -206,32 +393,54 @@ def build_terrain_patch(
     selected_count = int(np.count_nonzero(face_mask))
     if selected_count == 0:
         raise ValueError("Selected terrain patch contains no measurement cells around the chosen Tx")
-    subdivision_levels = max(0, int(density_level) - 1)
-    expected_cell_count = selected_count * (4 ** subdivision_levels)
-    if expected_cell_count > config.MAX_RADIOMAP_CELLS:
-        raise ValueError(
-            f"Selected terrain patch contains {expected_cell_count} cells at density level {density_level}, "
-            f"which exceeds the configured limit of {config.MAX_RADIOMAP_CELLS}"
-        )
 
     selected_faces = faces[face_mask]
-    unique_vertices, inverse = np.unique(selected_faces.reshape(-1), return_inverse=True)
-    patch_positions = vertex_positions[unique_vertices].copy()
-    patch_positions[:, 2] += float(height_offset)
-    patch_faces = inverse.reshape(-1, 3).astype(np.uint32, copy=False)
+    if cell_size is None:
+        subdivision_levels = max(0, int(density_level) - 1)
+        descriptor = f"density level {density_level}"
+        _check_radiomap_cell_limit(selected_count, subdivision_levels, descriptor)
 
-    original_normals = np.asarray(to_numpy(params["vertex_normals"]), dtype=np.float32)
-    original_texcoords = np.asarray(to_numpy(params["vertex_texcoords"]), dtype=np.float32)
-    patch_normals = original_normals.reshape(-1, 3)[unique_vertices] if original_normals.size else None
-    patch_texcoords = original_texcoords.reshape(-1, 2)[unique_vertices] if original_texcoords.size else None
+        unique_vertices, inverse = np.unique(selected_faces.reshape(-1), return_inverse=True)
+        patch_positions = vertex_positions[unique_vertices].copy()
+        patch_positions[:, 2] += float(height_offset)
+        patch_faces = inverse.reshape(-1, 3).astype(np.uint32, copy=False)
 
-    patch_positions, patch_faces, patch_normals, patch_texcoords = _subdivide_triangles(
-        patch_positions,
-        patch_faces,
-        patch_normals,
-        patch_texcoords,
-        subdivision_levels,
-    )
+        original_normals = np.asarray(to_numpy(params["vertex_normals"]), dtype=np.float32)
+        original_texcoords = np.asarray(to_numpy(params["vertex_texcoords"]), dtype=np.float32)
+        patch_normals = original_normals.reshape(-1, 3)[unique_vertices] if original_normals.size else None
+        patch_texcoords = original_texcoords.reshape(-1, 2)[unique_vertices] if original_texcoords.size else None
+
+        patch_positions, patch_faces, patch_normals, patch_texcoords = _subdivide_triangles(
+            patch_positions,
+            patch_faces,
+            patch_normals,
+            patch_texcoords,
+            subdivision_levels,
+        )
+        max_edge_before_subdivision = _max_triangle_edge_length(vertex_positions, selected_faces)
+        patch_meta = {
+            "density_level": int(subdivision_levels + 1),
+            "resolution_mode": "density_level",
+            "requested_cell_size": None,
+            "resolved_cell_size": float(max_edge_before_subdivision / (2 ** subdivision_levels))
+            if max_edge_before_subdivision > 0.0
+            else 0.0,
+            "resolved_cell_size_x": None,
+            "resolved_cell_size_y": None,
+            "grid_shape": None,
+            "grid_cell_count": None,
+            "subdivision_levels": int(subdivision_levels),
+            "sample_multiplier": int(4 ** subdivision_levels),
+        }
+    else:
+        patch_positions, patch_faces, patch_normals, patch_texcoords, patch_meta = _build_cell_size_grid(
+            vertex_positions,
+            selected_faces,
+            center_xy=tx_position[:2],
+            size_xy=size_xy,
+            height_offset=height_offset,
+            cell_size=float(cell_size),
+        )
 
     params["vertex_positions"] = patch_positions.astype(np.float32, copy=False).reshape(-1)
     params["faces"] = patch_faces.reshape(-1)
@@ -249,8 +458,9 @@ def build_terrain_patch(
 
     return patch_mesh, {
         "cell_count": int(patch_faces.shape[0]),
+        "triangle_count": int(patch_faces.shape[0]),
         "triangle_positions": triangle_positions.astype(np.float32, copy=False),
         "bounds_min": bounds_min.astype(np.float32, copy=False),
         "bounds_max": bounds_max.astype(np.float32, copy=False),
-        "density_level": int(density_level),
+        **patch_meta,
     }

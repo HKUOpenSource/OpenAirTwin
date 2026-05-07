@@ -11,11 +11,16 @@ export function getManifest() {
   return requestJson("/api/scene/manifest");
 }
 
-export function solveLink(payload) {
+export function getRtCapabilities() {
+  return requestJson("/api/rt/capabilities");
+}
+
+export function solveLink(payload, options = {}) {
   return requestJson("/api/link/solve", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(payload),
+    signal: options.signal,
   });
 }
 
@@ -33,4 +38,20 @@ export function getRadiomapJob(jobId) {
 
 export function getRadiomapResult(jobId) {
   return requestJson(`/api/radiomap/jobs/${encodeURIComponent(jobId)}/result`);
+}
+
+export function createMobilityJob(payload) {
+  return requestJson("/api/mobility/jobs", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getMobilityJob(jobId) {
+  return requestJson(`/api/mobility/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export function getMobilityResult(jobId) {
+  return requestJson(`/api/mobility/jobs/${encodeURIComponent(jobId)}/result`);
 }
