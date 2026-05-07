@@ -9,13 +9,144 @@ cleanup notes, and handoff guidance for the HKU wireless digital twin platform.
 - Remote host: `defaultuser@100.65.77.20`
 - Remote work folder: `/home/defaultuser/worktree-zhaolin`
 - Main validation port: `8090`
-- Demo port used this round: `9000`
+- Optional demo port: `9000`
 - GPU runtime: `/home/defaultuser/venvs/sionna-gpu`
 - Scene root for remote runtime: `/home/defaultuser/worktree-zhaolin/HKU_scenes`
 
 Use `worktree-zhaolin` for Zhaolin validation. Do not restart, kill, or sync
 over another developer's worktree, especially `worktree-zihao`, unless explicitly
 requested.
+
+## 2026-05-07 - Radio Map Grid, Live Link Preview, Mobility Editing, and Dock Polish
+
+This round focused on making the RT demo feel interactive and explainable:
+Radio Map now has explicit sampling, terrain-following grid resolution, clearer
+display controls, and a better result dock; Link mode gained low-cost live
+preview and surface clearance for physically safer Tx/Rx placement; Mobility
+editing became keyboard-driven; and the top-right Results dock can now collapse.
+
+### Radio Map Reliability and Budget Semantics
+
+- Fixed the visible `Samples / Tx` control so Radio Map submits
+  `solver.samples_per_tx` from the UI instead of hard-coding `1000000`.
+- Changed Radio Map failure handling to show `job.error` before generic
+  messages, so Sionna/terrain errors are visible in the frontend overlay.
+- Added `surface.cell_size` parsing with meter units and bounded validation
+  through `MIN_RADIOMAP_CELL_SIZE..MAX_RADIOMAP_CELL_SIZE`.
+- Split sampling semantics into base and effective samples:
+  `base_samples_per_tx` is parsed from the request, then
+  `effective_samples_per_tx` is derived after terrain patch metadata is known.
+- Kept Auto mode compatible: when `Cell Size` is blank, the existing
+  `density_level` path remains the fallback behavior.
+
+### Radio Map Cell-Size Grid
+
+- Replaced the first cell-size implementation, which globally subdivided
+  selected terrain triangles, with a regular XY measurement grid that follows
+  the terrain height.
+- `cell_size=10` over `160 x 160 m` now means a `16 x 16` grid, represented as
+  `512` solver triangles. `cell_size=100` over the same area becomes a `2 x 2`
+  grid, represented as `8` solver triangles.
+- Grid vertices are projected onto the selected terrain mesh with barycentric
+  interpolation in XY and a nearest-triangle plane fallback for edge misses.
+- The cell-size path reports:
+  - `resolution_mode: "cell_size_grid"`
+  - `requested_cell_size`
+  - `resolved_cell_size_x`
+  - `resolved_cell_size_y`
+  - `grid_shape`
+  - `grid_cell_count`
+  - `triangle_count`
+- `MAX_RADIOMAP_CELLS` now guards the solver triangle count for the regular
+  grid path.
+
+### Radio Map Display and Result Dock
+
+- Added a shared frontend colormap helper with `viridis`, `plasma`, `turbo`, and
+  `jet`.
+- Set Radio Map's default and fallback colormap to `jet`, including viewer
+  rendering and the UI select.
+- Added a horizontal Radio Map colorbar in the result dock with display limits
+  and colormap name.
+- Moved Radio Map results into the same top-right dock used by Link and
+  Mobility.
+- Rewrote the Radio Map result summary to separate:
+  - status and metric
+  - grid cells versus solver triangles
+  - area
+  - target versus resolved cell size
+  - base versus effective samples
+  - solver result range versus display color scale
+- Fixed Radio Map completion UI refresh so the bottom `Tx` and `Run Map`
+  buttons come back automatically after a job finishes or fails.
+
+### Link Live Preview and Surface Clearance
+
+- Added opt-in `Live Preview` for Link mode only, default off to protect shared
+  GPU time.
+- Link preview uses low samples, disables taps, caps preview path count, ignores
+  stale responses with generation tokens, and replaces preview output with a
+  final solve after movement stops.
+- Added true canvas drag for active Link Tx/Rx placement while preserving
+  click-to-place behavior.
+- Removed Radio Map live preview after validation showed it was too slow for the
+  current remote workflow. Radio Map remains manual via `Run Map`.
+- Added `Surface Clearance (m)`, default `1.5`, for Link Tx/Rx placement.
+  Picked solver coordinates are lifted along the hit triangle normal by this
+  clearance.
+- Extended the same clearance behavior to Radio Map Tx placement. Direct manual
+  coordinate entry remains exact and is not automatically projected or lifted.
+
+### Device Position Compact Bar
+
+- Replaced the bulky bottom device-position card with a compact one-line float
+  bar for `Tx`, `Rx`, and `RM Tx`.
+- Kept X/Y/Z manual inputs, clearance input, click placement, drag placement,
+  and solver payload semantics unchanged.
+- Balanced the coordinate and clearance input widths after visual QA:
+  values stay left-aligned, unit spacing is tighter, and mobile layouts wrap
+  without horizontal overflow.
+
+### Mobility Empty Trajectory and Keyboard Editing
+
+- Changed Mobility's initial Rx trajectory from two default waypoints to an
+  empty list.
+- Added `selectedWaypointIndex` and active waypoint row styling.
+- `Enter` in Mobility mode adds the current Link Rx coordinate as a waypoint
+  when focus is not inside an editable input.
+- `Delete` removes the selected waypoint when focus is not inside an editable
+  input.
+- `Clear` now truly clears all waypoints.
+- The viewer now renders a single Mobility waypoint marker, and renders a
+  trajectory line once there are at least two points.
+- Backend Mobility validation is unchanged: running a Mobility job still
+  requires at least two waypoints.
+
+### Results Dock Scrollbar and Collapse
+
+- Moved Results dock scrolling into an inner `.channelAnalysisScroll` container
+  so the scrollbar stays inside the rounded panel instead of sitting on the
+  outer corner.
+- Added a clickable Results header with `aria-expanded`, `aria-label`,
+  `aria-controls`, and hidden-content `inert` handling.
+- Added `state.resultDock.expanded = true`, shared by Link, Mobility, and
+  Radio Map.
+- Collapsed state keeps a compact title strip with the result type, subtitle or
+  live status, and a chevron. Mode switches and new results preserve the user's
+  current collapsed/expanded choice.
+
+### Remote Validation
+
+- Synced the latest local code to `/home/defaultuser/worktree-zhaolin`.
+- Restarted the remote validation service on port `8090`.
+- Last recorded restart PID for this round: `173826`.
+- Browser QA on `http://100.65.77.20:8090/` confirmed:
+  - page identity and initial render
+  - tile loading into the 3D scene
+  - Link result dock default expanded
+  - Results dock collapse and re-expand
+  - `aria-expanded` and `collapsed` class updates
+  - no relevant app-side console errors
 
 ## 2026-05-06 - Advanced RT UI, Antenna Arrays, Mobility, and Showcase Mode
 
@@ -108,7 +239,7 @@ showcase button.
 - The demo instance serves the same latest UI and is intended for presentation
   use without disturbing the main `8090` validation service.
 
-## Current API Surface Added on 2026-05-06
+## Current API and Payload Surface Added by Recent Rounds
 
 - `GET /api/rt/capabilities`
 - `POST /api/mobility/jobs`
@@ -116,19 +247,39 @@ showcase button.
 - `GET /api/mobility/jobs/{job_id}/result`
 - Link solver payload additions: `solver.tx_array`, `solver.rx_array`
 - Radio Map solver payload addition: `solver.tx_array`
+- Radio Map surface payload addition: optional `surface.cell_size`, in meters
+- Radio Map result metadata additions:
+  - `surface.resolution_mode`
+  - `surface.requested_cell_size`
+  - `surface.resolved_cell_size`
+  - `surface.resolved_cell_size_x`
+  - `surface.resolved_cell_size_y`
+  - `surface.grid_shape`
+  - `surface.grid_cell_count`
+  - `surface.triangle_count`
+  - `solver.base_samples_per_tx`
+  - `solver.effective_samples_per_tx`
 - Mobility trajectory payload addition: `rx_trajectory.max_steps`
 
 ## New Final Files Kept
 
-These files were created during this round and are intentional final artifacts:
+These files were created during recent Zhaolin rounds and are intentional final
+artifacts:
+
+2026-05-07:
+
+- `backend/static/js/colormaps.js`
+- `tests/test_terrain_patch.py`
+
+2026-05-06:
 
 - `backend/jobs/mobility_jobs.py`
 - `backend/rt/solve_mobility.py`
 - `tests/test_frontend_regressions.py`
 - `tests/test_mobility_jobs.py`
 
-They are referenced by server, solver, and regression tests, so they should not
-be removed during cleanup.
+They are referenced by server, solver, frontend modules, and regression tests,
+so they should not be removed during cleanup.
 
 ## 2026-05-05 - Backend Hardening, Setup, and Advanced Link Output
 
@@ -195,7 +346,7 @@ Remote targeted validation should use the Sionna GPU venv:
 ```bash
 cd /home/defaultuser/worktree-zhaolin
 /home/defaultuser/venvs/sionna-gpu/bin/python -m compileall -q backend scripts tests
-/home/defaultuser/venvs/sionna-gpu/bin/python -m unittest tests.test_frontend_regressions tests.test_mobility_jobs tests.test_server_hardening
+/home/defaultuser/venvs/sionna-gpu/bin/python -m unittest tests.test_frontend_regressions tests.test_mobility_jobs tests.test_server_hardening tests.test_terrain_patch
 for file in backend/static/js/*.js; do node --input-type=module --check < "$file" >/dev/null; done
 node --input-type=module --check < backend/static/lib/GLBGeometryLoader.js >/dev/null
 git diff --check
@@ -210,6 +361,13 @@ curl -fsS http://127.0.0.1:9000/api/health
 ```
 
 ## Remote Workflow
+
+Sync to Zhaolin's remote worktree with an explicit target. Do not rely on the
+script default:
+
+```bash
+HKU_RT_REMOTE_ROOT=/home/defaultuser/worktree-zhaolin bash scripts/sync_code_to_remote.sh
+```
 
 Start or restart the main Zhaolin backend from the Zhaolin worktree:
 
@@ -235,6 +393,19 @@ Before syncing to the remote worktree, back up overwritten files and remote diff
 under `/home/defaultuser/backups/...`. Do not touch other developers' worktrees.
 
 ## Cleanup Notes
+
+Final cleanup result for 2026-05-07:
+
+- Scanned the repository for `__pycache__`, `.pyc`, `.pytest_cache`,
+  `.DS_Store`, patch rejects, backups, and common temporary files; none were
+  present in the worktree.
+- Removed local validation scratch file `/tmp/hku_rt_caps.json`.
+- Confirmed the only untracked repository files are intentional final artifacts:
+  `backend/static/js/colormaps.js` and `tests/test_terrain_patch.py`.
+- Kept remote `server-8090.log` as a runtime diagnostic log; it is not a
+  repository-tracked artifact.
+- No unused source, test, or generated frontend file remains from the 2026-05-07
+  development round.
 
 Final cleanup result for 2026-05-06:
 

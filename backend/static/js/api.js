@@ -15,11 +15,12 @@ export function getRtCapabilities() {
   return requestJson("/api/rt/capabilities");
 }
 
-export function solveLink(payload) {
+export function solveLink(payload, options = {}) {
   return requestJson("/api/link/solve", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(payload),
+    signal: options.signal,
   });
 }
 

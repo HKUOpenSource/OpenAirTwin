@@ -79,6 +79,9 @@ export const state = {
     categories: [],
     categoryVisibility: new Map(),
   },
+  resultDock: {
+    expanded: true,
+  },
   entry: {
     visible: false,
     sceneReady: false,
@@ -96,6 +99,7 @@ export const state = {
     txVisual: [72.0, 37.0, 40.0],
     rx: [90.0, 52.0, 1.5],
     rxVisual: [90.0, 52.0, 1.5],
+    surfaceClearanceM: 1.5,
     result: null,
     selectedPath: -1,
     advanced: {
@@ -113,17 +117,38 @@ export const state = {
       tapSubcarrierSpacingHz: 30000,
     },
   },
+  livePreview: {
+    enabled: false,
+    mode: null,
+    status: "Idle",
+    link: {
+      previewSamplesPerSrc: 1000,
+      pathsDelayS: 0.8,
+      generation: 0,
+      previewTimer: null,
+      finalTimer: null,
+      previewController: null,
+      finalController: null,
+      lastPreviewStartedAt: 0,
+    },
+  },
   radiomap: {
     tx: [72.0, 37.0, 40.0],
     txVisual: [72.0, 37.0, 40.0],
+    surfaceClearanceM: 1.5,
     surface: {
       size: [160.0, 160.0],
       heightOffset: 1.5,
       densityLevel: 2,
+      cellSize: null,
+    },
+    solver: {
+      samplesPerTx: 1000000,
     },
     display: {
       colorMinDb: -140,
       colorMaxDb: -80,
+      colormap: "jet",
     },
     jobId: null,
     result: null,
@@ -131,10 +156,7 @@ export const state = {
   },
   mobility: {
     trajectory: {
-      points: [
-        [90.0, 52.0, 1.5],
-        [105.0, 60.0, 1.5],
-      ],
+      points: [],
       velocityMps: 1.5,
       timeStepS: 1.0,
       maxSteps: 50,
@@ -142,6 +164,7 @@ export const state = {
     jobId: null,
     result: null,
     status: "Idle",
+    selectedWaypointIndex: -1,
     selectedStep: 0,
     selectedPath: -1,
     metric: "received_power_db",

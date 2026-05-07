@@ -17,6 +17,18 @@ export function createSceneRenderStateController(context) {
     performancePanel().syncPerformanceUi();
   }
 
+  function syncResultDockUi() {
+    const expanded = Boolean(state.resultDock.expanded);
+    ui.linkChannelSection.classList.toggle("collapsed", !expanded);
+    ui.btnResultDockToggle.setAttribute("aria-expanded", String(expanded));
+    ui.btnResultDockToggle.setAttribute(
+      "aria-label",
+      expanded ? "Collapse results panel" : "Expand results panel",
+    );
+    ui.channelAnalysisScroll.setAttribute("aria-hidden", String(!expanded));
+    ui.channelAnalysisScroll.inert = !expanded;
+  }
+
   function applyPerformanceSettingsToViewer() {
     performancePanel().applyPerformanceSettingsToViewer();
   }
@@ -103,6 +115,8 @@ function hideOverlay() {
   ui.loadingPhase.textContent = "Initializing...";
   ui.progressBar.classList.remove("indeterminate");
   ui.progressBar.style.width = "0%";
+  syncModeUi();
+  syncControlSidebarUi();
   syncPerformanceUi();
 }
 function tileInputFor(tileId) {
@@ -174,6 +188,12 @@ function syncModeUi() {
   for (const node of ui.radiomapOnlyParams) {
     node.classList.toggle("hidden", state.mode !== "radiomap");
   }
+  for (const node of ui.livePreviewParams) {
+    node.classList.toggle("hidden", !isLink);
+  }
+  for (const node of ui.livePreviewLinkParams) {
+    node.classList.toggle("hidden", !isLink);
+  }
   ui.deviceDock.classList.toggle("hidden", !sceneControlsVisible);
   ui.deviceDock.setAttribute("aria-hidden", String(!sceneControlsVisible));
   ui.devicePrecisionPanel.classList.toggle("hidden", !sceneControlsVisible || !nextActiveTarget);
@@ -181,6 +201,7 @@ function syncModeUi() {
   ui.linkTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "link-tx");
   ui.linkRxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "link-rx");
   ui.rmTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "rm-tx");
+  ui.linkSurfaceClearanceField.classList.toggle("hidden", !(nextActiveTarget === "link-tx" || nextActiveTarget === "link-rx" || nextActiveTarget === "rm-tx"));
   ui.btnPickLinkTx.classList.toggle("hidden", !isLinkLike);
   ui.btnPickLinkRx.classList.toggle("hidden", !isLinkLike);
   ui.btnPickRmTx.classList.toggle("hidden", state.mode !== "radiomap");
@@ -199,10 +220,10 @@ function syncModeUi() {
   ui.btnPickLinkRx.classList.toggle("picking", state.pickTarget === "link-rx");
   ui.btnPickRmTx.classList.toggle("picking", state.pickTarget === "rm-tx");
   ui.devicePrecisionTitle.textContent = nextActiveTarget === "link-rx"
-    ? "Rx Control"
+    ? "Rx"
     : nextActiveTarget === "rm-tx"
-      ? "Radio Map Tx"
-      : "Tx Control";
+      ? "RM Tx"
+      : "Tx";
   ui.stMode.textContent = isLink ? "Link" : isMobility ? "Mobility" : "Radio Map";
 }
 function syncSceneStats() {
@@ -219,6 +240,7 @@ function renderAll() {
   syncTileListUi();
   syncEntryOverviewUi();
   syncPerformanceUi();
+  syncResultDockUi();
   renderLinkResult();
   renderMobilityResult();
   renderRadiomapResult();
@@ -570,6 +592,7 @@ async function loadScene() {
     hideOverlay,
     ensureViewer,
     syncControlSidebarUi,
+    syncResultDockUi,
     syncModeUi,
     syncSceneStats,
     renderAll,

@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
+from backend import config
 from backend.rt.solve_link import solve_link
 from backend.rt.solve_mobility import solve_mobility
 from backend.rt.solve_radiomap import solve_terrain_radiomap
@@ -184,6 +185,10 @@ def fake_terrain_patch(_scene, **_kwargs):
     return object(), {
         "cell_count": 2,
         "density_level": 1,
+        "resolution_mode": "density_level",
+        "requested_cell_size": None,
+        "resolved_cell_size": 1.0,
+        "subdivision_levels": 0,
         "bounds_min": np.asarray([0.0, 0.0, 0.0], dtype=np.float32),
         "bounds_max": np.asarray([1.0, 1.0, 1.0], dtype=np.float32),
         "triangle_positions": np.asarray(
@@ -194,6 +199,11 @@ def fake_terrain_patch(_scene, **_kwargs):
             dtype=np.float32,
         ),
     }
+
+
+def fake_dense_terrain_patch(_scene, **_kwargs):
+    _surface, meta = fake_terrain_patch(_scene)
+    return _surface, {**meta, "density_level": 2, "subdivision_levels": 1}
 
 
 class SolverRuntimeCleanupTests(unittest.TestCase):
@@ -430,6 +440,24 @@ class SolverRuntimeCleanupTests(unittest.TestCase):
         self.assertEqual(result["values"]["count"], 2)
         self.assertEqual(runtime.scene.tx_array["num_rows"], 2)
         self.assertIsNone(runtime.array_calls[-1]["rx_array"])
+        self.assertEqual(runtime.scene.items, {})
+        self.assertEqual(runtime.scene.removed, ["tx_radiomap"])
+
+    def test_radiomap_effective_sample_cap_is_enforced_after_patch(self) -> None:
+        runtime = FakeRuntime()
+        previous = config.MAX_RADIOMAP_EFFECTIVE_SAMPLES
+        config.MAX_RADIOMAP_EFFECTIVE_SAMPLES = 30
+        try:
+            with patch("backend.rt.solve_radiomap.build_terrain_patch", fake_dense_terrain_patch):
+                with self.assertRaisesRegex(ValueError, "surface subdivision scaling"):
+                    solve_terrain_radiomap(
+                        runtime,
+                        {"surface": {"density_level": 2}, "solver": {"samples_per_tx": 8}},
+                        dependencies=(FakeRadioMapSolver, FakeDevice),
+                    )
+        finally:
+            config.MAX_RADIOMAP_EFFECTIVE_SAMPLES = previous
+
         self.assertEqual(runtime.scene.items, {})
         self.assertEqual(runtime.scene.removed, ["tx_radiomap"])
 

@@ -22,78 +22,120 @@
     </div>
 
     <div id="linkChannelSection" class="channelAnalysisDock hidden" aria-hidden="true">
-      <div class="channelAnalysisHead">
-        <div>
-          <div class="sectionTitle" id="resultDockTitle">Link Results</div>
-          <div class="channelAnalysisSubtitle" id="resultDockSubtitle">Paths / Channel</div>
-        </div>
-      </div>
-      <div id="linkResult" class="linkResultSummary">
-        <div class="channelStats linkSummaryStats">
-          <div><b>Received Power</b><span id="linkPower">--</span></div>
-          <div><b>Strongest Path</b><span id="linkBest">--</span></div>
-          <div><b>Total Paths</b><span id="linkPaths">--</span></div>
-          <div><b>LoS</b><span id="linkLos" class="pill no">No</span></div>
-        </div>
-      </div>
-      <div id="mobilityResult" class="linkResultSummary">
-        <div class="channelStats linkSummaryStats">
-          <div><b>Steps</b><span id="mobilitySteps">--</span></div>
-          <div><b>Power Range</b><span id="mobilityPowerRange">--</span></div>
-          <div><b>Duration</b><span id="mobilityDuration">--</span></div>
-          <div><b>Max Doppler</b><span id="mobilityMaxDoppler">--</span></div>
-        </div>
-      </div>
-      <div id="mobilityTimelineSection" class="linkDockSection hidden" aria-hidden="true">
-        <div class="sectionTitleRow">
-          <div>
-            <div class="sectionTitle">Mobility Timeline</div>
-            <div class="channelAnalysisMiniTitle" id="mobilityStepLabel">Step --</div>
-          </div>
-          <select id="mobilityMetric" class="miniSelect" aria-label="Mobility metric">
-            <option value="received_power_db">Power</option>
-            <option value="valid_paths">Paths</option>
-            <option value="max_abs_doppler_hz">Doppler</option>
-            <option value="peak_tap_power_db">Peak Tap</option>
-          </select>
-        </div>
-        <svg id="mobilitySeriesChart" class="tapChart mobilityChart" viewBox="0 0 420 172" role="img" aria-label="Mobility time series chart"></svg>
-        <div class="mobilityPlayback">
-          <button class="miniBtn" id="btnMobilityPlay" type="button">Play</button>
-          <input id="mobilityStepSlider" type="range" min="0" max="0" step="1" value="0" aria-label="Mobility step" />
-          <select id="mobilityPlaybackSpeed" class="miniSelect" aria-label="Mobility playback speed">
-            <option value="0.5">0.5x</option>
-            <option value="1" selected>1x</option>
-            <option value="2">2x</option>
-            <option value="5">5x</option>
-          </select>
-        </div>
-      </div>
-      <div id="pathDetailSection" class="linkDockSection hidden">
-        <div class="sectionTitle">Path Details</div>
-        <div id="pathDetailList" class="pathDetailList"></div>
-      </div>
-      <div id="linkTapAnalysisSection" class="linkDockSection hidden" aria-hidden="true">
-        <div class="sectionTitleRow">
-          <div>
-            <div class="sectionTitle">Channel Analysis</div>
-            <div class="channelAnalysisMiniTitle">CIR / Taps</div>
+      <button
+        class="channelAnalysisHead"
+        id="btnResultDockToggle"
+        type="button"
+        aria-label="Collapse results panel"
+        aria-expanded="true"
+        aria-controls="channelAnalysisScroll"
+      >
+        <span class="channelAnalysisTitleBlock">
+          <span class="sectionTitle" id="resultDockTitle">Link Results</span>
+          <span class="channelAnalysisSubtitle" id="resultDockSubtitle">Paths / Channel</span>
+        </span>
+        <span class="channelAnalysisHeadActions">
+          <span id="livePreviewStatus" class="livePreviewStatus hidden" aria-live="polite">Idle</span>
+          <span class="channelAnalysisChevron" aria-hidden="true">⌄</span>
+        </span>
+      </button>
+      <div id="channelAnalysisScroll" class="channelAnalysisScroll" aria-hidden="false">
+        <div id="linkResult" class="linkResultSummary">
+          <div class="channelStats linkSummaryStats">
+            <div><b>Received Power</b><span id="linkPower">--</span></div>
+            <div><b>Strongest Path</b><span id="linkBest">--</span></div>
+            <div><b>Total Paths</b><span id="linkPaths">--</span></div>
+            <div><b>LoS</b><span id="linkLos" class="pill no">No</span></div>
           </div>
         </div>
-        <div class="channelStats">
-          <div><b>Total</b><span id="linkTapTotalPower">--</span></div>
-          <div><b>Peak</b><span id="linkTapPeak">--</span></div>
-          <div><b>CIR Coefficients</b><span id="linkCirCoeffCount">--</span></div>
-          <div><b>Strongest |a|</b><span id="linkCirStrongest">--</span></div>
+        <div id="mobilityResult" class="linkResultSummary">
+          <div class="channelStats linkSummaryStats">
+            <div><b>Steps</b><span id="mobilitySteps">--</span></div>
+            <div><b>Power Range</b><span id="mobilityPowerRange">--</span></div>
+            <div><b>Duration</b><span id="mobilityDuration">--</span></div>
+            <div><b>Max Doppler</b><span id="mobilityMaxDoppler">--</span></div>
+          </div>
         </div>
-        <svg id="linkTapChart" class="tapChart" viewBox="0 0 420 172" role="img" aria-label="Channel tap power chart: x-axis Tap Index, y-axis Power in dB"></svg>
-      </div>
-      <div id="pathSelectionSection" class="linkDockSection hidden" aria-hidden="true">
-        <div class="sectionTitleRow">
-          <div class="sectionTitle">Paths</div>
-          <div class="channelAnalysisMiniTitle pathSelectionCount" id="pathSelectionCount">0 paths</div>
+        <div id="radiomapResult" class="linkResultSummary">
+          <div class="channelStats linkSummaryStats">
+            <div><b>Status</b><span id="rmStatus">Idle</span></div>
+            <div><b>Metric</b><span id="rmMetric">Path gain (dB)</span></div>
+            <div><b>Grid</b><span id="rmGrid">--</span></div>
+            <div><b>Solver Mesh</b><span id="rmMesh">--</span></div>
+          </div>
         </div>
-        <div id="pathButtons" class="pathButtons"></div>
+        <div id="radiomapResolutionSection" class="linkDockSection hidden" aria-hidden="true">
+          <div class="sectionTitle">Resolution &amp; Budget</div>
+          <div class="channelStats">
+            <div><b>Area</b><span id="rmArea">--</span></div>
+            <div><b>Cell Size</b><span id="rmCellSizeSummary">--</span></div>
+            <div><b>Samples / Tx</b><span id="rmSamples">--</span></div>
+            <div><b>Result Range</b><span id="rmRange">--</span></div>
+          </div>
+        </div>
+        <div id="rmColorbarSection" class="linkDockSection rmColorbarSection hidden" aria-hidden="true">
+          <div class="sectionTitle">Display Scale</div>
+          <div class="rmColorbarHead">
+            <span id="rmColormapLabel">Colormap: jet</span>
+            <span id="rmColorbarRange">Display limits: --</span>
+          </div>
+          <div id="rmColorbar" class="rmColorbar"></div>
+          <div class="rmColorbarTicks">
+            <span id="rmColorbarMin">--</span>
+            <span id="rmColorbarMax">--</span>
+          </div>
+        </div>
+        <div id="mobilityTimelineSection" class="linkDockSection hidden" aria-hidden="true">
+          <div class="sectionTitleRow">
+            <div>
+              <div class="sectionTitle">Mobility Timeline</div>
+              <div class="channelAnalysisMiniTitle" id="mobilityStepLabel">Step --</div>
+            </div>
+            <select id="mobilityMetric" class="miniSelect" aria-label="Mobility metric">
+              <option value="received_power_db">Power</option>
+              <option value="valid_paths">Paths</option>
+              <option value="max_abs_doppler_hz">Doppler</option>
+              <option value="peak_tap_power_db">Peak Tap</option>
+            </select>
+          </div>
+          <svg id="mobilitySeriesChart" class="tapChart mobilityChart" viewBox="0 0 420 172" role="img" aria-label="Mobility time series chart"></svg>
+          <div class="mobilityPlayback">
+            <button class="miniBtn" id="btnMobilityPlay" type="button">Play</button>
+            <input id="mobilityStepSlider" type="range" min="0" max="0" step="1" value="0" aria-label="Mobility step" />
+            <select id="mobilityPlaybackSpeed" class="miniSelect" aria-label="Mobility playback speed">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="5">5x</option>
+            </select>
+          </div>
+        </div>
+        <div id="pathDetailSection" class="linkDockSection hidden">
+          <div class="sectionTitle">Path Details</div>
+          <div id="pathDetailList" class="pathDetailList"></div>
+        </div>
+        <div id="linkTapAnalysisSection" class="linkDockSection hidden" aria-hidden="true">
+          <div class="sectionTitleRow">
+            <div>
+              <div class="sectionTitle">Channel Analysis</div>
+              <div class="channelAnalysisMiniTitle">CIR / Taps</div>
+            </div>
+          </div>
+          <div class="channelStats">
+            <div><b>Total</b><span id="linkTapTotalPower">--</span></div>
+            <div><b>Peak</b><span id="linkTapPeak">--</span></div>
+            <div><b>CIR Coefficients</b><span id="linkCirCoeffCount">--</span></div>
+            <div><b>Strongest |a|</b><span id="linkCirStrongest">--</span></div>
+          </div>
+          <svg id="linkTapChart" class="tapChart" viewBox="0 0 420 172" role="img" aria-label="Channel tap power chart: x-axis Tap Index, y-axis Power in dB"></svg>
+        </div>
+        <div id="pathSelectionSection" class="linkDockSection hidden" aria-hidden="true">
+          <div class="sectionTitleRow">
+            <div class="sectionTitle">Paths</div>
+            <div class="channelAnalysisMiniTitle pathSelectionCount" id="pathSelectionCount">0 paths</div>
+          </div>
+          <div id="pathButtons" class="pathButtons"></div>
+        </div>
       </div>
     </div>
 
@@ -418,11 +460,17 @@
                   <option value="6">6</option>
                 </select>
               </label>
-              <label class="paramField" for="linkSamplesPerSrc">
+              <label class="paramField linkOnlyParam" for="linkSamplesPerSrc">
                 <span class="paramLabel">Samples / Source
                   <span class="infoTip" tabindex="0" aria-label="Samples per source details">i<span class="tipBubble" role="tooltip">Monte Carlo rays per transmitter. Default 30000; higher values reduce noise but scale runtime directly.</span></span>
                 </span>
                 <input id="linkSamplesPerSrc" type="number" step="1000" min="1" max="1000000" value="30000" />
+              </label>
+              <label class="paramField radiomapOnlyParam hidden" for="rmSamplesPerTx">
+                <span class="paramLabel">Samples / Tx
+                  <span class="infoTip" tabindex="0" aria-label="Radio map samples details">i<span class="tipBubble" role="tooltip">Base Monte Carlo samples per transmitter for Radio Map. Effective samples scale with the terrain patch subdivision.</span></span>
+                </span>
+                <input id="rmSamplesPerTx" type="number" step="1000" min="1" max="2000000" value="1000000" />
               </label>
               <label class="paramField linkOnlyParam" for="linkMaxNumPaths">
                 <span class="paramLabel">Max Paths / Source
@@ -459,6 +507,30 @@
             </div>
           </section>
 
+          <section class="paramGroup livePreviewParam hidden">
+            <div class="paramGroupTitle">Live Preview</div>
+            <div class="paramCheckGrid">
+              <label class="paramCheck wide"><input id="livePreviewEnabled" type="checkbox" /><span>Enable Live Preview <span class="infoTip" tabindex="0" aria-label="Live preview details">i<span class="tipBubble" role="tooltip">Runs low-cost previews while moving devices, then a final solve after movement stops. Default off to protect shared GPU time.</span></span></span></label>
+            </div>
+            <div class="paramGrid">
+              <label class="paramField livePreviewLinkParam hidden" for="livePreviewLinkSamples">
+                <span class="paramLabel">Preview Samples / Source
+                  <span class="infoTip" tabindex="0" aria-label="Preview link samples details">i<span class="tipBubble" role="tooltip">Low-sample path solve used while dragging Link Tx/Rx.</span></span>
+                </span>
+                <input id="livePreviewLinkSamples" type="number" step="100" min="1" max="1000000" value="1000" />
+              </label>
+              <label class="paramField livePreviewLinkParam hidden" for="livePreviewPathsDelay">
+                <span class="paramLabel">Paths Delay
+                  <span class="infoTip" tabindex="0" aria-label="Paths delay details">i<span class="tipBubble" role="tooltip">Minimum seconds between path previews and idle delay before the final solve.</span></span>
+                </span>
+                <span class="unitInput">
+                  <input id="livePreviewPathsDelay" type="number" step="0.1" min="0" max="10" value="0.8" />
+                  <span class="unitSuffix" aria-hidden="true">s</span>
+                </span>
+              </label>
+            </div>
+          </section>
+
           <section class="paramGroup radiomapOnlyParam hidden">
             <div class="paramGroupTitle">Terrain Patch</div>
             <div class="paramGrid">
@@ -489,11 +561,31 @@
                   <span class="unitSuffix" aria-hidden="true">m</span>
                 </span>
               </label>
+              <label class="paramField" for="rmCellSize">
+                <span class="paramLabel">Cell Size
+                  <span class="infoTip" tabindex="0" aria-label="Cell size details">i<span class="tipBubble" role="tooltip">Optional XY grid size in meters. Generates a terrain-following measurement grid; leave blank for Auto Density Level.</span></span>
+                </span>
+                <span class="unitInput">
+                  <input id="rmCellSize" type="number" step="0.1" min="0.01" max="100" placeholder="Auto" />
+                  <span class="unitSuffix" aria-hidden="true">m</span>
+                </span>
+              </label>
               <label class="paramField" for="rmDensityLevel">
                 <span class="paramLabel">Density Level
-                  <span class="infoTip" tabindex="0" aria-label="Density details">i<span class="tipBubble" role="tooltip">Grid density multiplier from 1 to 3. Default 2; higher levels increase effective radio-map samples.</span></span>
+                  <span class="infoTip" tabindex="0" aria-label="Density details">i<span class="tipBubble" role="tooltip">Auto resolution fallback from 1 to 3. Ignored when Cell Size is set.</span></span>
                 </span>
                 <input id="rmDensityLevel" type="number" step="1" min="1" max="3" value="2" />
+              </label>
+              <label class="paramField" for="rmColormap">
+                <span class="paramLabel">Colormap
+                  <span class="infoTip" tabindex="0" aria-label="Colormap details">i<span class="tipBubble" role="tooltip">Display color scale for the radio-map overlay and result colorbar.</span></span>
+                </span>
+                <select id="rmColormap">
+                  <option value="viridis">viridis</option>
+                  <option value="plasma">plasma</option>
+                  <option value="turbo">turbo</option>
+                  <option value="jet" selected>jet</option>
+                </select>
               </label>
               <label class="paramField" for="rmColorMin">
                 <span class="paramLabel">Color Min
@@ -519,18 +611,7 @@
 
         <section id="linkPanel" class="modePanel"></section>
         <section id="mobilityPanel" class="modePanel hidden"></section>
-
-        <section id="radiomapPanel" class="modePanel hidden">
-          <div id="radiomapResult" class="rtResult">
-            <div class="rxTitle">Radio Map Result</div>
-            <div class="rxGrid">
-              <div class="rxItem"><b>Status</b><span id="rmStatus">Idle</span></div>
-              <div class="rxItem"><b>Metric</b><span id="rmMetric">path_gain</span></div>
-              <div class="rxItem"><b>Cells</b><span id="rmGrid">--</span></div>
-              <div class="rxItem"><b>Range</b><span id="rmRange">--</span></div>
-            </div>
-          </div>
-        </section>
+        <section id="radiomapPanel" class="modePanel hidden"></section>
 
         <div class="actions">
           <button class="btn" id="btnResetView">Reset View</button>
@@ -540,12 +621,9 @@
     </div>
 
     <div id="deviceDock" class="deviceDock hidden" aria-hidden="true">
-      <div id="devicePrecisionPanel" class="devicePrecisionPanel hidden" aria-hidden="true">
+      <div id="devicePrecisionPanel" class="devicePrecisionPanel deviceCompactBar hidden" aria-hidden="true">
         <div class="devicePrecisionHead">
-          <div>
-            <div class="devicePrecisionKicker">Device Position</div>
-            <div id="devicePrecisionTitle" class="devicePrecisionTitle">Tx Control</div>
-          </div>
+          <div id="devicePrecisionTitle" class="devicePrecisionTitle">Tx</div>
           <div id="hintText" class="devicePrecisionStatus" aria-live="polite">Pick a surface point or fine-tune below.</div>
         </div>
 
@@ -571,6 +649,15 @@
               <label>Z <span class="unitInput"><input id="rmTxZ" type="number" step="1.0" value="40.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
             </div>
           </section>
+          <label id="linkSurfaceClearanceField" class="deviceClearanceField hidden" for="linkSurfaceClearance">
+            <span>Clearance
+              <span class="infoTip" tabindex="0" aria-label="Surface clearance details">i<span class="tipBubble" role="tooltip">Distance from the picked surface for Link Tx/Rx and Radio Map Tx. Applies to the next click or drag placement only.</span></span>
+            </span>
+            <span class="unitInput">
+              <input id="linkSurfaceClearance" type="number" step="0.1" min="0" max="50" value="1.5" />
+              <span class="unitSuffix" aria-hidden="true">m</span>
+            </span>
+          </label>
         </div>
       </div>
 

@@ -4,6 +4,7 @@ import {GLBGeometryLoader} from "/lib/GLBGeometryLoader.js";
 import {Line2} from "/lib/Line2.js";
 import {LineGeometry} from "/lib/LineGeometry.js";
 import {LineMaterial} from "/lib/LineMaterial.js";
+import {colorForColormap} from "/js/colormaps.js";
 
 const DEFAULT_VIEW = {
   position: new THREE.Vector3(-120, -180, 150),
@@ -106,38 +107,6 @@ function pathColor(t) {
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
-}
-
-function jetColor(t) {
-  const x = clamp01(t);
-  const stops = [
-    {t: 0.0, c: [0, 0, 128]},
-    {t: 0.16, c: [0, 0, 255]},
-    {t: 0.36, c: [0, 160, 255]},
-    {t: 0.5, c: [0, 255, 255]},
-    {t: 0.68, c: [255, 255, 0]},
-    {t: 0.82, c: [255, 160, 0]},
-    {t: 0.93, c: [255, 0, 0]},
-    {t: 1.0, c: [128, 0, 0]},
-  ];
-
-  for (let i = 0; i < stops.length - 1; i += 1) {
-    const a = stops[i];
-    const b = stops[i + 1];
-    if (x >= a.t && x <= b.t) {
-      const u = (x - a.t) / (b.t - a.t);
-      const r = (a.c[0] + (b.c[0] - a.c[0]) * u) / 255;
-      const g = (a.c[1] + (b.c[1] - a.c[1]) * u) / 255;
-      const blue = (a.c[2] + (b.c[2] - a.c[2]) * u) / 255;
-      return new THREE.Color(r, g, blue);
-    }
-  }
-
-  return new THREE.Color("#800000");
-}
-
-function heatmapColor(t) {
-  return jetColor(t);
 }
 
 function normalize(values) {
@@ -902,18 +871,28 @@ export class Viewer {
     const hit = hits[0];
     const logicalPosition = hit.point.clone();
     const markerPosition = hit.point.clone();
+    let surfaceNormal = null;
 
     if (markerOffset > 0 && hit.face?.normal) {
-      const worldNormal = hit.face.normal.clone();
+      surfaceNormal = hit.face.normal.clone();
       const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
-      worldNormal.applyNormalMatrix(normalMatrix).normalize();
-      if (worldNormal.dot(this.raycaster.ray.direction) > 0) {
-        worldNormal.negate();
+      surfaceNormal.applyNormalMatrix(normalMatrix).normalize();
+      if (surfaceNormal.dot(this.raycaster.ray.direction) > 0) {
+        surfaceNormal.negate();
       }
-      markerPosition.addScaledVector(worldNormal, markerOffset);
+      markerPosition.addScaledVector(surfaceNormal, markerOffset);
+    } else if (hit.face?.normal) {
+      surfaceNormal = hit.face.normal.clone();
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
+      surfaceNormal.applyNormalMatrix(normalMatrix).normalize();
+      if (surfaceNormal.dot(this.raycaster.ray.direction) > 0) {
+        surfaceNormal.negate();
+      }
     }
 
     return {
+      surfacePosition: [hit.point.x, hit.point.y, hit.point.z],
+      surfaceNormal: surfaceNormal ? [surfaceNormal.x, surfaceNormal.y, surfaceNormal.z] : null,
       logicalPosition: [logicalPosition.x, logicalPosition.y, logicalPosition.z],
       markerPosition: [markerPosition.x, markerPosition.y, markerPosition.z],
     };
@@ -1123,27 +1102,29 @@ export class Viewer {
 
   renderMobilityTrajectory(points = [], samples = [], selectedIndex = -1) {
     this.clearMobility();
-    if (!Array.isArray(points) || points.length < 2) {
+    if (!Array.isArray(points) || points.length < 1) {
       return;
     }
 
-    const flat = [];
-    for (const point of points) {
-      flat.push(point[0], point[1], point[2]);
+    if (points.length >= 2) {
+      const flat = [];
+      for (const point of points) {
+        flat.push(point[0], point[1], point[2]);
+      }
+      const geometry = new LineGeometry();
+      geometry.setPositions(flat);
+      const material = new LineMaterial({
+        color: new THREE.Color("#1f6fff"),
+        linewidth: 2.6,
+        transparent: true,
+        opacity: 0.78,
+        depthTest: true,
+        depthWrite: false,
+        toneMapped: false,
+      });
+      material.resolution.set(window.innerWidth, window.innerHeight);
+      this.mobilityGroup.add(new Line2(geometry, material));
     }
-    const geometry = new LineGeometry();
-    geometry.setPositions(flat);
-    const material = new LineMaterial({
-      color: new THREE.Color("#1f6fff"),
-      linewidth: 2.6,
-      transparent: true,
-      opacity: 0.78,
-      depthTest: true,
-      depthWrite: false,
-      toneMapped: false,
-    });
-    material.resolution.set(window.innerWidth, window.innerHeight);
-    this.mobilityGroup.add(new Line2(geometry, material));
 
     const samplePoints = Array.isArray(samples) && samples.length
       ? samples.map((sample) => sample.rx_position)
@@ -1235,7 +1216,7 @@ export class Viewer {
     this.radiomapMesh = null;
   }
 
-  renderRadiomap(result, colorRange = {minDb: -140, maxDb: -80}) {
+  renderRadiomap(result, colorRange = {minDb: -140, maxDb: -80, colormap: "jet"}) {
     this.clearRadiomap();
     this.clearSurfacePreview();
 
@@ -1245,17 +1226,18 @@ export class Viewer {
     const displayMin = Number(colorRange.minDb);
     const displayMax = Number(colorRange.maxDb);
     const displayRange = Math.max(displayMax - displayMin, 1e-6);
+    const colormap = colorRange.colormap || "jet";
     const colors = new Float32Array(triangleCount * 9);
 
     for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
       const value = rawValues[triangleIndex];
       const t = clamp01((value - displayMin) / displayRange);
-      const color = heatmapColor(t);
+      const color = colorForColormap(colormap, t);
       for (let vertexIndex = 0; vertexIndex < 3; vertexIndex += 1) {
         const base = triangleIndex * 9 + vertexIndex * 3;
-        colors[base] = color.r;
-        colors[base + 1] = color.g;
-        colors[base + 2] = color.b;
+        colors[base] = color.r / 255;
+        colors[base + 1] = color.g / 255;
+        colors[base + 2] = color.b / 255;
       }
     }
 

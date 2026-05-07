@@ -32,10 +32,9 @@ class SolverValidationTests(unittest.TestCase):
         self.assertEqual(link["channel_tap_count"], config.DEFAULT_LINK_TAPS_L_MAX - config.DEFAULT_LINK_TAPS_L_MIN + 1)
         self.assertEqual(radiomap["tx_array"], default_array)
         self.assertEqual(radiomap["surface_density_level"], config.DEFAULT_RADIOMAP_DENSITY_LEVEL)
-        self.assertEqual(
-            radiomap["samples_per_tx"],
-            config.DEFAULT_RADIOMAP_SAMPLES * (4 ** (config.DEFAULT_RADIOMAP_DENSITY_LEVEL - 1)),
-        )
+        self.assertIsNone(radiomap["surface_cell_size"])
+        self.assertEqual(radiomap["surface_resolution_mode"], "density_level")
+        self.assertEqual(radiomap["base_samples_per_tx"], config.DEFAULT_RADIOMAP_SAMPLES)
 
     def test_antenna_array_payloads_are_validated(self) -> None:
         link = parse_link_payload(
@@ -201,6 +200,8 @@ class SolverValidationTests(unittest.TestCase):
     def test_radiomap_solver_bounds_are_enforced(self) -> None:
         invalid_payloads = [
             {"surface": {"density_level": config.MAX_RADIOMAP_DENSITY_LEVEL + 1}},
+            {"surface": {"cell_size": config.MIN_RADIOMAP_CELL_SIZE / 2}},
+            {"surface": {"cell_size": config.MAX_RADIOMAP_CELL_SIZE + 1}},
             {"surface": {"height_offset": -0.1}},
             {"surface": {"size": [0, 160]}},
             {"solver": {"samples_per_tx": config.MAX_RADIOMAP_SAMPLES + 1}},
@@ -212,19 +213,18 @@ class SolverValidationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     parse_radiomap_payload(payload)
 
-    def test_radiomap_effective_sample_cap_is_enforced(self) -> None:
-        previous = config.MAX_RADIOMAP_EFFECTIVE_SAMPLES
-        config.MAX_RADIOMAP_EFFECTIVE_SAMPLES = 100
-        try:
-            with self.assertRaisesRegex(ValueError, "density scaling"):
-                parse_radiomap_payload(
-                    {
-                        "surface": {"density_level": 2},
-                        "solver": {"samples_per_tx": 26},
-                    }
-                )
-        finally:
-            config.MAX_RADIOMAP_EFFECTIVE_SAMPLES = previous
+    def test_radiomap_cell_size_overrides_density_mode(self) -> None:
+        parsed = parse_radiomap_payload(
+            {
+                "surface": {"cell_size": "2.5", "density_level": 1},
+                "solver": {"samples_per_tx": 26},
+            }
+        )
+
+        self.assertEqual(parsed["surface_cell_size"], 2.5)
+        self.assertEqual(parsed["surface_resolution_mode"], "cell_size")
+        self.assertEqual(parsed["surface_density_level"], 1)
+        self.assertEqual(parsed["base_samples_per_tx"], 26)
 
     def test_mobility_payload_samples_rx_trajectory(self) -> None:
         parsed = parse_mobility_payload(

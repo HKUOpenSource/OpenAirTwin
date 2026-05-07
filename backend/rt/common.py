@@ -531,6 +531,14 @@ def parse_radiomap_payload(payload: dict) -> dict:
         min_value=config.MIN_RADIOMAP_DENSITY_LEVEL,
         max_value=config.MAX_RADIOMAP_DENSITY_LEVEL,
     )
+    cell_size = None
+    if surface.get("cell_size") is not None:
+        cell_size = parse_bounded_float(
+            surface.get("cell_size"),
+            name="surface.cell_size",
+            min_value=config.MIN_RADIOMAP_CELL_SIZE,
+            max_value=config.MAX_RADIOMAP_CELL_SIZE,
+        )
 
     metric = payload.get("metric", "path_gain")
     if not isinstance(metric, str):
@@ -544,12 +552,6 @@ def parse_radiomap_payload(payload: dict) -> dict:
         min_value=config.MIN_RADIOMAP_SAMPLES,
         max_value=config.MAX_RADIOMAP_SAMPLES,
     )
-    effective_samples_per_tx = base_samples_per_tx * (4 ** (density_level - 1))
-    if effective_samples_per_tx > config.MAX_RADIOMAP_EFFECTIVE_SAMPLES:
-        raise ValueError(
-            "solver.samples_per_tx after density scaling must be at most "
-            f"{config.MAX_RADIOMAP_EFFECTIVE_SAMPLES}"
-        )
     tx_array = parse_antenna_array_payload(solver.get("tx_array"), name="solver.tx_array")
 
     return {
@@ -559,6 +561,8 @@ def parse_radiomap_payload(payload: dict) -> dict:
         "surface_size": size,
         "surface_height_offset": height_offset,
         "surface_density_level": density_level,
+        "surface_cell_size": cell_size,
+        "surface_resolution_mode": "cell_size" if cell_size is not None else "density_level",
         "metric": metric,
         "frequency_hz": parse_bounded_float(
             solver.get("frequency_hz", config.DEFAULT_FREQUENCY_HZ),
@@ -573,7 +577,6 @@ def parse_radiomap_payload(payload: dict) -> dict:
             max_value=config.MAX_SOLVER_DEPTH,
         ),
         "base_samples_per_tx": base_samples_per_tx,
-        "samples_per_tx": effective_samples_per_tx,
         "los": solver_bool(solver, "los", True),
         "specular_reflection": solver_bool(solver, "specular_reflection", True),
         "diffuse_reflection": solver_bool(solver, "diffuse_reflection", False),

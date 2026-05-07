@@ -1,3 +1,5 @@
+import {colormapGradient, normalizeColormapName} from "/js/colormaps.js";
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 export function createSolverControlsController(context) {
@@ -176,6 +178,22 @@ function linkChannelConfig() {
   };
 }
 
+function linkSolvePayload({preview = false} = {}) {
+  const solver = linkSolverConfig();
+  const channel = linkChannelConfig();
+  if (preview) {
+    solver.samples_per_src = Math.max(1, Math.floor(Number(state.livePreview.link.previewSamplesPerSrc)));
+    solver.max_num_paths_per_src = Math.min(Number(solver.max_num_paths_per_src), 10000);
+    channel.compute_taps = false;
+  }
+  return {
+    tx: {position: state.link.tx, orientation: [0, 0, 0]},
+    rx: {position: state.link.rx, orientation: [0, 0, 0]},
+    solver,
+    channel,
+  };
+}
+
 function derivedSubcarrierSpacingHz() {
   const bandwidthHz = Number(state.link.advanced.bandwidthMhz) * 1e6;
   const fftSize = Number(state.link.advanced.tapFftSize);
@@ -217,6 +235,20 @@ function syncLinkAdvancedInputs() {
   }
 }
 
+function syncLivePreviewInputs() {
+  const live = state.livePreview;
+  inputs.livePreviewEnabled.checked = Boolean(live.enabled);
+  inputs.livePreviewLinkSamples.value = String(live.link.previewSamplesPerSrc);
+  inputs.livePreviewPathsDelay.value = String(live.link.pathsDelayS);
+}
+
+function readLivePreviewInputs() {
+  const live = state.livePreview;
+  live.enabled = Boolean(inputs.livePreviewEnabled.checked);
+  live.link.previewSamplesPerSrc = Number(inputs.livePreviewLinkSamples.value);
+  live.link.pathsDelayS = Number(inputs.livePreviewPathsDelay.value);
+}
+
 function mobilityDistance(points = state.mobility.trajectory.points) {
   let total = 0;
   for (let i = 1; i < points.length; i += 1) {
@@ -249,11 +281,55 @@ function formatCoord(point) {
   return point.map((value) => Number(value).toFixed(1)).join(", ");
 }
 
+function resetMobilityResultState() {
+  stopMobilityPlayback();
+  state.mobility.result = null;
+  state.mobility.selectedStep = 0;
+  state.mobility.selectedPath = -1;
+}
+
+function normalizeMobilityWaypointSelection() {
+  const count = state.mobility.trajectory.points.length;
+  if (count <= 0) {
+    state.mobility.selectedWaypointIndex = -1;
+    return;
+  }
+  const selected = Number(state.mobility.selectedWaypointIndex);
+  state.mobility.selectedWaypointIndex = Number.isInteger(selected)
+    ? Math.min(Math.max(selected, 0), count - 1)
+    : count - 1;
+}
+
+function deleteMobilityWaypoint(index = state.mobility.selectedWaypointIndex) {
+  const points = state.mobility.trajectory.points;
+  if (!Number.isInteger(index) || index < 0 || index >= points.length) {
+    return false;
+  }
+  points.splice(index, 1);
+  state.mobility.selectedWaypointIndex = points.length ? Math.min(index, points.length - 1) : -1;
+  resetMobilityResultState();
+  renderAll();
+  return true;
+}
+
 function renderMobilityWaypoints() {
   ui.mobilityWaypointList.innerHTML = "";
+  normalizeMobilityWaypointSelection();
+  if (!state.mobility.trajectory.points.length) {
+    const empty = document.createElement("div");
+    empty.className = "waypointEmpty";
+    empty.textContent = "No Rx waypoints yet";
+    ui.mobilityWaypointList.appendChild(empty);
+    return;
+  }
   state.mobility.trajectory.points.forEach((point, index) => {
     const item = document.createElement("div");
     item.className = "waypointItem";
+    item.classList.toggle("active", index === state.mobility.selectedWaypointIndex);
+    item.addEventListener("click", () => {
+      state.mobility.selectedWaypointIndex = index;
+      renderAll();
+    });
     const badge = document.createElement("span");
     badge.className = "waypointIndex";
     badge.textContent = String(index + 1);
@@ -264,17 +340,10 @@ function renderMobilityWaypoints() {
     remove.className = "waypointRemove";
     remove.type = "button";
     remove.textContent = "×";
-    remove.disabled = state.mobility.trajectory.points.length <= 2;
     remove.setAttribute("aria-label", `Remove waypoint ${index + 1}`);
-    remove.addEventListener("click", () => {
-      if (state.mobility.trajectory.points.length <= 2) {
-        return;
-      }
-      state.mobility.trajectory.points.splice(index, 1);
-      state.mobility.result = null;
-      state.mobility.selectedStep = 0;
-      state.mobility.selectedPath = -1;
-      renderAll();
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteMobilityWaypoint(index);
     });
     item.append(badge, coord, remove);
     ui.mobilityWaypointList.appendChild(item);
@@ -290,7 +359,7 @@ function renderMobilityTrajectoryPreview() {
   getViewer().renderMobilityTrajectory(
     state.mobility.trajectory.points,
     result?.samples || [],
-    result ? state.mobility.selectedStep : -1,
+    result ? state.mobility.selectedStep : state.mobility.selectedWaypointIndex,
   );
 }
 
@@ -313,8 +382,11 @@ function syncNumericInputs() {
   const [sx, sy] = state.radiomap.surface.size;
   const heightOffset = state.radiomap.surface.heightOffset;
   const densityLevel = state.radiomap.surface.densityLevel;
+  const cellSize = state.radiomap.surface.cellSize;
+  const samplesPerTx = state.radiomap.solver.samplesPerTx;
   const colorMinDb = state.radiomap.display.colorMinDb;
   const colorMaxDb = state.radiomap.display.colorMaxDb;
+  const colormap = state.radiomap.display.colormap;
 
   inputs.linkTxX.value = ltx.toFixed(1);
   inputs.linkTxY.value = lty.toFixed(1);
@@ -322,17 +394,23 @@ function syncNumericInputs() {
   inputs.linkRxX.value = lrx.toFixed(1);
   inputs.linkRxY.value = lry.toFixed(1);
   inputs.linkRxZ.value = lrz.toFixed(1);
+  const clearanceScope = state.deviceControl.activeTarget === "rm-tx" ? "radiomap" : "link";
+  inputs.linkSurfaceClearance.value = String(surfaceClearanceM(clearanceScope));
   inputs.rmTxX.value = rtx.toFixed(1);
   inputs.rmTxY.value = rty.toFixed(1);
   inputs.rmTxZ.value = rtz.toFixed(1);
   inputs.rmSizeX.value = sx.toFixed(1);
   inputs.rmSizeY.value = sy.toFixed(1);
   inputs.rmHeightOffset.value = heightOffset.toFixed(1);
+  inputs.rmSamplesPerTx.value = String(samplesPerTx);
+  inputs.rmCellSize.value = cellSize == null ? "" : String(cellSize);
   inputs.rmDensityLevel.value = String(densityLevel);
+  inputs.rmColormap.value = normalizeColormapName(colormap);
   inputs.rmColorMin.value = colorMinDb.toFixed(0);
   inputs.rmColorMax.value = colorMaxDb.toFixed(0);
   syncAntennaArrayInputs();
   syncLinkAdvancedInputs();
+  syncLivePreviewInputs();
   syncMobilityInputs();
 }
 
@@ -344,6 +422,44 @@ function setVector(target, values) {
 function setLogicalAndVisual(logicalTarget, visualTarget, logicalValues, visualValues = logicalValues) {
   setVector(logicalTarget, logicalValues);
   setVector(visualTarget, visualValues);
+}
+
+function surfaceClearanceM(scope = "link") {
+  const value = Number(scope === "radiomap" ? state.radiomap.surfaceClearanceM : state.link.surfaceClearanceM);
+  if (!Number.isFinite(value)) {
+    return 1.5;
+  }
+  return Math.max(0, Math.min(50, value));
+}
+
+function pickPositionWithSurfaceClearance(pick, scope = "link") {
+  const base = Array.isArray(pick.surfacePosition) ? pick.surfacePosition : pick.logicalPosition;
+  const normal = Array.isArray(pick.surfaceNormal) ? pick.surfaceNormal : null;
+  const clearance = surfaceClearanceM(scope);
+  if (!base || !normal || !normal.every(Number.isFinite)) {
+    return pick.logicalPosition;
+  }
+  return base.map((value, index) => Number(value) + (normal[index] * clearance));
+}
+
+function linkPickPosition(pick) {
+  return pickPositionWithSurfaceClearance(pick, "link");
+}
+
+function radiomapTxPickPosition(pick) {
+  return pickPositionWithSurfaceClearance(pick, "radiomap");
+}
+
+function readSurfaceClearanceInput(scope = state.deviceControl.activeTarget === "rm-tx" ? "radiomap" : "link") {
+  const clearance = Number(inputs.linkSurfaceClearance.value);
+  const nextClearance = Number.isFinite(clearance)
+    ? Math.max(0, Math.min(50, clearance))
+    : 1.5;
+  if (scope === "radiomap") {
+    state.radiomap.surfaceClearanceM = nextClearance;
+  } else {
+    state.link.surfaceClearanceM = nextClearance;
+  }
 }
 
 function syncViewerMarkers() {
@@ -372,6 +488,7 @@ function readLinkInputs() {
     Number(inputs.linkRxY.value),
     Number(inputs.linkRxZ.value),
   ]);
+  readSurfaceClearanceInput("link");
   state.link.advanced.samplesPerSrc = Number(inputs.linkSamplesPerSrc.value);
   state.link.advanced.maxNumPathsPerSrc = Number(inputs.linkMaxNumPaths.value);
   state.link.advanced.bandwidthMhz = Number(inputs.linkBandwidthMhz.value);
@@ -396,7 +513,11 @@ function readRadiomapInputs() {
   ]);
   state.radiomap.surface.size = [Number(inputs.rmSizeX.value), Number(inputs.rmSizeY.value)];
   state.radiomap.surface.heightOffset = Number(inputs.rmHeightOffset.value);
+  state.radiomap.solver.samplesPerTx = Number(inputs.rmSamplesPerTx.value);
+  const cellSizeText = inputs.rmCellSize.value.trim();
+  state.radiomap.surface.cellSize = cellSizeText === "" ? null : Number(cellSizeText);
   state.radiomap.surface.densityLevel = Number(inputs.rmDensityLevel.value);
+  state.radiomap.display.colormap = normalizeColormapName(inputs.rmColormap.value);
   state.radiomap.display.colorMinDb = Number(inputs.rmColorMin.value);
   state.radiomap.display.colorMaxDb = Number(inputs.rmColorMax.value);
   readAntennaArrayInputs();
@@ -415,7 +536,9 @@ function radiomapColorRange() {
   if (!(minDb < maxDb)) {
     throw new Error("Radio map color range must satisfy Color Min < Color Max");
   }
-  return {minDb, maxDb};
+  const colormap = normalizeColormapName(state.radiomap.display.colormap);
+  state.radiomap.display.colormap = colormap;
+  return {minDb, maxDb, colormap};
 }
 
 function rerenderRadiomapOverlay() {
@@ -428,6 +551,63 @@ function rerenderRadiomapOverlay() {
 
 function formatFixed(value, digits = 2, suffix = "") {
   return Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : "N/A";
+}
+
+function formatCount(value) {
+  return Number.isFinite(value) ? Math.round(value).toLocaleString() : "N/A";
+}
+
+function renderRadiomapColorbar(visible) {
+  ui.rmColorbarSection.classList.toggle("hidden", !visible);
+  ui.rmColorbarSection.setAttribute("aria-hidden", String(!visible));
+  if (!visible) {
+    return;
+  }
+  const {minDb, maxDb, colormap} = radiomapColorRange();
+  ui.rmColorbar.style.background = colormapGradient(colormap);
+  ui.rmColormapLabel.textContent = `Colormap: ${colormap}`;
+  ui.rmColorbarRange.textContent = `Display limits: ${minDb.toFixed(0)} .. ${maxDb.toFixed(0)} dB`;
+  ui.rmColorbarMin.textContent = `${minDb.toFixed(0)} dB`;
+  ui.rmColorbarMax.textContent = `${maxDb.toFixed(0)} dB`;
+}
+
+function formatStatus(status) {
+  const text = String(status || "Idle");
+  return text ? `${text[0].toUpperCase()}${text.slice(1)}` : "Idle";
+}
+
+function formatArea(size) {
+  const [width, height] = Array.isArray(size) ? size : [];
+  return `${formatFixed(Number(width), 1)} x ${formatFixed(Number(height), 1, " m")}`;
+}
+
+function hideRadiomapDockContent() {
+  ui.radiomapResult.style.display = "none";
+  ui.radiomapResolutionSection.classList.add("hidden");
+  ui.radiomapResolutionSection.setAttribute("aria-hidden", "true");
+  renderRadiomapColorbar(false);
+}
+
+function livePreviewStatusAppliesToCurrentMode() {
+  return state.livePreview.mode === "link" && state.mode === "link";
+}
+
+function syncLivePreviewStatusUi() {
+  const visible = state.livePreview.status !== "Idle" && livePreviewStatusAppliesToCurrentMode();
+  ui.livePreviewStatus.classList.toggle("hidden", !visible);
+  ui.livePreviewStatus.textContent = visible ? state.livePreview.status : "Idle";
+}
+
+function setLivePreviewStatus(mode, status) {
+  state.livePreview.mode = mode;
+  state.livePreview.status = status;
+  syncLivePreviewStatusUi();
+}
+
+function clearLivePreviewStatus() {
+  state.livePreview.mode = null;
+  state.livePreview.status = "Idle";
+  syncLivePreviewStatusUi();
 }
 
 function formatExp(value, digits = 3) {
@@ -713,7 +893,11 @@ function renderLinkChannel(channel) {
 
 function renderLinkResult() {
   const result = state.link.result;
-  if (!result || state.mode !== "link") {
+  const liveActive = state.mode === "link"
+    && state.livePreview.mode === "link"
+    && state.livePreview.status !== "Idle";
+  syncLivePreviewStatusUi();
+  if ((!result && !liveActive) || state.mode !== "link") {
     if (state.mode !== "mobility") {
       ui.linkChannelSection.classList.add("hidden");
       ui.linkChannelSection.setAttribute("aria-hidden", "true");
@@ -739,6 +923,18 @@ function renderLinkResult() {
   ui.mobilityResult.style.display = "none";
   ui.mobilityTimelineSection.classList.add("hidden");
   ui.mobilityTimelineSection.setAttribute("aria-hidden", "true");
+  if (!result) {
+    ui.linkPower.textContent = "--";
+    ui.linkBest.textContent = "--";
+    ui.linkPaths.textContent = "--";
+    ui.linkLos.textContent = "--";
+    ui.linkLos.className = "pill no";
+    renderLinkChannel(null);
+    clearPathSelection();
+    ui.pathDetailList.innerHTML = "";
+    ui.pathDetailSection.classList.add("hidden");
+    return;
+  }
   ui.linkPower.textContent = Number.isFinite(result.summary.received_power_db)
     ? `${result.summary.received_power_db.toFixed(2)} dB`
     : "N/A";
@@ -981,16 +1177,65 @@ function renderMobilityResult() {
 }
 
 function renderRadiomapResult() {
+  const shouldShow = state.mode === "radiomap"
+    && (state.radiomap.status !== "Idle" || Boolean(state.radiomap.result));
+  syncLivePreviewStatusUi();
+  if (!shouldShow) {
+    hideRadiomapDockContent();
+    if (state.mode === "radiomap") {
+      ui.linkChannelSection.classList.add("hidden");
+      ui.linkChannelSection.setAttribute("aria-hidden", "true");
+    }
+    return;
+  }
+
+  ui.linkChannelSection.classList.remove("hidden");
+  ui.linkChannelSection.setAttribute("aria-hidden", "false");
+  ui.resultDockTitle.textContent = "Radio Map Results";
+  ui.resultDockSubtitle.textContent = "Path gain / Terrain grid";
+  ui.linkResult.style.display = "none";
+  ui.mobilityResult.style.display = "none";
+  ui.mobilityTimelineSection.classList.add("hidden");
+  ui.mobilityTimelineSection.setAttribute("aria-hidden", "true");
+  ui.linkTapAnalysisSection.classList.add("hidden");
+  ui.linkTapAnalysisSection.setAttribute("aria-hidden", "true");
+  ui.pathSelectionSection.classList.add("hidden");
+  ui.pathSelectionSection.setAttribute("aria-hidden", "true");
+  ui.pathDetailSection.classList.add("hidden");
+  ui.radiomapResolutionSection.classList.remove("hidden");
+  ui.radiomapResolutionSection.setAttribute("aria-hidden", "false");
   ui.radiomapResult.style.display = "block";
-  ui.rmStatus.textContent = state.radiomap.status;
-  ui.rmMetric.textContent = "path_gain";
+  ui.rmStatus.textContent = formatStatus(state.radiomap.status);
+  ui.rmMetric.textContent = "Path gain (dB)";
+  ui.rmArea.textContent = formatArea(state.radiomap.surface.size);
+
   if (state.radiomap.result) {
-    ui.rmGrid.textContent = `${state.radiomap.result.surface.cell_count.toLocaleString()} cells - D${state.radiomap.result.surface.density_level}`;
-    ui.rmRange.textContent = `${state.radiomap.result.range.min.toFixed(1)} .. ${state.radiomap.result.range.max.toFixed(1)} dB | color ${state.radiomap.display.colorMinDb.toFixed(0)} .. ${state.radiomap.display.colorMaxDb.toFixed(0)} dB`;
+    const {surface, solver, range} = state.radiomap.result;
+    const requestedCellSize = Number(surface.requested_cell_size);
+    if (surface.resolution_mode === "cell_size_grid") {
+      const [nx, ny] = Array.isArray(surface.grid_shape) ? surface.grid_shape : ["?", "?"];
+      ui.rmGrid.textContent = `${nx} x ${ny} cells (${formatCount(surface.grid_cell_count)})`;
+      ui.rmMesh.textContent = `${formatCount(surface.triangle_count)} triangles`;
+      ui.rmCellSizeSummary.textContent = `${formatFixed(requestedCellSize, 1, " m")} target | ${formatFixed(Number(surface.resolved_cell_size_x), 1)} x ${formatFixed(Number(surface.resolved_cell_size_y), 1, " m")} resolved`;
+    } else {
+      ui.rmGrid.textContent = `Auto D${surface.density_level} terrain cells (${formatCount(surface.cell_count)})`;
+      ui.rmMesh.textContent = `${formatCount(surface.cell_count)} triangles`;
+      ui.rmCellSizeSummary.textContent = `Auto D${surface.density_level} | terrain-derived`;
+    }
+    ui.rmSamples.textContent = `${formatCount(solver?.base_samples_per_tx)} base | ${formatCount(solver?.effective_samples_per_tx)} effective`;
+    ui.rmRange.textContent = `${range.min.toFixed(1)} .. ${range.max.toFixed(1)} dB`;
   } else {
-    ui.rmGrid.textContent = "--";
+    const cellSize = state.radiomap.surface.cellSize;
+    const densityLevel = state.radiomap.surface.densityLevel;
+    ui.rmGrid.textContent = cellSize == null ? `Auto D${densityLevel} terrain cells` : "Pending grid";
+    ui.rmMesh.textContent = "Pending";
+    ui.rmCellSizeSummary.textContent = cellSize == null
+      ? `Auto D${densityLevel} | terrain-derived`
+      : `${formatFixed(Number(cellSize), 1, " m")} target | pending`;
+    ui.rmSamples.textContent = `${formatCount(state.radiomap.solver.samplesPerTx)} base | pending`;
     ui.rmRange.textContent = "--";
   }
+  renderRadiomapColorbar(true);
 }
 async function runLinkSolve() {
   readLinkInputs();
@@ -1001,12 +1246,7 @@ async function runLinkSolve() {
     indeterminate: true,
   });
   try {
-    const result = await solveLink({
-      tx: {position: state.link.tx, orientation: [0, 0, 0]},
-      rx: {position: state.link.rx, orientation: [0, 0, 0]},
-      solver: linkSolverConfig(),
-      channel: linkChannelConfig(),
-    });
+    const result = await solveLink(linkSolvePayload());
     state.link.result = result;
     state.link.selectedPath = -1;
     getViewer().renderPaths(result.paths, -1);
@@ -1016,15 +1256,155 @@ async function runLinkSolve() {
   }
 }
 
+function clearTimer(handle) {
+  if (handle !== null && handle !== undefined) {
+    window.clearTimeout(handle);
+  }
+  return null;
+}
+
+function cancelLivePreview({clearStatus = true} = {}) {
+  const live = state.livePreview;
+  live.link.generation += 1;
+  live.link.previewTimer = clearTimer(live.link.previewTimer);
+  live.link.finalTimer = clearTimer(live.link.finalTimer);
+  live.link.previewController?.abort();
+  live.link.finalController?.abort();
+  live.link.previewController = null;
+  live.link.finalController = null;
+  if (clearStatus) {
+    clearLivePreviewStatus();
+  }
+}
+
+function livePreviewEnabledForTarget(target) {
+  readLivePreviewInputs();
+  if (!state.livePreview.enabled || ui.loadingScreen.style.display !== "none") {
+    return false;
+  }
+  return (target === "link-tx" || target === "link-rx") && state.mode === "link";
+}
+
+function scheduleLinkPreview(token) {
+  const live = state.livePreview.link;
+  live.previewTimer = clearTimer(live.previewTimer);
+  const delayMs = Math.max(0, Number(live.pathsDelayS) || 0) * 1000;
+  const now = window.performance.now();
+  const waitMs = Math.max(0, delayMs - (now - Number(live.lastPreviewStartedAt || 0)));
+  live.previewTimer = window.setTimeout(() => {
+    runLinkLiveSolve(token, {preview: true}).catch((error) => {
+      if (error?.name !== "AbortError" && token === state.livePreview.link.generation) {
+        setLivePreviewStatus("link", "Preview failed");
+        renderAll();
+      }
+    });
+  }, waitMs);
+}
+
+function scheduleLinkFinal(token) {
+  const live = state.livePreview.link;
+  live.finalTimer = clearTimer(live.finalTimer);
+  const delayMs = Math.max(0, Number(live.pathsDelayS) || 0) * 1000;
+  live.finalTimer = window.setTimeout(() => {
+    runLinkLiveSolve(token, {preview: false}).catch((error) => {
+      if (error?.name !== "AbortError" && token === state.livePreview.link.generation) {
+        setLivePreviewStatus("link", "Final failed");
+        renderAll();
+      }
+    });
+  }, delayMs);
+}
+
+async function runLinkLiveSolve(token, {preview}) {
+  const live = state.livePreview.link;
+  if (!state.livePreview.enabled || state.mode !== "link" || token !== live.generation) {
+    return;
+  }
+  if (preview) {
+    live.lastPreviewStartedAt = window.performance.now();
+    live.previewController?.abort();
+    live.previewController = new AbortController();
+  } else {
+    live.previewController?.abort();
+    live.finalController?.abort();
+    live.finalController = new AbortController();
+  }
+  const controller = preview ? live.previewController : live.finalController;
+  setLivePreviewStatus("link", preview ? "Previewing" : "Finalizing");
+  renderAll();
+  try {
+    const result = await solveLink(linkSolvePayload({preview}), {signal: controller.signal});
+    if (controller.signal.aborted || token !== live.generation || state.mode !== "link") {
+      return;
+    }
+    state.link.result = result;
+    state.link.selectedPath = -1;
+    getViewer().renderPaths(result.paths, -1);
+    setLivePreviewStatus("link", preview ? "Preview ready" : "Final ready");
+    renderAll();
+  } finally {
+    if (preview && live.previewController === controller) {
+      live.previewController = null;
+    }
+    if (!preview && live.finalController === controller) {
+      live.finalController = null;
+    }
+  }
+}
+
+function radiomapSurfacePayload() {
+  const surface = {
+    type: "terrain_patch",
+    size: state.radiomap.surface.size,
+    height_offset: state.radiomap.surface.heightOffset,
+    density_level: state.radiomap.surface.densityLevel,
+  };
+  if (state.radiomap.surface.cellSize != null) {
+    if (!Number.isFinite(state.radiomap.surface.cellSize)) {
+      throw new Error("Radio map cell size must be a finite number or blank for Auto");
+    }
+    surface.cell_size = state.radiomap.surface.cellSize;
+  }
+  return surface;
+}
+
+function radiomapJobPayload() {
+  return {
+    tx: {position: state.radiomap.tx, orientation: [0, 0, 0]},
+    metric: "path_gain",
+    surface: radiomapSurfacePayload(),
+    solver: {
+      ...commonSolverConfig(),
+      samples_per_tx: state.radiomap.solver.samplesPerTx,
+    },
+  };
+}
+
+function handleLivePreviewDeviceUpdate(target, phase = "change") {
+  if (!livePreviewEnabledForTarget(target)) {
+    return;
+  }
+  if (target === "link-tx" || target === "link-rx") {
+    const live = state.livePreview.link;
+    live.generation += 1;
+    live.previewController?.abort();
+    live.finalController?.abort();
+    const token = live.generation;
+    if (phase === "move") {
+      scheduleLinkPreview(token);
+      scheduleLinkFinal(token);
+      return;
+    }
+    scheduleLinkPreview(token);
+    scheduleLinkFinal(token);
+    return;
+  }
+}
+
 function resetMobilityTrajectoryFromRx() {
-  const [x, y, z] = state.link.rx;
-  state.mobility.trajectory.points = [
-    [x, y, z],
-    [x + 15, y + 8, z],
-  ];
-  state.mobility.result = null;
-  state.mobility.selectedStep = 0;
-  state.mobility.selectedPath = -1;
+  state.mobility.trajectory.points = [];
+  state.mobility.selectedWaypointIndex = -1;
+  resetMobilityResultState();
 }
 
 function addCurrentRxWaypoint() {
@@ -1033,12 +1413,13 @@ function addCurrentRxWaypoint() {
   const points = state.mobility.trajectory.points;
   const last = points[points.length - 1];
   if (last && Math.hypot(point[0] - last[0], point[1] - last[1], point[2] - last[2]) < 1e-6) {
+    state.mobility.selectedWaypointIndex = points.length - 1;
+    renderAll();
     return;
   }
   points.push(point);
-  state.mobility.result = null;
-  state.mobility.selectedStep = 0;
-  state.mobility.selectedPath = -1;
+  state.mobility.selectedWaypointIndex = points.length - 1;
+  resetMobilityResultState();
   renderAll();
 }
 
@@ -1132,7 +1513,7 @@ async function pollRadiomap(jobId, colorRange) {
 
     if (job.status === "failed") {
       hideOverlay();
-      throw new Error(job.message || "Radio map job failed");
+      throw new Error(job.error || job.message || "Radio map job failed");
     }
 
     showOverlay({
@@ -1158,20 +1539,7 @@ async function runRadiomap() {
     indeterminate: true,
   });
 
-  const job = await createRadiomapJob({
-    tx: {position: state.radiomap.tx, orientation: [0, 0, 0]},
-    metric: "path_gain",
-    surface: {
-      type: "terrain_patch",
-      size: state.radiomap.surface.size,
-      height_offset: state.radiomap.surface.heightOffset,
-      density_level: state.radiomap.surface.densityLevel,
-    },
-    solver: {
-      ...commonSolverConfig(),
-      samples_per_tx: 1000000,
-    },
-  });
+  const job = await createRadiomapJob(radiomapJobPayload());
 
   state.radiomap.jobId = job.job_id;
   await pollRadiomap(job.job_id, colorRange);
@@ -1183,11 +1551,14 @@ function applyPick(pick) {
   }
 
   if (state.pickTarget === "link-tx") {
-    setLogicalAndVisual(state.link.tx, state.link.txVisual, pick.logicalPosition, pick.markerPosition);
+    const position = linkPickPosition(pick);
+    setLogicalAndVisual(state.link.tx, state.link.txVisual, position);
   } else if (state.pickTarget === "link-rx") {
-    setLogicalAndVisual(state.link.rx, state.link.rxVisual, pick.logicalPosition, pick.markerPosition);
+    const position = linkPickPosition(pick);
+    setLogicalAndVisual(state.link.rx, state.link.rxVisual, position);
   } else if (state.pickTarget === "rm-tx") {
-    setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, pick.logicalPosition, pick.markerPosition);
+    const position = radiomapTxPickPosition(pick);
+    setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, position);
   }
 
   renderAll();
@@ -1203,6 +1574,8 @@ function applyPick(pick) {
     markerRadiusForPickTarget,
     readAntennaArrayInputs,
     readLinkInputs,
+    readSurfaceClearanceInput,
+    readLivePreviewInputs,
     readMobilityInputs,
     readRadiomapInputs,
     rerenderRadiomapOverlay,
@@ -1214,10 +1587,13 @@ function applyPick(pick) {
     runMobility,
     runRadiomap,
     addCurrentRxWaypoint,
+    deleteMobilityWaypoint,
     resetMobilityTrajectoryFromRx,
     selectMobilityStep,
     startMobilityPlayback,
     stopMobilityPlayback,
+    cancelLivePreview,
+    handleLivePreviewDeviceUpdate,
     applyPick,
   };
 }

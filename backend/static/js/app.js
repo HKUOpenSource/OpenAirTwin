@@ -77,6 +77,16 @@ function isLinkDeviceTarget(target) {
   return target === "link-tx" || target === "link-rx";
 }
 
+function isEditableKeyboardTarget(target) {
+  const tag = target?.tagName?.toLowerCase();
+  return Boolean(
+    target?.isContentEditable
+    || tag === "input"
+    || tag === "textarea"
+    || tag === "select"
+  );
+}
+
 function invalidateMobilityResult() {
   if (state.mode !== "mobility") {
     return;
@@ -162,6 +172,7 @@ function toggleTxOrbit() {
 
 async function runSolveFromDock(button, run) {
   clearPickTapCandidate();
+  solverControls.cancelLivePreview();
   state.pickTarget = null;
   state.deviceControl.activeTarget = null;
   setPickStatus();
@@ -175,12 +186,13 @@ async function runSolveFromDock(button, run) {
     button.disabled = false;
     button.classList.remove("busy");
     button.removeAttribute("aria-busy");
+    sceneRenderState.renderAll();
   }
 }
 
-function pickActiveDeviceAt(clientX, clientY, target) {
+function pickActiveDeviceAt(clientX, clientY, target, livePhase = "change") {
   if (!target || state.pickTarget !== target) {
-    return;
+    return false;
   }
   const pick = currentViewer().pickOnSurface(
     clientX,
@@ -192,13 +204,15 @@ function pickActiveDeviceAt(clientX, clientY, target) {
     state.deviceControl.activeTarget = target;
     state.pickTarget = target;
     setPickStatus(placementPromptForTarget(target));
-    return;
+    solverControls.handleLivePreviewDeviceUpdate(target, livePhase);
+    return true;
   }
   setPickStatus(placementPromptForTarget(target));
+  return false;
 }
 
 function handlePickPointerDown(event) {
-  if (!state.pickTarget || !event.isPrimary || event.button !== 0) {
+  if (!state.pickTarget || !event.isPrimary || event.button !== 0 || event.shiftKey) {
     clearPickTapCandidate();
     return;
   }
@@ -209,7 +223,13 @@ function handlePickPointerDown(event) {
     startY: event.clientY,
     startAt: window.performance.now(),
     canceled: false,
+    dragging: false,
   };
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    event.currentTarget.setPointerCapture(event.pointerId);
+  } catch {}
 }
 
 function handlePickPointerMove(event) {
@@ -220,6 +240,12 @@ function handlePickPointerMove(event) {
   const dy = event.clientY - pickTapCandidate.startY;
   if ((dx * dx) + (dy * dy) > PICK_TAP_MAX_MOVE_PX * PICK_TAP_MAX_MOVE_PX) {
     pickTapCandidate.canceled = true;
+    pickTapCandidate.dragging = true;
+  }
+  if (pickTapCandidate.dragging) {
+    pickActiveDeviceAt(event.clientX, event.clientY, pickTapCandidate.target, "move");
+    event.preventDefault();
+    event.stopPropagation();
   }
 }
 
@@ -233,6 +259,15 @@ function handlePickPointerUp(event) {
   const dx = event.clientX - candidate.startX;
   const dy = event.clientY - candidate.startY;
   const moved = (dx * dx) + (dy * dy) > PICK_TAP_MAX_MOVE_PX * PICK_TAP_MAX_MOVE_PX;
+  if (candidate.dragging) {
+    pickActiveDeviceAt(event.clientX, event.clientY, candidate.target, "end");
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      document.getElementById("view").releasePointerCapture(event.pointerId);
+    } catch {}
+    return;
+  }
   if (
     candidate.canceled
     || moved
@@ -241,7 +276,10 @@ function handlePickPointerUp(event) {
   ) {
     return;
   }
-  pickActiveDeviceAt(event.clientX, event.clientY, candidate.target);
+  pickActiveDeviceAt(event.clientX, event.clientY, candidate.target, "end");
+  try {
+    document.getElementById("view").releasePointerCapture(event.pointerId);
+  } catch {}
 }
 
 function attachEvents() {
@@ -339,6 +377,10 @@ function attachEvents() {
     state.performance.dockExpanded = !state.performance.dockExpanded;
     performancePanel.syncPerformanceUi();
   });
+  ui.btnResultDockToggle.addEventListener("click", () => {
+    state.resultDock.expanded = !state.resultDock.expanded;
+    sceneRenderState.syncResultDockUi();
+  });
   ui.btnShowAllCategories.addEventListener("click", () => {
     performancePanel.showAllCategories();
   });
@@ -353,6 +395,7 @@ function attachEvents() {
 
   ui.tabLink.addEventListener("click", () => {
     paramTooltips.hideTooltip();
+    solverControls.cancelLivePreview();
     solverControls.stopMobilityPlayback();
     stopTxOrbit();
     state.mode = "link";
@@ -365,6 +408,7 @@ function attachEvents() {
   });
   ui.tabMobility.addEventListener("click", () => {
     paramTooltips.hideTooltip();
+    solverControls.cancelLivePreview();
     stopTxOrbit();
     state.mode = "mobility";
     if (!state.mobility.tapsDefaulted) {
@@ -381,6 +425,7 @@ function attachEvents() {
   });
   ui.tabRadiomap.addEventListener("click", () => {
     paramTooltips.hideTooltip();
+    solverControls.cancelLivePreview();
     solverControls.stopMobilityPlayback();
     stopTxOrbit();
     state.mode = "radiomap";
@@ -419,9 +464,9 @@ function attachEvents() {
   ui.btnPickLinkRx.addEventListener("click", () => openDevicePrecision("link-rx"));
   ui.btnPickRmTx.addEventListener("click", () => openDevicePrecision("rm-tx"));
 
-  for (const input of [
-    inputs.linkTxX, inputs.linkTxY, inputs.linkTxZ,
-    inputs.linkRxX, inputs.linkRxY, inputs.linkRxZ,
+  for (const [input, target] of [
+    [inputs.linkTxX, "link-tx"], [inputs.linkTxY, "link-tx"], [inputs.linkTxZ, "link-tx"],
+    [inputs.linkRxX, "link-rx"], [inputs.linkRxY, "link-rx"], [inputs.linkRxZ, "link-rx"],
   ]) {
     input.addEventListener("change", () => {
       solverControls.readLinkInputs();
@@ -429,6 +474,7 @@ function attachEvents() {
       if (isLinkDeviceTarget(state.deviceControl.activeTarget)) {
         setPickStatus(placementPromptForTarget(state.deviceControl.activeTarget));
       }
+      solverControls.handleLivePreviewDeviceUpdate(target, "change");
       sceneRenderState.renderAll();
     });
   }
@@ -445,7 +491,6 @@ function attachEvents() {
 
   ui.btnMobilityAddRxPoint.addEventListener("click", () => solverControls.addCurrentRxWaypoint());
   ui.btnMobilityClearPoints.addEventListener("click", () => {
-    solverControls.readLinkInputs();
     solverControls.resetMobilityTrajectoryFromRx();
     sceneRenderState.renderAll();
   });
@@ -512,10 +557,7 @@ function attachEvents() {
     });
   }
 
-  for (const input of [
-    inputs.rmTxX, inputs.rmTxY, inputs.rmTxZ,
-    inputs.rmSizeX, inputs.rmSizeY, inputs.rmHeightOffset, inputs.rmDensityLevel,
-  ]) {
+  for (const input of [inputs.rmTxX, inputs.rmTxY, inputs.rmTxZ]) {
     input.addEventListener("change", () => {
       solverControls.readRadiomapInputs();
       if (state.deviceControl.activeTarget === "rm-tx") {
@@ -525,7 +567,35 @@ function attachEvents() {
     });
   }
 
-  for (const input of [inputs.rmColorMin, inputs.rmColorMax]) {
+  for (const input of [
+    inputs.rmSizeX, inputs.rmSizeY, inputs.rmHeightOffset, inputs.rmSamplesPerTx, inputs.rmCellSize, inputs.rmDensityLevel,
+  ]) {
+    input.addEventListener("change", () => {
+      solverControls.readRadiomapInputs();
+      sceneRenderState.renderAll();
+    });
+  }
+
+  for (const input of [
+    inputs.livePreviewEnabled,
+    inputs.livePreviewLinkSamples,
+    inputs.livePreviewPathsDelay,
+  ]) {
+    input.addEventListener("change", () => {
+      solverControls.readLivePreviewInputs();
+      if (!state.livePreview.enabled) {
+        solverControls.cancelLivePreview();
+      }
+      sceneRenderState.renderAll();
+    });
+  }
+
+  inputs.linkSurfaceClearance.addEventListener("change", () => {
+    solverControls.readSurfaceClearanceInput();
+    sceneRenderState.renderAll();
+  });
+
+  for (const input of [inputs.rmColorMin, inputs.rmColorMax, inputs.rmColormap]) {
     input.addEventListener("change", () => {
       try {
         solverControls.readRadiomapInputs();
@@ -538,9 +608,9 @@ function attachEvents() {
   }
 
   const view = document.getElementById("view");
-  view.addEventListener("pointerdown", handlePickPointerDown);
-  window.addEventListener("pointermove", handlePickPointerMove);
-  window.addEventListener("pointerup", handlePickPointerUp);
+  view.addEventListener("pointerdown", handlePickPointerDown, {capture: true});
+  window.addEventListener("pointermove", handlePickPointerMove, {capture: true});
+  window.addEventListener("pointerup", handlePickPointerUp, {capture: true});
   window.addEventListener("pointercancel", clearPickTapCandidate);
   window.addEventListener("blur", clearPickTapCandidate);
   window.addEventListener("hku-tx-orbit-change", () => {
@@ -548,12 +618,29 @@ function attachEvents() {
   });
 
   window.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || !state.deviceControl.activeTarget) {
+    if (event.key === "Escape" && state.deviceControl.activeTarget) {
+      event.preventDefault();
+      clearPickTapCandidate();
+      closeDevicePrecision();
       return;
     }
-    event.preventDefault();
-    clearPickTapCandidate();
-    closeDevicePrecision();
+    if (
+      state.mode !== "mobility"
+      || state.entry.visible
+      || ui.loadingScreen.style.display !== "none"
+      || isEditableKeyboardTarget(event.target)
+    ) {
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      solverControls.addCurrentRxWaypoint();
+      return;
+    }
+    if (event.key === "Delete" && state.mobility.selectedWaypointIndex >= 0) {
+      event.preventDefault();
+      solverControls.deleteMobilityWaypoint(state.mobility.selectedWaypointIndex);
+    }
   });
 
   window.addEventListener("resize", () => {
