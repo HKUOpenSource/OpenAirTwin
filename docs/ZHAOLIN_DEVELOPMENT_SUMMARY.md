@@ -10,12 +10,83 @@ cleanup notes, and handoff guidance for the HKU wireless digital twin platform.
 - Remote work folder: `/home/defaultuser/worktree-zhaolin`
 - Main validation port: `8090`
 - Optional demo port: `9000`
-- GPU runtime: `/home/defaultuser/venvs/sionna-gpu`
+- GPU runtime: `/home/defaultuser/venvs/env_hku_rt_gpu`
 - Scene root for remote runtime: `/home/defaultuser/worktree-zhaolin/HKU_scenes`
 
 Use `worktree-zhaolin` for Zhaolin validation. Do not restart, kill, or sync
 over another developer's worktree, especially `worktree-zihao`, unless explicitly
 requested.
+
+## 2026-05-18 - Tile-Lazy Sionna Runtime and Per-Tile XML Source
+
+This round removed the full-scene Sionna preload from startup and made selected
+tiles the source of truth for runtime RT loading. The backend still exposes the
+same user-facing tile workflow, but Sionna now loads only the current tile
+selection instead of all 10510 scene shapes.
+
+### Lazy RT Scene Selection
+
+- Stopped loading `scenario_HKU.xml` into Sionna during backend startup.
+- Added `GET /api/rt/scene-selection` and `POST /api/rt/scene-selection` for
+  runtime Sionna scene status and selected tile changes.
+- Added background selection loading with generation/latest-wins semantics, so
+  stale loads cannot replace a newer tile selection.
+- Added explicit `empty`, `loading`, `ready`, and `failed` runtime states with
+  active/requested tile IDs, shape counts, generation, preload time, and active
+  generated XML path.
+- Made Link, Radio Map, and Mobility return HTTP `409` while the Sionna scene is
+  empty, loading, or failed instead of running against a missing scene.
+- Freed the old loaded scene reference before starting a new selection load and
+  attempted Dr.Jit memory/cache flushes to reduce GPU memory pressure.
+- Updated the frontend tile synchronization path so every tile add/remove posts
+  the full selected tile list to `/api/rt/scene-selection`.
+- Updated the loading overlay copy to `Load scene for x tile(s)`.
+
+### Per-Tile XML Source of Truth
+
+- Added `HKU_scenes/common/scene_common.xml` as the long-term location for
+  shared Mitsuba/Sionna XML nodes such as `integrator`, `emitter`, and `bsdf`.
+- Added `HKU_scenes/tiles/<tile_id>.xml` as the long-term location for each
+  tile's `shape` nodes.
+- Kept `scenario_HKU.xml` as a compatibility/debug full-scene export; lazy
+  runtime and manifest loading now prefer `common/` + `tiles/` when present.
+- Kept fallback support for legacy scene roots that only have
+  `scenario_HKU.xml`.
+- Generated temporary runtime XML files under `generated/rt_scene_xml/` by
+  combining common XML plus the currently selected tile XML files.
+- Rewrote generated shape filenames to absolute mesh paths before Sionna loads
+  the temporary selection XML.
+- Confirmed the lazy path still works when `scenario_HKU.xml` is absent, as long
+  as `common/scene_common.xml` and `tiles/*.xml` exist.
+
+### Migration Tool
+
+- Added `backend.tools.split_tile_scene_xml`.
+- The tool splits an existing full `scenario_HKU.xml` into:
+  - `HKU_scenes/common/scene_common.xml`
+  - `HKU_scenes/tiles/<tile_id>.xml`
+- It validates that each shape belongs under `meshes/<tile>/<category>/...`.
+- It refuses to overwrite existing per-tile XML unless `--force` is passed.
+- Remote migration on 2026-05-18 produced `14` tile XML files and preserved all
+  `10510` original shape nodes.
+
+### Remote Validation
+
+- Synced code to `/home/defaultuser/worktree-zhaolin`.
+- Restarted the Zhaolin validation service on port `8090`.
+- Last recorded restart PID for this round: `426989`.
+- Verified startup no longer waits for full Sionna scene preload; initial
+  `/api/rt/scene-selection` returns `empty`.
+- Verified single-tile loading:
+  - `11_SW_14A`
+  - `491` shapes
+  - generated XML contains only that tile
+- Verified multi-tile loading:
+  - `11_SW_14A + 11_SW_14B`
+  - `1620` shapes
+  - Link solve returned `ok: true`
+- Verified removing a tile reloads the runtime selection and removes that tile
+  from `active_tile_ids`.
 
 ## 2026-05-07 - Radio Map Grid, Live Link Preview, Mobility Editing, and Dock Polish
 
@@ -242,6 +313,8 @@ showcase button.
 ## Current API and Payload Surface Added by Recent Rounds
 
 - `GET /api/rt/capabilities`
+- `GET /api/rt/scene-selection`
+- `POST /api/rt/scene-selection`
 - `POST /api/mobility/jobs`
 - `GET /api/mobility/jobs/{job_id}`
 - `GET /api/mobility/jobs/{job_id}/result`
@@ -265,6 +338,12 @@ showcase button.
 
 These files were created during recent Zhaolin rounds and are intentional final
 artifacts:
+
+2026-05-18:
+
+- `backend/scene/tile_scene_xml.py`
+- `backend/tools/split_tile_scene_xml.py`
+- `tests/test_tile_scene_xml.py`
 
 2026-05-07:
 
@@ -341,12 +420,12 @@ for file in backend/static/js/*.js; do node --check "$file"; done && node --chec
 git diff --check
 ```
 
-Remote targeted validation should use the Sionna GPU venv:
+Remote targeted validation should use the authoritative GPU environment:
 
 ```bash
 cd /home/defaultuser/worktree-zhaolin
-/home/defaultuser/venvs/sionna-gpu/bin/python -m compileall -q backend scripts tests
-/home/defaultuser/venvs/sionna-gpu/bin/python -m unittest tests.test_frontend_regressions tests.test_mobility_jobs tests.test_server_hardening tests.test_terrain_patch
+/home/defaultuser/venvs/env_hku_rt_gpu/bin/python -m compileall -q backend scripts tests
+/home/defaultuser/venvs/env_hku_rt_gpu/bin/python -m unittest tests.test_tile_scene_xml tests.test_frontend_regressions tests.test_mobility_jobs tests.test_server_hardening tests.test_terrain_patch
 for file in backend/static/js/*.js; do node --input-type=module --check < "$file" >/dev/null; done
 node --input-type=module --check < backend/static/lib/GLBGeometryLoader.js >/dev/null
 git diff --check
@@ -357,6 +436,7 @@ Useful remote smoke checks:
 ```bash
 curl -fsS http://127.0.0.1:8090/api/health
 curl -fsS http://127.0.0.1:8090/api/rt/capabilities
+curl -fsS http://127.0.0.1:8090/api/rt/scene-selection
 curl -fsS http://127.0.0.1:9000/api/health
 ```
 
@@ -369,6 +449,16 @@ script default:
 HKU_RT_REMOTE_ROOT=/home/defaultuser/worktree-zhaolin bash scripts/sync_code_to_remote.sh
 ```
 
+Create or refresh the per-tile scene XML source from the current full scene:
+
+```bash
+cd /home/defaultuser/worktree-zhaolin
+/home/defaultuser/venvs/env_hku_rt_gpu/bin/python -m backend.tools.split_tile_scene_xml \
+  --scene-root /home/defaultuser/worktree-zhaolin/HKU_scenes \
+  --source-xml /home/defaultuser/worktree-zhaolin/HKU_scenes/scenario_HKU.xml \
+  --force
+```
+
 Start or restart the main Zhaolin backend from the Zhaolin worktree:
 
 ```bash
@@ -376,7 +466,7 @@ cd /home/defaultuser/worktree-zhaolin
 export HKU_RT_HOST=0.0.0.0
 export HKU_RT_PORT=8090
 export HKU_RT_SCENE_ROOT=/home/defaultuser/worktree-zhaolin/HKU_scenes
-nohup /home/defaultuser/venvs/sionna-gpu/bin/python -m backend.server >> server-8090.log 2>&1 &
+nohup /home/defaultuser/venvs/env_hku_rt_gpu/bin/python -m backend.server >> server-8090.log 2>&1 &
 ```
 
 Start a presentation instance only after confirming port `9000` is free:
@@ -386,13 +476,30 @@ cd /home/defaultuser/worktree-zhaolin
 export HKU_RT_HOST=0.0.0.0
 export HKU_RT_PORT=9000
 export HKU_RT_SCENE_ROOT=/home/defaultuser/worktree-zhaolin/HKU_scenes
-nohup /home/defaultuser/venvs/sionna-gpu/bin/python -m backend.server >> server-9000.log 2>&1 &
+nohup /home/defaultuser/venvs/env_hku_rt_gpu/bin/python -m backend.server >> server-9000.log 2>&1 &
 ```
 
 Before syncing to the remote worktree, back up overwritten files and remote diffs
 under `/home/defaultuser/backups/...`. Do not touch other developers' worktrees.
 
 ## Cleanup Notes
+
+Final cleanup result for 2026-05-18:
+
+- Removed local `.DS_Store` files from the repository root, `backend/`, and
+  `backend/static/`.
+- Removed stale remote generated selection XML files from
+  `/home/defaultuser/worktree-zhaolin/generated/rt_scene_xml/`.
+- Restored the currently active remote selection XML after detecting that the
+  running 8090 service had an active browser-submitted tile selection.
+- Kept `HKU_scenes/common/scene_common.xml` and `HKU_scenes/tiles/*.xml` on the
+  remote because they are now the runtime scene source of truth, not temporary
+  artifacts.
+- Kept `backend/scene/tile_scene_xml.py`, `backend/tools/split_tile_scene_xml.py`,
+  and `tests/test_tile_scene_xml.py` because they are referenced by runtime,
+  manifest loading, migration, and regression tests.
+- No unused source, test, tool, or generated frontend file remains from the
+  2026-05-18 development round.
 
 Final cleanup result for 2026-05-07:
 

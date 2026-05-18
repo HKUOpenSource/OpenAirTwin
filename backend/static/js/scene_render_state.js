@@ -3,7 +3,7 @@ import {compareTileIds, toDisplayTileId} from "/js/tile_model.js";
 const LOAD_PROGRESS_RENDER_INTERVAL_MS = 250;
 
 export function createSceneRenderStateController(context) {
-  const {state, ui, viewerRef} = context;
+  const {api, state, ui, viewerRef} = context;
   const getViewer = () => viewerRef.current;
   const entry = () => context.controllers.entry;
   const performancePanel = () => context.controllers.performance;
@@ -225,6 +225,13 @@ function syncModeUi() {
   ui.btnRunMobility.classList.toggle("hidden", !isMobility);
   ui.btnRunRadiomap.classList.toggle("hidden", state.mode !== "radiomap");
   ui.btnRunDeepMimo.classList.toggle("hidden", !isDeepMimo);
+  for (const button of [ui.btnSolveLink, ui.btnRunMobility, ui.btnRunRadiomap]) {
+    if (state.tileLoadBusy) {
+      button.disabled = true;
+    } else if (button.getAttribute("aria-busy") !== "true") {
+      button.disabled = false;
+    }
+  }
   const orbitingTx = getViewer().isTxOrbiting();
   ui.btnOrbitTx.classList.toggle("active", orbitingTx);
   ui.btnOrbitTx.setAttribute("aria-pressed", String(orbitingTx));
@@ -544,6 +551,44 @@ function createLoadProgressRenderer() {
   };
 }
 
+async function waitForRtSceneSelection(generation) {
+  while (true) {
+    const status = await api.getRtSceneSelection();
+    if (status.generation === generation && status.status === "ready") {
+      return status;
+    }
+    if (status.generation === generation && status.status === "failed") {
+      throw new Error(status.message || "Sionna RT scene failed to load");
+    }
+    showOverlay({
+      title: "Loading Scene",
+      message: status.message || "Load scene...",
+      indeterminate: true,
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 1200));
+  }
+}
+
+async function syncRtSceneSelection(selectedTileIds) {
+  const tileIds = [...selectedTileIds].sort(compareTileIds);
+  showOverlay({
+    title: "Loading Scene",
+    message: "Load scene...",
+    indeterminate: true,
+  });
+  const status = await api.setRtSceneSelection(tileIds);
+  if (status.status === "ready") {
+    return status;
+  }
+  if (status.status === "failed") {
+    throw new Error(status.message || "Sionna RT scene failed to load");
+  }
+  if (status.status === "empty") {
+    return status;
+  }
+  return waitForRtSceneSelection(status.generation);
+}
+
 async function enterScene() {
   const selectedTileIds = tileSelections();
   if (!selectedTileIds.length) {
@@ -569,41 +614,46 @@ async function loadScene() {
   }
   await ensureViewer();
   const diff = tileDiff();
-  if (!diff.toAdd.length && !diff.toRemove.length) {
-    syncSceneStats();
-    syncTileListUi();
-    showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100});
-    await new Promise((resolve) => window.setTimeout(resolve, 160));
-    hideOverlay();
-    syncPerformanceUi();
-    return;
-  }
-
   const selectedTiles = diff.selected;
   const bundles = state.manifest.bundles.filter((bundle) => selectedTiles.has(bundle.tile));
   state.tileLoadBusy = true;
   if (diff.toAdd.length || diff.toRemove.length) {
     state.link.result = null;
     state.link.selectedPath = -1;
+    state.mobility.jobId = null;
+    state.mobility.result = null;
+    state.mobility.status = "Idle";
     state.radiomap.jobId = null;
     state.radiomap.result = null;
     state.radiomap.status = "Idle";
     getViewer().clearOverlay();
   }
   syncTileListUi();
-  showOverlay({title: "Loading Scene", message: "Syncing tile bundles...", percent: 0});
-  const loadProgressRenderer = createLoadProgressRenderer();
 
   try {
-    await getViewer().syncBundles(bundles, (event) => {
-      loadProgressRenderer.update(event);
-    });
-    loadProgressRenderer.flush();
+    if (!diff.toAdd.length && !diff.toRemove.length) {
+      syncSceneStats();
+      syncTileListUi();
+      showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100});
+      await new Promise((resolve) => window.setTimeout(resolve, 160));
+    } else {
+      showOverlay({title: "Loading Scene", message: "Syncing tile bundles...", percent: 0});
+      const loadProgressRenderer = createLoadProgressRenderer();
 
+      try {
+        await getViewer().syncBundles(bundles, (event) => {
+          loadProgressRenderer.update(event);
+        });
+        loadProgressRenderer.flush();
+      } finally {
+        loadProgressRenderer.flush();
+      }
+    }
+
+    await syncRtSceneSelection(selectedTiles);
     syncViewerMarkers();
     getViewer().focusOnTiles([...selectedTiles]);
   } finally {
-    loadProgressRenderer.flush();
     state.tileLoadBusy = false;
     hideOverlay();
     syncSceneStats();

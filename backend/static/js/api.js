@@ -15,6 +15,18 @@ export function getRtCapabilities() {
   return requestJson("/api/rt/capabilities");
 }
 
+export function getRtSceneSelection() {
+  return requestJson("/api/rt/scene-selection");
+}
+
+export function setRtSceneSelection(tileIds) {
+  return requestJson("/api/rt/scene-selection", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({tile_ids: tileIds}),
+  });
+}
+
 export function solveLink(payload, options = {}) {
   return requestJson("/api/link/solve", {
     method: "POST",

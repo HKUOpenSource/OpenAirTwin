@@ -21,7 +21,7 @@ if not MESH_ROOT.exists():
     MESH_ROOT = Path('/home/defaultuser/hku_demo/meshes')
 
 SOLVE_PAIR = ROOT / 'solve_pair.py'
-PY_BIN = Path('/home/defaultuser/venvs/sionna-gpu/bin/python')
+PY_BIN = Path('/home/defaultuser/venvs/env_hku_rt_gpu/bin/python')
 if not PY_BIN.exists():
     PY_BIN = Path('python3')
 

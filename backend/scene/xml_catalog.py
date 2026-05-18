@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from pathlib import Path
-import xml.etree.ElementTree as ET
+from pathlib import Path, PurePosixPath
 
 from backend.scene.tile_bundles import TileBundleRecord, build_tile_bundle_records
+from backend.scene.tile_scene_xml import load_tile_scene_xml_source, scene_relative_mesh_path
 
 
 @dataclass(frozen=True)
@@ -68,42 +68,44 @@ class SceneManifest:
 
 
 def load_scene_manifest(scene_root: Path, scene_xml: Path) -> SceneManifest:
-    root = ET.parse(scene_xml).getroot()
+    scene_root = Path(scene_root).resolve()
+    source = load_tile_scene_xml_source(scene_root, scene_xml)
     tile_counts: dict[str, Counter[str]] = defaultdict(Counter)
     bsdf_counts: Counter[str] = Counter()
     meshes: list[MeshRecord] = []
     referenced_paths: set[str] = set()
 
-    for shape in root.findall("shape"):
-        shape_id = shape.attrib.get("id", "")
-        filename_node = shape.find('string[@name="filename"]')
-        bsdf_node = shape.find("ref")
-        if filename_node is None or bsdf_node is None:
-            continue
+    for shapes in source.shape_by_tile.values():
+        for shape in shapes:
+            shape_id = shape.attrib.get("id", "")
+            filename_node = shape.find('string[@name="filename"]')
+            bsdf_node = shape.find("ref")
+            if filename_node is None or bsdf_node is None:
+                continue
 
-        relative_path = filename_node.attrib["value"]
-        parts = Path(relative_path).parts
-        if len(parts) < 4:
-            continue
+            relative_path = scene_relative_mesh_path(scene_root, filename_node.attrib["value"])
+            parts = PurePosixPath(relative_path).parts
+            if len(parts) < 4 or parts[0] != "meshes":
+                continue
 
-        tile = parts[1]
-        category = parts[2]
-        bsdf_id = bsdf_node.attrib.get("id", "unknown")
-        mesh_id = shape_id or Path(relative_path).stem
+            tile = parts[1]
+            category = parts[2]
+            bsdf_id = bsdf_node.attrib.get("id", "unknown")
+            mesh_id = shape_id or PurePosixPath(relative_path).stem
 
-        meshes.append(
-            MeshRecord(
-                mesh_id=mesh_id,
-                shape_id=shape_id,
-                relative_path=relative_path,
-                tile=tile,
-                category=category,
-                bsdf_id=bsdf_id,
+            meshes.append(
+                MeshRecord(
+                    mesh_id=mesh_id,
+                    shape_id=shape_id,
+                    relative_path=relative_path,
+                    tile=tile,
+                    category=category,
+                    bsdf_id=bsdf_id,
+                )
             )
-        )
-        tile_counts[tile][category] += 1
-        bsdf_counts[bsdf_id] += 1
-        referenced_paths.add(relative_path)
+            tile_counts[tile][category] += 1
+            bsdf_counts[bsdf_id] += 1
+            referenced_paths.add(relative_path)
 
     mesh_files = {
         str(path.relative_to(scene_root)).replace("\\", "/")

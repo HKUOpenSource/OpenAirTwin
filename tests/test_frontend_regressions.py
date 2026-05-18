@@ -41,6 +41,23 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("txArray: createDefaultAntennaArray()", state_source)
         self.assertIn("rxArray: createDefaultAntennaArray()", state_source)
 
+    def test_rt_scene_selection_is_synced_after_tile_load(self) -> None:
+        api_source = read_static_js("api.js")
+        app_source = read_static_js("app.js")
+        scene_source = read_static_js("scene_render_state.js")
+
+        self.assertIn('requestJson("/api/rt/scene-selection")', api_source)
+        self.assertIn('requestJson("/api/rt/scene-selection", {', api_source)
+        self.assertIn("getRtSceneSelection,", app_source)
+        self.assertIn("setRtSceneSelection,", app_source)
+        self.assertIn("async function waitForRtSceneSelection(generation)", scene_source)
+        self.assertIn("async function syncRtSceneSelection(selectedTileIds)", scene_source)
+        self.assertIn('message: "Load scene..."', scene_source)
+        self.assertIn("const status = await api.setRtSceneSelection(tileIds);", scene_source)
+        self.assertIn("await syncRtSceneSelection(selectedTiles);", scene_source)
+        self.assertIn("state.tileLoadBusy = true;", scene_source)
+        self.assertIn("state.mobility.result = null;", scene_source)
+
     def test_antenna_array_payloads_are_sent_to_solvers(self) -> None:
         source = read_static_js("solver_controls.js")
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")

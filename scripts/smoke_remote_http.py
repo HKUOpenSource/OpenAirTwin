@@ -102,6 +102,35 @@ def smoke_manifest(base_url: str, timeout: float) -> dict:
     return manifest
 
 
+def smoke_rt_scene_selection(base_url: str, manifest: dict, timeout: float, poll_timeout: float, poll_interval: float) -> None:
+    tile_ids = [str(tile["id"]) for tile in manifest.get("tiles") or [] if tile.get("id")]
+    assert_true(bool(tile_ids), "manifest has no selectable tiles")
+    status = request_json(
+        base_url,
+        "/api/rt/scene-selection",
+        method="POST",
+        payload={"tile_ids": tile_ids},
+        timeout=timeout,
+    )
+    generation = status.get("generation")
+    assert_true(isinstance(generation, int), "scene selection did not return a generation")
+
+    deadline = time.time() + poll_timeout
+    while time.time() < deadline:
+        current = request_json(base_url, "/api/rt/scene-selection", timeout=timeout)
+        if current.get("generation") == generation and current.get("status") == "ready":
+            ok(
+                f"rt scene tiles={len(current.get('active_tile_ids') or [])} "
+                f"preload={current.get('preload_seconds')}s"
+            )
+            return
+        if current.get("generation") == generation and current.get("status") == "failed":
+            raise SmokeFailure(f"RT scene selection failed: {current.get('message')}")
+        time.sleep(poll_interval)
+
+    raise SmokeFailure(f"RT scene selection generation {generation} did not finish within {poll_timeout:.0f}s")
+
+
 def smoke_bundle(base_url: str, manifest: dict, timeout: float) -> None:
     bundles = manifest.get("bundles") or []
     bundle = next((item for item in bundles if item.get("compressed_cache_exists")), None)
@@ -242,6 +271,7 @@ def main() -> int:
     try:
         smoke_health(base_url, args.timeout)
         manifest = smoke_manifest(base_url, args.timeout)
+        smoke_rt_scene_selection(base_url, manifest, args.timeout, args.poll_timeout, args.poll_interval)
         smoke_bundle(base_url, manifest, args.timeout)
         smoke_link(base_url, args.timeout)
         smoke_advanced_link(base_url, args.timeout)
