@@ -172,9 +172,6 @@ export const state = {
       chunkSize: 1024,
       filterBuildings: true,
     },
-    scene: {
-      bufferM: 200.0,
-    },
     solver: {
       samplesPerSrc: 30000,
       maxNumPathsPerSrc: 1000000,

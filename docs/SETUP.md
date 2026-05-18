@@ -58,6 +58,27 @@ bash scripts/sync_assets_from_remote.sh
 Generated scene caches under `HKU_scenes/cache/` are not source assets and are
 excluded from asset sync.
 
+The sync script default root is the shared/legacy remote root,
+`/home/defaultuser/HKU-RT/v3.0`. For code work, use a developer-specific
+worktree and pass `HKU_RT_REMOTE_ROOT` explicitly.
+
+## Multi-User Remote Workflow
+
+Before syncing code, restarting a service, or cleaning remote files:
+
+1. Confirm the developer identity and matching worktree.
+2. Read that developer's notes under `docs/`.
+3. Use the matching worktree, port, and service only.
+4. Pass `HKU_RT_REMOTE_ROOT=/home/defaultuser/worktree-...` for code syncs.
+
+Known validation worktrees:
+
+- Zhaolin: `/home/defaultuser/worktree-zhaolin`, port `8090`
+- Zihao: `/home/defaultuser/worktree-zihao`, port `18091`
+
+If the developer is not identified or no matching notes exist, ask before using
+the script default or touching a remote service.
+
 ## Zhaolin Remote Workflow
 
 Use Zhaolin's remote worktree for validation:
@@ -86,7 +107,7 @@ python3 scripts/smoke_remote_http.py
 ```
 
 The smoke script is HTTP-only. It does not SSH, sync files, kill processes, or
-restart services. By default it targets:
+restart services. By default it targets the Zhaolin validation service:
 
 ```text
 http://100.65.77.20:8090

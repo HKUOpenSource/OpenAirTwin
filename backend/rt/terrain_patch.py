@@ -314,24 +314,24 @@ def sample_points_on_terrain(
         raise ValueError(
             f"Could not find a terrain measurement surface with radio material '{config.RADIOMAP_MEASUREMENT_MATERIAL}'"
         )
-    if len(terrain_candidates) != 1:
-        raise ValueError(
-            f"Expected exactly one terrain measurement surface for '{config.RADIOMAP_MEASUREMENT_MATERIAL}', "
-            f"found {len(terrain_candidates)}"
-        )
 
-    patch_mesh = terrain_candidates[0].clone(as_mesh=True)
-    params = mi.traverse(patch_mesh)
-    vertex_positions = np.asarray(to_numpy(params["vertex_positions"]), dtype=np.float32).reshape(-1, 3)
-    faces = np.asarray(to_numpy(params["faces"]), dtype=np.uint32).reshape(-1, 3)
-    face_mask = _select_faces_in_xy_box(vertex_positions, faces, center_xy, size_xy)
-    selected_faces = faces[face_mask]
-    if selected_faces.size == 0:
-        raise ValueError("Selected ROI contains no terrain surface")
+    terrain_triangles: list[np.ndarray] = []
+    for terrain in terrain_candidates:
+        patch_mesh = terrain.clone(as_mesh=True)
+        params = mi.traverse(patch_mesh)
+        vertex_positions = np.asarray(to_numpy(params["vertex_positions"]), dtype=np.float32).reshape(-1, 3)
+        faces = np.asarray(to_numpy(params["faces"]), dtype=np.uint32).reshape(-1, 3)
+        face_mask = _select_faces_in_xy_box(vertex_positions, faces, center_xy, size_xy)
+        selected_faces = faces[face_mask]
+        if selected_faces.size:
+            terrain_triangles.append(vertex_positions[selected_faces])
+
+    if not terrain_triangles:
+        raise ValueError("Selected DeepMIMO ROI contains no terrain surface in the selected tiles")
 
     z_values, normals = _interpolate_points_on_terrain(
         np.asarray(points_xy, dtype=np.float32),
-        vertex_positions[selected_faces],
+        np.concatenate(terrain_triangles, axis=0),
     )
     positions = np.column_stack(
         [

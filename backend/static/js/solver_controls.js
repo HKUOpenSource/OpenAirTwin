@@ -429,7 +429,6 @@ function syncNumericInputs() {
   inputs.deepMimoRoiLength.value = dmBounds ? dmBounds.size[1].toFixed(1) : "";
   inputs.deepMimoGridSpacing.value = String(dmGrid.spacing);
   inputs.deepMimoRxHeight.value = String(dmGrid.height);
-  inputs.deepMimoSceneBuffer.value = String(state.deepmimo.scene.bufferM);
   inputs.deepMimoMaxReceivers.value = String(dmGrid.maxReceivers);
   inputs.deepMimoChunkSize.value = String(dmGrid.chunkSize);
   inputs.deepMimoFilterBuildings.checked = Boolean(dmGrid.filterBuildings);
@@ -585,7 +584,6 @@ function readDeepMimoInputs() {
   readDeepMimoRoiInputs();
   state.deepmimo.rxGrid.spacing = Number(inputs.deepMimoGridSpacing.value);
   state.deepmimo.rxGrid.height = Number(inputs.deepMimoRxHeight.value);
-  state.deepmimo.scene.bufferM = Number(inputs.deepMimoSceneBuffer.value);
   state.deepmimo.rxGrid.maxReceivers = Number(inputs.deepMimoMaxReceivers.value);
   state.deepmimo.rxGrid.chunkSize = Number(inputs.deepMimoChunkSize.value);
   state.deepmimo.rxGrid.filterBuildings = inputs.deepMimoFilterBuildings.checked;
@@ -1361,6 +1359,10 @@ function readDeepMimoRoiInputs() {
   setDeepMimoRoiFromCenter(centerX, centerY, width, length, bounds?.z || 0);
 }
 
+function deepMimoReceiverAxisCount(size, spacing) {
+  return Math.max(0, Math.ceil(Number(size) / spacing + 0.5));
+}
+
 function deepMimoReceiverEstimate(bounds = deepMimoRoiBounds()) {
   if (!bounds) {
     return 0;
@@ -1369,8 +1371,8 @@ function deepMimoReceiverEstimate(bounds = deepMimoRoiBounds()) {
   if (!Number.isFinite(spacing) || spacing <= 0) {
     return NaN;
   }
-  const nx = Math.floor(bounds.size[0] / spacing) + 1;
-  const ny = Math.floor(bounds.size[1] / spacing) + 1;
+  const nx = deepMimoReceiverAxisCount(bounds.size[0], spacing);
+  const ny = deepMimoReceiverAxisCount(bounds.size[1], spacing);
   return Math.max(0, nx) * Math.max(0, ny);
 }
 
@@ -1399,10 +1401,6 @@ function deepMimoPayload() {
       chunk_size: state.deepmimo.rxGrid.chunkSize,
       filter_buildings: state.deepmimo.rxGrid.filterBuildings,
     },
-    scene: {
-      crop_to_roi: true,
-      buffer_m: state.deepmimo.scene.bufferM,
-    },
     solver: {
       ...commonSolverConfig(),
       samples_per_src: state.deepmimo.solver.samplesPerSrc,
@@ -1421,11 +1419,13 @@ function deepMimoPayload() {
 function renderDeepMimoState() {
   const bounds = deepMimoRoiBounds();
   const estimate = deepMimoReceiverEstimate(bounds);
+  const selectedTileCount = getViewer().loadedTileIds.size;
+  const tileLabel = `${formatCount(selectedTileCount)} selected tile${selectedTileCount === 1 ? "" : "s"}`;
   if (bounds) {
-    ui.deepMimoRoiSummary.textContent = `${formatFixed(bounds.size[0], 1, " m")} x ${formatFixed(bounds.size[1], 1, " m")} | ${formatCount(estimate)} Rx candidates`;
+    ui.deepMimoRoiSummary.textContent = `${formatFixed(bounds.size[0], 1, " m")} x ${formatFixed(bounds.size[1], 1, " m")} | ${formatCount(estimate)} Rx candidates | ${tileLabel}`;
     getViewer().renderDeepMimoRoi(bounds);
   } else {
-    ui.deepMimoRoiSummary.textContent = "No ROI selected";
+    ui.deepMimoRoiSummary.textContent = `No ROI selected | ${tileLabel}`;
     getViewer().clearDeepMimoRoi();
   }
 
@@ -1544,6 +1544,9 @@ async function pollDeepMimo(jobId) {
 }
 
 async function runDeepMimo() {
+  if (!getViewer().__ready || getViewer().loadedTileIds.size === 0) {
+    throw new Error("Load at least one selected tile before exporting DeepMIMO");
+  }
   const payload = deepMimoPayload();
   state.deepmimo.status = "Queued";
   state.deepmimo.progress = 0;

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 
 from backend import config
@@ -21,6 +22,56 @@ def sanitize_scenario_name(value: object, *, fallback: str = "hku_deepmimo_roi")
     text = _SCENARIO_NAME_RE.sub("_", text)
     text = text.strip("._-")
     return text[:80] or fallback
+
+
+def parse_tile_ids(value: object, *, name: str = "scene.tile_ids") -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{name} must be a non-empty list")
+    tile_ids: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ValueError(f"{name}[{index}] must be a string")
+        tile_id = item.strip()
+        if not tile_id:
+            raise ValueError(f"{name}[{index}] must not be empty")
+        if tile_id not in tile_ids:
+            tile_ids.append(tile_id)
+    if not tile_ids:
+        raise ValueError(f"{name} must be a non-empty list")
+    return tuple(tile_ids)
+
+
+def receiver_grid_axis_count(lower: float, upper: float, spacing: float) -> int:
+    start = float(lower)
+    stop = float(upper)
+    step = float(spacing)
+    if not all(math.isfinite(value) for value in (start, stop, step)) or step <= 0.0:
+        raise ValueError("receiver grid bounds and spacing must be finite")
+    if stop < start:
+        return 0
+    return int(math.ceil(((stop - start) / step) + 0.5))
+
+
+def receiver_grid_candidate_count(
+    min_xy: tuple[float, float],
+    max_xy: tuple[float, float],
+    spacing: float,
+) -> int:
+    x_count = receiver_grid_axis_count(min_xy[0], max_xy[0], spacing)
+    y_count = receiver_grid_axis_count(min_xy[1], max_xy[1], spacing)
+    return x_count * y_count
+
+
+def validate_receiver_grid_limit(
+    min_xy: tuple[float, float],
+    max_xy: tuple[float, float],
+    spacing: float,
+    max_receivers: int,
+) -> int:
+    receiver_count = receiver_grid_candidate_count(min_xy, max_xy, spacing)
+    if receiver_count > int(max_receivers):
+        raise ValueError(f"ROI grid creates {receiver_count} receivers, above max_receivers={max_receivers}")
+    return receiver_count
 
 
 def parse_deepmimo_payload(payload: dict) -> dict:
@@ -67,6 +118,7 @@ def parse_deepmimo_payload(payload: dict) -> dict:
         min_value=1,
         max_value=max(config.DEEPMIMO_DEFAULT_CHUNK_SIZE, 8192),
     )
+    validate_receiver_grid_limit(min_xy, max_xy, spacing, max_receivers)
 
     return {
         "roi": {
@@ -88,13 +140,8 @@ def parse_deepmimo_payload(payload: dict) -> dict:
             "filter_buildings": parse_bool(rx_grid, "filter_buildings", True, name="rx_grid"),
         },
         "scene": {
-            "crop_to_roi": parse_bool(scene_config, "crop_to_roi", True, name="scene"),
-            "buffer_m": parse_bounded_float(
-                scene_config.get("buffer_m", config.DEEPMIMO_DEFAULT_SCENE_BUFFER_M),
-                name="scene.buffer_m",
-                min_value=config.DEEPMIMO_MIN_SCENE_BUFFER_M,
-                max_value=config.DEEPMIMO_MAX_SCENE_BUFFER_M,
-            ),
+            "mode": "selected_tiles",
+            "tile_ids": parse_tile_ids(scene_config.get("tile_ids")),
         },
         "solver": {
             "frequency_hz": parse_bounded_float(

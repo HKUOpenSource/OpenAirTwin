@@ -30,6 +30,7 @@ class MobilityJob:
     updated_at_epoch: float = field(default_factory=time.time, repr=False)
     result: dict | None = None
     error: str | None = None
+    scene_generation: int | None = None
 
     def to_status_dict(self) -> dict:
         return {
@@ -74,13 +75,14 @@ class MobilityJobManager:
             self._worker = Thread(target=self._worker_loop, daemon=True)
             self._worker.start()
 
-    def create_job(self, payload: dict) -> MobilityJob:
+    def create_job(self, payload: dict, *, scene_generation: int | None = None) -> MobilityJob:
         self._validate_payload(payload)
         job = MobilityJob(
             job_id=f"mob_{uuid4().hex[:12]}",
             status="queued",
             progress=0.0,
             message="Queued",
+            scene_generation=scene_generation,
         )
         with self._lock:
             self._cleanup_locked(time.time())
@@ -110,6 +112,10 @@ class MobilityJobManager:
                 setattr(job, key, value)
             job.updated_at = _utc_now()
             job.updated_at_epoch = time.time()
+
+    def _scene_generation_for_job(self, job_id: str) -> int | None:
+        with self._lock:
+            return self._jobs[job_id].scene_generation
 
     def _cleanup_locked(self, now: float) -> None:
         terminal_statuses = {"succeeded", "failed"}
@@ -146,16 +152,22 @@ class MobilityJobManager:
 
     def _run_job(self, job_id: str, payload: dict) -> None:
         self._update_job(job_id, status="running", progress=0.02, message="Starting")
+        scene_generation = self._scene_generation_for_job(job_id)
         try:
-            result = self._solver(
-                self._rt_runtime,
-                payload,
-                progress_cb=lambda progress, message: self._update_job(
+            solver_kwargs = {
+                "progress_cb": lambda progress, message: self._update_job(
                     job_id,
                     status="running",
                     progress=progress,
                     message=message,
-                ),
+                )
+            }
+            if scene_generation is not None:
+                solver_kwargs["expected_scene_generation"] = scene_generation
+            result = self._solver(
+                self._rt_runtime,
+                payload,
+                **solver_kwargs,
             )
             self._update_job(
                 job_id,

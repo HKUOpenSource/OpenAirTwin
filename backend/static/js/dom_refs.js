@@ -217,7 +217,6 @@ export const inputs = {
   deepMimoRoiLength: document.getElementById("deepMimoRoiLength"),
   deepMimoGridSpacing: document.getElementById("deepMimoGridSpacing"),
   deepMimoRxHeight: document.getElementById("deepMimoRxHeight"),
-  deepMimoSceneBuffer: document.getElementById("deepMimoSceneBuffer"),
   deepMimoMaxReceivers: document.getElementById("deepMimoMaxReceivers"),
   deepMimoChunkSize: document.getElementById("deepMimoChunkSize"),
   deepMimoSamplesPerSrc: document.getElementById("deepMimoSamplesPerSrc"),

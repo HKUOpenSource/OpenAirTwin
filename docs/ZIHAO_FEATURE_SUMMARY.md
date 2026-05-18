@@ -2,6 +2,21 @@
 
 This document summarizes the current frontend and viewer updates prepared from the `worktree-zihao` line of development.
 
+## Developer Context
+
+- Developer: Zihao
+- Remote host: `defaultuser@100.65.77.20`
+- Remote work folder: `/home/defaultuser/worktree-zihao`
+- Main validation port: `18091`
+
+Use `worktree-zihao` for Zihao validation. Do not restart, kill, or sync over
+another developer's worktree, especially `worktree-zhaolin`, unless explicitly
+requested. Sync code with an explicit target:
+
+```bash
+HKU_RT_REMOTE_ROOT=/home/defaultuser/worktree-zihao bash scripts/sync_code_to_remote.sh
+```
+
 ## Scope
 
 The branch focuses on the user entry flow before loading the 3D scene, while keeping the existing path solver and radio-map pipeline unchanged.

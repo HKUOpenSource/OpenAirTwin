@@ -66,6 +66,7 @@ def solve_mobility(
     *,
     dependencies=None,
     progress_cb=None,
+    expected_scene_generation: int | None = None,
 ) -> dict:
     params = parse_mobility_payload(payload)
     trajectory = params["rx_trajectory"]
@@ -95,6 +96,7 @@ def solve_mobility(
             rt_runtime,
             _link_payload_for_step(params, sample),
             dependencies=dependencies,
+            expected_scene_generation=expected_scene_generation,
         )
         step_summary = link_result["summary"]
         paths = link_result.get("paths", [])

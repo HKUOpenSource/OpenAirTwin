@@ -42,8 +42,8 @@ class SolverValidationTests(unittest.TestCase):
             {
                 "roi": {"min": [10, 20], "max": [2, 6]},
                 "tx": {"position": [1, 2, 3]},
-                "rx_grid": {"spacing": 1.0, "max_receivers": 100, "filter_buildings": False},
-                "scene": {"buffer_m": 123.0},
+                "rx_grid": {"spacing": 1.0, "max_receivers": 200, "filter_buildings": False},
+                "scene": {"tile_ids": ["TILE_A", "TILE_B", "TILE_A"]},
                 "solver": {"synthetic_array": False, "samples_per_src": 42, "diffraction": True},
                 "export": {"scenario_name": "../HKU demo data"},
             }
@@ -53,8 +53,8 @@ class SolverValidationTests(unittest.TestCase):
         self.assertEqual(parsed["roi"]["max"], (10.0, 20.0))
         self.assertEqual(parsed["roi"]["size"], (8.0, 14.0))
         self.assertTrue(parsed["solver"]["synthetic_array"])
-        self.assertTrue(parsed["scene"]["crop_to_roi"])
-        self.assertEqual(parsed["scene"]["buffer_m"], 123.0)
+        self.assertEqual(parsed["scene"]["mode"], "selected_tiles")
+        self.assertEqual(parsed["scene"]["tile_ids"], ("TILE_A", "TILE_B"))
         self.assertEqual(parsed["solver"]["samples_per_src"], 42)
         self.assertTrue(parsed["solver"]["diffraction"])
         self.assertFalse(parsed["rx_grid"]["filter_buildings"])
@@ -63,16 +63,26 @@ class SolverValidationTests(unittest.TestCase):
     def test_deepmimo_payload_bounds_are_enforced(self) -> None:
         for payload in [
             {"roi": {"min": [0, 0], "max": [0, 1]}},
-            {"roi": {"min": [0, 0], "max": [1, 1]}, "rx_grid": {"spacing": 0.01}},
-            {"roi": {"min": [0, 0], "max": [1, 1]}, "rx_grid": {"max_receivers": config.DEEPMIMO_MAX_RECEIVERS + 1}},
-            {"roi": {"min": [0, 0], "max": [1, 1]}, "rx_grid": {"filter_buildings": "maybe"}},
-            {"roi": {"min": [0, 0], "max": [1, 1]}, "scene": {"buffer_m": config.DEEPMIMO_MAX_SCENE_BUFFER_M + 1}},
+            {"roi": {"min": [0, 0], "max": [1, 1]}, "scene": {"tile_ids": []}},
+            {"roi": {"min": [0, 0], "max": [1, 1]}, "scene": {"tile_ids": ["TILE_A"]}, "rx_grid": {"spacing": 0.01}},
+            {"roi": {"min": [0, 0], "max": [1, 1]}, "scene": {"tile_ids": ["TILE_A"]}, "rx_grid": {"max_receivers": config.DEEPMIMO_MAX_RECEIVERS + 1}},
+            {"roi": {"min": [0, 0], "max": [1, 1]}, "scene": {"tile_ids": ["TILE_A"]}, "rx_grid": {"filter_buildings": "maybe"}},
         ]:
             with self.subTest(payload=payload):
                 with self.assertRaises(ValueError):
                     parse_deepmimo_payload(payload)
 
         self.assertEqual(sanitize_scenario_name("HKU:ROI/01"), "HKU_ROI_01")
+
+    def test_deepmimo_payload_rejects_oversized_receiver_grid(self) -> None:
+        with self.assertRaisesRegex(ValueError, "ROI grid creates 121 receivers, above max_receivers=120"):
+            parse_deepmimo_payload(
+                {
+                    "roi": {"min": [0, 0], "max": [10, 10]},
+                    "scene": {"tile_ids": ["TILE_A"]},
+                    "rx_grid": {"spacing": 1.0, "max_receivers": 120},
+                }
+            )
 
     def test_antenna_array_payloads_are_validated(self) -> None:
         link = parse_link_payload(

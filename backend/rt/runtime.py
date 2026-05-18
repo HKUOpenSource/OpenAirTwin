@@ -27,6 +27,28 @@ class SceneNotReady(RuntimeError):
         self.message = message
 
 
+STALE_SCENE_MESSAGE = "Sionna RT scene changed since this job was queued; create a new job"
+
+
+def current_scene_generation(rt_runtime) -> int | None:
+    generation = getattr(rt_runtime, "generation", None)
+    if generation is None and hasattr(rt_runtime, "status_dict"):
+        generation = rt_runtime.status_dict().get("generation")
+    if generation is None:
+        return None
+    return int(generation)
+
+
+def require_scene_generation(rt_runtime, expected_generation: int | None) -> None:
+    if expected_generation is None:
+        return
+    current_generation = current_scene_generation(rt_runtime)
+    if current_generation is None:
+        return
+    if current_generation != int(expected_generation):
+        raise SceneNotReady("stale", STALE_SCENE_MESSAGE)
+
+
 @dataclass
 class RTRuntime:
     scene_xml: Path
