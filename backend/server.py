@@ -15,7 +15,7 @@ from backend.jobs.deepmimo_jobs import DeepMIMOJobManager, DeepMIMOQueueFull
 from backend.jobs.mobility_jobs import MobilityJobManager, MobilityQueueFull
 from backend.jobs.radiomap_jobs import RadiomapJobManager, RadiomapQueueFull
 from backend.rt.common import antenna_array_capabilities
-from backend.rt.runtime import RTRuntime
+from backend.rt.runtime import RTRuntime, SceneNotReady
 from backend.rt.solve_link import solve_link
 from backend.scene.tile_bundles import (
     bundle_cache_key,
@@ -23,6 +23,7 @@ from backend.scene.tile_bundles import (
     compressed_tile_bundle_path,
     ensure_tile_bundle,
 )
+from backend.scene.tile_scene_xml import TileSceneXmlBuilder
 from backend.scene.xml_catalog import SceneManifest, load_scene_manifest
 
 
@@ -40,7 +41,16 @@ class AppState:
     def __init__(self) -> None:
         self.manifest: SceneManifest = load_scene_manifest(config.SCENE_ROOT, config.SCENE_XML)
         self.manifest_lookup = self.manifest.mesh_lookup
-        self.rt_runtime = RTRuntime(config.SCENE_XML, config.DEFAULT_FREQUENCY_HZ)
+        self.rt_scene_builder = TileSceneXmlBuilder(
+            config.SCENE_ROOT,
+            config.SCENE_XML,
+            config.GENERATED_ROOT / "rt_scene_xml",
+        )
+        self.rt_runtime = RTRuntime(
+            config.SCENE_XML,
+            config.DEFAULT_FREQUENCY_HZ,
+            self.rt_scene_builder,
+        )
         self.job_manager = RadiomapJobManager(self.rt_runtime)
         self.mobility_job_manager = MobilityJobManager(self.rt_runtime)
         self.deepmimo_job_manager = DeepMIMOJobManager()
@@ -237,6 +247,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True, **antenna_array_capabilities()})
             return
 
+        if path == "/api/rt/scene-selection":
+            self.send_json(self.app_state.rt_runtime.status_dict())
+            return
+
         if path == "/api/scene/manifest":
             self.send_json(self.app_state.manifest.to_api_dict())
             return
@@ -344,6 +358,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         try:
+            if path == "/api/rt/scene-selection":
+                payload = self.read_json_body()
+                tile_ids = payload.get("tile_ids", [])
+                self.send_json(self.app_state.rt_runtime.request_scene_selection(tile_ids))
+                return
+
             if path == "/api/link/solve":
                 payload = self.read_json_body()
                 result = solve_link(self.app_state.rt_runtime, payload)
@@ -352,12 +372,14 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             if path == "/api/radiomap/jobs":
                 payload = self.read_json_body()
+                self.app_state.rt_runtime.require_ready()
                 job = self.app_state.job_manager.create_job(payload)
                 self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
                 return
 
             if path == "/api/mobility/jobs":
                 payload = self.read_json_body()
+                self.app_state.rt_runtime.require_ready()
                 job = self.app_state.mobility_job_manager.create_job(payload)
                 self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
                 return
@@ -396,6 +418,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 },
                 code=429,
             )
+        except SceneNotReady as exc:
+            self.send_json({"ok": False, "error": exc.message, "status": exc.status}, code=409)
         except ValueError as exc:
             self.send_json({"ok": False, "error": str(exc)}, code=400)
         except Exception as exc:

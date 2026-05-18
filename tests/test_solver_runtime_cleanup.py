@@ -54,6 +54,9 @@ class FakeRuntime:
     def set_frequency(self, frequency_hz: float) -> None:
         self.scene.frequency = float(frequency_hz)
 
+    def require_ready(self):
+        return self.scene
+
     def set_arrays(self, *, tx_array=None, rx_array=None) -> None:
         self.array_calls.append({"tx_array": tx_array, "rx_array": rx_array})
         if tx_array is not None:

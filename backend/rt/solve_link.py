@@ -163,7 +163,7 @@ def solve_link(
     total_started_at = perf_counter()
 
     with rt_runtime.lock:
-        scene = rt_runtime.scene
+        scene = rt_runtime.require_ready()
         rt_runtime.set_frequency(params["frequency_hz"])
         rt_runtime.set_arrays(tx_array=params["tx_array"], rx_array=params["rx_array"])
         try:

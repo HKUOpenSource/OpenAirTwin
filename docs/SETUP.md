@@ -34,9 +34,11 @@ validation.
 
 ## Scene and Runtime Requirements
 
-Local backend startup and RT solve flows require all of the following:
+Local backend startup and RT solve flows require the scene assets plus either
+the per-tile XML source or the legacy full-scene XML:
 
-- `HKU_scenes/scenario_HKU.xml`
+- `HKU_scenes/common/scene_common.xml` and `HKU_scenes/tiles/*.xml`
+- or `HKU_scenes/scenario_HKU.xml` as the fallback legacy source
 - `HKU_scenes/meshes/`
 - Sionna RT
 - Mitsuba
@@ -44,7 +46,8 @@ Local backend startup and RT solve flows require all of the following:
 - a compatible GPU runtime for practical solver validation
 
 If `HKU_scenes/` is missing, `python3 -m backend.server` is expected to fail
-during startup because the manifest and Sionna scene are loaded eagerly.
+during startup because the manifest cannot be built. The Sionna RT scene itself
+is loaded lazily after the user selects one or more tiles.
 
 To pull scene assets from the configured remote:
 
@@ -62,7 +65,7 @@ Use Zhaolin's remote worktree for validation:
 - host: `defaultuser@100.65.77.20`
 - worktree: `/home/defaultuser/worktree-zhaolin`
 - validation port: `8090`
-- authoritative GPU virtualenv: `/home/defaultuser/venvs/sionna-gpu`
+- authoritative GPU virtualenv: `/home/defaultuser/venvs/env_hku_rt_gpu`
 
 Sync code to Zhaolin's worktree:
 
@@ -96,9 +99,10 @@ HKU_RT_SMOKE_BASE_URL=http://127.0.0.1:8090 python3 scripts/smoke_remote_http.py
 python3 scripts/smoke_remote_http.py --base-url http://100.65.77.20:8090
 ```
 
-The smoke test checks `/api/health`, `/api/scene/manifest`, gzip bundle serving,
-ETag/304 handling, low-sample basic and advanced link solves, and a low-sample
-radio-map job. It expects at least one manifest bundle to have a fresh
+The smoke test checks `/api/health`, `/api/scene/manifest`,
+`/api/rt/scene-selection`, gzip bundle serving, ETag/304 handling, low-sample
+basic and advanced link solves, and a low-sample radio-map job. It expects at
+least one manifest bundle to have a fresh
 pre-compressed `.glb.gz` cache. If none exists, pre-compress bundles on the
 remote before running the smoke test.
 

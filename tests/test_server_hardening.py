@@ -17,6 +17,7 @@ from backend import config
 from backend.jobs.deepmimo_jobs import DeepMIMOQueueFull
 from backend.jobs.mobility_jobs import MobilityQueueFull
 from backend.jobs.radiomap_jobs import RadiomapQueueFull
+from backend.rt.runtime import SceneNotReady
 from backend.server import RequestHandler, resolve_under
 
 
@@ -92,8 +93,63 @@ class FakeDeepMIMOJobManager:
         return None
 
 
+class FakeReadyRuntime:
+    def status_dict(self):
+        return {
+            "ok": True,
+            "status": "ready",
+            "active_tile_ids": ["TILE_A"],
+            "requested_tile_ids": ["TILE_A"],
+            "generation": 1,
+            "message": "Sionna RT scene ready",
+            "preload_seconds": 0.01,
+        }
+
+    def request_scene_selection(self, tile_ids):
+        return {
+            **self.status_dict(),
+            "requested_tile_ids": list(tile_ids),
+            "status": "loading",
+            "generation": 2,
+        }
+
+    def require_ready(self):
+        return object()
+
+
+class FakeSceneSelectionRuntime(FakeReadyRuntime):
+    def __init__(self) -> None:
+        self.tile_ids = []
+
+    def status_dict(self):
+        return {
+            "ok": True,
+            "status": "empty",
+            "active_tile_ids": [],
+            "requested_tile_ids": self.tile_ids,
+            "generation": 0,
+            "message": "No Sionna RT tiles selected",
+            "preload_seconds": None,
+        }
+
+    def request_scene_selection(self, tile_ids):
+        if tile_ids == ["BAD_TILE"]:
+            raise ValueError("Unknown tile id: BAD_TILE")
+        self.tile_ids = list(tile_ids)
+        return {
+            **self.status_dict(),
+            "status": "loading",
+            "generation": 1,
+        }
+
+    def require_ready(self):
+        raise SceneNotReady("loading", "Sionna scene is still loading")
+
+
 class ServerHardeningTests(unittest.TestCase):
     def run_server(self, app_state):
+        if not hasattr(app_state, "rt_runtime"):
+            app_state.rt_runtime = FakeReadyRuntime()
         server = ThreadingHTTPServer(("127.0.0.1", 0), RequestHandler)
         server.app_state = app_state  # type: ignore[attr-defined]
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -319,6 +375,64 @@ class ServerHardeningTests(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertEqual(payload["antenna_arrays"]["defaults"]["pattern"], "iso")
             self.assertEqual(payload["antenna_arrays"]["limits"]["element_count"]["max"], 256)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_rt_scene_selection_routes_return_status_and_validation_errors(self) -> None:
+        runtime = FakeSceneSelectionRuntime()
+        server, thread = self.run_server(SimpleNamespace(rt_runtime=runtime))
+        try:
+            host, port = server.server_address
+            status = json.loads(urllib.request.urlopen(f"http://{host}:{port}/api/rt/scene-selection").read())
+            self.assertEqual(status["status"], "empty")
+
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/rt/scene-selection",
+                data=json.dumps({"tile_ids": ["TILE_A"]}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            created = json.loads(urllib.request.urlopen(request).read())
+            self.assertEqual(created["status"], "loading")
+            self.assertEqual(created["requested_tile_ids"], ["TILE_A"])
+
+            bad_request = urllib.request.Request(
+                f"http://{host}:{port}/api/rt/scene-selection",
+                data=json.dumps({"tile_ids": ["BAD_TILE"]}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(bad_request)
+            self.assertEqual(error.exception.code, 400)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_radiomap_create_rejects_when_rt_scene_is_not_ready(self) -> None:
+        server, thread = self.run_server(
+            SimpleNamespace(
+                rt_runtime=FakeSceneSelectionRuntime(),
+                job_manager=FakeMobilityJobManager(),
+            )
+        )
+        try:
+            host, port = server.server_address
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/radiomap/jobs",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(request)
+            self.assertEqual(error.exception.code, 409)
+            payload = json.loads(error.exception.read().decode("utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["status"], "loading")
         finally:
             server.shutdown()
             thread.join(timeout=2)

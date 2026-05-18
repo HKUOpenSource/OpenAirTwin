@@ -10,6 +10,8 @@ import {
   getRadiomapJob,
   getRadiomapResult,
   getRtCapabilities,
+  getRtSceneSelection,
+  setRtSceneSelection,
   solveLink,
 } from "/js/api.js";
 import {entryMap, PERFORMANCE_MODES, state, viewerRef} from "/js/app_state.js";
@@ -37,6 +39,8 @@ const context = {
     getRadiomapJob,
     getRadiomapResult,
     getRtCapabilities,
+    getRtSceneSelection,
+    setRtSceneSelection,
     solveLink,
   },
   controllers: {},

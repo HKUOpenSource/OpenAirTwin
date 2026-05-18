@@ -38,7 +38,7 @@ def solve_terrain_radiomap(
     report(0.02, "Waiting for solver")
     with rt_runtime.lock:
         report(0.05, "Using cached scene")
-        scene = rt_runtime.scene
+        scene = rt_runtime.require_ready()
         rt_runtime.set_frequency(params["frequency_hz"])
         rt_runtime.set_arrays(tx_array=params["tx_array"])
         try:
