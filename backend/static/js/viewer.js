@@ -200,6 +200,7 @@ export class Viewer {
     this.pathMaterials = [];
     this.meshMaterials = [];
     this.modelEntries = new Map();
+    this.deepMimoRoi = null;
     this.tileMeshCounts = new Map();
     this.tileBundleCounts = new Map();
     this.tileExpectedBundleCounts = new Map();
@@ -1081,6 +1082,7 @@ export class Viewer {
     this.clearRadiomap();
     this.clearSurfacePreview();
     this.clearMobility();
+    this.clearDeepMimoRoi();
   }
 
   clearPaths() {
@@ -1214,6 +1216,65 @@ export class Viewer {
     this.radiomapMesh.material.map?.dispose?.();
     this.radiomapMesh.material.dispose();
     this.radiomapMesh = null;
+  }
+
+  clearDeepMimoRoi() {
+    if (!this.deepMimoRoi) {
+      return;
+    }
+    this.overlayGroup.remove(this.deepMimoRoi);
+    for (const object of this.deepMimoRoi.children) {
+      object.geometry?.dispose();
+      object.material?.dispose();
+    }
+    this.deepMimoRoi = null;
+  }
+
+  renderDeepMimoRoi(bounds) {
+    this.clearDeepMimoRoi();
+    if (!bounds || !Array.isArray(bounds.min) || !Array.isArray(bounds.max)) {
+      return;
+    }
+    const [minX, minY] = bounds.min;
+    const [maxX, maxY] = bounds.max;
+    const z = Number(bounds.z || 0) + 0.18;
+    const group = new THREE.Group();
+
+    const fillGeometry = new THREE.PlaneGeometry(Math.max(maxX - minX, 0.01), Math.max(maxY - minY, 0.01));
+    const fillMaterial = new THREE.MeshBasicMaterial({
+      color: "#35c2a1",
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const fill = new THREE.Mesh(fillGeometry, fillMaterial);
+    fill.position.set((minX + maxX) * 0.5, (minY + maxY) * 0.5, z);
+    group.add(fill);
+
+    const lineGeometry = new LineGeometry();
+    lineGeometry.setPositions([
+      minX, minY, z + 0.08,
+      maxX, minY, z + 0.08,
+      maxX, maxY, z + 0.08,
+      minX, maxY, z + 0.08,
+      minX, minY, z + 0.08,
+    ]);
+    const lineMaterial = new LineMaterial({
+      color: new THREE.Color("#14a886"),
+      linewidth: 2.4,
+      transparent: true,
+      opacity: 0.96,
+      depthTest: true,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    lineMaterial.resolution.set(window.innerWidth, window.innerHeight);
+    group.add(new Line2(lineGeometry, lineMaterial));
+    group.renderOrder = 16;
+    this.overlayGroup.add(group);
+    this.deepMimoRoi = group;
   }
 
   renderRadiomap(result, colorRange = {minDb: -140, maxDb: -80, colormap: "jet"}) {

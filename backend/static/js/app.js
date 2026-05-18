@@ -1,7 +1,10 @@
 import {
+  createDeepMimoJob,
   createMobilityJob,
   createRadiomapJob,
+  deepMimoDownloadUrl,
   getManifest,
+  getDeepMimoJob,
   getMobilityJob,
   getMobilityResult,
   getRadiomapJob,
@@ -24,8 +27,11 @@ const context = {
   inputs,
   viewerRef,
   api: {
+    createDeepMimoJob,
     createRadiomapJob,
     createMobilityJob,
+    deepMimoDownloadUrl,
+    getDeepMimoJob,
     getMobilityJob,
     getMobilityResult,
     getRadiomapJob,
@@ -56,6 +62,8 @@ const DEVICE_TARGET_LABELS = {
   "link-tx": "Link Tx",
   "link-rx": "Link Rx",
   "rm-tx": "Radio Map Tx",
+  "deepmimo-tx": "DeepMIMO Tx",
+  "deepmimo-roi": "DeepMIMO ROI",
 };
 
 const PICK_TAP_MAX_MOVE_PX = 6;
@@ -68,6 +76,12 @@ function setPickStatus(message = "") {
 }
 
 function placementPromptForTarget(target) {
+  if (target === "deepmimo-roi") {
+    return "Drag on the terrain to draw a rectangular DeepMIMO ROI";
+  }
+  if (target === "deepmimo-tx") {
+    return "Click any surface to place DeepMIMO Tx";
+  }
   return target === "link-rx"
     ? "Click any surface to place Rx"
     : "Click any surface to place Tx";
@@ -75,6 +89,10 @@ function placementPromptForTarget(target) {
 
 function isLinkDeviceTarget(target) {
   return target === "link-tx" || target === "link-rx";
+}
+
+function isDeepMimoDeviceTarget(target) {
+  return target === "deepmimo-tx" || target === "deepmimo-roi";
 }
 
 function isEditableKeyboardTarget(target) {
@@ -119,8 +137,10 @@ function openDevicePrecision(target) {
   readActiveDeviceInputs();
   if (isLinkDeviceTarget(target)) {
     solverControls.readLinkInputs();
-  } else {
+  } else if (target === "rm-tx") {
     solverControls.readRadiomapInputs();
+  } else if (isDeepMimoDeviceTarget(target)) {
+    solverControls.readDeepMimoInputs();
   }
   state.deviceControl.activeTarget = target;
   state.pickTarget = target;
@@ -135,16 +155,30 @@ function readActiveDeviceInputs() {
   }
   if (state.deviceControl.activeTarget === "rm-tx") {
     solverControls.readRadiomapInputs();
+    return;
+  }
+  if (isDeepMimoDeviceTarget(state.deviceControl.activeTarget)) {
+    solverControls.readDeepMimoInputs();
   }
 }
 
 function txOrbitCenterForMode() {
-  return state.mode === "radiomap" ? state.radiomap.txVisual : state.link.txVisual;
+  if (state.mode === "radiomap") {
+    return state.radiomap.txVisual;
+  }
+  if (state.mode === "deepmimo") {
+    return state.deepmimo.txVisual;
+  }
+  return state.link.txVisual;
 }
 
 function readTxInputsForCurrentMode() {
   if (state.mode === "radiomap") {
     solverControls.readRadiomapInputs();
+    return;
+  }
+  if (state.mode === "deepmimo") {
+    solverControls.readDeepMimoInputs();
     return;
   }
   solverControls.readLinkInputs();
@@ -204,6 +238,9 @@ function pickActiveDeviceAt(clientX, clientY, target, livePhase = "change") {
     state.deviceControl.activeTarget = target;
     state.pickTarget = target;
     setPickStatus(placementPromptForTarget(target));
+    if (target === "deepmimo-roi") {
+      return true;
+    }
     solverControls.handleLivePreviewDeviceUpdate(target, livePhase);
     return true;
   }
@@ -211,9 +248,39 @@ function pickActiveDeviceAt(clientX, clientY, target, livePhase = "change") {
   return false;
 }
 
+function deepMimoSurfacePositionAt(clientX, clientY) {
+  const pick = currentViewer().pickOnSurface(clientX, clientY, 0);
+  return pick ? (pick.surfacePosition || pick.logicalPosition) : null;
+}
+
 function handlePickPointerDown(event) {
   if (!state.pickTarget || !event.isPrimary || event.button !== 0 || event.shiftKey) {
     clearPickTapCandidate();
+    return;
+  }
+  if (state.pickTarget === "deepmimo-roi") {
+    const position = deepMimoSurfacePositionAt(event.clientX, event.clientY);
+    if (!position) {
+      setPickStatus(placementPromptForTarget("deepmimo-roi"));
+      return;
+    }
+    solverControls.startDeepMimoRoiDrag(position);
+    pickTapCandidate = {
+      pointerId: event.pointerId,
+      target: state.pickTarget,
+      startX: event.clientX,
+      startY: event.clientY,
+      startAt: window.performance.now(),
+      canceled: false,
+      dragging: true,
+      roiDrawing: true,
+    };
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {}
+    sceneRenderState.renderAll();
     return;
   }
   pickTapCandidate = {
@@ -236,6 +303,17 @@ function handlePickPointerMove(event) {
   if (!pickTapCandidate || event.pointerId !== pickTapCandidate.pointerId) {
     return;
   }
+  if (pickTapCandidate.roiDrawing) {
+    const position = deepMimoSurfacePositionAt(event.clientX, event.clientY);
+    if (position) {
+      solverControls.updateDeepMimoRoiDrag(position);
+      setPickStatus(placementPromptForTarget("deepmimo-roi"));
+      sceneRenderState.renderAll();
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   const dx = event.clientX - pickTapCandidate.startX;
   const dy = event.clientY - pickTapCandidate.startY;
   if ((dx * dx) + (dy * dy) > PICK_TAP_MAX_MOVE_PX * PICK_TAP_MAX_MOVE_PX) {
@@ -255,6 +333,22 @@ function handlePickPointerUp(event) {
   }
   const candidate = pickTapCandidate;
   clearPickTapCandidate();
+  if (candidate.roiDrawing) {
+    const position = deepMimoSurfacePositionAt(event.clientX, event.clientY);
+    if (position) {
+      solverControls.finishDeepMimoRoiDrag(position);
+    }
+    state.deviceControl.activeTarget = "deepmimo-roi";
+    state.pickTarget = "deepmimo-roi";
+    setPickStatus(placementPromptForTarget("deepmimo-roi"));
+    sceneRenderState.renderAll();
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      document.getElementById("view").releasePointerCapture(event.pointerId);
+    } catch {}
+    return;
+  }
   const duration = window.performance.now() - candidate.startAt;
   const dx = event.clientX - candidate.startX;
   const dy = event.clientY - candidate.startY;
@@ -436,6 +530,21 @@ function attachEvents() {
     currentViewer().clearOverlay();
     sceneRenderState.renderAll();
   });
+  ui.tabDeepMimo.addEventListener("click", () => {
+    paramTooltips.hideTooltip();
+    solverControls.cancelLivePreview();
+    solverControls.stopMobilityPlayback();
+    stopTxOrbit();
+    state.mode = "deepmimo";
+    clearPickTapCandidate();
+    state.pickTarget = null;
+    state.deviceControl.activeTarget = null;
+    setPickStatus();
+    currentViewer().clearPaths();
+    currentViewer().clearRadiomap();
+    currentViewer().clearSurfacePreview();
+    sceneRenderState.renderAll();
+  });
 
   ui.btnSolveLink.addEventListener("click", () => runSolveFromDock(ui.btnSolveLink, () => solverControls.runLinkSolve()).catch((error) => {
     sceneRenderState.hideOverlay();
@@ -450,6 +559,24 @@ function attachEvents() {
     solverControls.stopMobilityPlayback();
     window.alert(error.message);
   }));
+  ui.btnRunDeepMimo.addEventListener("click", () => {
+    clearPickTapCandidate();
+    solverControls.cancelLivePreview();
+    state.pickTarget = null;
+    state.deviceControl.activeTarget = null;
+    setPickStatus();
+    ui.btnRunDeepMimo.disabled = true;
+    ui.btnRunDeepMimo.classList.add("busy");
+    ui.btnRunDeepMimo.setAttribute("aria-busy", "true");
+    solverControls.runDeepMimo().catch((error) => {
+      window.alert(error.message);
+    }).finally(() => {
+      ui.btnRunDeepMimo.disabled = false;
+      ui.btnRunDeepMimo.classList.remove("busy");
+      ui.btnRunDeepMimo.removeAttribute("aria-busy");
+      sceneRenderState.renderAll();
+    });
+  });
   ui.btnResetView.addEventListener("click", () => {
     stopTxOrbit();
     if (!currentViewer().focusOnTiles([...currentViewer().loadedTileIds])) {
@@ -463,6 +590,24 @@ function attachEvents() {
   ui.btnPickLinkTx.addEventListener("click", () => openDevicePrecision("link-tx"));
   ui.btnPickLinkRx.addEventListener("click", () => openDevicePrecision("link-rx"));
   ui.btnPickRmTx.addEventListener("click", () => openDevicePrecision("rm-tx"));
+  ui.btnDeepMimoPickTx.addEventListener("click", () => openDevicePrecision("deepmimo-tx"));
+  ui.btnDeepMimoPickRoi.addEventListener("click", () => {
+    clearPickTapCandidate();
+    solverControls.readDeepMimoInputs();
+    state.deepmimo.roi.pickingStep = "drag";
+    state.deviceControl.activeTarget = "deepmimo-roi";
+    state.pickTarget = "deepmimo-roi";
+    setPickStatus(placementPromptForTarget("deepmimo-roi"));
+    sceneRenderState.renderAll();
+  });
+  ui.btnDeepMimoClearRoi.addEventListener("click", () => {
+    clearPickTapCandidate();
+    state.pickTarget = null;
+    state.deviceControl.activeTarget = null;
+    setPickStatus();
+    solverControls.clearDeepMimoRoi();
+    sceneRenderState.renderAll();
+  });
 
   for (const [input, target] of [
     [inputs.linkTxX, "link-tx"], [inputs.linkTxY, "link-tx"], [inputs.linkTxZ, "link-tx"],
@@ -572,6 +717,31 @@ function attachEvents() {
   ]) {
     input.addEventListener("change", () => {
       solverControls.readRadiomapInputs();
+      sceneRenderState.renderAll();
+    });
+  }
+
+  for (const input of [
+    inputs.deepMimoTxX,
+    inputs.deepMimoTxY,
+    inputs.deepMimoTxZ,
+    inputs.deepMimoScenarioName,
+    inputs.deepMimoRoiCenterX,
+    inputs.deepMimoRoiCenterY,
+    inputs.deepMimoRoiWidth,
+    inputs.deepMimoRoiLength,
+    inputs.deepMimoGridSpacing,
+    inputs.deepMimoRxHeight,
+    inputs.deepMimoSceneBuffer,
+    inputs.deepMimoMaxReceivers,
+    inputs.deepMimoChunkSize,
+    inputs.deepMimoSamplesPerSrc,
+    inputs.deepMimoMaxPaths,
+    inputs.deepMimoFilterBuildings,
+  ]) {
+    input.addEventListener("change", () => {
+      solverControls.readDeepMimoInputs();
+      solverControls.renderDeepMimoState();
       sceneRenderState.renderAll();
     });
   }

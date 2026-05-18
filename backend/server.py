@@ -11,6 +11,7 @@ import traceback
 from urllib.parse import parse_qs, unquote, urlparse
 
 from backend import config
+from backend.jobs.deepmimo_jobs import DeepMIMOJobManager, DeepMIMOQueueFull
 from backend.jobs.mobility_jobs import MobilityJobManager, MobilityQueueFull
 from backend.jobs.radiomap_jobs import RadiomapJobManager, RadiomapQueueFull
 from backend.rt.common import antenna_array_capabilities
@@ -42,6 +43,7 @@ class AppState:
         self.rt_runtime = RTRuntime(config.SCENE_XML, config.DEFAULT_FREQUENCY_HZ)
         self.job_manager = RadiomapJobManager(self.rt_runtime)
         self.mobility_job_manager = MobilityJobManager(self.rt_runtime)
+        self.deepmimo_job_manager = DeepMIMOJobManager()
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -299,6 +301,43 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_json(payload)
             return
 
+        if path.startswith("/api/deepmimo/jobs/"):
+            suffix = path.removeprefix("/api/deepmimo/jobs/")
+            if suffix.endswith("/download"):
+                job_id = suffix.removesuffix("/download")
+                archive = self.app_state.deepmimo_job_manager.get_download_path(job_id)
+                if archive is None:
+                    self.send_text("DeepMIMO dataset is not ready", code=404)
+                    return
+                stat = archive.stat()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header("Content-Length", str(stat.st_size))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header(
+                    "Content-Disposition",
+                    f'attachment; filename="{archive.name}"',
+                )
+                self.end_headers()
+                with open(archive, "rb") as handle:
+                    while True:
+                        chunk = handle.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                return
+
+            job_id = suffix
+            job = self.app_state.deepmimo_job_manager.get_job(job_id)
+            if job is None:
+                self.send_text("Unknown job id", code=404)
+                return
+            payload = job.to_status_dict()
+            if job.status == "failed":
+                payload["error"] = job.error
+            self.send_json(payload)
+            return
+
         self.send_text("Not Found", code=404)
 
     def do_POST(self) -> None:
@@ -323,6 +362,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
                 return
 
+            if path == "/api/deepmimo/jobs":
+                payload = self.read_json_body()
+                job = self.app_state.deepmimo_job_manager.create_job(payload)
+                self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
+                return
+
             self.send_text("Not Found", code=404)
         except RadiomapQueueFull as exc:
             self.send_json(
@@ -334,6 +379,15 @@ class RequestHandler(BaseHTTPRequestHandler):
                 code=429,
             )
         except MobilityQueueFull as exc:
+            self.send_json(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                    "max_pending_jobs": exc.max_pending_jobs,
+                },
+                code=429,
+            )
+        except DeepMIMOQueueFull as exc:
             self.send_json(
                 {
                     "ok": False,

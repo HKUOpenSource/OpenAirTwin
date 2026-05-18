@@ -295,6 +295,54 @@ def _interpolate_points_on_terrain(
     return z_values, point_normals
 
 
+def sample_points_on_terrain(
+    scene,
+    points_xy: np.ndarray,
+    *,
+    center_xy: tuple[float, float],
+    size_xy: tuple[float, float],
+    height_offset: float = 0.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    import mitsuba as mi
+
+    terrain_candidates = [
+        obj
+        for obj in scene.objects.values()
+        if getattr(getattr(obj, "radio_material", None), "name", None) == config.RADIOMAP_MEASUREMENT_MATERIAL
+    ]
+    if not terrain_candidates:
+        raise ValueError(
+            f"Could not find a terrain measurement surface with radio material '{config.RADIOMAP_MEASUREMENT_MATERIAL}'"
+        )
+    if len(terrain_candidates) != 1:
+        raise ValueError(
+            f"Expected exactly one terrain measurement surface for '{config.RADIOMAP_MEASUREMENT_MATERIAL}', "
+            f"found {len(terrain_candidates)}"
+        )
+
+    patch_mesh = terrain_candidates[0].clone(as_mesh=True)
+    params = mi.traverse(patch_mesh)
+    vertex_positions = np.asarray(to_numpy(params["vertex_positions"]), dtype=np.float32).reshape(-1, 3)
+    faces = np.asarray(to_numpy(params["faces"]), dtype=np.uint32).reshape(-1, 3)
+    face_mask = _select_faces_in_xy_box(vertex_positions, faces, center_xy, size_xy)
+    selected_faces = faces[face_mask]
+    if selected_faces.size == 0:
+        raise ValueError("Selected ROI contains no terrain surface")
+
+    z_values, normals = _interpolate_points_on_terrain(
+        np.asarray(points_xy, dtype=np.float32),
+        vertex_positions[selected_faces],
+    )
+    positions = np.column_stack(
+        [
+            np.asarray(points_xy, dtype=np.float32)[:, 0],
+            np.asarray(points_xy, dtype=np.float32)[:, 1],
+            z_values + float(height_offset),
+        ]
+    ).astype(np.float32, copy=False)
+    return positions, normals
+
+
 def _build_cell_size_grid(
     vertex_positions: np.ndarray,
     selected_faces: np.ndarray,

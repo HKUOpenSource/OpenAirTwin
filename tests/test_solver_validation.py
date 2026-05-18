@@ -9,6 +9,7 @@ from backend.rt.common import (
     parse_mobility_payload,
     parse_radiomap_payload,
 )
+from backend.rt.deepmimo_payload import parse_deepmimo_payload, sanitize_scenario_name
 
 
 class SolverValidationTests(unittest.TestCase):
@@ -35,6 +36,43 @@ class SolverValidationTests(unittest.TestCase):
         self.assertIsNone(radiomap["surface_cell_size"])
         self.assertEqual(radiomap["surface_resolution_mode"], "density_level")
         self.assertEqual(radiomap["base_samples_per_tx"], config.DEFAULT_RADIOMAP_SAMPLES)
+
+    def test_deepmimo_payload_is_sanitized_and_forces_synthetic_arrays(self) -> None:
+        parsed = parse_deepmimo_payload(
+            {
+                "roi": {"min": [10, 20], "max": [2, 6]},
+                "tx": {"position": [1, 2, 3]},
+                "rx_grid": {"spacing": 1.0, "max_receivers": 100, "filter_buildings": False},
+                "scene": {"buffer_m": 123.0},
+                "solver": {"synthetic_array": False, "samples_per_src": 42, "diffraction": True},
+                "export": {"scenario_name": "../HKU demo data"},
+            }
+        )
+
+        self.assertEqual(parsed["roi"]["min"], (2.0, 6.0))
+        self.assertEqual(parsed["roi"]["max"], (10.0, 20.0))
+        self.assertEqual(parsed["roi"]["size"], (8.0, 14.0))
+        self.assertTrue(parsed["solver"]["synthetic_array"])
+        self.assertTrue(parsed["scene"]["crop_to_roi"])
+        self.assertEqual(parsed["scene"]["buffer_m"], 123.0)
+        self.assertEqual(parsed["solver"]["samples_per_src"], 42)
+        self.assertTrue(parsed["solver"]["diffraction"])
+        self.assertFalse(parsed["rx_grid"]["filter_buildings"])
+        self.assertEqual(parsed["export"]["scenario_name"], "HKU_demo_data")
+
+    def test_deepmimo_payload_bounds_are_enforced(self) -> None:
+        for payload in [
+            {"roi": {"min": [0, 0], "max": [0, 1]}},
+            {"roi": {"min": [0, 0], "max": [1, 1]}, "rx_grid": {"spacing": 0.01}},
+            {"roi": {"min": [0, 0], "max": [1, 1]}, "rx_grid": {"max_receivers": config.DEEPMIMO_MAX_RECEIVERS + 1}},
+            {"roi": {"min": [0, 0], "max": [1, 1]}, "rx_grid": {"filter_buildings": "maybe"}},
+            {"roi": {"min": [0, 0], "max": [1, 1]}, "scene": {"buffer_m": config.DEEPMIMO_MAX_SCENE_BUFFER_M + 1}},
+        ]:
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValueError):
+                    parse_deepmimo_payload(payload)
+
+        self.assertEqual(sanitize_scenario_name("HKU:ROI/01"), "HKU_ROI_01")
 
     def test_antenna_array_payloads_are_validated(self) -> None:
         link = parse_link_payload(

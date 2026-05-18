@@ -251,6 +251,7 @@
           <button class="modeTab active" data-mode="link" id="tabLink">Link Mode</button>
           <button class="modeTab" data-mode="mobility" id="tabMobility">Mobility</button>
           <button class="modeTab" data-mode="radiomap" id="tabRadiomap">Radio Map</button>
+          <button class="modeTab" data-mode="deepmimo" id="tabDeepMimo">DeepMIMO</button>
         </div>
 
         <div class="tileStateCache" aria-hidden="true">
@@ -607,11 +608,111 @@
               </label>
             </div>
           </section>
+
+          <section class="paramGroup deepmimoOnlyParam hidden">
+            <div class="paramGroupTitle">DeepMIMO ROI Export</div>
+            <div id="deepMimoRoiSummary" class="mobilityEstimate">No ROI selected</div>
+            <div class="paramGrid">
+              <label class="paramField" for="deepMimoScenarioName">
+                <span class="paramLabel">Scenario Name</span>
+                <input id="deepMimoScenarioName" type="text" value="hku_deepmimo_roi" />
+              </label>
+              <label class="paramField" for="deepMimoRoiCenterX">
+                <span class="paramLabel">ROI Center X</span>
+                <span class="unitInput">
+                  <input id="deepMimoRoiCenterX" type="number" step="1.0" />
+                  <span class="unitSuffix" aria-hidden="true">m</span>
+                </span>
+              </label>
+              <label class="paramField" for="deepMimoRoiCenterY">
+                <span class="paramLabel">ROI Center Y</span>
+                <span class="unitInput">
+                  <input id="deepMimoRoiCenterY" type="number" step="1.0" />
+                  <span class="unitSuffix" aria-hidden="true">m</span>
+                </span>
+              </label>
+              <label class="paramField" for="deepMimoRoiWidth">
+                <span class="paramLabel">ROI Width</span>
+                <span class="unitInput">
+                  <input id="deepMimoRoiWidth" type="number" step="1.0" min="0.25" />
+                  <span class="unitSuffix" aria-hidden="true">m</span>
+                </span>
+              </label>
+              <label class="paramField" for="deepMimoRoiLength">
+                <span class="paramLabel">ROI Length</span>
+                <span class="unitInput">
+                  <input id="deepMimoRoiLength" type="number" step="1.0" min="0.25" />
+                  <span class="unitSuffix" aria-hidden="true">m</span>
+                </span>
+              </label>
+              <label class="paramField" for="deepMimoGridSpacing">
+                <span class="paramLabel">Rx Spacing</span>
+                <span class="unitInput">
+                  <input id="deepMimoGridSpacing" type="number" step="0.5" min="0.25" max="100" value="2.0" />
+                  <span class="unitSuffix" aria-hidden="true">m</span>
+                </span>
+              </label>
+              <label class="paramField" for="deepMimoRxHeight">
+                <span class="paramLabel">Rx Height</span>
+                <span class="unitInput">
+                  <input id="deepMimoRxHeight" type="number" step="0.1" min="0" max="100" value="1.5" />
+                  <span class="unitSuffix" aria-hidden="true">m</span>
+                </span>
+              </label>
+              <label class="paramField" for="deepMimoSceneBuffer">
+                <span class="paramLabel">Scene Buffer</span>
+                <span class="unitInput">
+                  <input id="deepMimoSceneBuffer" type="number" step="10" min="0" max="2000" value="200" />
+                  <span class="unitSuffix" aria-hidden="true">m</span>
+                </span>
+              </label>
+              <label class="paramField" for="deepMimoMaxReceivers">
+                <span class="paramLabel">Max Receivers</span>
+                <input id="deepMimoMaxReceivers" type="number" step="1000" min="1" max="200000" value="5000" />
+              </label>
+              <label class="paramField" for="deepMimoChunkSize">
+                <span class="paramLabel">Chunk Size</span>
+                <input id="deepMimoChunkSize" type="number" step="256" min="1" max="8192" value="1024" />
+              </label>
+              <label class="paramField" for="deepMimoSamplesPerSrc">
+                <span class="paramLabel">Samples / Source</span>
+                <input id="deepMimoSamplesPerSrc" type="number" step="1000" min="1" max="1000000" value="30000" />
+              </label>
+              <label class="paramField" for="deepMimoMaxPaths">
+                <span class="paramLabel">Max Paths / Source</span>
+                <input id="deepMimoMaxPaths" type="number" step="1000" min="1" max="1000000" value="1000000" />
+              </label>
+              <label class="paramCheck computeCheck">
+                <input id="deepMimoFilterBuildings" type="checkbox" checked />
+                <span>Filter building footprints</span>
+              </label>
+            </div>
+            <div id="deepMimoJobStatus" class="mobilityEstimate">Idle</div>
+            <div
+              id="deepMimoProgress"
+              class="deepMimoProgress hidden"
+              role="progressbar"
+              aria-label="DeepMIMO export progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <div class="deepMimoProgressTrack" aria-hidden="true">
+                <div id="deepMimoProgressFill" class="deepMimoProgressFill"></div>
+              </div>
+              <div class="deepMimoProgressMeta">
+                <span id="deepMimoProgressStage">Idle</span>
+                <span id="deepMimoProgressPercent">0%</span>
+              </div>
+            </div>
+            <a id="deepMimoDownloadLink" class="btn deepMimoDownload hidden" href="#" download>Download Dataset</a>
+          </section>
         </div>
 
         <section id="linkPanel" class="modePanel"></section>
         <section id="mobilityPanel" class="modePanel hidden"></section>
         <section id="radiomapPanel" class="modePanel hidden"></section>
+        <section id="deepmimoPanel" class="modePanel hidden"></section>
 
         <div class="actions">
           <button class="btn" id="btnResetView">Reset View</button>
@@ -649,6 +750,13 @@
               <label>Z <span class="unitInput"><input id="rmTxZ" type="number" step="1.0" value="40.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
             </div>
           </section>
+          <section id="deepMimoTxDeviceCard" class="deviceCoordPanel hidden">
+            <div class="deviceCoordGrid">
+              <label>X <span class="unitInput"><input id="deepMimoTxX" type="number" step="1.0" value="72.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Y <span class="unitInput"><input id="deepMimoTxY" type="number" step="1.0" value="37.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Z <span class="unitInput"><input id="deepMimoTxZ" type="number" step="1.0" value="40.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+            </div>
+          </section>
           <label id="linkSurfaceClearanceField" class="deviceClearanceField hidden" for="linkSurfaceClearance">
             <span>Clearance
               <span class="infoTip" tabindex="0" aria-label="Surface clearance details">i<span class="tipBubble" role="tooltip">Distance from the picked surface for Link Tx/Rx and Radio Map Tx. Applies to the next click or drag placement only.</span></span>
@@ -680,6 +788,24 @@
           </span>
           <span class="deviceActionText">Tx</span>
         </button>
+        <button class="deviceActionBtn hidden" id="btnDeepMimoPickTx" type="button" aria-label="Pick DeepMIMO transmitter">
+          <span class="deviceActionIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 19v-7"></path><path d="M7 9a5 5 0 0 1 10 0"></path><path d="M4 6a9 9 0 0 1 16 0"></path><path d="M10 21h4"></path></svg>
+          </span>
+          <span class="deviceActionText">Tx</span>
+        </button>
+        <button class="deviceActionBtn hidden" id="btnDeepMimoPickRoi" type="button" aria-label="Draw DeepMIMO ROI">
+          <span class="deviceActionIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"></path><path d="M9 5v14"></path><path d="M15 5v14"></path><path d="M5 9h14"></path><path d="M5 15h14"></path></svg>
+          </span>
+          <span class="deviceActionText">Draw ROI</span>
+        </button>
+        <button class="deviceActionBtn hidden" id="btnDeepMimoClearRoi" type="button" aria-label="Clear DeepMIMO ROI">
+          <span class="deviceActionIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M7 7h10"></path><path d="M9 7V5h6v2"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M8 7l1 12h6l1-12"></path></svg>
+          </span>
+          <span class="deviceActionText">Clear ROI</span>
+        </button>
         <button class="deviceActionBtn" id="btnOrbitTx" type="button" aria-label="Orbit around transmitter" aria-pressed="false">
           <span class="deviceActionIcon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M4 12a8 5 0 1 0 16 0 8 5 0 1 0-16 0"></path><path d="M12 7v10"></path><path d="m9 14 3 3 3-3"></path></svg>
@@ -703,6 +829,12 @@
             <svg viewBox="0 0 24 24"><path d="M4 18c4-4 12 4 16 0"></path><path d="M4 12c4-4 12 4 16 0"></path><path d="M4 6c4-4 12 4 16 0"></path></svg>
           </span>
           <span class="deviceActionText">Run Map</span>
+        </button>
+        <button class="deviceActionBtn solve hidden" id="btnRunDeepMimo" type="button">
+          <span class="deviceActionIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h16"></path><path d="M7 4v16"></path><path d="M12 4v16"></path><path d="M17 4v16"></path></svg>
+          </span>
+          <span class="deviceActionText">Export Data</span>
         </button>
       </div>
     </div>

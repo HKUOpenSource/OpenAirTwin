@@ -14,6 +14,7 @@ import urllib.request
 from unittest.mock import patch
 
 from backend import config
+from backend.jobs.deepmimo_jobs import DeepMIMOQueueFull
 from backend.jobs.mobility_jobs import MobilityQueueFull
 from backend.jobs.radiomap_jobs import RadiomapQueueFull
 from backend.server import RequestHandler, resolve_under
@@ -27,6 +28,11 @@ class QueueFullJobManager:
 class QueueFullMobilityJobManager:
     def create_job(self, _payload):
         raise MobilityQueueFull(4)
+
+
+class QueueFullDeepMIMOJobManager:
+    def create_job(self, _payload):
+        raise DeepMIMOQueueFull(2)
 
 
 class FakeMobilityJobManager:
@@ -56,6 +62,34 @@ class FakeMobilityJobManager:
 
     def get_job(self, job_id):
         return self.job if job_id == self.job.job_id else None
+
+
+class FakeDeepMIMOJobManager:
+    def __init__(self) -> None:
+        self.job = SimpleNamespace(
+            job_id="dm_test",
+            status="succeeded",
+            progress=1.0,
+            message="DeepMIMO dataset ready",
+            result={"archive_name": "dataset.zip"},
+            error=None,
+            to_status_dict=lambda: {
+                "job_id": "dm_test",
+                "status": "succeeded",
+                "progress": 1.0,
+                "message": "DeepMIMO dataset ready",
+                "result": {"archive_name": "dataset.zip"},
+            },
+        )
+
+    def create_job(self, _payload):
+        return self.job
+
+    def get_job(self, job_id):
+        return self.job if job_id == self.job.job_id else None
+
+    def get_download_path(self, _job_id):
+        return None
 
 
 class ServerHardeningTests(unittest.TestCase):
@@ -178,6 +212,31 @@ class ServerHardeningTests(unittest.TestCase):
             thread.join(timeout=2)
             server.server_close()
 
+    def test_deepmimo_queue_full_returns_429(self) -> None:
+        server, thread = self.run_server(
+            SimpleNamespace(
+                deepmimo_job_manager=QueueFullDeepMIMOJobManager(),
+            )
+        )
+        try:
+            host, port = server.server_address
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/deepmimo/jobs",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(request)
+            self.assertEqual(error.exception.code, 429)
+            payload = json.loads(error.exception.read().decode("utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["max_pending_jobs"], 2)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
     def test_mobility_job_routes_return_status_and_result(self) -> None:
         manager = FakeMobilityJobManager()
         server, thread = self.run_server(SimpleNamespace(mobility_job_manager=manager))
@@ -198,6 +257,32 @@ class ServerHardeningTests(unittest.TestCase):
             result = json.loads(urllib.request.urlopen(f"http://{host}:{port}/api/mobility/jobs/mob_test/result").read())
             self.assertEqual(result["summary"]["step_count"], 1)
             self.assertEqual(result["samples"][0]["step_index"], 0)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_deepmimo_job_routes_return_status_and_download_conflict(self) -> None:
+        manager = FakeDeepMIMOJobManager()
+        server, thread = self.run_server(SimpleNamespace(deepmimo_job_manager=manager))
+        try:
+            host, port = server.server_address
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/deepmimo/jobs",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            created = json.loads(urllib.request.urlopen(request).read().decode("utf-8"))
+            self.assertTrue(created["ok"])
+            self.assertEqual(created["job_id"], "dm_test")
+
+            status = json.loads(urllib.request.urlopen(f"http://{host}:{port}/api/deepmimo/jobs/dm_test").read())
+            self.assertEqual(status["status"], "succeeded")
+            self.assertEqual(status["result"]["archive_name"], "dataset.zip")
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(f"http://{host}:{port}/api/deepmimo/jobs/dm_test/download")
+            self.assertEqual(error.exception.code, 404)
         finally:
             server.shutdown()
             thread.join(timeout=2)

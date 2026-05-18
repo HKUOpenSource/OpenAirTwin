@@ -55,3 +55,19 @@ export function getMobilityJob(jobId) {
 export function getMobilityResult(jobId) {
   return requestJson(`/api/mobility/jobs/${encodeURIComponent(jobId)}/result`);
 }
+
+export function createDeepMimoJob(payload) {
+  return requestJson("/api/deepmimo/jobs", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getDeepMimoJob(jobId) {
+  return requestJson(`/api/deepmimo/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export function deepMimoDownloadUrl(jobId) {
+  return `/api/deepmimo/jobs/${encodeURIComponent(jobId)}/download`;
+}

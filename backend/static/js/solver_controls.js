@@ -20,8 +20,11 @@ export function createSolverControlsController(context) {
   }
 
   const {
+    createDeepMimoJob,
     createMobilityJob,
     createRadiomapJob,
+    deepMimoDownloadUrl,
+    getDeepMimoJob,
     getMobilityJob,
     getMobilityResult,
     getRadiomapJob,
@@ -387,6 +390,9 @@ function syncNumericInputs() {
   const colorMinDb = state.radiomap.display.colorMinDb;
   const colorMaxDb = state.radiomap.display.colorMaxDb;
   const colormap = state.radiomap.display.colormap;
+  const [dtx, dty, dtz] = state.deepmimo.tx;
+  const dmGrid = state.deepmimo.rxGrid;
+  const dmSolver = state.deepmimo.solver;
 
   inputs.linkTxX.value = ltx.toFixed(1);
   inputs.linkTxY.value = lty.toFixed(1);
@@ -394,7 +400,11 @@ function syncNumericInputs() {
   inputs.linkRxX.value = lrx.toFixed(1);
   inputs.linkRxY.value = lry.toFixed(1);
   inputs.linkRxZ.value = lrz.toFixed(1);
-  const clearanceScope = state.deviceControl.activeTarget === "rm-tx" ? "radiomap" : "link";
+  const clearanceScope = state.deviceControl.activeTarget === "rm-tx"
+    ? "radiomap"
+    : state.deviceControl.activeTarget === "deepmimo-tx"
+      ? "deepmimo"
+      : "link";
   inputs.linkSurfaceClearance.value = String(surfaceClearanceM(clearanceScope));
   inputs.rmTxX.value = rtx.toFixed(1);
   inputs.rmTxY.value = rty.toFixed(1);
@@ -408,6 +418,23 @@ function syncNumericInputs() {
   inputs.rmColormap.value = normalizeColormapName(colormap);
   inputs.rmColorMin.value = colorMinDb.toFixed(0);
   inputs.rmColorMax.value = colorMaxDb.toFixed(0);
+  inputs.deepMimoScenarioName.value = state.deepmimo.export.scenarioName;
+  inputs.deepMimoTxX.value = dtx.toFixed(1);
+  inputs.deepMimoTxY.value = dty.toFixed(1);
+  inputs.deepMimoTxZ.value = dtz.toFixed(1);
+  const dmBounds = deepMimoRoiBounds();
+  inputs.deepMimoRoiCenterX.value = dmBounds ? dmBounds.center[0].toFixed(1) : "";
+  inputs.deepMimoRoiCenterY.value = dmBounds ? dmBounds.center[1].toFixed(1) : "";
+  inputs.deepMimoRoiWidth.value = dmBounds ? dmBounds.size[0].toFixed(1) : "";
+  inputs.deepMimoRoiLength.value = dmBounds ? dmBounds.size[1].toFixed(1) : "";
+  inputs.deepMimoGridSpacing.value = String(dmGrid.spacing);
+  inputs.deepMimoRxHeight.value = String(dmGrid.height);
+  inputs.deepMimoSceneBuffer.value = String(state.deepmimo.scene.bufferM);
+  inputs.deepMimoMaxReceivers.value = String(dmGrid.maxReceivers);
+  inputs.deepMimoChunkSize.value = String(dmGrid.chunkSize);
+  inputs.deepMimoFilterBuildings.checked = Boolean(dmGrid.filterBuildings);
+  inputs.deepMimoSamplesPerSrc.value = String(dmSolver.samplesPerSrc);
+  inputs.deepMimoMaxPaths.value = String(dmSolver.maxNumPathsPerSrc);
   syncAntennaArrayInputs();
   syncLinkAdvancedInputs();
   syncLivePreviewInputs();
@@ -425,7 +452,13 @@ function setLogicalAndVisual(logicalTarget, visualTarget, logicalValues, visualV
 }
 
 function surfaceClearanceM(scope = "link") {
-  const value = Number(scope === "radiomap" ? state.radiomap.surfaceClearanceM : state.link.surfaceClearanceM);
+  const value = Number(
+    scope === "radiomap"
+      ? state.radiomap.surfaceClearanceM
+      : scope === "deepmimo"
+        ? state.deepmimo.surfaceClearanceM
+        : state.link.surfaceClearanceM,
+  );
   if (!Number.isFinite(value)) {
     return 1.5;
   }
@@ -450,13 +483,23 @@ function radiomapTxPickPosition(pick) {
   return pickPositionWithSurfaceClearance(pick, "radiomap");
 }
 
-function readSurfaceClearanceInput(scope = state.deviceControl.activeTarget === "rm-tx" ? "radiomap" : "link") {
+function deepMimoTxPickPosition(pick) {
+  return pickPositionWithSurfaceClearance(pick, "deepmimo");
+}
+
+function readSurfaceClearanceInput(scope = state.deviceControl.activeTarget === "rm-tx"
+  ? "radiomap"
+  : state.deviceControl.activeTarget === "deepmimo-tx"
+    ? "deepmimo"
+    : "link") {
   const clearance = Number(inputs.linkSurfaceClearance.value);
   const nextClearance = Number.isFinite(clearance)
     ? Math.max(0, Math.min(50, clearance))
     : 1.5;
   if (scope === "radiomap") {
     state.radiomap.surfaceClearanceM = nextClearance;
+  } else if (scope === "deepmimo") {
+    state.deepmimo.surfaceClearanceM = nextClearance;
   } else {
     state.link.surfaceClearanceM = nextClearance;
   }
@@ -468,12 +511,20 @@ function syncViewerMarkers() {
     getViewer().setRx(state.link.rxVisual);
     return;
   }
+  if (state.mode === "deepmimo") {
+    getViewer().setTx(state.deepmimo.txVisual);
+    getViewer().setRx(state.link.rxVisual);
+    return;
+  }
   getViewer().setTx(state.link.txVisual);
   const sample = state.mode === "mobility" ? state.mobility.result?.samples?.[state.mobility.selectedStep] : null;
   getViewer().setRx(sample?.rx_position || state.link.rxVisual);
 }
 
 function markerRadiusForPickTarget(target) {
+  if (target === "deepmimo-roi") {
+    return 0;
+  }
   return target === "link-rx" ? getViewer().rxMarkerRadius : getViewer().txMarkerRadius;
 }
 
@@ -521,6 +572,26 @@ function readRadiomapInputs() {
   state.radiomap.display.colorMinDb = Number(inputs.rmColorMin.value);
   state.radiomap.display.colorMaxDb = Number(inputs.rmColorMax.value);
   readAntennaArrayInputs();
+}
+
+function readDeepMimoInputs() {
+  setLogicalAndVisual(state.deepmimo.tx, state.deepmimo.txVisual, [
+    Number(inputs.deepMimoTxX.value),
+    Number(inputs.deepMimoTxY.value),
+    Number(inputs.deepMimoTxZ.value),
+  ]);
+  readSurfaceClearanceInput("deepmimo");
+  readAntennaArrayInputs();
+  readDeepMimoRoiInputs();
+  state.deepmimo.rxGrid.spacing = Number(inputs.deepMimoGridSpacing.value);
+  state.deepmimo.rxGrid.height = Number(inputs.deepMimoRxHeight.value);
+  state.deepmimo.scene.bufferM = Number(inputs.deepMimoSceneBuffer.value);
+  state.deepmimo.rxGrid.maxReceivers = Number(inputs.deepMimoMaxReceivers.value);
+  state.deepmimo.rxGrid.chunkSize = Number(inputs.deepMimoChunkSize.value);
+  state.deepmimo.rxGrid.filterBuildings = inputs.deepMimoFilterBuildings.checked;
+  state.deepmimo.solver.samplesPerSrc = Number(inputs.deepMimoSamplesPerSrc.value);
+  state.deepmimo.solver.maxNumPathsPerSrc = Number(inputs.deepMimoMaxPaths.value);
+  state.deepmimo.export.scenarioName = inputs.deepMimoScenarioName.value.trim() || "hku_deepmimo_roi";
 }
 
 function readMobilityInputs() {
@@ -1237,6 +1308,271 @@ function renderRadiomapResult() {
   }
   renderRadiomapColorbar(true);
 }
+
+function deepMimoRoiBounds() {
+  const cornerA = state.deepmimo.roi.cornerA;
+  const cornerB = state.deepmimo.roi.cornerB;
+  if (!Array.isArray(cornerA) || !Array.isArray(cornerB)) {
+    return null;
+  }
+  const minX = Math.min(Number(cornerA[0]), Number(cornerB[0]));
+  const minY = Math.min(Number(cornerA[1]), Number(cornerB[1]));
+  const maxX = Math.max(Number(cornerA[0]), Number(cornerB[0]));
+  const maxY = Math.max(Number(cornerA[1]), Number(cornerB[1]));
+  if (![minX, minY, maxX, maxY].every(Number.isFinite) || maxX <= minX || maxY <= minY) {
+    return null;
+  }
+  return {
+    min: [minX, minY],
+    max: [maxX, maxY],
+    center: [(minX + maxX) * 0.5, (minY + maxY) * 0.5],
+    size: [maxX - minX, maxY - minY],
+    z: Math.max(Number(cornerA[2] || 0), Number(cornerB[2] || 0)),
+  };
+}
+
+function setDeepMimoRoiCorners(cornerA, cornerB, {message = "ROI updated"} = {}) {
+  state.deepmimo.roi.cornerA = [Number(cornerA[0]), Number(cornerA[1]), Number(cornerA[2] || 0)];
+  state.deepmimo.roi.cornerB = [Number(cornerB[0]), Number(cornerB[1]), Number(cornerB[2] || 0)];
+  state.deepmimo.roi.pickingStep = "a";
+  state.deepmimo.status = "Idle";
+  state.deepmimo.progress = 0;
+  state.deepmimo.message = message;
+}
+
+function setDeepMimoRoiFromCenter(centerX, centerY, width, length, z = 0) {
+  const halfWidth = Number(width) * 0.5;
+  const halfLength = Number(length) * 0.5;
+  setDeepMimoRoiCorners(
+    [Number(centerX) - halfWidth, Number(centerY) - halfLength, z],
+    [Number(centerX) + halfWidth, Number(centerY) + halfLength, z],
+  );
+}
+
+function readDeepMimoRoiInputs() {
+  const centerX = Number(inputs.deepMimoRoiCenterX.value);
+  const centerY = Number(inputs.deepMimoRoiCenterY.value);
+  const width = Number(inputs.deepMimoRoiWidth.value);
+  const length = Number(inputs.deepMimoRoiLength.value);
+  if (![centerX, centerY, width, length].every(Number.isFinite) || width <= 0 || length <= 0) {
+    return;
+  }
+  const bounds = deepMimoRoiBounds();
+  setDeepMimoRoiFromCenter(centerX, centerY, width, length, bounds?.z || 0);
+}
+
+function deepMimoReceiverEstimate(bounds = deepMimoRoiBounds()) {
+  if (!bounds) {
+    return 0;
+  }
+  const spacing = Number(state.deepmimo.rxGrid.spacing);
+  if (!Number.isFinite(spacing) || spacing <= 0) {
+    return NaN;
+  }
+  const nx = Math.floor(bounds.size[0] / spacing) + 1;
+  const ny = Math.floor(bounds.size[1] / spacing) + 1;
+  return Math.max(0, nx) * Math.max(0, ny);
+}
+
+function deepMimoPayload() {
+  readDeepMimoInputs();
+  const bounds = deepMimoRoiBounds();
+  if (!bounds) {
+    throw new Error("Select a rectangular DeepMIMO ROI with two terrain clicks first");
+  }
+  const receiverEstimate = deepMimoReceiverEstimate(bounds);
+  if (!Number.isFinite(receiverEstimate) || receiverEstimate < 1) {
+    throw new Error("DeepMIMO receiver grid is empty; check ROI and grid spacing");
+  }
+  if (receiverEstimate > Number(state.deepmimo.rxGrid.maxReceivers)) {
+    throw new Error(
+      `DeepMIMO ROI creates ${formatCount(receiverEstimate)} receiver candidates; increase spacing or Max Rx`,
+    );
+  }
+  return {
+    tx: {position: state.deepmimo.tx, orientation: [0, 0, 0]},
+    roi: bounds,
+    rx_grid: {
+      spacing: state.deepmimo.rxGrid.spacing,
+      height: state.deepmimo.rxGrid.height,
+      max_receivers: state.deepmimo.rxGrid.maxReceivers,
+      chunk_size: state.deepmimo.rxGrid.chunkSize,
+      filter_buildings: state.deepmimo.rxGrid.filterBuildings,
+    },
+    scene: {
+      crop_to_roi: true,
+      buffer_m: state.deepmimo.scene.bufferM,
+    },
+    solver: {
+      ...commonSolverConfig(),
+      samples_per_src: state.deepmimo.solver.samplesPerSrc,
+      max_num_paths_per_src: state.deepmimo.solver.maxNumPathsPerSrc,
+      synthetic_array: true,
+      diffraction: state.link.advanced.diffraction,
+      edge_diffraction: state.link.advanced.edgeDiffraction,
+      diffraction_lit_region: state.link.advanced.diffractionLitRegion,
+    },
+    export: {
+      scenario_name: state.deepmimo.export.scenarioName,
+    },
+  };
+}
+
+function renderDeepMimoState() {
+  const bounds = deepMimoRoiBounds();
+  const estimate = deepMimoReceiverEstimate(bounds);
+  if (bounds) {
+    ui.deepMimoRoiSummary.textContent = `${formatFixed(bounds.size[0], 1, " m")} x ${formatFixed(bounds.size[1], 1, " m")} | ${formatCount(estimate)} Rx candidates`;
+    getViewer().renderDeepMimoRoi(bounds);
+  } else {
+    ui.deepMimoRoiSummary.textContent = "No ROI selected";
+    getViewer().clearDeepMimoRoi();
+  }
+
+  const progress = Number(state.deepmimo.progress);
+  const progressValue = Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 0;
+  const progressPercent = Math.round(progressValue * 100);
+  const statusKey = String(state.deepmimo.status || "Idle").toLowerCase();
+  const progressText = Number.isFinite(progress) && progress > 0 && progress < 1
+    ? ` (${progressPercent}%)`
+    : "";
+  ui.deepMimoJobStatus.textContent = `${formatStatus(state.deepmimo.status)}${progressText} | ${state.deepmimo.message || "Idle"}`;
+  const showProgress = statusKey !== "idle" || progressValue > 0;
+  ui.deepMimoProgress.classList.toggle("hidden", !showProgress);
+  ui.deepMimoProgress.dataset.status = statusKey;
+  ui.deepMimoProgress.setAttribute("aria-valuenow", String(progressPercent));
+  ui.deepMimoProgress.setAttribute(
+    "aria-valuetext",
+    `${progressPercent}% ${state.deepmimo.message || formatStatus(state.deepmimo.status)}`,
+  );
+  ui.deepMimoProgressFill.style.width = `${progressPercent}%`;
+  ui.deepMimoProgressStage.textContent = state.deepmimo.message || formatStatus(state.deepmimo.status);
+  ui.deepMimoProgressPercent.textContent = `${progressPercent}%`;
+  const ready = state.deepmimo.status === "succeeded" && state.deepmimo.jobId;
+  ui.deepMimoDownloadLink.classList.toggle("hidden", !ready);
+  ui.deepMimoDownloadLink.href = ready ? deepMimoDownloadUrl(state.deepmimo.jobId) : "#";
+}
+
+function setDeepMimoRoiCorner(position) {
+  const point = [Number(position[0]), Number(position[1]), Number(position[2] || 0)];
+  if (state.deepmimo.roi.pickingStep === "a" || !state.deepmimo.roi.cornerA) {
+    state.deepmimo.roi.cornerA = point;
+    state.deepmimo.roi.cornerB = null;
+    state.deepmimo.roi.pickingStep = "b";
+  } else {
+    state.deepmimo.roi.cornerB = point;
+    state.deepmimo.roi.pickingStep = "a";
+  }
+  state.deepmimo.status = "Idle";
+  state.deepmimo.progress = 0;
+  state.deepmimo.message = "ROI updated";
+  renderDeepMimoState();
+}
+
+function startDeepMimoRoiDrag(position) {
+  const point = [Number(position[0]), Number(position[1]), Number(position[2] || 0)];
+  state.deepmimo.roi.cornerA = point;
+  state.deepmimo.roi.cornerB = point;
+  state.deepmimo.roi.pickingStep = "drag";
+  state.deepmimo.status = "Idle";
+  state.deepmimo.progress = 0;
+  state.deepmimo.message = "Drawing ROI";
+  renderDeepMimoState();
+}
+
+function updateDeepMimoRoiDrag(position) {
+  if (!Array.isArray(state.deepmimo.roi.cornerA)) {
+    startDeepMimoRoiDrag(position);
+    return;
+  }
+  state.deepmimo.roi.cornerB = [Number(position[0]), Number(position[1]), Number(position[2] || 0)];
+  state.deepmimo.message = "Drawing ROI";
+  renderDeepMimoState();
+}
+
+function finishDeepMimoRoiDrag(position) {
+  updateDeepMimoRoiDrag(position);
+  state.deepmimo.roi.pickingStep = "a";
+  state.deepmimo.message = deepMimoRoiBounds() ? "ROI updated" : "Drag a larger ROI";
+  renderDeepMimoState();
+}
+
+function clearDeepMimoRoi() {
+  state.deepmimo.roi.cornerA = null;
+  state.deepmimo.roi.cornerB = null;
+  state.deepmimo.roi.pickingStep = "a";
+  state.deepmimo.status = "Idle";
+  state.deepmimo.progress = 0;
+  state.deepmimo.message = "Idle";
+  getViewer().clearDeepMimoRoi();
+  renderDeepMimoState();
+}
+
+async function pollDeepMimo(jobId) {
+  while (state.deepmimo.jobId === jobId) {
+    const job = await getDeepMimoJob(jobId);
+    state.deepmimo.status = job.status;
+    state.deepmimo.progress = Number(job.progress || 0);
+    state.deepmimo.message = job.message || "";
+    if (job.result) {
+      state.deepmimo.result = job.result;
+    }
+    renderDeepMimoState();
+
+    if (job.status === "succeeded") {
+      state.deepmimo.message = "Dataset ready";
+      renderDeepMimoState();
+      showOverlay({
+        title: "Exporting DeepMIMO Dataset",
+        message: "Dataset ready",
+        percent: 100,
+      });
+      hideOverlay();
+      return;
+    }
+    if (job.status === "failed") {
+      hideOverlay();
+      throw new Error(job.error || job.message || "DeepMIMO export failed");
+    }
+    showOverlay({
+      title: "Exporting DeepMIMO Dataset",
+      message: job.message || "Preparing DeepMIMO dataset...",
+      percent: Math.round(Math.max(0, Math.min(1, Number(job.progress || 0))) * 100),
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 1500));
+  }
+}
+
+async function runDeepMimo() {
+  const payload = deepMimoPayload();
+  state.deepmimo.status = "Queued";
+  state.deepmimo.progress = 0;
+  state.deepmimo.message = "Submitting DeepMIMO export job...";
+  state.deepmimo.result = null;
+  renderDeepMimoState();
+  showOverlay({
+    title: "Exporting DeepMIMO Dataset",
+    message: "Submitting DeepMIMO export job...",
+    percent: 0,
+  });
+
+  try {
+    const job = await createDeepMimoJob(payload);
+    state.deepmimo.jobId = job.job_id;
+    state.deepmimo.status = job.status || "running";
+    state.deepmimo.progress = Number(job.progress || 0);
+    state.deepmimo.message = job.message || "Worker started";
+    renderDeepMimoState();
+    await pollDeepMimo(job.job_id);
+  } catch (error) {
+    state.deepmimo.status = "failed";
+    state.deepmimo.progress = 1;
+    state.deepmimo.message = error.message;
+    renderDeepMimoState();
+    hideOverlay();
+    throw error;
+  }
+}
 async function runLinkSolve() {
   readLinkInputs();
   getViewer().clearOverlay();
@@ -1559,6 +1895,12 @@ function applyPick(pick) {
   } else if (state.pickTarget === "rm-tx") {
     const position = radiomapTxPickPosition(pick);
     setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, position);
+  } else if (state.pickTarget === "deepmimo-tx") {
+    const position = deepMimoTxPickPosition(pick);
+    setLogicalAndVisual(state.deepmimo.tx, state.deepmimo.txVisual, position);
+  } else if (state.pickTarget === "deepmimo-roi") {
+    const position = Array.isArray(pick.surfacePosition) ? pick.surfacePosition : pick.logicalPosition;
+    setDeepMimoRoiCorner(position);
   }
 
   renderAll();
@@ -1578,14 +1920,22 @@ function applyPick(pick) {
     readLivePreviewInputs,
     readMobilityInputs,
     readRadiomapInputs,
+    readDeepMimoInputs,
     rerenderRadiomapOverlay,
     renderLinkResult,
     renderMobilityResult,
     renderMobilityTrajectoryPreview,
     renderRadiomapResult,
+    renderDeepMimoState,
     runLinkSolve,
     runMobility,
     runRadiomap,
+    runDeepMimo,
+    setDeepMimoRoiCorner,
+    startDeepMimoRoiDrag,
+    updateDeepMimoRoiDrag,
+    finishDeepMimoRoiDrag,
+    clearDeepMimoRoi,
     addCurrentRxWaypoint,
     deleteMobilityWaypoint,
     resetMobilityTrajectoryFromRx,

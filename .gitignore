@@ -4,5 +4,7 @@ __pycache__/
 ._*
 HKU_scenes/
 HKU_scenes/cache/
+generated/
+server_*.log
 .venv/
 venv/
