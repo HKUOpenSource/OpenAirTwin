@@ -7,7 +7,7 @@ import numpy as np
 
 from backend import config
 from backend.rt.common import linear_to_db, parse_radiomap_payload, to_numpy
-from backend.rt.runtime import log_timing
+from backend.rt.runtime import log_timing, require_scene_generation
 from backend.rt.terrain_patch import build_terrain_patch
 
 
@@ -26,6 +26,7 @@ def solve_terrain_radiomap(
     progress_cb: ProgressCallback | None = None,
     *,
     dependencies=None,
+    expected_scene_generation: int | None = None,
 ) -> dict:
     RadioMapSolver, Transmitter = dependencies or _radiomap_dependencies()
 
@@ -39,6 +40,7 @@ def solve_terrain_radiomap(
     with rt_runtime.lock:
         report(0.05, "Using cached scene")
         scene = rt_runtime.require_ready()
+        require_scene_generation(rt_runtime, expected_scene_generation)
         rt_runtime.set_frequency(params["frequency_hz"])
         rt_runtime.set_arrays(tx_array=params["tx_array"])
         try:

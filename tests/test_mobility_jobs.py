@@ -23,6 +23,18 @@ def failing_solver(_runtime, _payload, progress_cb=None):
     raise RuntimeError("mobility exploded")
 
 
+def scene_generation_solver(_runtime, _payload, progress_cb=None, expected_scene_generation=None):
+    if progress_cb is not None:
+        progress_cb(0.5, "Halfway")
+    return {
+        "ok": True,
+        "summary": {"step_count": 1},
+        "series": {"time_s": [0.0], "received_power_db": [-90.0]},
+        "samples": [{"step_index": 0, "paths": []}],
+        "scene_generation": expected_scene_generation,
+    }
+
+
 def validate_payload(payload):
     if payload.get("invalid"):
         raise ValueError("invalid payload")
@@ -52,6 +64,20 @@ class MobilityJobManagerTests(unittest.TestCase):
         self.assertEqual(completed.progress, 1.0)
         self.assertEqual(completed.message, "Mobility result ready")
         self.assertEqual(manager.get_result(job.job_id)["summary"]["step_count"], 1)
+
+    def test_job_passes_creation_scene_generation_to_solver(self) -> None:
+        manager = MobilityJobManager(
+            object(),
+            solver=scene_generation_solver,
+            validate_payload=validate_payload,
+            max_pending_jobs=2,
+        )
+
+        job = manager.create_job({}, scene_generation=7)
+        completed = self.wait_for_status(manager, job.job_id, "succeeded")
+
+        self.assertEqual(completed.scene_generation, 7)
+        self.assertEqual(completed.result["scene_generation"], 7)
 
     def test_queue_full_rejects_new_jobs(self) -> None:
         manager = MobilityJobManager(

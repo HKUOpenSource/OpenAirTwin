@@ -5,7 +5,7 @@ from time import perf_counter
 import numpy as np
 
 from backend.rt.common import linear_to_db, parse_link_payload, to_numpy
-from backend.rt.runtime import log_timing
+from backend.rt.runtime import log_timing, require_scene_generation
 
 SPEED_OF_LIGHT_M_PER_S = 299_792_458.0
 POWER_POLICY_SUM_OVER_ARRAY_PAIRS = "sum_over_antenna_pairs"
@@ -146,6 +146,7 @@ def solve_link(
     payload: dict,
     *,
     dependencies=None,
+    expected_scene_generation: int | None = None,
 ) -> dict:
     InteractionType, PathSolver, Receiver, Transmitter = dependencies or _link_dependencies()
 
@@ -164,6 +165,7 @@ def solve_link(
 
     with rt_runtime.lock:
         scene = rt_runtime.require_ready()
+        require_scene_generation(rt_runtime, expected_scene_generation)
         rt_runtime.set_frequency(params["frequency_hz"])
         rt_runtime.set_arrays(tx_array=params["tx_array"], rx_array=params["rx_array"])
         try:

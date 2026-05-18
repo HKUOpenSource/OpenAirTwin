@@ -7,16 +7,16 @@ import os
 from pathlib import Path
 import shutil
 import traceback
-import xml.etree.ElementTree as ET
 
 import numpy as np
 
 from backend import config
 from backend.rt.common import build_scene
-from backend.rt.deepmimo_payload import parse_deepmimo_payload
+from backend.rt.deepmimo_payload import parse_deepmimo_payload, validate_receiver_grid_limit
 from backend.rt.terrain_patch import sample_points_on_terrain
+from backend.scene.tile_scene_xml import TileSceneXmlBuilder, TileSceneXmlResult
 from backend.scene.xml_catalog import load_scene_manifest
-from backend.scene.tile_bundles import VERTEX_DTYPE, _read_source_mesh, _read_source_ply_header
+from backend.scene.tile_bundles import _read_source_mesh, _read_source_ply_header
 
 
 def _utc_now() -> str:
@@ -41,20 +41,33 @@ def _load_payload(job_dir: Path) -> dict:
     return parse_deepmimo_payload(json.loads((job_dir / "payload.json").read_text(encoding="utf-8")))
 
 
-def _receiver_grid(min_xy: tuple[float, float], max_xy: tuple[float, float], spacing: float) -> np.ndarray:
+def _receiver_grid(
+    min_xy: tuple[float, float],
+    max_xy: tuple[float, float],
+    spacing: float,
+    *,
+    max_receivers: int,
+) -> np.ndarray:
+    validate_receiver_grid_limit(min_xy, max_xy, spacing, max_receivers)
     xs = np.arange(float(min_xy[0]), float(max_xy[0]) + (spacing * 0.5), spacing, dtype=np.float32)
     ys = np.arange(float(min_xy[1]), float(max_xy[1]) + (spacing * 0.5), spacing, dtype=np.float32)
     xx, yy = np.meshgrid(xs, ys)
     return np.column_stack([xx.reshape(-1), yy.reshape(-1)]).astype(np.float32, copy=False)
 
 
-def _building_aabbs(scene_root: Path, roi_min: tuple[float, float], roi_max: tuple[float, float]) -> np.ndarray:
+def _building_aabbs(
+    scene_root: Path,
+    tile_ids: tuple[str, ...],
+    roi_min: tuple[float, float],
+    roi_max: tuple[float, float],
+) -> np.ndarray:
     manifest = load_scene_manifest(scene_root, scene_root / "scenario_HKU.xml")
+    selected_tile_ids = set(tile_ids)
     boxes: list[tuple[float, float, float, float]] = []
     roi_min_x, roi_min_y = roi_min
     roi_max_x, roi_max_y = roi_max
     for mesh in manifest.meshes:
-        if mesh.category != "BUILDING":
+        if mesh.tile not in selected_tile_ids or mesh.category != "BUILDING":
             continue
         path = scene_root / mesh.relative_path
         if not path.exists():
@@ -76,97 +89,14 @@ def _building_aabbs(scene_root: Path, roi_min: tuple[float, float], roi_max: tup
     return np.asarray(boxes, dtype=np.float32)
 
 
-def _mesh_xy_bounds(path: Path) -> tuple[float, float, float, float] | None:
-    try:
-        with open(path, "rb") as handle:
-            header = _read_source_ply_header(handle)
-            vertex_blob = handle.read(header.vertex_count * 12)
-        if len(vertex_blob) != header.vertex_count * 12:
-            return None
-        vertices = np.frombuffer(vertex_blob, dtype=VERTEX_DTYPE).reshape(header.vertex_count, 3)
-        if vertices.size == 0:
-            return None
-        return (
-            float(np.min(vertices[:, 0])),
-            float(np.min(vertices[:, 1])),
-            float(np.max(vertices[:, 0])),
-            float(np.max(vertices[:, 1])),
-        )
-    except Exception:
-        return None
-
-
-def _boxes_intersect(left: tuple[float, float, float, float], right: tuple[float, float, float, float]) -> bool:
-    return not (left[2] < right[0] or left[0] > right[2] or left[3] < right[1] or left[1] > right[3])
-
-
-def _scene_crop_bounds(payload: dict) -> tuple[float, float, float, float]:
-    roi = payload["roi"]
-    tx_x, tx_y, _ = payload["tx"]["position"]
-    buffer_m = float(payload["scene"]["buffer_m"])
-    min_x = min(float(roi["min"][0]), float(tx_x)) - buffer_m
-    min_y = min(float(roi["min"][1]), float(tx_y)) - buffer_m
-    max_x = max(float(roi["max"][0]), float(tx_x)) + buffer_m
-    max_y = max(float(roi["max"][1]), float(tx_y)) + buffer_m
-    return (min_x, min_y, max_x, max_y)
-
-
-def _shape_filename(shape) -> str | None:
-    filename_node = shape.find('string[@name="filename"]')
-    if filename_node is None:
-        return None
-    return filename_node.attrib.get("value")
-
-
-def _set_shape_filename(shape, value: str) -> None:
-    filename_node = shape.find('string[@name="filename"]')
-    if filename_node is not None:
-        filename_node.set("value", value)
-
-
-def _write_cropped_scene_xml(scene_root: Path, source_xml: Path, target_xml: Path, crop_bounds: tuple[float, float, float, float]) -> dict:
-    tree = ET.parse(source_xml)
-    root = tree.getroot()
-    shapes = list(root.findall("shape"))
-    selected_paths: set[str] = set()
-    selected_count = 0
-    missing_count = 0
-    unreadable_count = 0
-
-    for shape in shapes:
-        relative_path = _shape_filename(shape)
-        keep = False
-        if relative_path:
-            mesh_path = scene_root / relative_path
-            if not mesh_path.exists():
-                missing_count += 1
-            else:
-                bounds = _mesh_xy_bounds(mesh_path)
-                if bounds is None:
-                    unreadable_count += 1
-                elif _boxes_intersect(bounds, crop_bounds):
-                    keep = True
-                    selected_paths.add(relative_path)
-                    _set_shape_filename(shape, str(mesh_path.resolve()))
-        if keep:
-            selected_count += 1
-        else:
-            root.remove(shape)
-
-    if selected_count == 0:
-        raise ValueError("Cropped DeepMIMO scene contains no meshes; increase Scene Buffer")
-
-    target_xml.parent.mkdir(parents=True, exist_ok=True)
-    tree.write(target_xml, encoding="utf-8", xml_declaration=True)
-    return {
-        "source_shape_count": int(len(shapes)),
-        "selected_shape_count": int(selected_count),
-        "missing_shape_count": int(missing_count),
-        "unreadable_shape_count": int(unreadable_count),
-        "selected_path_count": int(len(selected_paths)),
-        "selected_path_samples": sorted(selected_paths)[:16],
-        "crop_bounds": [float(value) for value in crop_bounds],
-    }
+def _write_selected_tile_scene_xml(job_dir: Path, tile_ids: tuple[str, ...]) -> tuple[TileSceneXmlResult, str]:
+    builder = TileSceneXmlBuilder(
+        config.SCENE_ROOT,
+        config.SCENE_XML,
+        job_dir / "scene_xml",
+    )
+    result = builder.write_selection(tile_ids)
+    return result, builder.source_mode
 
 
 def _deepmimo_output_dir(job_dir: Path, rt_export_dir: Path, converted_name: object, scenario_name: str) -> Path:
@@ -290,15 +220,17 @@ def run(job_dir: Path) -> None:
     _write_progress(job_dir, "running", 0.02, "Preparing receiver grid")
     roi = payload["roi"]
     rx_grid = payload["rx_grid"]
-    candidates_xy = _receiver_grid(roi["min"], roi["max"], rx_grid["spacing"])
-    if candidates_xy.shape[0] > rx_grid["max_receivers"]:
-        raise ValueError(
-            f"ROI grid creates {candidates_xy.shape[0]} receivers, above max_receivers={rx_grid['max_receivers']}"
-        )
+    tile_ids = tuple(payload["scene"]["tile_ids"])
+    candidates_xy = _receiver_grid(
+        roi["min"],
+        roi["max"],
+        rx_grid["spacing"],
+        max_receivers=rx_grid["max_receivers"],
+    )
 
     _write_progress(job_dir, "running", 0.06, f"Filtering {candidates_xy.shape[0]} receiver candidates")
     if rx_grid["filter_buildings"]:
-        boxes = _building_aabbs(config.SCENE_ROOT, roi["min"], roi["max"])
+        boxes = _building_aabbs(config.SCENE_ROOT, tile_ids, roi["min"], roi["max"])
         keep = _filter_building_aabbs(candidates_xy, boxes)
         filtered_xy = candidates_xy[keep]
     else:
@@ -307,17 +239,11 @@ def run(job_dir: Path) -> None:
     if filtered_xy.shape[0] == 0:
         raise ValueError("No receiver locations remain after building filtering")
 
-    scene_xml = config.SCENE_XML
-    crop_stats = None
-    if payload["scene"]["crop_to_roi"]:
-        crop_bounds = _scene_crop_bounds(payload)
-        cropped_xml = job_dir / "cropped_scene.xml"
-        _write_progress(job_dir, "running", 0.1, f"Cropping scene with {payload['scene']['buffer_m']:.0f} m buffer")
-        crop_stats = _write_cropped_scene_xml(config.SCENE_ROOT, config.SCENE_XML, cropped_xml, crop_bounds)
-        scene_xml = cropped_xml
+    _write_progress(job_dir, "running", 0.1, f"Generating scene for {len(tile_ids)} selected tile(s)")
+    xml_result, source_mode = _write_selected_tile_scene_xml(job_dir, tile_ids)
 
-    _write_progress(job_dir, "running", 0.12, "Loading cropped Sionna RT scene" if crop_stats else "Loading Sionna RT scene")
-    scene = build_scene(scene_xml, payload["solver"]["frequency_hz"])
+    _write_progress(job_dir, "running", 0.12, "Loading selected-tile Sionna RT scene")
+    scene = build_scene(xml_result.path, payload["solver"]["frequency_hz"])
     _configure_single_element_arrays(scene)
     scene.frequency = float(payload["solver"]["frequency_hz"])
 
@@ -387,7 +313,13 @@ def run(job_dir: Path) -> None:
         "receiver_count": int(rx_positions.shape[0]),
         "filtered_building_receivers": int(candidates_xy.shape[0] - filtered_xy.shape[0]),
         "building_aabb_count": int(boxes.shape[0]),
-        "scene_crop": crop_stats,
+        "scene_scope": {
+            "mode": "selected_tiles",
+            "tile_ids": list(xml_result.tile_ids),
+            "shape_count": int(xml_result.shape_count),
+            "source_mode": source_mode,
+            "scene_xml": str(xml_result.path),
+        },
         "deepmimo_scene_geometry_converted": convert_scene_geometry,
         "chunk_count": int(len(chunks)),
         "archive_name": archive_path.name,

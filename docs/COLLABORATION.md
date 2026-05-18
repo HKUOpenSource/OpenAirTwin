@@ -41,18 +41,34 @@ Use the remote workspace for:
 - deployment testing
 - render cache generation
 
-## Current Remote Paths
+## Remote Paths and Worktrees
 
 - Host: `defaultuser@100.65.77.20`
-- Root: `/home/defaultuser/HKU-RT/v3.0`
-- Scene root: `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`
+- Shared/legacy root: `/home/defaultuser/HKU-RT/v3.0`
+- Shared scene root: `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`
+- Zhaolin worktree: `/home/defaultuser/worktree-zhaolin`, port `8090`
+- Zihao worktree: `/home/defaultuser/worktree-zihao`, port `18091`
+
+The sync scripts default to the shared/legacy root for backward compatibility.
+For developer code work, pass `HKU_RT_REMOTE_ROOT` explicitly and target the
+developer's own `worktree-*` directory.
+
+## Remote Operation Rule
+
+Before syncing, restarting, or cleaning remote files:
+
+1. Confirm which developer's worktree is being used.
+2. Read the matching developer note in `docs/`.
+3. Use only that worktree and service port.
+4. If the developer or worktree is unknown, ask before running remote commands.
 
 ## Recommended Team Workflow
 
 1. Pull the latest source assets from remote if local `HKU_scenes/meshes/` is missing or stale.
 2. Make code changes locally in `backend/`.
 3. Run local cleanup before sharing or syncing.
-4. Push code/docs/scripts to remote.
+4. Push code/docs/scripts to the selected developer worktree with explicit
+   `HKU_RT_REMOTE_ROOT`.
 5. Push source assets to remote when `scenario_HKU.xml` or `meshes/` changes.
 6. Validate on remote.
 7. Rebuild caches only when scene or render-bundle logic changes.

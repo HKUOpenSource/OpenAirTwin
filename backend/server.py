@@ -4,6 +4,7 @@ from datetime import timezone
 from email.utils import formatdate, parsedate_to_datetime
 import json
 import mimetypes
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import sys
@@ -15,7 +16,7 @@ from backend.jobs.deepmimo_jobs import DeepMIMOJobManager, DeepMIMOQueueFull
 from backend.jobs.mobility_jobs import MobilityJobManager, MobilityQueueFull
 from backend.jobs.radiomap_jobs import RadiomapJobManager, RadiomapQueueFull
 from backend.rt.common import antenna_array_capabilities
-from backend.rt.runtime import RTRuntime, SceneNotReady
+from backend.rt.runtime import RTRuntime, SceneNotReady, current_scene_generation
 from backend.rt.solve_link import solve_link
 from backend.scene.tile_bundles import (
     bundle_cache_key,
@@ -37,6 +38,49 @@ def resolve_under(root: Path, relative_path: str | Path) -> Path | None:
     return candidate
 
 
+class InvalidRangeHeader(ValueError):
+    pass
+
+
+def parse_single_byte_range(value: str | None, size: int) -> tuple[int, int] | None:
+    if value is None:
+        return None
+    text = value.strip()
+    if not text.startswith("bytes="):
+        raise InvalidRangeHeader("Only byte ranges are supported")
+    range_spec = text.removeprefix("bytes=").strip()
+    if "," in range_spec:
+        raise InvalidRangeHeader("Multiple ranges are not supported")
+
+    start_text, separator, end_text = range_spec.partition("-")
+    if separator != "-":
+        raise InvalidRangeHeader("Invalid range syntax")
+    start_text = start_text.strip()
+    end_text = end_text.strip()
+    if not start_text and not end_text:
+        raise InvalidRangeHeader("Range must include a start or suffix length")
+    if size <= 0:
+        raise InvalidRangeHeader("Cannot range an empty file")
+
+    if not start_text:
+        if not end_text.isdigit():
+            raise InvalidRangeHeader("Invalid suffix range")
+        suffix_length = int(end_text)
+        if suffix_length <= 0:
+            raise InvalidRangeHeader("Suffix range must be positive")
+        if suffix_length >= size:
+            return (0, size - 1)
+        return (size - suffix_length, size - 1)
+
+    if not start_text.isdigit() or (end_text and not end_text.isdigit()):
+        raise InvalidRangeHeader("Invalid byte range")
+    start = int(start_text)
+    end = int(end_text) if end_text else size - 1
+    if start >= size or end < start:
+        raise InvalidRangeHeader("Byte range is not satisfiable")
+    return (start, min(end, size - 1))
+
+
 class AppState:
     def __init__(self) -> None:
         self.manifest: SceneManifest = load_scene_manifest(config.SCENE_ROOT, config.SCENE_XML)
@@ -54,6 +98,17 @@ class AppState:
         self.job_manager = RadiomapJobManager(self.rt_runtime)
         self.mobility_job_manager = MobilityJobManager(self.rt_runtime)
         self.deepmimo_job_manager = DeepMIMOJobManager()
+
+
+def capture_ready_scene_generation(rt_runtime) -> int | None:
+    rt_lock = getattr(rt_runtime, "lock", None)
+    if rt_lock is None:
+        rt_runtime.require_ready()
+        return current_scene_generation(rt_runtime)
+
+    with rt_lock:
+        rt_runtime.require_ready()
+        return current_scene_generation(rt_runtime)
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -84,6 +139,59 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if not chunk:
                     break
                 self.wfile.write(chunk)
+
+    def send_download_file(self, file_path: Path, *, content_type: str, filename: str) -> None:
+        self.close_connection = True
+        with open(file_path, "rb") as handle:
+            size = int(os.fstat(handle.fileno()).st_size)
+            try:
+                byte_range = parse_single_byte_range(self.headers.get("Range"), size)
+            except InvalidRangeHeader:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.send_header("Content-Length", "0")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Connection", "close")
+                try:
+                    self.end_headers()
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+                return
+
+            if byte_range is None:
+                status = 200
+                start = 0
+                end = size - 1
+                content_length = size
+            else:
+                status = 206
+                start, end = byte_range
+                content_length = end - start + 1
+
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(content_length))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Connection", "close")
+            if byte_range is not None:
+                self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+            try:
+                self.end_headers()
+                handle.seek(start)
+                remaining = content_length
+                while remaining > 0:
+                    chunk = handle.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                return
 
     def send_bundle_file(self, raw_path: Path) -> None:
         raw_stat = raw_path.stat()
@@ -323,22 +431,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if archive is None:
                     self.send_text("DeepMIMO dataset is not ready", code=404)
                     return
-                stat = archive.stat()
-                self.send_response(200)
-                self.send_header("Content-Type", "application/zip")
-                self.send_header("Content-Length", str(stat.st_size))
-                self.send_header("Cache-Control", "no-store")
-                self.send_header(
-                    "Content-Disposition",
-                    f'attachment; filename="{archive.name}"',
+                self.send_download_file(
+                    archive,
+                    content_type="application/zip",
+                    filename=f"deepmimo_{job_id}.zip",
                 )
-                self.end_headers()
-                with open(archive, "rb") as handle:
-                    while True:
-                        chunk = handle.read(1024 * 1024)
-                        if not chunk:
-                            break
-                        self.wfile.write(chunk)
                 return
 
             job_id = suffix
@@ -372,20 +469,38 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             if path == "/api/radiomap/jobs":
                 payload = self.read_json_body()
-                self.app_state.rt_runtime.require_ready()
-                job = self.app_state.job_manager.create_job(payload)
+                scene_generation = capture_ready_scene_generation(self.app_state.rt_runtime)
+                job = self.app_state.job_manager.create_job(payload, scene_generation=scene_generation)
                 self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
                 return
 
             if path == "/api/mobility/jobs":
                 payload = self.read_json_body()
-                self.app_state.rt_runtime.require_ready()
-                job = self.app_state.mobility_job_manager.create_job(payload)
+                scene_generation = capture_ready_scene_generation(self.app_state.rt_runtime)
+                job = self.app_state.mobility_job_manager.create_job(payload, scene_generation=scene_generation)
                 self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
                 return
 
             if path == "/api/deepmimo/jobs":
                 payload = self.read_json_body()
+                rt_lock = getattr(self.app_state.rt_runtime, "lock", None)
+                if rt_lock is None:
+                    self.app_state.rt_runtime.require_ready()
+                    active_tile_ids = tuple(
+                        getattr(self.app_state.rt_runtime, "active_tile_ids", ())
+                        or self.app_state.rt_runtime.status_dict().get("active_tile_ids", ())
+                    )
+                else:
+                    with rt_lock:
+                        self.app_state.rt_runtime.require_ready()
+                        active_tile_ids = tuple(
+                            getattr(self.app_state.rt_runtime, "active_tile_ids", ())
+                            or self.app_state.rt_runtime.status_dict().get("active_tile_ids", ())
+                        )
+                if not active_tile_ids:
+                    raise SceneNotReady("empty", "No Sionna RT scene is ready; select at least one tile")
+                payload = dict(payload)
+                payload["scene"] = {"tile_ids": list(active_tile_ids)}
                 job = self.app_state.deepmimo_job_manager.create_job(payload)
                 self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
                 return

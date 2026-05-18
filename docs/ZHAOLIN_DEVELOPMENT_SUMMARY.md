@@ -11,11 +11,93 @@ cleanup notes, and handoff guidance for the HKU wireless digital twin platform.
 - Main validation port: `8090`
 - Optional demo port: `9000`
 - GPU runtime: `/home/defaultuser/venvs/env_hku_rt_gpu`
-- Scene root for remote runtime: `/home/defaultuser/worktree-zhaolin/HKU_scenes`
+- Scene root entry for remote runtime: `/home/defaultuser/worktree-zhaolin/HKU_scenes`
+- Current resolved scene root: `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`
 
 Use `worktree-zhaolin` for Zhaolin validation. Do not restart, kill, or sync
 over another developer's worktree, especially `worktree-zihao`, unless explicitly
-requested.
+requested. The Zhaolin scene-root entry is currently a symlink to the shared
+scene assets under `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`; do not change the
+remote symlink or asset-sharing policy as part of code sync work.
+
+## 2026-05-18 - DeepMIMO Export, Scene-Bound Jobs, and Multi-User Sync Docs
+
+This round added the selected-tile DeepMIMO ROI export workflow and then closed
+two P1 correctness/safety issues plus one P3 collaboration-documentation issue.
+
+### DeepMIMO ROI Export
+
+- Added DeepMIMO mode to the UI with Tx placement, rectangular ROI drawing,
+  manual ROI dimensions, Rx spacing/height/max receiver/chunk controls, solver
+  budget controls, progress display, and dataset download.
+- Added asynchronous DeepMIMO job APIs for create, status, and download.
+- The server binds DeepMIMO export jobs to the currently loaded RT tile
+  selection; users must load at least one tile before export.
+- The worker builds a selected-tile Sionna scene XML, projects receivers onto
+  terrain, optionally filters building footprints by AABB, traces receivers in
+  chunks, exports Sionna RT paths, converts to DeepMIMO, and packages
+  `dataset.zip`.
+- DeepMIMO jobs use bounded queue/stored-job settings and a dedicated worker
+  Python executable from `HKU_RT_DEEPMIMO_ENV_PYTHON`.
+
+### DeepMIMO Receiver Grid Safety
+
+- Added pure mathematical receiver-grid counting before any NumPy grid
+  allocation.
+- The payload parser now rejects oversized ROI/spacing/max-receiver
+  combinations before job creation, returning HTTP `400` instead of starting a
+  worker that fails later.
+- The worker repeats the same guard before `np.arange`, `np.meshgrid`, or
+  `np.column_stack` can allocate large candidate arrays.
+- The frontend receiver estimate now uses the same half-step tolerance as the
+  backend `np.arange(min, max + spacing * 0.5, spacing)` behavior.
+- Oversized grids fail with the explicit message:
+  `ROI grid creates N receivers, above max_receivers=M`.
+
+### Scene-Generation Binding for Background Jobs
+
+- Radio Map and Mobility job creation now captures the current RT runtime
+  `scene_generation` while the scene is ready.
+- Each background job stores that generation and passes it into the solver.
+- Link, Radio Map, and Mobility solvers validate the expected generation before
+  mutating the scene or adding temporary devices.
+- If the user changes the selected scene while a job is queued, the job fails
+  instead of silently running against the newer scene.
+- Stale jobs report:
+  `Sionna RT scene changed since this job was queued; create a new job`.
+
+### Multi-User Remote Sync Documentation
+
+- Kept all `scripts/sync_*` and remote cleanup script defaults unchanged for
+  backward compatibility.
+- Documented `/home/defaultuser/HKU-RT/v3.0` as the shared/legacy root and
+  shared scene-asset location, not as every developer's active code worktree.
+- Added a multi-user rule: confirm developer identity, read that developer's
+  notes, use the matching `worktree-*` and port, and pass
+  `HKU_RT_REMOTE_ROOT` explicitly for code syncs.
+- Added Zihao's known worktree context:
+  `/home/defaultuser/worktree-zihao`, port `18091`.
+- Clarified that Zhaolin's `HKU_scenes` entry in
+  `/home/defaultuser/worktree-zhaolin` currently resolves to the shared scene
+  root `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`.
+
+### Validation and Remote State
+
+- Local validation passed:
+  - `python3 -m compileall -q backend scripts tests`
+  - `python3 -m unittest discover -s tests`
+  - `find backend/static/js -name '*.js' -maxdepth 1 -print0 | xargs -0 -n1 node --check`
+  - `node --check backend/static/lib/GLBGeometryLoader.js`
+  - `git diff --check`
+- DeepMIMO and scene-generation fixes were synced to
+  `/home/defaultuser/worktree-zhaolin`.
+- The Zhaolin `8090` service was restarted; latest recorded PID for this round:
+  `449265`.
+- Remote HTTP smoke passed against `http://100.65.77.20:8090`, including
+  health, manifest, RT scene preload, bundle gzip/304, Link, advanced Link, and
+  Radio Map job checks.
+- The final documentation-only cleanup for the multi-user sync notes is local
+  until the next requested sync.
 
 ## 2026-05-18 - Tile-Lazy Sionna Runtime and Per-Tile XML Source
 
@@ -318,6 +400,9 @@ showcase button.
 - `POST /api/mobility/jobs`
 - `GET /api/mobility/jobs/{job_id}`
 - `GET /api/mobility/jobs/{job_id}/result`
+- `POST /api/deepmimo/jobs`
+- `GET /api/deepmimo/jobs/{job_id}`
+- `GET /api/deepmimo/jobs/{job_id}/download`
 - Link solver payload additions: `solver.tx_array`, `solver.rx_array`
 - Radio Map solver payload addition: `solver.tx_array`
 - Radio Map surface payload addition: optional `surface.cell_size`, in meters
@@ -333,11 +418,28 @@ showcase button.
   - `solver.base_samples_per_tx`
   - `solver.effective_samples_per_tx`
 - Mobility trajectory payload addition: `rx_trajectory.max_steps`
+- DeepMIMO payload surface:
+  - `tx.position`, `tx.orientation`
+  - rectangular `roi`
+  - `rx_grid.spacing`, `height`, `max_receivers`, `chunk_size`,
+    `filter_buildings`
+  - solver budget/reflection flags
+  - `export.scenario_name`
+- Radio Map and Mobility background jobs now bind to the RT scene generation
+  captured at job creation.
 
 ## New Final Files Kept
 
 These files were created during recent Zhaolin rounds and are intentional final
 artifacts:
+
+2026-05-18 DeepMIMO/job-binding/P3 round:
+
+- No new standalone source or test files were introduced; this round updated
+  existing backend, frontend, test, and documentation files.
+- The DeepMIMO job manager, payload parser, export worker, frontend controls,
+  Radio Map/Mobility scene-generation guards, and related regression tests are
+  intentional final changes and should not be removed as cleanup.
 
 2026-05-18:
 
@@ -443,7 +545,7 @@ curl -fsS http://127.0.0.1:9000/api/health
 ## Remote Workflow
 
 Sync to Zhaolin's remote worktree with an explicit target. Do not rely on the
-script default:
+script default, which remains the shared/legacy root:
 
 ```bash
 HKU_RT_REMOTE_ROOT=/home/defaultuser/worktree-zhaolin bash scripts/sync_code_to_remote.sh
@@ -483,6 +585,20 @@ Before syncing to the remote worktree, back up overwritten files and remote diff
 under `/home/defaultuser/backups/...`. Do not touch other developers' worktrees.
 
 ## Cleanup Notes
+
+Final cleanup result for 2026-05-18 DeepMIMO/job-binding/P3 round:
+
+- Ran the local generated-file cleanup script:
+  `bash scripts/clean_generated_files.sh`.
+- Scanned for `__pycache__`, `.pyc`, `.pytest_cache`, `.mypy_cache`,
+  `.ruff_cache`, `.DS_Store`, AppleDouble `._*`, patch rejects, and backup
+  rejects; none remained in the local worktree.
+- Confirmed there are no untracked repository files after cleanup.
+- No unused source, test, frontend, script, or documentation file was produced
+  by this round.
+- Remote runtime logs and generated job directories are runtime artifacts on the
+  remote server, not repository-tracked files; they were not deleted during this
+  local cleanup.
 
 Final cleanup result for 2026-05-18:
 

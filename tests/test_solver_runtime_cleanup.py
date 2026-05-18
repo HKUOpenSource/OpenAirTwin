@@ -10,6 +10,7 @@ from backend import config
 from backend.rt.solve_link import solve_link
 from backend.rt.solve_mobility import solve_mobility
 from backend.rt.solve_radiomap import solve_terrain_radiomap
+from backend.rt.runtime import SceneNotReady
 
 
 class FakeDevice:
@@ -50,6 +51,7 @@ class FakeRuntime:
         self.scene = FakeScene()
         self.lock = Lock()
         self.array_calls = []
+        self.generation = 1
 
     def set_frequency(self, frequency_hz: float) -> None:
         self.scene.frequency = float(frequency_hz)
@@ -367,6 +369,21 @@ class SolverRuntimeCleanupTests(unittest.TestCase):
         self.assertEqual(runtime.scene.items, {})
         self.assertEqual(runtime.scene.removed, ["tx_link", "rx_link"])
 
+    def test_link_solver_rejects_stale_scene_generation_before_adding_devices(self) -> None:
+        runtime = FakeRuntime()
+        runtime.generation = 2
+
+        with self.assertRaisesRegex(SceneNotReady, "changed since this job was queued"):
+            solve_link(
+                runtime,
+                {},
+                dependencies=(FakeInteractionType, FakePathSolver, FakeDevice, FakeDevice),
+                expected_scene_generation=1,
+            )
+
+        self.assertEqual(runtime.scene.items, {})
+        self.assertEqual(runtime.scene.removed, [])
+
     def test_mobility_solver_moves_rx_and_aggregates_series(self) -> None:
         runtime = FakeRuntime()
         FakeMobilityPathSolver.calls = []
@@ -418,6 +435,28 @@ class SolverRuntimeCleanupTests(unittest.TestCase):
         self.assertEqual(runtime.scene.items, {})
         self.assertEqual(runtime.scene.removed, ["tx_link", "rx_link"] * 3)
 
+    def test_mobility_solver_rejects_stale_scene_generation_before_first_step(self) -> None:
+        runtime = FakeRuntime()
+        runtime.generation = 2
+
+        with self.assertRaisesRegex(SceneNotReady, "changed since this job was queued"):
+            solve_mobility(
+                runtime,
+                {
+                    "rx_trajectory": {
+                        "points": [[0, 0, 1], [2, 0, 1]],
+                        "velocity_mps": 1.0,
+                        "time_step_s": 1.0,
+                    },
+                    "solver": {"samples_per_src": 10, "max_depth": 2},
+                },
+                dependencies=(FakeInteractionType, FakePathSolver, FakeDevice, FakeDevice),
+                expected_scene_generation=1,
+            )
+
+        self.assertEqual(runtime.scene.items, {})
+        self.assertEqual(runtime.scene.removed, [])
+
     def test_radiomap_solver_removes_temporary_transmitter_after_success(self) -> None:
         runtime = FakeRuntime()
         with patch("backend.rt.solve_radiomap.build_terrain_patch", fake_terrain_patch):
@@ -445,6 +484,22 @@ class SolverRuntimeCleanupTests(unittest.TestCase):
         self.assertIsNone(runtime.array_calls[-1]["rx_array"])
         self.assertEqual(runtime.scene.items, {})
         self.assertEqual(runtime.scene.removed, ["tx_radiomap"])
+
+    def test_radiomap_solver_rejects_stale_scene_generation_before_adding_transmitter(self) -> None:
+        runtime = FakeRuntime()
+        runtime.generation = 2
+
+        with patch("backend.rt.solve_radiomap.build_terrain_patch", fake_terrain_patch):
+            with self.assertRaisesRegex(SceneNotReady, "changed since this job was queued"):
+                solve_terrain_radiomap(
+                    runtime,
+                    {"surface": {"density_level": 1}, "solver": {"samples_per_tx": 10}},
+                    dependencies=(FakeRadioMapSolver, FakeDevice),
+                    expected_scene_generation=1,
+                )
+
+        self.assertEqual(runtime.scene.items, {})
+        self.assertEqual(runtime.scene.removed, [])
 
     def test_radiomap_effective_sample_cap_is_enforced_after_patch(self) -> None:
         runtime = FakeRuntime()

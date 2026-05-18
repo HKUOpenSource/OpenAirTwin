@@ -25,6 +25,20 @@ def failing_solver(_runtime, _payload, progress_cb=None):
     raise RuntimeError("solver exploded")
 
 
+def scene_generation_solver(_runtime, _payload, progress_cb=None, expected_scene_generation=None):
+    if progress_cb is not None:
+        progress_cb(0.5, "Halfway")
+    return {
+        "metric": "path_gain",
+        "unit": "dB",
+        "surface": {"cell_count": 1, "density_level": 1},
+        "range": {"min": -90.0, "max": -90.0},
+        "values": {"count": 1, "data": [-90.0]},
+        "geometry": {"triangle_positions": []},
+        "scene_generation": expected_scene_generation,
+    }
+
+
 class RadiomapJobManagerTests(unittest.TestCase):
     def wait_for_status(self, manager: RadiomapJobManager, job_id: str, status: str) -> RadiomapJob:
         deadline = time.time() + 2.0
@@ -44,6 +58,15 @@ class RadiomapJobManagerTests(unittest.TestCase):
         self.assertEqual(completed.progress, 1.0)
         self.assertEqual(completed.message, "Radio map ready")
         self.assertEqual(manager.get_result(job.job_id)["values"]["count"], 1)
+
+    def test_job_passes_creation_scene_generation_to_solver(self) -> None:
+        manager = RadiomapJobManager(object(), solver=scene_generation_solver, max_pending_jobs=2)
+
+        job = manager.create_job({}, scene_generation=7)
+        completed = self.wait_for_status(manager, job.job_id, "succeeded")
+
+        self.assertEqual(completed.scene_generation, 7)
+        self.assertEqual(completed.result["scene_generation"], 7)
 
     def test_queue_full_rejects_new_jobs(self) -> None:
         manager = RadiomapJobManager(

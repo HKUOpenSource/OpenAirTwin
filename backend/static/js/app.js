@@ -736,7 +736,6 @@ function attachEvents() {
     inputs.deepMimoRoiLength,
     inputs.deepMimoGridSpacing,
     inputs.deepMimoRxHeight,
-    inputs.deepMimoSceneBuffer,
     inputs.deepMimoMaxReceivers,
     inputs.deepMimoChunkSize,
     inputs.deepMimoSamplesPerSrc,

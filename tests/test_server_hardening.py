@@ -11,6 +11,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+import zipfile
 from unittest.mock import patch
 
 from backend import config
@@ -22,12 +23,12 @@ from backend.server import RequestHandler, resolve_under
 
 
 class QueueFullJobManager:
-    def create_job(self, _payload):
+    def create_job(self, _payload, **_kwargs):
         raise RadiomapQueueFull(8)
 
 
 class QueueFullMobilityJobManager:
-    def create_job(self, _payload):
+    def create_job(self, _payload, **_kwargs):
         raise MobilityQueueFull(4)
 
 
@@ -38,6 +39,7 @@ class QueueFullDeepMIMOJobManager:
 
 class FakeMobilityJobManager:
     def __init__(self) -> None:
+        self.last_scene_generation = None
         self.job = SimpleNamespace(
             job_id="mob_test",
             status="succeeded",
@@ -58,7 +60,8 @@ class FakeMobilityJobManager:
             },
         )
 
-    def create_job(self, _payload):
+    def create_job(self, _payload, *, scene_generation=None):
+        self.last_scene_generation = scene_generation
         return self.job
 
     def get_job(self, job_id):
@@ -66,7 +69,9 @@ class FakeMobilityJobManager:
 
 
 class FakeDeepMIMOJobManager:
-    def __init__(self) -> None:
+    def __init__(self, download_path: Path | None = None) -> None:
+        self.last_payload = None
+        self.download_path = download_path
         self.job = SimpleNamespace(
             job_id="dm_test",
             status="succeeded",
@@ -83,17 +88,22 @@ class FakeDeepMIMOJobManager:
             },
         )
 
-    def create_job(self, _payload):
+    def create_job(self, payload):
+        self.last_payload = payload
         return self.job
 
     def get_job(self, job_id):
         return self.job if job_id == self.job.job_id else None
 
-    def get_download_path(self, _job_id):
-        return None
+    def get_download_path(self, job_id):
+        if job_id != self.job.job_id:
+            return None
+        return self.download_path
 
 
 class FakeReadyRuntime:
+    active_tile_ids = ("TILE_A",)
+
     def status_dict(self):
         return {
             "ok": True,
@@ -307,12 +317,33 @@ class ServerHardeningTests(unittest.TestCase):
             created = json.loads(urllib.request.urlopen(request).read().decode("utf-8"))
             self.assertTrue(created["ok"])
             self.assertEqual(created["job_id"], "mob_test")
+            self.assertEqual(manager.last_scene_generation, 1)
 
             status = json.loads(urllib.request.urlopen(f"http://{host}:{port}/api/mobility/jobs/mob_test").read())
             self.assertEqual(status["status"], "succeeded")
             result = json.loads(urllib.request.urlopen(f"http://{host}:{port}/api/mobility/jobs/mob_test/result").read())
             self.assertEqual(result["summary"]["step_count"], 1)
             self.assertEqual(result["samples"][0]["step_index"], 0)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_radiomap_create_passes_rt_scene_generation_to_job_manager(self) -> None:
+        manager = FakeMobilityJobManager()
+        server, thread = self.run_server(SimpleNamespace(job_manager=manager))
+        try:
+            host, port = server.server_address
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/radiomap/jobs",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            created = json.loads(urllib.request.urlopen(request).read().decode("utf-8"))
+            self.assertTrue(created["ok"])
+            self.assertEqual(created["job_id"], "mob_test")
+            self.assertEqual(manager.last_scene_generation, 1)
         finally:
             server.shutdown()
             thread.join(timeout=2)
@@ -332,6 +363,7 @@ class ServerHardeningTests(unittest.TestCase):
             created = json.loads(urllib.request.urlopen(request).read().decode("utf-8"))
             self.assertTrue(created["ok"])
             self.assertEqual(created["job_id"], "dm_test")
+            self.assertEqual(manager.last_payload["scene"]["tile_ids"], ["TILE_A"])
 
             status = json.loads(urllib.request.urlopen(f"http://{host}:{port}/api/deepmimo/jobs/dm_test").read())
             self.assertEqual(status["status"], "succeeded")
@@ -339,6 +371,115 @@ class ServerHardeningTests(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 urllib.request.urlopen(f"http://{host}:{port}/api/deepmimo/jobs/dm_test/download")
             self.assertEqual(error.exception.code, 404)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_deepmimo_download_stream_returns_complete_zip_and_closes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            archive = Path(tmp_dir) / "dataset.zip"
+            with zipfile.ZipFile(archive, "w") as dataset:
+                dataset.writestr("hello.txt", "hello world")
+
+            manager = FakeDeepMIMOJobManager(download_path=archive)
+            server, thread = self.run_server(SimpleNamespace(deepmimo_job_manager=manager))
+            try:
+                host, port = server.server_address
+                with urllib.request.urlopen(
+                    f"http://{host}:{port}/api/deepmimo/jobs/dm_test/download"
+                ) as response:
+                    body = response.read()
+                    headers = response.headers
+
+                self.assertEqual(len(body), archive.stat().st_size)
+                self.assertEqual(int(headers["Content-Length"]), archive.stat().st_size)
+                self.assertEqual(headers["Content-Type"], "application/zip")
+                self.assertEqual(headers["Content-Disposition"], 'attachment; filename="deepmimo_dm_test.zip"')
+                self.assertEqual(headers["Accept-Ranges"], "bytes")
+                self.assertEqual(headers["Connection"].lower(), "close")
+                with zipfile.ZipFile(io.BytesIO(body)) as dataset:
+                    self.assertEqual(dataset.read("hello.txt"), b"hello world")
+            finally:
+                server.shutdown()
+                thread.join(timeout=2)
+                server.server_close()
+
+    def test_deepmimo_download_supports_single_byte_ranges(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            archive = Path(tmp_dir) / "dataset.zip"
+            with zipfile.ZipFile(archive, "w") as dataset:
+                dataset.writestr("hello.txt", "hello world")
+                dataset.writestr("data.bin", b"0123456789" * 8)
+            archive_bytes = archive.read_bytes()
+
+            manager = FakeDeepMIMOJobManager(download_path=archive)
+            server, thread = self.run_server(SimpleNamespace(deepmimo_job_manager=manager))
+            try:
+                host, port = server.server_address
+                url = f"http://{host}:{port}/api/deepmimo/jobs/dm_test/download"
+
+                request = urllib.request.Request(url, headers={"Range": "bytes=0-0"})
+                with urllib.request.urlopen(request) as response:
+                    body = response.read()
+                    self.assertEqual(response.status, 206)
+                    self.assertEqual(response.headers["Content-Range"], f"bytes 0-0/{len(archive_bytes)}")
+                    self.assertEqual(response.headers["Content-Length"], "1")
+                    self.assertEqual(response.headers["Accept-Ranges"], "bytes")
+                    self.assertEqual(response.headers["Connection"].lower(), "close")
+                    self.assertEqual(body, archive_bytes[:1])
+
+                request = urllib.request.Request(url, headers={"Range": "bytes=10-19"})
+                with urllib.request.urlopen(request) as response:
+                    body = response.read()
+                    self.assertEqual(response.status, 206)
+                    self.assertEqual(response.headers["Content-Range"], f"bytes 10-19/{len(archive_bytes)}")
+                    self.assertEqual(response.headers["Content-Length"], "10")
+                    self.assertEqual(body, archive_bytes[10:20])
+
+                request = urllib.request.Request(url, headers={"Range": "bytes=-16"})
+                with urllib.request.urlopen(request) as response:
+                    body = response.read()
+                    start = len(archive_bytes) - 16
+                    self.assertEqual(response.status, 206)
+                    self.assertEqual(response.headers["Content-Range"], f"bytes {start}-{len(archive_bytes) - 1}/{len(archive_bytes)}")
+                    self.assertEqual(response.headers["Content-Length"], "16")
+                    self.assertEqual(body, archive_bytes[-16:])
+
+                request = urllib.request.Request(url, headers={"Range": f"bytes={len(archive_bytes)}-"})
+                with self.assertRaises(urllib.error.HTTPError) as error:
+                    urllib.request.urlopen(request)
+                self.assertEqual(error.exception.code, 416)
+                self.assertEqual(error.exception.headers["Content-Range"], f"bytes */{len(archive_bytes)}")
+                self.assertEqual(error.exception.headers["Content-Length"], "0")
+                self.assertEqual(error.exception.headers["Connection"].lower(), "close")
+                self.assertEqual(error.exception.read(), b"")
+            finally:
+                server.shutdown()
+                thread.join(timeout=2)
+                server.server_close()
+
+    def test_deepmimo_create_rejects_when_rt_scene_is_not_ready(self) -> None:
+        server, thread = self.run_server(
+            SimpleNamespace(
+                rt_runtime=FakeSceneSelectionRuntime(),
+                deepmimo_job_manager=FakeDeepMIMOJobManager(),
+            )
+        )
+        try:
+            host, port = server.server_address
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/deepmimo/jobs",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(request)
+            self.assertEqual(error.exception.code, 409)
+            payload = json.loads(error.exception.read().decode("utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["status"], "loading")
         finally:
             server.shutdown()
             thread.join(timeout=2)
