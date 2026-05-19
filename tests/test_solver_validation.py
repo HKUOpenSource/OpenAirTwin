@@ -60,6 +60,17 @@ class SolverValidationTests(unittest.TestCase):
         self.assertFalse(parsed["rx_grid"]["filter_buildings"])
         self.assertEqual(parsed["export"]["scenario_name"], "HKU_demo_data")
 
+    def test_deepmimo_payload_defaults_max_receivers_to_30000(self) -> None:
+        parsed = parse_deepmimo_payload(
+            {
+                "roi": {"min": [0, 0], "max": [1, 1]},
+                "scene": {"tile_ids": ["TILE_A"]},
+            }
+        )
+
+        self.assertEqual(config.DEEPMIMO_DEFAULT_MAX_RECEIVERS, 30000)
+        self.assertEqual(parsed["rx_grid"]["max_receivers"], 30000)
+
     def test_deepmimo_payload_bounds_are_enforced(self) -> None:
         for payload in [
             {"roi": {"min": [0, 0], "max": [0, 1]}},

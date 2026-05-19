@@ -107,7 +107,7 @@ def parse_deepmimo_payload(payload: dict) -> dict:
         max_value=100.0,
     )
     max_receivers = parse_bounded_int(
-        rx_grid.get("max_receivers", min(config.DEEPMIMO_MAX_RECEIVERS, 5000)),
+        rx_grid.get("max_receivers", min(config.DEEPMIMO_MAX_RECEIVERS, config.DEEPMIMO_DEFAULT_MAX_RECEIVERS)),
         name="rx_grid.max_receivers",
         min_value=1,
         max_value=config.DEEPMIMO_MAX_RECEIVERS,

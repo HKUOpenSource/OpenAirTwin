@@ -381,6 +381,8 @@ function syncMobilityInputs() {
 function syncNumericInputs() {
   const [ltx, lty, ltz] = state.link.tx;
   const [lrx, lry, lrz] = state.link.rx;
+  const [mtx, mty, mtz] = state.mobility.tx;
+  const [mrx, mry, mrz] = state.mobility.rx;
   const [rtx, rty, rtz] = state.radiomap.tx;
   const [sx, sy] = state.radiomap.surface.size;
   const heightOffset = state.radiomap.surface.heightOffset;
@@ -400,10 +402,18 @@ function syncNumericInputs() {
   inputs.linkRxX.value = lrx.toFixed(1);
   inputs.linkRxY.value = lry.toFixed(1);
   inputs.linkRxZ.value = lrz.toFixed(1);
+  inputs.mobilityTxX.value = mtx.toFixed(1);
+  inputs.mobilityTxY.value = mty.toFixed(1);
+  inputs.mobilityTxZ.value = mtz.toFixed(1);
+  inputs.mobilityRxX.value = mrx.toFixed(1);
+  inputs.mobilityRxY.value = mry.toFixed(1);
+  inputs.mobilityRxZ.value = mrz.toFixed(1);
   const clearanceScope = state.deviceControl.activeTarget === "rm-tx"
     ? "radiomap"
     : state.deviceControl.activeTarget === "deepmimo-tx"
       ? "deepmimo"
+      : state.deviceControl.activeTarget === "mobility-tx" || state.deviceControl.activeTarget === "mobility-rx"
+        ? "mobility"
       : "link";
   inputs.linkSurfaceClearance.value = String(surfaceClearanceM(clearanceScope));
   inputs.rmTxX.value = rtx.toFixed(1);
@@ -456,6 +466,8 @@ function surfaceClearanceM(scope = "link") {
       ? state.radiomap.surfaceClearanceM
       : scope === "deepmimo"
         ? state.deepmimo.surfaceClearanceM
+        : scope === "mobility"
+          ? state.mobility.surfaceClearanceM
         : state.link.surfaceClearanceM,
   );
   if (!Number.isFinite(value)) {
@@ -478,6 +490,10 @@ function linkPickPosition(pick) {
   return pickPositionWithSurfaceClearance(pick, "link");
 }
 
+function mobilityPickPosition(pick) {
+  return pickPositionWithSurfaceClearance(pick, "mobility");
+}
+
 function radiomapTxPickPosition(pick) {
   return pickPositionWithSurfaceClearance(pick, "radiomap");
 }
@@ -490,6 +506,8 @@ function readSurfaceClearanceInput(scope = state.deviceControl.activeTarget === 
   ? "radiomap"
   : state.deviceControl.activeTarget === "deepmimo-tx"
     ? "deepmimo"
+    : state.deviceControl.activeTarget === "mobility-tx" || state.deviceControl.activeTarget === "mobility-rx"
+      ? "mobility"
     : "link") {
   const clearance = Number(inputs.linkSurfaceClearance.value);
   const nextClearance = Number.isFinite(clearance)
@@ -499,6 +517,8 @@ function readSurfaceClearanceInput(scope = state.deviceControl.activeTarget === 
     state.radiomap.surfaceClearanceM = nextClearance;
   } else if (scope === "deepmimo") {
     state.deepmimo.surfaceClearanceM = nextClearance;
+  } else if (scope === "mobility") {
+    state.mobility.surfaceClearanceM = nextClearance;
   } else {
     state.link.surfaceClearanceM = nextClearance;
   }
@@ -507,38 +527,49 @@ function readSurfaceClearanceInput(scope = state.deviceControl.activeTarget === 
 function syncViewerMarkers() {
   if (state.mode === "radiomap") {
     getViewer().setTx(state.radiomap.txVisual);
-    getViewer().setRx(state.link.rxVisual);
+    getViewer().setRx(null);
     return;
   }
   if (state.mode === "deepmimo") {
     getViewer().setTx(state.deepmimo.txVisual);
-    getViewer().setRx(state.link.rxVisual);
+    getViewer().setRx(null);
+    return;
+  }
+  if (state.mode === "mobility") {
+    getViewer().setTx(state.mobility.txVisual);
+    const sample = state.mobility.result?.samples?.[state.mobility.selectedStep];
+    getViewer().setRx(sample?.rx_position || state.mobility.rxVisual);
     return;
   }
   getViewer().setTx(state.link.txVisual);
-  const sample = state.mode === "mobility" ? state.mobility.result?.samples?.[state.mobility.selectedStep] : null;
-  getViewer().setRx(sample?.rx_position || state.link.rxVisual);
+  getViewer().setRx(state.link.rxVisual);
+}
+
+function syncModeVisuals() {
+  if (state.mode !== "radiomap") {
+    getViewer().clearRadiomap();
+  }
+  if (state.mode !== "deepmimo") {
+    getViewer().clearDeepMimoRoi();
+  }
+  if (state.mode !== "mobility") {
+    getViewer().clearMobility();
+  }
+  if (state.mode !== "link" && state.mode !== "mobility") {
+    getViewer().clearPaths();
+  }
 }
 
 function markerRadiusForPickTarget(target) {
   if (target === "deepmimo-roi") {
     return 0;
   }
-  return target === "link-rx" ? getViewer().rxMarkerRadius : getViewer().txMarkerRadius;
+  return target === "link-rx" || target === "mobility-rx"
+    ? getViewer().rxMarkerRadius
+    : getViewer().txMarkerRadius;
 }
 
-function readLinkInputs() {
-  setLogicalAndVisual(state.link.tx, state.link.txVisual, [
-    Number(inputs.linkTxX.value),
-    Number(inputs.linkTxY.value),
-    Number(inputs.linkTxZ.value),
-  ]);
-  setLogicalAndVisual(state.link.rx, state.link.rxVisual, [
-    Number(inputs.linkRxX.value),
-    Number(inputs.linkRxY.value),
-    Number(inputs.linkRxZ.value),
-  ]);
-  readSurfaceClearanceInput("link");
+function readLinkAdvancedInputs() {
   state.link.advanced.samplesPerSrc = Number(inputs.linkSamplesPerSrc.value);
   state.link.advanced.maxNumPathsPerSrc = Number(inputs.linkMaxNumPaths.value);
   state.link.advanced.bandwidthMhz = Number(inputs.linkBandwidthMhz.value);
@@ -553,6 +584,21 @@ function readLinkInputs() {
   readAntennaArrayInputs();
   syncDerivedChannelInputs();
   syncLinkAdvancedInputs();
+}
+
+function readLinkInputs() {
+  setLogicalAndVisual(state.link.tx, state.link.txVisual, [
+    Number(inputs.linkTxX.value),
+    Number(inputs.linkTxY.value),
+    Number(inputs.linkTxZ.value),
+  ]);
+  setLogicalAndVisual(state.link.rx, state.link.rxVisual, [
+    Number(inputs.linkRxX.value),
+    Number(inputs.linkRxY.value),
+    Number(inputs.linkRxZ.value),
+  ]);
+  readSurfaceClearanceInput("link");
+  readLinkAdvancedInputs();
 }
 
 function readRadiomapInputs() {
@@ -593,7 +639,18 @@ function readDeepMimoInputs() {
 }
 
 function readMobilityInputs() {
-  readLinkInputs();
+  setLogicalAndVisual(state.mobility.tx, state.mobility.txVisual, [
+    Number(inputs.mobilityTxX.value),
+    Number(inputs.mobilityTxY.value),
+    Number(inputs.mobilityTxZ.value),
+  ]);
+  setLogicalAndVisual(state.mobility.rx, state.mobility.rxVisual, [
+    Number(inputs.mobilityRxX.value),
+    Number(inputs.mobilityRxY.value),
+    Number(inputs.mobilityRxZ.value),
+  ]);
+  readSurfaceClearanceInput("mobility");
+  readLinkAdvancedInputs();
   state.mobility.trajectory.velocityMps = Number(inputs.mobilityVelocity.value);
   state.mobility.trajectory.timeStepS = Number(inputs.mobilityTimeStep.value);
   state.mobility.trajectory.maxSteps = Number(inputs.mobilityMaxSteps.value);
@@ -981,6 +1038,9 @@ function renderLinkResult() {
       ui.pathDetailList.innerHTML = "";
       ui.pathDetailSection.classList.add("hidden");
     }
+    if (state.mode === "link" && !result) {
+      getViewer().clearPaths();
+    }
     return;
   }
 
@@ -1015,6 +1075,7 @@ function renderLinkResult() {
   ui.linkLos.textContent = hasLos ? "Yes" : "No";
   ui.linkLos.className = `pill ${hasLos ? "yes" : "no"}`;
   renderLinkChannel(result.channel);
+  getViewer().renderPaths(result.paths, state.link.selectedPath);
 
   renderPathDetails(result.paths, state.link.selectedPath);
   renderPathSelection(result.paths, state.link.selectedPath, (index) => {
@@ -1184,6 +1245,9 @@ function renderMobilityResult() {
       ui.pathDetailList.innerHTML = "";
       ui.pathDetailSection.classList.add("hidden");
     }
+    if (state.mode === "mobility" && !result) {
+      getViewer().clearPaths();
+    }
     ui.mobilityResult.style.display = "none";
     ui.mobilityTimelineSection.classList.add("hidden");
     ui.mobilityTimelineSection.setAttribute("aria-hidden", "true");
@@ -1280,6 +1344,9 @@ function renderRadiomapResult() {
 
   if (state.radiomap.result) {
     const {surface, solver, range} = state.radiomap.result;
+    if (!getViewer().radiomapMesh) {
+      getViewer().renderRadiomap(state.radiomap.result, radiomapColorRange());
+    }
     const requestedCellSize = Number(surface.requested_cell_size);
     if (surface.resolution_mode === "cell_size_grid") {
       const [nx, ny] = Array.isArray(surface.grid_shape) ? surface.grid_shape : ["?", "?"];
@@ -1325,13 +1392,16 @@ function deepMimoRoiBounds() {
     max: [maxX, maxY],
     center: [(minX + maxX) * 0.5, (minY + maxY) * 0.5],
     size: [maxX - minX, maxY - minY],
-    z: Math.max(Number(cornerA[2] || 0), Number(cornerB[2] || 0)),
   };
 }
 
 function setDeepMimoRoiCorners(cornerA, cornerB, {message = "ROI updated"} = {}) {
-  state.deepmimo.roi.cornerA = [Number(cornerA[0]), Number(cornerA[1]), Number(cornerA[2] || 0)];
-  state.deepmimo.roi.cornerB = [Number(cornerB[0]), Number(cornerB[1]), Number(cornerB[2] || 0)];
+  const visualZ = Number.isFinite(Number(state.deepmimo.roi.visualZ))
+    ? Number(state.deepmimo.roi.visualZ)
+    : Number(cornerA[2] || cornerB[2] || 0);
+  state.deepmimo.roi.visualZ = visualZ;
+  state.deepmimo.roi.cornerA = [Number(cornerA[0]), Number(cornerA[1]), visualZ];
+  state.deepmimo.roi.cornerB = [Number(cornerB[0]), Number(cornerB[1]), visualZ];
   state.deepmimo.roi.pickingStep = "a";
   state.deepmimo.status = "Idle";
   state.deepmimo.progress = 0;
@@ -1355,8 +1425,10 @@ function readDeepMimoRoiInputs() {
   if (![centerX, centerY, width, length].every(Number.isFinite) || width <= 0 || length <= 0) {
     return;
   }
-  const bounds = deepMimoRoiBounds();
-  setDeepMimoRoiFromCenter(centerX, centerY, width, length, bounds?.z || 0);
+  const visualZ = Number.isFinite(Number(state.deepmimo.roi.visualZ))
+    ? Number(state.deepmimo.roi.visualZ)
+    : 0;
+  setDeepMimoRoiFromCenter(centerX, centerY, width, length, visualZ);
 }
 
 function deepMimoReceiverAxisCount(size, spacing) {
@@ -1419,43 +1491,99 @@ function deepMimoPayload() {
 function renderDeepMimoState() {
   const bounds = deepMimoRoiBounds();
   const estimate = deepMimoReceiverEstimate(bounds);
-  const selectedTileCount = getViewer().loadedTileIds.size;
-  const tileLabel = `${formatCount(selectedTileCount)} selected tile${selectedTileCount === 1 ? "" : "s"}`;
-  if (bounds) {
-    ui.deepMimoRoiSummary.textContent = `${formatFixed(bounds.size[0], 1, " m")} x ${formatFixed(bounds.size[1], 1, " m")} | ${formatCount(estimate)} Rx candidates | ${tileLabel}`;
-    getViewer().renderDeepMimoRoi(bounds);
+  ui.deepMimoRxCandidates.value = bounds && Number.isFinite(estimate)
+    ? formatCount(estimate)
+    : "--";
+  if (bounds && state.mode === "deepmimo") {
+    getViewer().renderDeepMimoRoi(bounds, state.deepmimo.roi.visualZ);
   } else {
-    ui.deepMimoRoiSummary.textContent = `No ROI selected | ${tileLabel}`;
     getViewer().clearDeepMimoRoi();
   }
+  renderDeepMimoDatasetTray();
+}
 
-  const progress = Number(state.deepmimo.progress);
-  const progressValue = Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 0;
-  const progressPercent = Math.round(progressValue * 100);
-  const statusKey = String(state.deepmimo.status || "Idle").toLowerCase();
-  const progressText = Number.isFinite(progress) && progress > 0 && progress < 1
-    ? ` (${progressPercent}%)`
-    : "";
-  ui.deepMimoJobStatus.textContent = `${formatStatus(state.deepmimo.status)}${progressText} | ${state.deepmimo.message || "Idle"}`;
-  const showProgress = statusKey !== "idle" || progressValue > 0;
-  ui.deepMimoProgress.classList.toggle("hidden", !showProgress);
-  ui.deepMimoProgress.dataset.status = statusKey;
-  ui.deepMimoProgress.setAttribute("aria-valuenow", String(progressPercent));
-  ui.deepMimoProgress.setAttribute(
-    "aria-valuetext",
-    `${progressPercent}% ${state.deepmimo.message || formatStatus(state.deepmimo.status)}`,
-  );
-  ui.deepMimoProgressFill.style.width = `${progressPercent}%`;
-  ui.deepMimoProgressStage.textContent = state.deepmimo.message || formatStatus(state.deepmimo.status);
-  ui.deepMimoProgressPercent.textContent = `${progressPercent}%`;
-  const ready = state.deepmimo.status === "succeeded" && state.deepmimo.jobId;
-  ui.deepMimoDownloadLink.classList.toggle("hidden", !ready);
-  ui.deepMimoDownloadLink.href = ready ? deepMimoDownloadUrl(state.deepmimo.jobId) : "#";
+function shortDeepMimoJobId(jobId) {
+  const id = String(jobId || "");
+  return id.startsWith("dm_") ? id.slice(3, 11) : id.slice(0, 8);
+}
+
+function formatDeepMimoDatasetTime(value) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return "--";
+  }
+  return new Date(timestamp).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+}
+
+function addDeepMimoDataset(job) {
+  const jobId = String(job.job_id || job.jobId || "");
+  if (!jobId) {
+    return;
+  }
+  const pending = state.deepmimo.pendingDataset?.jobId === jobId
+    ? state.deepmimo.pendingDataset
+    : null;
+  const item = {
+    jobId,
+    scenarioName: pending?.scenarioName || state.deepmimo.export.scenarioName || "hku_deepmimo_roi",
+    readyAt: job.updated_at || new Date().toISOString(),
+    archiveName: job.result?.archive_name || `deepmimo_${jobId}.zip`,
+    downloadUrl: deepMimoDownloadUrl(jobId),
+  };
+  state.deepmimo.datasets = [
+    item,
+    ...state.deepmimo.datasets.filter((dataset) => dataset.jobId !== jobId),
+  ];
+}
+
+function renderDeepMimoDatasetTray() {
+  const datasets = state.deepmimo.datasets;
+  const hasDatasets = datasets.length > 0;
+  const expanded = hasDatasets && state.deepmimo.datasetTrayOpen;
+
+  ui.deepMimoDatasetTray.classList.toggle("hidden", !hasDatasets);
+  ui.deepMimoDatasetTray.setAttribute("aria-hidden", String(!hasDatasets));
+  ui.deepMimoDatasetTray.classList.toggle("open", expanded);
+  ui.deepMimoDatasetToggle.setAttribute("aria-expanded", String(expanded));
+  ui.deepMimoDatasetCount.textContent = String(datasets.length);
+  ui.deepMimoDatasetPanel.classList.toggle("hidden", !expanded);
+  ui.deepMimoDatasetPanel.setAttribute("aria-hidden", String(!expanded));
+
+  ui.deepMimoDatasetList.replaceChildren(...datasets.map((dataset) => {
+    const item = document.createElement("div");
+    item.className = "deepMimoDatasetItem";
+
+    const meta = document.createElement("div");
+    meta.className = "deepMimoDatasetMeta";
+
+    const name = document.createElement("div");
+    name.className = "deepMimoDatasetName";
+    name.textContent = dataset.scenarioName;
+
+    const detail = document.createElement("div");
+    detail.className = "deepMimoDatasetDetail";
+    detail.textContent = `Job ${shortDeepMimoJobId(dataset.jobId)} · ${formatDeepMimoDatasetTime(dataset.readyAt)}`;
+
+    const link = document.createElement("a");
+    link.className = "deepMimoDatasetDownload";
+    link.href = dataset.downloadUrl;
+    link.download = dataset.archiveName;
+    link.textContent = "Download";
+
+    meta.append(name, detail);
+    item.append(meta, link);
+    return item;
+  }));
 }
 
 function setDeepMimoRoiCorner(position) {
-  const point = [Number(position[0]), Number(position[1]), Number(position[2] || 0)];
+  const nextVisualZ = Number(position[2] || 0);
+  const visualZ = (state.deepmimo.roi.pickingStep === "a" || !Number.isFinite(Number(state.deepmimo.roi.visualZ)))
+    ? nextVisualZ
+    : Number(state.deepmimo.roi.visualZ);
+  const point = [Number(position[0]), Number(position[1]), visualZ];
   if (state.deepmimo.roi.pickingStep === "a" || !state.deepmimo.roi.cornerA) {
+    state.deepmimo.roi.visualZ = visualZ;
     state.deepmimo.roi.cornerA = point;
     state.deepmimo.roi.cornerB = null;
     state.deepmimo.roi.pickingStep = "b";
@@ -1470,7 +1598,9 @@ function setDeepMimoRoiCorner(position) {
 }
 
 function startDeepMimoRoiDrag(position) {
-  const point = [Number(position[0]), Number(position[1]), Number(position[2] || 0)];
+  const visualZ = Number(position[2] || 0);
+  const point = [Number(position[0]), Number(position[1]), visualZ];
+  state.deepmimo.roi.visualZ = visualZ;
   state.deepmimo.roi.cornerA = point;
   state.deepmimo.roi.cornerB = point;
   state.deepmimo.roi.pickingStep = "drag";
@@ -1485,7 +1615,10 @@ function updateDeepMimoRoiDrag(position) {
     startDeepMimoRoiDrag(position);
     return;
   }
-  state.deepmimo.roi.cornerB = [Number(position[0]), Number(position[1]), Number(position[2] || 0)];
+  const visualZ = Number.isFinite(Number(state.deepmimo.roi.visualZ))
+    ? Number(state.deepmimo.roi.visualZ)
+    : Number(position[2] || 0);
+  state.deepmimo.roi.cornerB = [Number(position[0]), Number(position[1]), visualZ];
   state.deepmimo.message = "Drawing ROI";
   renderDeepMimoState();
 }
@@ -1501,6 +1634,7 @@ function clearDeepMimoRoi() {
   state.deepmimo.roi.cornerA = null;
   state.deepmimo.roi.cornerB = null;
   state.deepmimo.roi.pickingStep = "a";
+  state.deepmimo.roi.visualZ = null;
   state.deepmimo.status = "Idle";
   state.deepmimo.progress = 0;
   state.deepmimo.message = "Idle";
@@ -1521,6 +1655,8 @@ async function pollDeepMimo(jobId) {
 
     if (job.status === "succeeded") {
       state.deepmimo.message = "Dataset ready";
+      addDeepMimoDataset(job);
+      state.deepmimo.pendingDataset = null;
       renderDeepMimoState();
       showOverlay({
         title: "Exporting DeepMIMO Dataset",
@@ -1552,6 +1688,7 @@ async function runDeepMimo() {
   state.deepmimo.progress = 0;
   state.deepmimo.message = "Submitting DeepMIMO export job...";
   state.deepmimo.result = null;
+  state.deepmimo.pendingDataset = null;
   renderDeepMimoState();
   showOverlay({
     title: "Exporting DeepMIMO Dataset",
@@ -1562,6 +1699,10 @@ async function runDeepMimo() {
   try {
     const job = await createDeepMimoJob(payload);
     state.deepmimo.jobId = job.job_id;
+    state.deepmimo.pendingDataset = {
+      jobId: job.job_id,
+      scenarioName: state.deepmimo.export.scenarioName,
+    };
     state.deepmimo.status = job.status || "running";
     state.deepmimo.progress = Number(job.progress || 0);
     state.deepmimo.message = job.message || "Worker started";
@@ -1571,6 +1712,7 @@ async function runDeepMimo() {
     state.deepmimo.status = "failed";
     state.deepmimo.progress = 1;
     state.deepmimo.message = error.message;
+    state.deepmimo.pendingDataset = null;
     renderDeepMimoState();
     hideOverlay();
     throw error;
@@ -1747,8 +1889,8 @@ function resetMobilityTrajectoryFromRx() {
 }
 
 function addCurrentRxWaypoint() {
-  readLinkInputs();
-  const point = [...state.link.rx];
+  readMobilityInputs();
+  const point = [...state.mobility.rx];
   const points = state.mobility.trajectory.points;
   const last = points[points.length - 1];
   if (last && Math.hypot(point[0] - last[0], point[1] - last[1], point[2] - last[2]) < 1e-6) {
@@ -1821,7 +1963,7 @@ async function runMobility() {
   });
 
   const job = await createMobilityJob({
-    tx: {position: state.link.tx, orientation: [0, 0, 0]},
+    tx: {position: state.mobility.tx, orientation: [0, 0, 0]},
     rx_trajectory: {
       points: state.mobility.trajectory.points,
       velocity_mps: state.mobility.trajectory.velocityMps,
@@ -1895,6 +2037,12 @@ function applyPick(pick) {
   } else if (state.pickTarget === "link-rx") {
     const position = linkPickPosition(pick);
     setLogicalAndVisual(state.link.rx, state.link.rxVisual, position);
+  } else if (state.pickTarget === "mobility-tx") {
+    const position = mobilityPickPosition(pick);
+    setLogicalAndVisual(state.mobility.tx, state.mobility.txVisual, position);
+  } else if (state.pickTarget === "mobility-rx") {
+    const position = mobilityPickPosition(pick);
+    setLogicalAndVisual(state.mobility.rx, state.mobility.rxVisual, position);
   } else if (state.pickTarget === "rm-tx") {
     const position = radiomapTxPickPosition(pick);
     setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, position);
@@ -1916,6 +2064,7 @@ function applyPick(pick) {
     linkChannelConfig,
     syncNumericInputs,
     syncViewerMarkers,
+    syncModeVisuals,
     markerRadiusForPickTarget,
     readAntennaArrayInputs,
     readLinkInputs,
@@ -1930,6 +2079,7 @@ function applyPick(pick) {
     renderMobilityTrajectoryPreview,
     renderRadiomapResult,
     renderDeepMimoState,
+    renderDeepMimoDatasetTray,
     runLinkSolve,
     runMobility,
     runRadiomap,
