@@ -445,19 +445,19 @@ function selectEntryMapTile(tileId) {
 function entryGridStyle(kind = "number") {
   if (kind === "major") {
     return {
-      color: "rgba(21,33,53,.38)",
-      weight: 1.7,
+      color: "rgba(63,82,108,.2)",
+      weight: 1.25,
     };
   }
   if (kind === "quadrant") {
     return {
-      color: "rgba(31,100,224,.24)",
-      weight: 0.9,
+      color: "rgba(85,105,130,.1)",
+      weight: 0.75,
     };
   }
   return {
-    color: "rgba(71,88,113,.14)",
-    weight: 0.55,
+    color: "rgba(92,108,128,.045)",
+    weight: 0.45,
   };
 }
 
@@ -493,11 +493,11 @@ function entryTileLayerStyle(tileEntry, hover = false) {
     };
   }
   return {
-    color: tileEntry.available ? (hover ? "rgba(31,111,255,.95)" : "rgba(31,111,255,.44)") : "rgba(71,88,113,.48)",
-    weight: hover ? 1.25 : 0.85,
+    color: tileEntry.available ? (hover ? "rgba(31,111,255,.88)" : "rgba(31,111,255,.40)") : "rgba(91,107,127,.12)",
+    weight: hover ? 1.2 : 0.75,
     opacity: 1,
-    fillColor: tileEntry.available ? "#1f6fff" : "#64748b",
-    fillOpacity: tileEntry.available ? (hover ? 0.22 : 0.075) : (hover ? 0.18 : 0.1),
+    fillColor: tileEntry.available ? "#1f6fff" : "#8a98aa",
+    fillOpacity: tileEntry.available ? (hover ? 0.18 : 0.065) : (hover ? 0.1 : 0.03),
     renderer: entryMap.tileRenderer,
   };
 }

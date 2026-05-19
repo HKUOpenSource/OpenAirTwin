@@ -755,6 +755,12 @@ export class Viewer {
   }
 
   setTx(position) {
+    if (!Array.isArray(position)) {
+      this.stopTxOrbit();
+      this.txMarker.visible = false;
+      return;
+    }
+    this.txMarker.visible = true;
     this.txMarker.position.set(position[0], position[1], position[2]);
     if (this.txOrbit.active) {
       this.startTxOrbit(position);
@@ -762,6 +768,11 @@ export class Viewer {
   }
 
   setRx(position) {
+    if (!Array.isArray(position)) {
+      this.rxMarker.visible = false;
+      return;
+    }
+    this.rxMarker.visible = true;
     this.rxMarker.position.set(position[0], position[1], position[2]);
   }
 
@@ -1281,14 +1292,14 @@ export class Viewer {
     this.deepMimoRoi = null;
   }
 
-  renderDeepMimoRoi(bounds) {
+  renderDeepMimoRoi(bounds, visualZ = 0) {
     this.clearDeepMimoRoi();
     if (!bounds || !Array.isArray(bounds.min) || !Array.isArray(bounds.max)) {
       return;
     }
     const [minX, minY] = bounds.min;
     const [maxX, maxY] = bounds.max;
-    const z = Number(bounds.z || 0) + 0.18;
+    const z = Number(visualZ || 0) + 0.18;
     const group = new THREE.Group();
 
     const fillGeometry = new THREE.PlaneGeometry(Math.max(maxX - minX, 0.01), Math.max(maxY - minY, 0.01));
@@ -1297,6 +1308,7 @@ export class Viewer {
       transparent: true,
       opacity: 0.18,
       side: THREE.DoubleSide,
+      depthTest: false,
       depthWrite: false,
       toneMapped: false,
     });
@@ -1317,7 +1329,7 @@ export class Viewer {
       linewidth: 2.4,
       transparent: true,
       opacity: 0.96,
-      depthTest: true,
+      depthTest: false,
       depthWrite: false,
       toneMapped: false,
     });

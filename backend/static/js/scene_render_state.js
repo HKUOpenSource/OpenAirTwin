@@ -3,6 +3,13 @@ import {compareTileIds, toDisplayTileId} from "/js/tile_model.js";
 const LOAD_PROGRESS_RENDER_INTERVAL_MS = 250;
 let overlayCancelHandler = null;
 
+const MODE_META = {
+  link: {title: "Link Analysis"},
+  mobility: {title: "Mobility Analysis"},
+  radiomap: {title: "Radio Map"},
+  deepmimo: {title: "DeepMIMO"},
+};
+
 export function createSceneRenderStateController(context) {
   const {api, state, ui, viewerRef} = context;
   const getViewer = () => viewerRef.current;
@@ -42,6 +49,10 @@ export function createSceneRenderStateController(context) {
     solver().syncViewerMarkers();
   }
 
+  function syncModeVisuals() {
+    solver().syncModeVisuals();
+  }
+
   function renderLinkResult() {
     solver().renderLinkResult();
   }
@@ -71,7 +82,7 @@ export function createSceneRenderStateController(context) {
       return getViewer();
     }
     if (!viewerRef.modulePromise) {
-      viewerRef.modulePromise = import("/js/viewer.js");
+      viewerRef.modulePromise = import("/js/viewer.js?v=20260519-mode-isolation");
     }
     const {Viewer} = await viewerRef.modulePromise;
     const realViewer = new Viewer(document.getElementById("view"));
@@ -79,7 +90,6 @@ export function createSceneRenderStateController(context) {
     viewerRef.current = realViewer;
     applyPerformanceSettingsToViewer();
     syncViewerMarkers();
-    syncSceneStats();
     syncTileListUi();
     syncPerformanceUi();
     return realViewer;
@@ -198,8 +208,10 @@ function syncModeUi() {
     state.deviceControl.activeTarget = null;
   }
   const activeTarget = state.deviceControl.activeTarget;
-  const activeTargetAllowed = isLinkLike
+  const activeTargetAllowed = isLink
     ? activeTarget === "link-tx" || activeTarget === "link-rx"
+    : isMobility
+      ? activeTarget === "mobility-tx" || activeTarget === "mobility-rx"
     : isDeepMimo
       ? activeTarget === "deepmimo-tx" || activeTarget === "deepmimo-roi"
       : activeTarget === "rm-tx";
@@ -208,10 +220,24 @@ function syncModeUi() {
     state.pickTarget = null;
   }
   const nextActiveTarget = state.deviceControl.activeTarget;
-  ui.tabLink.classList.toggle("active", isLink);
-  ui.tabMobility.classList.toggle("active", isMobility);
-  ui.tabRadiomap.classList.toggle("active", state.mode === "radiomap");
-  ui.tabDeepMimo.classList.toggle("active", isDeepMimo);
+  const hasPrecisionTarget = nextActiveTarget === "link-tx"
+    || nextActiveTarget === "link-rx"
+    || nextActiveTarget === "mobility-tx"
+    || nextActiveTarget === "mobility-rx"
+    || nextActiveTarget === "rm-tx"
+    || nextActiveTarget === "deepmimo-tx";
+  const modeMeta = MODE_META[state.mode] || MODE_META.link;
+  const modeButtons = [
+    [ui.tabLink, isLink],
+    [ui.tabMobility, isMobility],
+    [ui.tabRadiomap, state.mode === "radiomap"],
+    [ui.tabDeepMimo, isDeepMimo],
+  ];
+  for (const [button, active] of modeButtons) {
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  }
+  ui.modeSelectTitle.textContent = `Mode (${modeMeta.title})`;
   ui.linkPanel.classList.toggle("hidden", !isLink);
   ui.mobilityPanel.classList.toggle("hidden", !isMobility);
   ui.radiomapPanel.classList.toggle("hidden", state.mode !== "radiomap");
@@ -236,15 +262,19 @@ function syncModeUi() {
   }
   ui.deviceDock.classList.toggle("hidden", !sceneControlsVisible);
   ui.deviceDock.setAttribute("aria-hidden", String(!sceneControlsVisible));
-  ui.devicePrecisionPanel.classList.toggle("hidden", !sceneControlsVisible || !nextActiveTarget);
-  ui.devicePrecisionPanel.setAttribute("aria-hidden", String(!sceneControlsVisible || !nextActiveTarget));
+  ui.devicePrecisionPanel.classList.toggle("hidden", !sceneControlsVisible || !hasPrecisionTarget);
+  ui.devicePrecisionPanel.setAttribute("aria-hidden", String(!sceneControlsVisible || !hasPrecisionTarget));
   ui.linkTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "link-tx");
   ui.linkRxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "link-rx");
+  ui.mobilityTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "mobility-tx");
+  ui.mobilityRxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "mobility-rx");
   ui.rmTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "rm-tx");
   ui.deepMimoTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "deepmimo-tx");
-  ui.linkSurfaceClearanceField.classList.toggle("hidden", !(nextActiveTarget === "link-tx" || nextActiveTarget === "link-rx" || nextActiveTarget === "rm-tx" || nextActiveTarget === "deepmimo-tx"));
-  ui.btnPickLinkTx.classList.toggle("hidden", !isLinkLike);
-  ui.btnPickLinkRx.classList.toggle("hidden", !isLinkLike);
+  ui.linkSurfaceClearanceField.classList.toggle("hidden", !(nextActiveTarget === "link-tx" || nextActiveTarget === "link-rx" || nextActiveTarget === "mobility-tx" || nextActiveTarget === "mobility-rx" || nextActiveTarget === "rm-tx" || nextActiveTarget === "deepmimo-tx"));
+  ui.btnPickLinkTx.classList.toggle("hidden", !isLink);
+  ui.btnPickLinkRx.classList.toggle("hidden", !isLink);
+  ui.btnPickMobilityTx.classList.toggle("hidden", !isMobility);
+  ui.btnPickMobilityRx.classList.toggle("hidden", !isMobility);
   ui.btnPickRmTx.classList.toggle("hidden", state.mode !== "radiomap");
   ui.btnDeepMimoPickTx.classList.toggle("hidden", !isDeepMimo);
   ui.btnDeepMimoPickRoi.classList.toggle("hidden", !isDeepMimo);
@@ -267,36 +297,36 @@ function syncModeUi() {
   ui.btnOrbitTx.querySelector(".deviceActionText").textContent = orbitingTx ? "Stop" : "Orbit";
   ui.btnPickLinkTx.classList.toggle("active", nextActiveTarget === "link-tx");
   ui.btnPickLinkRx.classList.toggle("active", nextActiveTarget === "link-rx");
+  ui.btnPickMobilityTx.classList.toggle("active", nextActiveTarget === "mobility-tx");
+  ui.btnPickMobilityRx.classList.toggle("active", nextActiveTarget === "mobility-rx");
   ui.btnPickRmTx.classList.toggle("active", nextActiveTarget === "rm-tx");
   ui.btnDeepMimoPickTx.classList.toggle("active", nextActiveTarget === "deepmimo-tx");
   ui.btnDeepMimoPickRoi.classList.toggle("active", nextActiveTarget === "deepmimo-roi");
   ui.btnPickLinkTx.classList.toggle("picking", state.pickTarget === "link-tx");
   ui.btnPickLinkRx.classList.toggle("picking", state.pickTarget === "link-rx");
+  ui.btnPickMobilityTx.classList.toggle("picking", state.pickTarget === "mobility-tx");
+  ui.btnPickMobilityRx.classList.toggle("picking", state.pickTarget === "mobility-rx");
   ui.btnPickRmTx.classList.toggle("picking", state.pickTarget === "rm-tx");
   ui.btnDeepMimoPickTx.classList.toggle("picking", state.pickTarget === "deepmimo-tx");
   ui.btnDeepMimoPickRoi.classList.toggle("picking", state.pickTarget === "deepmimo-roi");
-  ui.devicePrecisionTitle.textContent = nextActiveTarget === "link-rx"
+  ui.devicePrecisionTitle.textContent = nextActiveTarget === "link-rx" || nextActiveTarget === "mobility-rx"
     ? "Rx"
     : nextActiveTarget === "deepmimo-tx"
       ? "DM Tx"
+    : nextActiveTarget === "mobility-tx"
+      ? "Tx"
     : nextActiveTarget === "deepmimo-roi"
       ? "ROI"
     : nextActiveTarget === "rm-tx"
       ? "RM Tx"
       : "Tx";
-  ui.stMode.textContent = isLink ? "Link" : isMobility ? "Mobility" : isDeepMimo ? "DeepMIMO" : "Radio Map";
-}
-function syncSceneStats() {
-  ui.stSceneMeshes.textContent = state.manifest ? String(state.manifest.mesh_count) : "--";
-  ui.stLoadedMeshes.textContent = String(getViewer().meshesLoaded);
-  ui.stLoadedTiles.textContent = String(getViewer().loadedTileIds.size);
 }
 function renderAll() {
   syncModeUi();
   syncControlSidebarUi();
   syncViewerMarkers();
+  syncModeVisuals();
   syncNumericInputs();
-  syncSceneStats();
   syncTileListUi();
   syncEntryOverviewUi();
   syncPerformanceUi();
@@ -664,7 +694,6 @@ async function loadScene() {
 
   try {
     if (!diff.toAdd.length && !diff.toRemove.length) {
-      syncSceneStats();
       syncTileListUi();
       showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100});
       await new Promise((resolve) => window.setTimeout(resolve, 160));
@@ -688,7 +717,6 @@ async function loadScene() {
   } finally {
     state.tileLoadBusy = false;
     hideOverlay();
-    syncSceneStats();
     syncTileListUi();
     syncPerformanceUi();
   }
@@ -702,7 +730,6 @@ async function loadScene() {
     syncControlSidebarUi,
     syncResultDockUi,
     syncModeUi,
-    syncSceneStats,
     renderAll,
     tileSelections,
     tileDiff,

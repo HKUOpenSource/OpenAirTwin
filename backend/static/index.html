@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HKU-RT v3.0</title>
   <link rel="stylesheet" href="/lib/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/app.css?v=20260519-deepmimo-datasets" />
 </head>
 <body>
   <canvas id="view"></canvas>
@@ -14,11 +14,6 @@
     <div id="paramTooltipLayer" class="paramTooltipLayer hidden" role="tooltip" aria-hidden="true">
       <div class="paramTooltipText" id="paramTooltipText"></div>
       <div class="paramTooltipArrow" aria-hidden="true"></div>
-    </div>
-
-    <div class="logoBar">
-      <img class="hku" src="/assets/hku_logo.jpg" alt="HKU logo" />
-      <img src="/assets/hku_ece_logo.jpg" alt="HKU-ECE logo" />
     </div>
 
     <div id="linkChannelSection" class="channelAnalysisDock hidden" aria-hidden="true">
@@ -139,6 +134,33 @@
       </div>
     </div>
 
+    <div id="deepMimoDatasetTray" class="deepMimoDatasetTray hidden" aria-hidden="true">
+      <button
+        class="deepMimoDatasetToggle"
+        id="deepMimoDatasetToggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="deepMimoDatasetPanel"
+        title="DeepMIMO datasets"
+      >
+        <span class="deepMimoDatasetIcon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 3v10"></path>
+            <path d="m7 9 5 5 5-5"></path>
+            <path d="M5 19h14"></path>
+          </svg>
+        </span>
+        <span class="deepMimoDatasetLabel">Datasets</span>
+        <span class="deepMimoDatasetCount" id="deepMimoDatasetCount" aria-live="polite">0</span>
+      </button>
+      <div id="deepMimoDatasetPanel" class="deepMimoDatasetPanel hidden" aria-hidden="true">
+        <div class="deepMimoDatasetHeader">
+          <span>Generated Datasets</span>
+        </div>
+        <div id="deepMimoDatasetList" class="deepMimoDatasetList"></div>
+      </div>
+    </div>
+
     <div id="loadingScreen">
       <div class="loadingCard">
         <div class="loadingTitle" id="loadingTitle">Loading Scene</div>
@@ -162,7 +184,9 @@
         <div class="entrySidebarStack">
           <section class="entryIntro" id="entrySidebar">
             <div class="entrySidebarHead">
-              <div class="entrySidebarTitle">HKU Wireless Digital Twin</div>
+              <div class="entrySidebarBrand" aria-label="OpenAirTwin">
+                <img class="brandLogo openAirTwinLogo" src="/assets/openairtwin_logo.png" alt="OpenAirTwin logo" />
+              </div>
             </div>
             <div class="entryManual">
               <label class="entryManualLabel" for="entryPlaceInput">Place Search</label>
@@ -180,10 +204,6 @@
               <div class="entryPlaceResults" id="entryPlaceResults" aria-live="polite"></div>
             </div>
           </section>
-          <div class="entrySidebarLogos">
-            <img class="hku" src="/assets/hku_logo.jpg" alt="HKU logo" />
-            <img src="/assets/hku_ece_logo.jpg" alt="HKU-ECE logo" />
-          </div>
         </div>
 
         <section class="entryMapPanel">
@@ -235,25 +255,36 @@
     <button id="panelToggle" class="hidden" type="button" aria-label="Collapse control sidebar" aria-expanded="true">‹</button>
     <div id="ui">
       <div class="uiHead">
-        <div class="uiTitleBlock">
-          <div class="uiTitle">HKU Wireless Digital Twin</div>
-          <div class="uiSubtitle">Realtime Link Solver & Radio Map</div>
+        <div class="uiTitleBlock" aria-label="OpenAirTwin">
+          <img class="brandLogo openAirTwinLogo" src="/assets/openairtwin_logo.png" alt="OpenAirTwin logo" />
         </div>
       </div>
       <div id="uiBody">
-        <div class="grid">
-          <div class="card"><b>Scene Meshes</b><span id="stSceneMeshes">--</span></div>
-          <div class="card"><b>Loaded Meshes</b><span id="stLoadedMeshes">0</span></div>
-          <div class="card"><b>Loaded Tiles</b><span id="stLoadedTiles">0</span></div>
-          <div class="card"><b>Active Mode</b><span id="stMode">Link</span></div>
-        </div>
-
-        <div class="modeTabs">
-          <button class="modeTab active" data-mode="link" id="tabLink">Link Mode</button>
-          <button class="modeTab" data-mode="mobility" id="tabMobility">Mobility</button>
-          <button class="modeTab" data-mode="radiomap" id="tabRadiomap">Radio Map</button>
-          <button class="modeTab" data-mode="deepmimo" id="tabDeepMimo">DeepMIMO</button>
-        </div>
+        <details class="paramGroup modeSelector" id="modeSelector">
+          <summary class="paramGroupSummary modeSelectButton" id="modeSelectButton" aria-haspopup="listbox" aria-expanded="false" aria-controls="modeMenu">
+            <span class="modeSelectTitle" id="modeSelectTitle">Mode (Link Analysis)</span>
+          </summary>
+          <div class="paramGroupBody modeSelectBody">
+            <div class="modeMenu" id="modeMenu" role="listbox" aria-label="Analysis mode">
+              <button class="modeMenuItem active" data-mode="link" id="tabLink" type="button" role="option" aria-selected="true">
+                <span class="modeMenuDot" aria-hidden="true"></span>
+                <span class="modeMenuTitle">Link Analysis</span>
+              </button>
+              <button class="modeMenuItem" data-mode="mobility" id="tabMobility" type="button" role="option" aria-selected="false">
+                <span class="modeMenuDot" aria-hidden="true"></span>
+                <span class="modeMenuTitle">Mobility Analysis</span>
+              </button>
+              <button class="modeMenuItem" data-mode="radiomap" id="tabRadiomap" type="button" role="option" aria-selected="false">
+                <span class="modeMenuDot" aria-hidden="true"></span>
+                <span class="modeMenuTitle">Radio Map</span>
+              </button>
+              <button class="modeMenuItem" data-mode="deepmimo" id="tabDeepMimo" type="button" role="option" aria-selected="false">
+                <span class="modeMenuDot" aria-hidden="true"></span>
+                <span class="modeMenuTitle">DeepMIMO</span>
+              </button>
+            </div>
+          </div>
+        </details>
 
         <div class="tileStateCache" aria-hidden="true">
           <div id="tileSummary" class="tileSummary hidden">0 selected · 0 loaded · 0 pending</div>
@@ -261,11 +292,10 @@
         </div>
 
         <div class="solverCfg researchParams">
-          <div class="sectionTitle">Research Parameters</div>
-
-          <section class="paramGroup">
-            <div class="paramGroupTitle">Physical Layer</div>
-            <div class="paramGrid">
+          <details class="paramGroup" open>
+            <summary class="paramGroupSummary">Physical Layer</summary>
+            <div class="paramGroupBody">
+              <div class="paramGrid">
               <label class="paramField" for="cfgFrequency">
                 <span class="paramLabel">Carrier Frequency
                   <span class="infoTip" tabindex="0" aria-label="Carrier frequency details">i<span class="tipBubble" role="tooltip">RF carrier used by the ray tracer. Default 3.5 GHz; changing it alters wavelength/material response with little effect on ray count.</span></span>
@@ -300,12 +330,14 @@
                 </span>
                 <input id="linkTapSubcarrierSpacing" type="hidden" value="30000" />
               </label>
+              </div>
             </div>
-          </section>
+          </details>
 
-          <section class="paramGroup">
-            <div class="paramGroupTitle">Antenna Arrays</div>
-            <div class="paramGrid">
+          <details class="paramGroup">
+            <summary class="paramGroupSummary">Antenna Arrays</summary>
+            <div class="paramGroupBody">
+              <div class="paramGrid">
               <label class="paramField" for="txArrayPattern">
                 <span class="paramLabel">Tx Pattern
                   <span class="infoTip" tabindex="0" aria-label="Tx antenna pattern details">i<span class="tipBubble" role="tooltip">Sionna antenna pattern used for transmitters. Options come from the backend Sionna registry.</span></span>
@@ -398,12 +430,14 @@
                   <span class="unitSuffix" aria-hidden="true">lambda</span>
                 </span>
               </label>
+              </div>
             </div>
-          </section>
+          </details>
 
-          <section class="paramGroup mobilityOnlyParam hidden">
-            <div class="paramGroupTitle">Rx Trajectory</div>
-            <div class="trajectoryActions">
+          <details class="paramGroup mobilityOnlyParam hidden">
+            <summary class="paramGroupSummary">Rx Trajectory</summary>
+            <div class="paramGroupBody">
+              <div class="trajectoryActions">
               <button class="miniBtn" id="btnMobilityAddRxPoint" type="button">Add Current Rx</button>
               <button class="miniBtn" id="btnMobilityClearPoints" type="button">Clear</button>
             </div>
@@ -432,11 +466,13 @@
               </label>
             </div>
             <div id="mobilityEstimate" class="mobilityEstimate">--</div>
-          </section>
+            </div>
+          </details>
 
-          <section class="paramGroup">
-            <div class="paramGroupTitle">Propagation</div>
-            <div class="paramCheckGrid">
+          <details class="paramGroup">
+            <summary class="paramGroupSummary">Propagation</summary>
+            <div class="paramGroupBody">
+              <div class="paramCheckGrid">
               <label class="paramCheck"><input id="cfgLos" type="checkbox" checked /><span>LoS <span class="infoTip" tabindex="0" aria-label="Line of sight details">i<span class="tipBubble" role="tooltip">Direct transmitter-to-receiver paths. Default on; low extra cost and important as a reference component.</span></span></span></label>
               <label class="paramCheck"><input id="cfgSpecular" type="checkbox" checked /><span>Specular <span class="infoTip" tabindex="0" aria-label="Specular reflection details">i<span class="tipBubble" role="tooltip">Mirror-like reflections from surfaces. Default on; cost grows with max depth and samples per source.</span></span></span></label>
               <label class="paramCheck"><input id="cfgDiffuse" type="checkbox" /><span>Diffuse <span class="infoTip" tabindex="0" aria-label="Diffuse reflection details">i<span class="tipBubble" role="tooltip">Scattered reflection energy from rough surfaces. Default off; can add variance and solver time.</span></span></span></label>
@@ -444,12 +480,14 @@
               <label class="paramCheck linkOnlyParam"><input id="linkDiffraction" type="checkbox" /><span>Diffraction <span class="infoTip" tabindex="0" aria-label="Diffraction details">i<span class="tipBubble" role="tooltip">Bending around wedges and edges. Default off; improves NLoS modeling but increases PathSolver work.</span></span></span></label>
               <label class="paramCheck linkOnlyParam"><input id="linkEdgeDiffraction" type="checkbox" /><span>Edge Diffraction <span class="infoTip" tabindex="0" aria-label="Edge diffraction details">i<span class="tipBubble" role="tooltip">Explicit edge interaction search for diffracted paths. Default off; enable only when edge effects matter.</span></span></span></label>
               <label class="paramCheck linkOnlyParam wide"><input id="linkDiffractionLitRegion" type="checkbox" /><span>Diffraction Lit Region <span class="infoTip" tabindex="0" aria-label="Diffraction lit region details">i<span class="tipBubble" role="tooltip">Includes lit-region diffraction contributions. Default off; can add paths near shadow boundaries.</span></span></span></label>
+              </div>
             </div>
-          </section>
+          </details>
 
-          <section class="paramGroup">
-            <div class="paramGroupTitle">Solver Budget</div>
-            <div class="paramGrid">
+          <details class="paramGroup">
+            <summary class="paramGroupSummary">Solver Budget</summary>
+            <div class="paramGroupBody">
+              <div class="paramGrid">
               <label class="paramField" for="cfgMaxDepth">
                 <span class="paramLabel">Max Depth
                   <span class="infoTip" tabindex="0" aria-label="Max depth details">i<span class="tipBubble" role="tooltip">Maximum interaction depth for paths. Default 4; each extra depth can multiply search cost.</span></span>
@@ -487,13 +525,15 @@
                 <input id="cfgSeed" type="number" step="1" min="0" value="42" />
               </label>
               <label class="paramCheck linkOnlyParam syntheticCheck"><input id="linkSyntheticArray" type="checkbox" /><span>Synthetic Array <span class="infoTip" tabindex="0" aria-label="Synthetic array details">i<span class="tipBubble" role="tooltip">Uses a synthetic antenna array approximation. Default off; can reduce geometric work for array studies.</span></span></span></label>
+              </div>
             </div>
-          </section>
+          </details>
 
-          <section class="paramGroup linkOnlyParam">
-            <div class="paramGroupTitle">Channel Output</div>
-            <div class="paramGrid">
-              <label class="paramCheck computeCheck"><input id="linkComputeTaps" type="checkbox" /><span>Compute CIR / Taps <span class="infoTip" tabindex="0" aria-label="Compute CIR and taps details">i<span class="tipBubble" role="tooltip">Requests compact CIR/tap summaries after path solving. Default off; enables the right-side Channel Analysis panel.</span></span></span></label>
+          <details class="paramGroup linkOnlyParam">
+            <summary class="paramGroupSummary">Channel Output</summary>
+            <div class="paramGroupBody">
+              <div class="paramGrid">
+              <label class="paramCheck computeCheck"><input id="linkComputeTaps" type="checkbox" /><span>Compute Channel Impulse Response (CIR) <span class="infoTip" tabindex="0" aria-label="Compute CIR details">i<span class="tipBubble" role="tooltip">Requests compact CIR summaries after path solving. Default off; enables the right-side Channel Analysis panel.</span></span></span></label>
               <label class="paramField" for="linkTapLMin">
                 <span class="paramLabel">Tap l_min
                   <span class="infoTip" tabindex="0" aria-label="Tap l_min details">i<span class="tipBubble" role="tooltip">First discrete tap index to report. Default 0; keep the range tight for fast channel post-processing.</span></span>
@@ -506,15 +546,17 @@
                 </span>
                 <input id="linkTapLMax" type="number" step="1" value="100" />
               </label>
+              </div>
             </div>
-          </section>
+          </details>
 
-          <section class="paramGroup livePreviewParam hidden">
-            <div class="paramGroupTitle">Live Preview</div>
-            <div class="paramCheckGrid">
+          <details class="paramGroup livePreviewParam hidden">
+            <summary class="paramGroupSummary">Live Preview</summary>
+            <div class="paramGroupBody">
+              <div class="paramCheckGrid">
               <label class="paramCheck wide"><input id="livePreviewEnabled" type="checkbox" /><span>Enable Live Preview <span class="infoTip" tabindex="0" aria-label="Live preview details">i<span class="tipBubble" role="tooltip">Runs low-cost previews while moving devices, then a final solve after movement stops. Default off to protect shared GPU time.</span></span></span></label>
-            </div>
-            <div class="paramGrid">
+              </div>
+              <div class="paramGrid">
               <label class="paramField livePreviewLinkParam hidden" for="livePreviewLinkSamples">
                 <span class="paramLabel">Preview Samples / Source
                   <span class="infoTip" tabindex="0" aria-label="Preview link samples details">i<span class="tipBubble" role="tooltip">Low-sample path solve used while dragging Link Tx/Rx.</span></span>
@@ -530,12 +572,14 @@
                   <span class="unitSuffix" aria-hidden="true">s</span>
                 </span>
               </label>
+              </div>
             </div>
-          </section>
+          </details>
 
-          <section class="paramGroup radiomapOnlyParam hidden">
-            <div class="paramGroupTitle">Terrain Patch</div>
-            <div class="paramGrid">
+          <details class="paramGroup radiomapOnlyParam hidden">
+            <summary class="paramGroupSummary">Terrain Patch</summary>
+            <div class="paramGroupBody">
+              <div class="paramGrid">
               <label class="paramField" for="rmSizeX">
                 <span class="paramLabel">Patch Size X
                   <span class="infoTip" tabindex="0" aria-label="Patch size X details">i<span class="tipBubble" role="tooltip">Radio-map width in scene meters. Default 160 m; larger patches increase cell count.</span></span>
@@ -607,13 +651,14 @@
                   <span class="unitSuffix" aria-hidden="true">dB</span>
                 </span>
               </label>
+              </div>
             </div>
-          </section>
+          </details>
 
-          <section class="paramGroup deepmimoOnlyParam hidden">
-            <div class="paramGroupTitle">DeepMIMO ROI Export · Selected Tiles</div>
-            <div id="deepMimoRoiSummary" class="mobilityEstimate">No ROI selected</div>
-            <div class="paramGrid">
+          <details class="paramGroup deepmimoOnlyParam hidden">
+            <summary class="paramGroupSummary">DeepMIMO ROI</summary>
+            <div class="paramGroupBody">
+              <div class="paramGrid">
               <label class="paramField" for="deepMimoScenarioName">
                 <span class="paramLabel">Scenario Name</span>
                 <input id="deepMimoScenarioName" type="text" value="hku_deepmimo_roi" />
@@ -654,7 +699,7 @@
                 </span>
               </label>
               <label class="paramField" for="deepMimoRxHeight">
-                <span class="paramLabel">Rx Height</span>
+                <span class="paramLabel">Rx Height <span class="infoTip" tabindex="0" aria-label="DeepMIMO Rx height details">i<span class="tipBubble" role="tooltip">Receiver height above the sampled terrain surface. The ROI footprint only selects the XY area and does not control receiver height.</span></span></span>
                 <span class="unitInput">
                   <input id="deepMimoRxHeight" type="number" step="0.1" min="0" max="100" value="1.5" />
                   <span class="unitSuffix" aria-hidden="true">m</span>
@@ -662,7 +707,7 @@
               </label>
               <label class="paramField" for="deepMimoMaxReceivers">
                 <span class="paramLabel">Max Receivers</span>
-                <input id="deepMimoMaxReceivers" type="number" step="1000" min="1" max="200000" value="5000" />
+                <input id="deepMimoMaxReceivers" type="number" step="1000" min="1" max="200000" value="30000" />
               </label>
               <label class="paramField" for="deepMimoChunkSize">
                 <span class="paramLabel">Chunk Size</span>
@@ -676,31 +721,17 @@
                 <span class="paramLabel">Max Paths / Source</span>
                 <input id="deepMimoMaxPaths" type="number" step="1000" min="1" max="1000000" value="1000000" />
               </label>
+              <label class="paramField" for="deepMimoRxCandidates">
+                <span class="paramLabel">Rx Candidates</span>
+                <input id="deepMimoRxCandidates" type="text" value="--" readonly tabindex="-1" aria-readonly="true" />
+              </label>
               <label class="paramCheck computeCheck">
                 <input id="deepMimoFilterBuildings" type="checkbox" checked />
                 <span>Filter building footprints</span>
               </label>
-            </div>
-            <div id="deepMimoJobStatus" class="mobilityEstimate">Idle</div>
-            <div
-              id="deepMimoProgress"
-              class="deepMimoProgress hidden"
-              role="progressbar"
-              aria-label="DeepMIMO export progress"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow="0"
-            >
-              <div class="deepMimoProgressTrack" aria-hidden="true">
-                <div id="deepMimoProgressFill" class="deepMimoProgressFill"></div>
-              </div>
-              <div class="deepMimoProgressMeta">
-                <span id="deepMimoProgressStage">Idle</span>
-                <span id="deepMimoProgressPercent">0%</span>
               </div>
             </div>
-            <a id="deepMimoDownloadLink" class="btn deepMimoDownload hidden" href="#" download>Download Dataset</a>
-          </section>
+          </details>
         </div>
 
         <section id="linkPanel" class="modePanel"></section>
@@ -708,10 +739,6 @@
         <section id="radiomapPanel" class="modePanel hidden"></section>
         <section id="deepmimoPanel" class="modePanel hidden"></section>
 
-        <div class="actions">
-          <button class="btn" id="btnResetView">Reset View</button>
-          <button class="btn" id="btnClearOverlay">Clear Overlay</button>
-        </div>
       </div>
     </div>
 
@@ -737,6 +764,20 @@
               <label>Z <span class="unitInput"><input id="linkRxZ" type="number" step="1.0" value="1.5" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
             </div>
           </section>
+          <section id="mobilityTxDeviceCard" class="deviceCoordPanel hidden">
+            <div class="deviceCoordGrid">
+              <label>X <span class="unitInput"><input id="mobilityTxX" type="number" step="1.0" value="72.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Y <span class="unitInput"><input id="mobilityTxY" type="number" step="1.0" value="37.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Z <span class="unitInput"><input id="mobilityTxZ" type="number" step="1.0" value="40.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+            </div>
+          </section>
+          <section id="mobilityRxDeviceCard" class="deviceCoordPanel hidden">
+            <div class="deviceCoordGrid">
+              <label>X <span class="unitInput"><input id="mobilityRxX" type="number" step="1.0" value="90.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Y <span class="unitInput"><input id="mobilityRxY" type="number" step="1.0" value="52.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Z <span class="unitInput"><input id="mobilityRxZ" type="number" step="1.0" value="1.5" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+            </div>
+          </section>
           <section id="rmTxDeviceCard" class="deviceCoordPanel hidden">
             <div class="deviceCoordGrid">
               <label>X <span class="unitInput"><input id="rmTxX" type="number" step="1.0" value="72.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
@@ -753,7 +794,7 @@
           </section>
           <label id="linkSurfaceClearanceField" class="deviceClearanceField hidden" for="linkSurfaceClearance">
             <span>Clearance
-              <span class="infoTip" tabindex="0" aria-label="Surface clearance details">i<span class="tipBubble" role="tooltip">Distance from the picked surface for Link Tx/Rx and Radio Map Tx. Applies to the next click or drag placement only.</span></span>
+              <span class="infoTip" tabindex="0" aria-label="Surface clearance details">i<span class="tipBubble" role="tooltip">Distance from the picked surface for the active mode device. Applies to the next click or drag placement only.</span></span>
             </span>
             <span class="unitInput">
               <input id="linkSurfaceClearance" type="number" step="0.1" min="0" max="50" value="1.5" />
@@ -771,6 +812,18 @@
           <span class="deviceActionText">Tx</span>
         </button>
         <button class="deviceActionBtn" id="btnPickLinkRx" type="button" aria-label="Pick link receiver">
+          <span class="deviceActionIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 19v-7"></path><path d="M17 9a5 5 0 0 0-10 0"></path><path d="M20 6A9 9 0 0 0 4 6"></path><path d="M9 21h6"></path></svg>
+          </span>
+          <span class="deviceActionText">Rx</span>
+        </button>
+        <button class="deviceActionBtn hidden" id="btnPickMobilityTx" type="button" aria-label="Pick mobility transmitter">
+          <span class="deviceActionIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 19v-7"></path><path d="M7 9a5 5 0 0 1 10 0"></path><path d="M4 6a9 9 0 0 1 16 0"></path><path d="M10 21h4"></path></svg>
+          </span>
+          <span class="deviceActionText">Tx</span>
+        </button>
+        <button class="deviceActionBtn hidden" id="btnPickMobilityRx" type="button" aria-label="Pick mobility receiver">
           <span class="deviceActionIcon" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M12 19v-7"></path><path d="M17 9a5 5 0 0 0-10 0"></path><path d="M20 6A9 9 0 0 0 4 6"></path><path d="M9 21h6"></path></svg>
           </span>
@@ -893,6 +946,6 @@
 
   <script src="/lib/leaflet/leaflet.js"></script>
   <script src="/lib/proj4/proj4.js"></script>
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/app.js?v=20260519-mode-isolation"></script>
 </body>
 </html>
