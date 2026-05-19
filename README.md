@@ -7,7 +7,9 @@ This repository contains the current `v3.0` codebase for the HKU wireless digita
 - `backend/` contains the Python server, Sionna RT integration, scene parsing, job management, and static frontend.
 - `docs/` contains collaboration and deployment notes.
 - `scripts/` contains repeatable local/remote sync and cleanup scripts.
-- `HKU_scenes/` is intentionally not included in this GitHub repository for now.
+- `tests/` contains local and remote regression tests.
+- `requirements.txt` lists the Python runtime package names.
+- `scene/` is intentionally not included in this GitHub repository for now.
 
 ## Expected Project Layout
 
@@ -15,11 +17,17 @@ This repository contains the current `v3.0` codebase for the HKU wireless digita
 HKU-RT_v3.0/
 |-- backend/
 |-- docs/
-|-- HKU_scenes/
+|-- scene/
+|   |-- common/
+|   |   `-- scene_common.xml
 |   |-- meshes/
-|   `-- scenario_HKU.xml
+|   |-- tiles/
+|   |   `-- <tile_id>.xml
+|   `-- scene.xml  # optional migration/import source
 |-- scripts/
+|-- tests/
 |-- .gitignore
+|-- requirements.txt
 `-- README.md
 ```
 
@@ -47,7 +55,7 @@ shared/legacy root.
 ## Collaboration Rules
 
 - Treat `backend/` as the authoritative code content in this repository.
-- Treat `HKU_scenes/`, `__pycache__/`, `.DS_Store`, `._*`, and `*.pyc` as non-versioned content for this repo snapshot.
+- Treat `scene/`, `__pycache__/`, `.DS_Store`, `._*`, and `*.pyc` as non-versioned content for this repo snapshot.
 - Make code changes locally first, then sync to remote when needed.
 - Before any remote sync or restart, identify the developer/worktree, read the
   matching developer notes in `docs/`, and use that worktree and port. If the

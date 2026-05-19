@@ -2,7 +2,7 @@
 
 This project is a source snapshot for the HKU Wireless Digital Twin Platform. The
 GitHub repository contains the Python backend, static frontend, tests, docs, and
-sync scripts. It does not contain `HKU_scenes/`.
+sync scripts. It does not contain `scene/`.
 
 ## Local Development
 
@@ -34,20 +34,21 @@ validation.
 
 ## Scene and Runtime Requirements
 
-Local backend startup and RT solve flows require the scene assets plus either
-the per-tile XML source or the legacy full-scene XML:
+Local backend startup can create an empty `scene/` layout when no data has been
+downloaded yet. RT solve flows require per-tile scene assets:
 
-- `HKU_scenes/common/scene_common.xml` and `HKU_scenes/tiles/*.xml`
-- or `HKU_scenes/scenario_HKU.xml` as the fallback legacy source
-- `HKU_scenes/meshes/`
+- `scene/common/scene_common.xml` and `scene/tiles/*.xml`
+- `scene/meshes/`
 - Sionna RT
 - Mitsuba
 - Dr.Jit
 - a compatible GPU runtime for practical solver validation
 
-If `HKU_scenes/` is missing, `python3 -m backend.server` is expected to fail
-during startup because the manifest cannot be built. The Sionna RT scene itself
-is loaded lazily after the user selects one or more tiles.
+`scene/scene.xml` is only an optional migration/import source for explicit tools;
+runtime manifest loading and selected-tile RT loading use the per-tile layout.
+If `scene/` is missing, `python3 -m backend.server` bootstraps an empty layout
+and returns an empty manifest until the first tile is downloaded. The Sionna RT
+scene itself is loaded lazily after the user selects one or more tiles.
 
 To pull scene assets from the configured remote:
 
@@ -55,7 +56,7 @@ To pull scene assets from the configured remote:
 bash scripts/sync_assets_from_remote.sh
 ```
 
-Generated scene caches under `HKU_scenes/cache/` are not source assets and are
+Generated scene caches under `scene/cache/` are not source assets and are
 excluded from asset sync.
 
 The sync script default root is the shared/legacy remote root,

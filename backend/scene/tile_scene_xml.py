@@ -9,6 +9,13 @@ import xml.etree.ElementTree as ET
 
 COMMON_SCENE_RELATIVE_PATH = Path("common") / "scene_common.xml"
 TILE_SCENE_RELATIVE_DIR = Path("tiles")
+DEFAULT_SCENE_VERSION = "3.0.0"
+DEFAULT_MATERIAL_TYPES = {
+    "itu_concrete": "concrete",
+    "itu_medium_dry_ground": "medium_dry_ground",
+    "itu_wood": "wood",
+    "itu_wet_ground": "wet_ground",
+}
 
 
 @dataclass(frozen=True)
@@ -103,22 +110,45 @@ class TileSceneXmlBuilder:
         filename_node.set("value", str(resolve_scene_filename(self.scene_root, filename)))
 
 
-def load_tile_scene_xml_source(scene_root: Path, source_xml: Path) -> TileSceneXmlSource:
+def ensure_scene_layout(scene_root: Path) -> None:
     resolved_scene_root = Path(scene_root).resolve()
+    common_xml = resolved_scene_root / COMMON_SCENE_RELATIVE_PATH
+    tile_xml_dir = resolved_scene_root / TILE_SCENE_RELATIVE_DIR
+
+    common_xml.parent.mkdir(parents=True, exist_ok=True)
+    tile_xml_dir.mkdir(parents=True, exist_ok=True)
+    (resolved_scene_root / "meshes").mkdir(parents=True, exist_ok=True)
+    (resolved_scene_root / "cache").mkdir(parents=True, exist_ok=True)
+    if not common_xml.exists():
+        _write_xml(ET.ElementTree(default_common_scene_root()), common_xml)
+
+
+def default_common_scene_root() -> ET.Element:
+    root = ET.Element("scene", {"version": DEFAULT_SCENE_VERSION})
+    ET.SubElement(root, "integrator", {"type": "path"})
+    emitter = ET.SubElement(root, "emitter", {"type": "constant"})
+    ET.SubElement(emitter, "rgb", {"name": "radiance", "value": "0.7 0.7 0.7"})
+    for material_id, material_type in DEFAULT_MATERIAL_TYPES.items():
+        bsdf = ET.SubElement(root, "bsdf", {"type": "itu-radio-material", "id": material_id})
+        ET.SubElement(bsdf, "string", {"name": "type", "value": material_type})
+    return root
+
+
+def load_tile_scene_xml_source(scene_root: Path, source_xml: Path | None = None) -> TileSceneXmlSource:
+    resolved_scene_root = Path(scene_root).resolve()
+    ensure_scene_layout(resolved_scene_root)
     common_xml = resolved_scene_root / COMMON_SCENE_RELATIVE_PATH
     tile_xml_dir = resolved_scene_root / TILE_SCENE_RELATIVE_DIR
     tile_xml_paths = sorted(tile_xml_dir.glob("*.xml")) if tile_xml_dir.is_dir() else []
 
-    if common_xml.exists() and tile_xml_paths:
-        return _load_per_tile_scene_source(resolved_scene_root, common_xml, tile_xml_paths)
-    return _load_legacy_scene_source(resolved_scene_root, Path(source_xml).resolve())
+    return _load_per_tile_scene_source(resolved_scene_root, common_xml, tile_xml_paths)
 
 
 def per_tile_scene_xml_available(scene_root: Path) -> bool:
     resolved_scene_root = Path(scene_root).resolve()
     common_xml = resolved_scene_root / COMMON_SCENE_RELATIVE_PATH
     tile_xml_dir = resolved_scene_root / TILE_SCENE_RELATIVE_DIR
-    return common_xml.exists() and tile_xml_dir.is_dir() and any(tile_xml_dir.glob("*.xml"))
+    return common_xml.exists() and tile_xml_dir.is_dir()
 
 
 def scene_relative_mesh_path(scene_root: Path, filename: str) -> str:
@@ -214,3 +244,14 @@ def _load_legacy_scene_source(scene_root: Path, source_xml: Path) -> TileSceneXm
         shape_by_tile=shape_by_tile,
         source_mode="legacy",
     )
+
+
+def load_legacy_scene_xml_source(scene_root: Path, source_xml: Path) -> TileSceneXmlSource:
+    return _load_legacy_scene_source(Path(scene_root).resolve(), Path(source_xml).resolve())
+
+
+def _write_xml(tree: ET.ElementTree, path: Path) -> None:
+    ET.indent(tree, space="  ")
+    temp_path = path.with_suffix(f"{path.suffix}.tmp")
+    tree.write(temp_path, encoding="utf-8", xml_declaration=True)
+    temp_path.replace(path)

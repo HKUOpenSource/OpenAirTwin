@@ -220,7 +220,11 @@ function focusEntryPlaceResult(index) {
   setEntrySearchFocus(latLng, tileId);
   if (tileId) {
     syncEntryOverviewUi();
-    setEntrySearchHint(`Located in ${toDisplayTileId(tileId)}. Click the tile on the map to select it.`);
+    if (state.entry.overview?.tileById.has(tileId)) {
+      setEntrySearchHint(`Located in ${toDisplayTileId(tileId)}. Click the tile on the map to select it.`);
+    } else {
+      setEntrySearchHint(`Located in ${toDisplayTileId(tileId)}. Click the tile on the map to download it.`);
+    }
   } else {
     setEntrySearchHint("Located the place, but the current manifest has no available tile at that point.", true);
   }
@@ -313,10 +317,6 @@ function buildEntryOverview(manifest) {
   }
 
   const availableTileIds = [...tileById.keys()].sort(compareTileIds);
-  if (!availableTileIds.length) {
-    return null;
-  }
-
   const regions = [...grouped.values()].sort((left, right) => {
     if (left.regionKey === "11_SW") {
       return -1;
@@ -327,13 +327,11 @@ function buildEntryOverview(manifest) {
     return right.tileCount - left.tileCount;
   });
 
-  const primaryRegion = regions[0];
-
   return {
     tileById,
     availableTileIds,
     regions,
-    primaryRegion,
+    primaryRegion: regions[0] || null,
   };
 }
 function enableEntryMapFallback(reason = "tile unavailable") {
@@ -431,6 +429,10 @@ function selectEntryMapTile(tileId) {
     return;
   }
   if (state.tileLoadBusy || state.entry.downloadingTileIds.has(tileId)) {
+    return;
+  }
+  if (state.entry.downloadingTileIds.size > 0) {
+    setEntrySearchHint("Finish or cancel the current tile download before starting another.", true);
     return;
   }
   if (!state.entry.overview?.tileById.has(tileId)) {
@@ -916,6 +918,10 @@ async function refreshManifestAfterTileDownload(tileId, manifestPayload = null) 
 
 async function downloadEntryMapTile(tileId) {
   if (state.entry.downloadingTileIds.has(tileId)) {
+    return;
+  }
+  if (state.entry.downloadingTileIds.size > 0) {
+    setEntrySearchHint("Finish or cancel the current tile download before starting another.", true);
     return;
   }
   const displayTileId = toDisplayTileId(tileId);

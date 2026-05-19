@@ -496,14 +496,18 @@ function compressionSummary(event) {
   return ` (${formatBytes(originalTotalBytes)} raw)`;
 }
 
+function resolvingSizeSummary(event) {
+  return event.hasUnknownBytes ? " · resolving sizes" : "";
+}
+
 function loadProgressMessage(event) {
   if (event.phase === "idle") {
     return "Tile bundles already in sync";
   }
   if (event.phase === "start") {
     const totalSize = event.totalBytes > 0
-      ? `${formatBytes(event.totalBytes)} transfer${compressionSummary(event)}${event.hasUnknownBytes ? " + unknown" : ""}`
-      : "unknown size";
+      ? `${formatBytes(event.totalBytes)} transfer${compressionSummary(event)}${resolvingSizeSummary(event)}`
+      : `resolving sizes`;
     return `Applying ${event.total} bundle changes · ${event.added || 0} downloads · ${totalSize}`;
   }
   if (event.phase === "removing") {
@@ -515,8 +519,8 @@ function loadProgressMessage(event) {
   const bundleTotal = event.added || 0;
   const visibleBundleCount = Math.min(bundleTotal, (event.completedDownloads || 0) + activeCount);
   const totalSize = event.totalBytes > 0
-    ? `${formatBytes(event.downloadedBytes)} / ${formatBytes(event.totalBytes)} transfer${compressionSummary(event)}${event.hasUnknownBytes ? " + unknown" : ""}`
-    : `${formatBytes(event.downloadedBytes)} / unknown`;
+    ? `${formatBytes(event.downloadedBytes)} / ${formatBytes(event.totalBytes)}${compressionSummary(event)}${resolvingSizeSummary(event)}`
+    : `${formatBytes(event.downloadedBytes)} downloaded${resolvingSizeSummary(event)}`;
   const rate = formatByteRate(event.speedBytesPerSec);
   return `Loading ${visibleBundleCount}/${bundleTotal} bundles · ${totalSize} · ${rate}`;
 }

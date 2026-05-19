@@ -11,14 +11,135 @@ cleanup notes, and handoff guidance for the HKU wireless digital twin platform.
 - Main validation port: `8090`
 - Optional demo port: `9000`
 - GPU runtime: `/home/defaultuser/venvs/env_hku_rt_gpu`
-- Scene root entry for remote runtime: `/home/defaultuser/worktree-zhaolin/HKU_scenes`
-- Current resolved scene root: `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`
+- Scene root entry for remote runtime: `/home/defaultuser/worktree-zhaolin/scene`
+- Current scene data is exposed through the worktree `scene` entry.
 
 Use `worktree-zhaolin` for Zhaolin validation. Do not restart, kill, or sync
 over another developer's worktree, especially `worktree-zihao`, unless explicitly
 requested. The Zhaolin scene-root entry is currently a symlink to the shared
-scene assets under `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`; do not change the
-remote symlink or asset-sharing policy as part of code sync work.
+scene asset store; do not change the remote symlink or asset-sharing policy as
+part of code sync work.
+
+## 2026-05-19 - Tile Download Hardening, Per-Tile Runtime Cleanup, and Open-Source Scene Defaults
+
+This round focused on making the new-tile download path reliable for open-source
+users: fresh installs can start from an empty `scene/` directory, downloaded
+tiles integrate into the per-tile layout without corrupting existing data, and
+the default scene naming no longer exposes project-specific data-folder names.
+
+### Loading Progress for New Tile Bundles
+
+- Fixed the loading overlay for newly downloaded tiles whose manifest bundles do
+  not yet have cached `.glb`/`.gz` sizes.
+- `viewer.syncBundles()` now starts with manifest size hints and then updates
+  per-bundle transfer totals from the runtime loader progress events, including
+  `Content-Length`, `X-Original-Content-Length`, and
+  `X-Compressed-Content-Length`.
+- Finished bundles that still lack a server-reported total fall back to their
+  final loaded byte count, so completed transfers do not remain unresolved.
+- The scene loading copy no longer prints `unknown`; unresolved totals are shown
+  as downloaded bytes plus speed, with optional size-resolution wording.
+
+### Serialized Tile Downloads
+
+- Added a global active-job guard to `TileDownloadJobManager`.
+- Repeated requests for the same active tile still return the existing job, but
+  a different tile download while another tile is queued, running, or canceling
+  returns HTTP `409` with the active job and tile IDs.
+- The entry-map frontend now blocks starting any other tile download while one
+  download is active, covering both map-click and direct download paths.
+- This protects scene mutation from concurrent tile integrations, especially the
+  XML write path.
+
+### Per-Tile-Only Runtime and Migration
+
+- Fixed per-tile-only origin inference by letting `_scene_tile_ids()` read
+  `common/scene_common.xml + tiles/*.xml` even when the optional full-scene XML
+  file is absent.
+- Removed implicit runtime fallback to a full-scene XML source. Runtime manifest
+  loading and RT selection now use the per-tile layout as the source of truth.
+- Added `ensure_scene_layout()` so an empty scene root is bootstrapped with
+  `common/`, `tiles/`, `meshes/`, and cache directories.
+- Empty scene roots now return an empty manifest instead of failing startup,
+  allowing first-time users to launch the app and download their first tile.
+- Added `backend.tools.migrate_legacy_scene_xml` as the explicit safety path for
+  existing full-scene XML users. It refuses to overwrite existing per-tile XML by
+  default and can merge only missing tiles when requested.
+
+### Staged Tile Integration
+
+- Changed tile integration to a staged commit: mesh files are written under a
+  temporary commit directory inside `scene/cache/` first.
+- Tile XML is prepared before the final commit and references the final
+  `meshes/<tile>/...` paths.
+- Commit order is now: move staged mesh directory into `scene/meshes/<tile>/`,
+  then atomically replace `scene/tiles/<tile>.xml`.
+- Non-cancel exceptions and cancellation both clean the current tile's staged
+  and final outputs, avoiding orphan meshes and half-integrated tile XML.
+- `origin.json` remains a reusable scene/stage cache and is not removed on
+  integration failure.
+
+### Open3D HK Category Recovery
+
+- Added canonical Open3D HK category resolution for downloaded GLTF paths,
+  including nested wrappers such as `tile/GLTF/BUILDING/...` and source roots
+  that are already category directories.
+- Supported categories include `BUILDING`, `GENERIC`, `INFRASTRUCTURE`,
+  `INFRASTRUCTURE(TB)`, `TERRAIN(TB)`, `VEGETATION(TB)`, and `WATERBODY`.
+- Stage cache reuse now validates category, category path, and material
+  inference against each `source_gltf`; stale bad manifests are discarded and
+  regenerated.
+- Material mapping was covered for terrain, vegetation, and waterbody categories.
+- Existing uncategorized remote tile remnants were cleaned from the Zhaolin scene
+  for `11_SW_3B`, `11_SW_4A`, and `11_SW_4C`; later downloads can rebuild those
+  tiles with the corrected category logic.
+
+### Open-Source Scene Directory Naming
+
+- Changed the default scene root from the project-specific old name to `scene/`.
+- Changed the default optional full-scene XML name to `scene/scene.xml`.
+- Kept `HKU_RT_SCENE_ROOT` as the runtime override, but stopped resolving
+  `config.SCENE_ROOT` at definition time so health/log output preserves the
+  worktree symlink path.
+- Updated `.gitignore`, README, setup/collaboration docs, asset-sync scripts,
+  config defaults, and default tests to use `scene/`.
+- Zhaolin's remote worktree now exposes runtime data through
+  `/home/defaultuser/worktree-zhaolin/scene`; the old worktree-level scene
+  symlink name was removed.
+
+### Validation and Remote State
+
+- Local validation run during the round:
+  - `python3 -m unittest tests.test_frontend_regressions`
+  - `python3 -m unittest tests.test_tile_download_jobs tests.test_server_hardening`
+  - `python3 -m unittest tests.test_incremental_tiles`
+  - `python3 -m unittest tests.test_tile_scene_xml`
+  - `python3 -m unittest tests.test_deepmimo_export_worker`
+  - `find backend/static/js -maxdepth 1 -name '*.js' -print0 | xargs -0 -n1 node --check`
+  - `git diff --check`
+- The final open-source naming pass was synced to
+  `/home/defaultuser/worktree-zhaolin` and the Zhaolin `8090` service was
+  restarted.
+- Latest recorded Zhaolin service PID for this round: `519385`.
+- Zihao's `18091` service was not touched; latest observed PID remained
+  `468828`.
+- Remote HTTP smoke passed against `http://100.65.77.20:8090`, including
+  health, manifest, RT scene selection, gzip bundle/304, Link, advanced Link,
+  and Radio Map job checks.
+
+### Cleanup Result
+
+- Ran `bash scripts/clean_generated_files.sh`.
+- Scanned for `__pycache__`, `.pyc`, `.pytest_cache`, `.mypy_cache`,
+  `.ruff_cache`, `.DS_Store`, AppleDouble `._*`, patch rejects, and backup
+  rejects; none remained in the local worktree.
+- Kept `backend/tools/migrate_legacy_scene_xml.py` because it is the explicit
+  migration path for existing full-scene users and is covered by
+  `tests/test_tile_scene_xml.py`.
+- Kept `tests/test_tile_download_jobs.py` because it covers the global active-job
+  guard and duplicate-job semantics.
+- No unused source, test, script, frontend, or documentation file remains from
+  the 2026-05-19 development round.
 
 ## 2026-05-18 - DeepMIMO Export, Scene-Bound Jobs, and Multi-User Sync Docs
 
@@ -77,9 +198,8 @@ two P1 correctness/safety issues plus one P3 collaboration-documentation issue.
   `HKU_RT_REMOTE_ROOT` explicitly for code syncs.
 - Added Zihao's known worktree context:
   `/home/defaultuser/worktree-zihao`, port `18091`.
-- Clarified that Zhaolin's `HKU_scenes` entry in
-  `/home/defaultuser/worktree-zhaolin` currently resolves to the shared scene
-  root `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`.
+- Clarified that Zhaolin's `scene` entry in
+  `/home/defaultuser/worktree-zhaolin` points to the shared scene asset store.
 
 ### Validation and Remote State
 
@@ -108,7 +228,7 @@ selection instead of all 10510 scene shapes.
 
 ### Lazy RT Scene Selection
 
-- Stopped loading `scenario_HKU.xml` into Sionna during backend startup.
+- Stopped loading `scene.xml` into Sionna during backend startup.
 - Added `GET /api/rt/scene-selection` and `POST /api/rt/scene-selection` for
   runtime Sionna scene status and selected tile changes.
 - Added background selection loading with generation/latest-wins semantics, so
@@ -126,27 +246,27 @@ selection instead of all 10510 scene shapes.
 
 ### Per-Tile XML Source of Truth
 
-- Added `HKU_scenes/common/scene_common.xml` as the long-term location for
+- Added `scene/common/scene_common.xml` as the long-term location for
   shared Mitsuba/Sionna XML nodes such as `integrator`, `emitter`, and `bsdf`.
-- Added `HKU_scenes/tiles/<tile_id>.xml` as the long-term location for each
+- Added `scene/tiles/<tile_id>.xml` as the long-term location for each
   tile's `shape` nodes.
-- Kept `scenario_HKU.xml` as a compatibility/debug full-scene export; lazy
+- Kept `scene.xml` as a compatibility/debug full-scene export; lazy
   runtime and manifest loading now prefer `common/` + `tiles/` when present.
-- Kept fallback support for legacy scene roots that only have
-  `scenario_HKU.xml`.
+- Later runtime revisions removed implicit full-scene fallback; use explicit
+  migration/import tooling for full-scene XML sources.
 - Generated temporary runtime XML files under `generated/rt_scene_xml/` by
   combining common XML plus the currently selected tile XML files.
 - Rewrote generated shape filenames to absolute mesh paths before Sionna loads
   the temporary selection XML.
-- Confirmed the lazy path still works when `scenario_HKU.xml` is absent, as long
+- Confirmed the lazy path still works when `scene.xml` is absent, as long
   as `common/scene_common.xml` and `tiles/*.xml` exist.
 
 ### Migration Tool
 
 - Added `backend.tools.split_tile_scene_xml`.
-- The tool splits an existing full `scenario_HKU.xml` into:
-  - `HKU_scenes/common/scene_common.xml`
-  - `HKU_scenes/tiles/<tile_id>.xml`
+- The tool splits an existing full `scene.xml` into:
+  - `scene/common/scene_common.xml`
+  - `scene/tiles/<tile_id>.xml`
 - It validates that each shape belongs under `meshes/<tile>/<category>/...`.
 - It refuses to overwrite existing per-tile XML unless `--force` is passed.
 - Remote migration on 2026-05-18 produced `14` tile XML files and preserved all
@@ -556,8 +676,8 @@ Create or refresh the per-tile scene XML source from the current full scene:
 ```bash
 cd /home/defaultuser/worktree-zhaolin
 /home/defaultuser/venvs/env_hku_rt_gpu/bin/python -m backend.tools.split_tile_scene_xml \
-  --scene-root /home/defaultuser/worktree-zhaolin/HKU_scenes \
-  --source-xml /home/defaultuser/worktree-zhaolin/HKU_scenes/scenario_HKU.xml \
+  --scene-root /home/defaultuser/worktree-zhaolin/scene \
+  --source-xml /home/defaultuser/worktree-zhaolin/scene/scene.xml \
   --force
 ```
 
@@ -567,7 +687,7 @@ Start or restart the main Zhaolin backend from the Zhaolin worktree:
 cd /home/defaultuser/worktree-zhaolin
 export HKU_RT_HOST=0.0.0.0
 export HKU_RT_PORT=8090
-export HKU_RT_SCENE_ROOT=/home/defaultuser/worktree-zhaolin/HKU_scenes
+export HKU_RT_SCENE_ROOT=/home/defaultuser/worktree-zhaolin/scene
 nohup /home/defaultuser/venvs/env_hku_rt_gpu/bin/python -m backend.server >> server-8090.log 2>&1 &
 ```
 
@@ -577,7 +697,7 @@ Start a presentation instance only after confirming port `9000` is free:
 cd /home/defaultuser/worktree-zhaolin
 export HKU_RT_HOST=0.0.0.0
 export HKU_RT_PORT=9000
-export HKU_RT_SCENE_ROOT=/home/defaultuser/worktree-zhaolin/HKU_scenes
+export HKU_RT_SCENE_ROOT=/home/defaultuser/worktree-zhaolin/scene
 nohup /home/defaultuser/venvs/env_hku_rt_gpu/bin/python -m backend.server >> server-9000.log 2>&1 &
 ```
 
@@ -608,7 +728,7 @@ Final cleanup result for 2026-05-18:
   `/home/defaultuser/worktree-zhaolin/generated/rt_scene_xml/`.
 - Restored the currently active remote selection XML after detecting that the
   running 8090 service had an active browser-submitted tile selection.
-- Kept `HKU_scenes/common/scene_common.xml` and `HKU_scenes/tiles/*.xml` on the
+- Kept `scene/common/scene_common.xml` and `scene/tiles/*.xml` on the
   remote because they are now the runtime scene source of truth, not temporary
   artifacts.
 - Kept `backend/scene/tile_scene_xml.py`, `backend/tools/split_tile_scene_xml.py`,
