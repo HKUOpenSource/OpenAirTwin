@@ -131,17 +131,21 @@ function displayLayerForBundle(bundle) {
 }
 
 function bundleSizeBytes(bundle) {
-  const size = Number(bundle.size_bytes);
-  return Number.isFinite(size) && size > 0 ? size : null;
+  return positiveSizeBytes(bundle.size_bytes);
 }
 
 function bundleCompressedSizeBytes(bundle) {
-  const size = Number(bundle.compressed_size_bytes);
-  return bundle.compressed_cache_exists && Number.isFinite(size) && size > 0 ? size : null;
+  const size = positiveSizeBytes(bundle.compressed_size_bytes);
+  return bundle.compressed_cache_exists && size !== null ? size : null;
 }
 
 function bundleTransferSizeBytes(bundle) {
   return bundleCompressedSizeBytes(bundle) || bundleSizeBytes(bundle);
+}
+
+function positiveSizeBytes(value) {
+  const size = Number(value);
+  return Number.isFinite(size) && size > 0 ? size : null;
 }
 
 function bundleUrl(bundle) {
@@ -918,11 +922,57 @@ export class Viewer {
     const total = toRemove.length + toAdd.length;
     const progressByBundle = new Map();
     const activeBundleStates = new Map();
-    const knownTotalBytes = toAdd.reduce((sum, bundle) => sum + (bundleTransferSizeBytes(bundle) || 0), 0);
-    const knownOriginalTotalBytes = toAdd.reduce((sum, bundle) => sum + (bundleSizeBytes(bundle) || 0), 0);
-    const hasUnknownBytes = toAdd.some((bundle) => bundleTransferSizeBytes(bundle) === null);
-    const hasCompressedBundles = toAdd.some((bundle) => bundleCompressedSizeBytes(bundle) !== null);
+    const bundleTransferSizeById = new Map();
+    const bundleOriginalSizeById = new Map();
+    const bundleCompressedSizeById = new Map();
+    const unresolvedBundleIds = new Set();
     let completed = 0;
+
+    for (const bundle of toAdd) {
+      const transferSize = bundleTransferSizeBytes(bundle);
+      const originalSize = bundleSizeBytes(bundle);
+      const compressedSize = bundleCompressedSizeBytes(bundle);
+      if (transferSize !== null) {
+        bundleTransferSizeById.set(bundle.bundle_id, transferSize);
+      } else {
+        unresolvedBundleIds.add(bundle.bundle_id);
+      }
+      if (originalSize !== null) {
+        bundleOriginalSizeById.set(bundle.bundle_id, originalSize);
+      }
+      if (compressedSize !== null) {
+        bundleCompressedSizeById.set(bundle.bundle_id, compressedSize);
+      }
+    }
+
+    const updateBundleSizeHints = (bundle, event = {}, fallbackLoadedBytes = null) => {
+      const transferSize = positiveSizeBytes(event.totalBytes) || positiveSizeBytes(fallbackLoadedBytes);
+      const originalSize = positiveSizeBytes(event.originalSizeBytes);
+      const compressedSize = positiveSizeBytes(event.compressedSizeBytes);
+
+      if (transferSize !== null) {
+        bundleTransferSizeById.set(bundle.bundle_id, transferSize);
+        unresolvedBundleIds.delete(bundle.bundle_id);
+      }
+      if (originalSize !== null) {
+        bundleOriginalSizeById.set(bundle.bundle_id, originalSize);
+      } else if (transferSize !== null && event.compressed === false) {
+        bundleOriginalSizeById.set(bundle.bundle_id, transferSize);
+      }
+      if (compressedSize !== null) {
+        bundleCompressedSizeById.set(bundle.bundle_id, compressedSize);
+      }
+    };
+
+    const totalTransferBytes = () => {
+      return [...bundleTransferSizeById.values()].reduce((sum, bytes) => sum + bytes, 0);
+    };
+
+    const totalOriginalBytes = () => {
+      return toAdd.reduce((sum, bundle) => {
+        return sum + (bundleOriginalSizeById.get(bundle.bundle_id) || bundleTransferSizeById.get(bundle.bundle_id) || 0);
+      }, 0);
+    };
 
     const report = (payload) => {
       const downloadedBytes = [...progressByBundle.values()].reduce((sum, bytes) => sum + bytes, 0);
@@ -941,10 +991,10 @@ export class Viewer {
         removed: toRemove.length,
         completedDownloads: Math.max(0, completed - toRemove.length),
         downloadedBytes,
-        totalBytes: knownTotalBytes,
-        originalTotalBytes: knownOriginalTotalBytes,
-        hasUnknownBytes,
-        hasCompressedBundles,
+        totalBytes: totalTransferBytes(),
+        originalTotalBytes: totalOriginalBytes(),
+        hasUnknownBytes: unresolvedBundleIds.size > 0,
+        hasCompressedBundles: bundleCompressedSizeById.size > 0,
         speedBytesPerSec: activeSpeedBytesPerSec,
         activeBundles,
         phaseSummary,
@@ -957,12 +1007,11 @@ export class Viewer {
       const loadedBytes = Number.isFinite(event.loadedBytes)
         ? event.loadedBytes
         : previous.loadedBytes || 0;
-      const sizeBytes = bundleTransferSizeBytes(bundle);
-      const originalSizeBytes = bundleSizeBytes(bundle);
-      const compressedSizeBytes = bundleCompressedSizeBytes(bundle);
-      const totalBytes = Number.isFinite(event.totalBytes)
-        ? event.totalBytes
-        : sizeBytes;
+      updateBundleSizeHints(bundle, event);
+      const sizeBytes = bundleTransferSizeById.get(bundle.bundle_id) || null;
+      const originalSizeBytes = bundleOriginalSizeById.get(bundle.bundle_id) || null;
+      const compressedSizeBytes = bundleCompressedSizeById.get(bundle.bundle_id) || null;
+      const totalBytes = positiveSizeBytes(event.totalBytes) || sizeBytes;
       const nextState = {
         bundle,
         bundleId: bundle.bundle_id,
@@ -1036,11 +1085,13 @@ export class Viewer {
         report({phase: "loading", activeBundle: addingBundle});
         const entry = this.#storeBundle(bundle, object);
         completed += 1;
-        progressByBundle.set(bundle.bundle_id, bundleTransferSizeBytes(bundle) || progressByBundle.get(bundle.bundle_id) || 0);
+        const completedBytes = progressByBundle.get(bundle.bundle_id) || bundleTransferSizeById.get(bundle.bundle_id) || 0;
+        updateBundleSizeHints(bundle, {}, completedBytes);
+        progressByBundle.set(bundle.bundle_id, bundleTransferSizeById.get(bundle.bundle_id) || completedBytes);
         const readyBundle = updateActiveBundle(bundle, index + 1, {
           phase: "ready",
-          loadedBytes: progressByBundle.get(bundle.bundle_id) || bundleTransferSizeBytes(bundle) || 0,
-          totalBytes: bundleTransferSizeBytes(bundle),
+          loadedBytes: progressByBundle.get(bundle.bundle_id) || 0,
+          totalBytes: bundleTransferSizeById.get(bundle.bundle_id),
         });
         report({phase: "loading", activeBundle: readyBundle, force: true});
         activeBundleStates.delete(bundle.bundle_id);

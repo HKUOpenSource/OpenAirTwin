@@ -10,5 +10,5 @@ rsync -a \
   --human-readable \
   --info=progress2,stats2 \
   --exclude 'cache/' \
-  "${ROOT_DIR}/HKU_scenes/" \
-  "${REMOTE_HOST}:${REMOTE_ROOT}/HKU_scenes/"
+  "${ROOT_DIR}/scene/" \
+  "${REMOTE_HOST}:${REMOTE_ROOT}/scene/"

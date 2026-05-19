@@ -20,7 +20,9 @@ class FrontendRegressionTests(unittest.TestCase):
         source = read_static_js("entry_map.js")
 
         self.assertNotIn("updateEntryMapBadge(tileId)", source)
-        self.assertIn("syncEntryOverviewUi();\n    setEntrySearchHint(`Located in", source)
+        self.assertIn("syncEntryOverviewUi();", source)
+        self.assertIn("Click the tile on the map to select it.", source)
+        self.assertIn("Click the tile on the map to download it.", source)
 
     def test_loaded_tile_status_requires_all_tile_bundles(self) -> None:
         source = read_static_js("viewer.js")
@@ -29,6 +31,46 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("this.tileExpectedBundleCounts = new Map();", source)
         self.assertIn("loadedCount === expectedCount", source)
         self.assertNotIn("loadedTileIds.add(bundle.tile)", source)
+
+    def test_bundle_progress_totals_are_updated_from_runtime_headers(self) -> None:
+        source = read_static_js("viewer.js")
+
+        self.assertIn("const bundleTransferSizeById = new Map();", source)
+        self.assertIn("const unresolvedBundleIds = new Set();", source)
+        self.assertIn("const updateBundleSizeHints = (bundle, event = {}, fallbackLoadedBytes = null) => {", source)
+        self.assertIn("positiveSizeBytes(event.totalBytes) || positiveSizeBytes(fallbackLoadedBytes)", source)
+        self.assertIn("totalBytes: totalTransferBytes(),", source)
+        self.assertIn("hasUnknownBytes: unresolvedBundleIds.size > 0", source)
+        self.assertNotIn("const knownTotalBytes", source)
+
+    def test_loading_progress_message_avoids_unknown_size_copy(self) -> None:
+        source = read_static_js("scene_render_state.js")
+
+        self.assertIn("function resolvingSizeSummary(event)", source)
+        self.assertIn('" · resolving sizes"', source)
+        self.assertIn("`${formatBytes(event.downloadedBytes)} downloaded${resolvingSizeSummary(event)}`", source)
+        self.assertNotIn(" / unknown", source)
+        self.assertNotIn("+ unknown", source)
+
+    def test_tile_downloads_are_globally_gated_during_active_download(self) -> None:
+        source = read_static_js("entry_map.js")
+
+        self.assertIn("function selectEntryMapTile(tileId)", source)
+        self.assertIn("async function downloadEntryMapTile(tileId)", source)
+        self.assertGreaterEqual(source.count("state.entry.downloadingTileIds.size > 0"), 2)
+        self.assertIn(
+            'setEntrySearchHint("Finish or cancel the current tile download before starting another.", true);',
+            source,
+        )
+
+    def test_entry_map_opens_for_empty_manifest_to_download_first_tile(self) -> None:
+        source = read_static_js("entry_map.js")
+        app_source = read_static_js("app.js")
+
+        self.assertNotIn("if (!availableTileIds.length) {\n    return null;\n  }", source)
+        self.assertIn("primaryRegion: regions[0] || null", source)
+        self.assertIn("Click the tile on the map to download it.", source)
+        self.assertIn("if (state.entry.overview) {\n    entryMapController.showEntryScreen();", app_source)
 
     def test_rt_capabilities_are_loaded_for_antenna_arrays(self) -> None:
         api_source = read_static_js("api.js")

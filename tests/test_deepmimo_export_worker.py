@@ -70,7 +70,7 @@ class DeepMIMOExportWorkerTests(unittest.TestCase):
             previous_scene_root = config.SCENE_ROOT
             previous_scene_xml = config.SCENE_XML
             config.SCENE_ROOT = scene_root
-            config.SCENE_XML = scene_root / "scenario_HKU.xml"
+            config.SCENE_XML = scene_root / "scene.xml"
             try:
                 result, source_mode = _write_selected_tile_scene_xml(scene_root / "job", ("TILE_A",))
             finally:
@@ -78,7 +78,7 @@ class DeepMIMOExportWorkerTests(unittest.TestCase):
                 config.SCENE_XML = previous_scene_xml
 
             self.assertEqual(source_mode, "per_tile")
-            self.assertFalse((scene_root / "scenario_HKU.xml").exists())
+            self.assertFalse((scene_root / "scene.xml").exists())
             self.assertEqual(result.tile_ids, ("TILE_A",))
             self.assertEqual(result.shape_count, 1)
             root = ET.parse(result.path).getroot()

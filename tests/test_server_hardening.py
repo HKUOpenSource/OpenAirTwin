@@ -18,8 +18,9 @@ from backend import config
 from backend.jobs.deepmimo_jobs import DeepMIMOQueueFull
 from backend.jobs.mobility_jobs import MobilityQueueFull
 from backend.jobs.radiomap_jobs import RadiomapQueueFull
+from backend.jobs.tile_download_jobs import TileDownloadBusy
 from backend.rt.runtime import SceneNotReady
-from backend.server import RequestHandler, resolve_under
+from backend.server import AppState, RequestHandler, resolve_under
 
 
 class QueueFullJobManager:
@@ -35,6 +36,11 @@ class QueueFullMobilityJobManager:
 class QueueFullDeepMIMOJobManager:
     def create_job(self, _payload):
         raise DeepMIMOQueueFull(2)
+
+
+class BusyTileDownloadJobManager:
+    def create_job(self, _tile_id):
+        raise TileDownloadBusy("tile_active", "11_SW_7A")
 
 
 class FakeMobilityJobManager:
@@ -176,6 +182,40 @@ class ServerHardeningTests(unittest.TestCase):
 
             self.assertIsNone(resolve_under(root, "../static_evil/secret.txt"))
 
+    def test_app_state_bootstraps_empty_scene_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            scene_root = root / "scene"
+            previous = {
+                "SCENE_ROOT": config.SCENE_ROOT,
+                "SCENE_XML": config.SCENE_XML,
+                "MESH_ROOT": config.MESH_ROOT,
+                "BUNDLE_ROOT": config.BUNDLE_ROOT,
+                "GENERATED_ROOT": config.GENERATED_ROOT,
+                "INCREMENTAL_TILE_ROOT": config.INCREMENTAL_TILE_ROOT,
+                "INCREMENTAL_TILE_STAGE_ROOT": config.INCREMENTAL_TILE_STAGE_ROOT,
+            }
+            config.SCENE_ROOT = scene_root
+            config.SCENE_XML = scene_root / "scene.xml"
+            config.MESH_ROOT = scene_root / "meshes"
+            config.BUNDLE_ROOT = scene_root / "cache" / "render_bundles"
+            config.GENERATED_ROOT = root / "generated"
+            config.INCREMENTAL_TILE_ROOT = config.GENERATED_ROOT / "incremental_tiles"
+            config.INCREMENTAL_TILE_STAGE_ROOT = scene_root / "cache" / "incremental_tile_stage"
+            try:
+                app_state = AppState()
+            finally:
+                for name, value in previous.items():
+                    setattr(config, name, value)
+
+            manifest = app_state.manifest.to_api_dict()
+            self.assertFalse((scene_root / "scene.xml").exists())
+            self.assertTrue((scene_root / "common" / "scene_common.xml").exists())
+            self.assertTrue((scene_root / "tiles").is_dir())
+            self.assertEqual(manifest["mesh_count"], 0)
+            self.assertEqual(manifest["tiles"], [])
+            self.assertEqual(manifest["bundles"], [])
+
     def test_static_endpoint_rejects_encoded_traversal_to_prefix_sibling(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             previous_static_root = config.STATIC_ROOT
@@ -298,6 +338,33 @@ class ServerHardeningTests(unittest.TestCase):
             payload = json.loads(error.exception.read().decode("utf-8"))
             self.assertFalse(payload["ok"])
             self.assertEqual(payload["max_pending_jobs"], 2)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_tile_download_busy_returns_409(self) -> None:
+        server, thread = self.run_server(
+            SimpleNamespace(
+                tile_download_job_manager=BusyTileDownloadJobManager(),
+            )
+        )
+        try:
+            host, port = server.server_address
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/scene/tile-downloads",
+                data=json.dumps({"tile_id": "11_SW_7B"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(request)
+            self.assertEqual(error.exception.code, 409)
+            payload = json.loads(error.exception.read().decode("utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["active_job_id"], "tile_active")
+            self.assertEqual(payload["active_tile_id"], "11_SW_7A")
+            self.assertIn("11_SW_7A", payload["error"])
         finally:
             server.shutdown()
             thread.join(timeout=2)

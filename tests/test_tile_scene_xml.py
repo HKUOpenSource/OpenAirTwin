@@ -9,13 +9,14 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from backend.rt.runtime import RTRuntime, SceneNotReady
-from backend.scene.tile_scene_xml import TileSceneXmlBuilder
+from backend.scene.tile_scene_xml import TileSceneXmlBuilder, ensure_scene_layout
 from backend.scene.xml_catalog import load_scene_manifest
+from backend.tools.migrate_legacy_scene_xml import PerTileSceneExists, migrate_legacy_scene_xml
 from backend.tools.split_tile_scene_xml import split_scene_xml
 
 
 def write_scene_xml(scene_root: Path) -> Path:
-    xml_path = scene_root / "scenario_HKU.xml"
+    xml_path = scene_root / "scene.xml"
     xml_path.write_text(
         """<?xml version="1.0" encoding="utf-8"?>
 <scene version="3.0.0">
@@ -52,7 +53,7 @@ def write_scene_xml(scene_root: Path) -> Path:
 
 
 def write_legacy_only_scene_xml(scene_root: Path) -> Path:
-    xml_path = scene_root / "scenario_HKU.xml"
+    xml_path = scene_root / "scene.xml"
     xml_path.write_text(
         """<?xml version="1.0" encoding="utf-8"?>
 <scene version="3.0.0">
@@ -130,6 +131,7 @@ class TileSceneXmlBuilderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             scene_root = Path(tmp_dir)
             source_xml = write_scene_xml(scene_root)
+            split_scene_xml(scene_root, source_xml)
             builder = TileSceneXmlBuilder(scene_root, source_xml, scene_root / "generated")
 
             result = builder.write_selection(["TILE_A"])
@@ -151,6 +153,7 @@ class TileSceneXmlBuilderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             scene_root = Path(tmp_dir)
             source_xml = write_scene_xml(scene_root)
+            split_scene_xml(scene_root, source_xml)
             builder = TileSceneXmlBuilder(scene_root, source_xml, scene_root / "generated")
 
             result = builder.write_selection(["TILE_B", "TILE_A"])
@@ -167,6 +170,7 @@ class TileSceneXmlBuilderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             scene_root = Path(tmp_dir)
             source_xml = write_scene_xml(scene_root)
+            split_scene_xml(scene_root, source_xml)
             builder = TileSceneXmlBuilder(scene_root, source_xml, scene_root / "generated")
 
             self.assertEqual(builder.normalize_tile_ids([]), ())
@@ -195,7 +199,7 @@ class TileSceneXmlBuilderTests(unittest.TestCase):
     def test_per_tile_source_does_not_require_legacy_scene_xml(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             scene_root = Path(tmp_dir)
-            source_xml = scene_root / "scenario_HKU.xml"
+            source_xml = scene_root / "scene.xml"
             write_per_tile_xml(scene_root)
 
             builder = TileSceneXmlBuilder(scene_root, source_xml, scene_root / "generated")
@@ -246,6 +250,33 @@ class SceneManifestXmlSourceTests(unittest.TestCase):
             self.assertEqual(manifest.tiles["TILE_B"]["BUILDING"], 1)
             self.assertNotIn("TILE_LEGACY", manifest.tiles)
 
+    def test_manifest_ignores_legacy_only_scene_at_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scene_root = Path(tmp_dir)
+            source_xml = write_legacy_only_scene_xml(scene_root)
+
+            manifest = load_scene_manifest(scene_root, source_xml)
+            builder = TileSceneXmlBuilder(scene_root, source_xml, scene_root / "generated")
+
+            self.assertEqual(manifest.tiles, {})
+            self.assertEqual(builder.available_tile_ids, frozenset())
+            self.assertTrue((scene_root / "common" / "scene_common.xml").exists())
+            self.assertTrue((scene_root / "tiles").is_dir())
+            self.assertTrue(source_xml.exists())
+
+    def test_empty_scene_layout_loads_as_empty_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scene_root = Path(tmp_dir)
+            source_xml = scene_root / "scene.xml"
+
+            ensure_scene_layout(scene_root)
+            manifest = load_scene_manifest(scene_root, source_xml)
+
+            self.assertFalse(source_xml.exists())
+            self.assertEqual(manifest.meshes, [])
+            self.assertEqual(manifest.tiles, {})
+            self.assertEqual(manifest.bundles, [])
+
 
 class SplitTileSceneXmlTests(unittest.TestCase):
     def test_split_scene_xml_writes_common_and_tile_files(self) -> None:
@@ -270,6 +301,52 @@ class SplitTileSceneXmlTests(unittest.TestCase):
             self.assertEqual(builder.shape_count_for_tiles(("TILE_A", "TILE_B")), 3)
 
 
+class LegacySceneMigrationTests(unittest.TestCase):
+    def test_legacy_only_scene_migrates_to_per_tile_xml(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scene_root = Path(tmp_dir)
+            source_xml = write_scene_xml(scene_root)
+
+            result = migrate_legacy_scene_xml(scene_root, source_xml)
+            manifest = load_scene_manifest(scene_root, source_xml)
+
+            self.assertEqual(result.written_tile_count, 2)
+            self.assertEqual(result.written_shape_count, 3)
+            self.assertEqual(set(manifest.tiles), {"TILE_A", "TILE_B"})
+            self.assertTrue((scene_root / "common" / "scene_common.xml").exists())
+
+    def test_migration_refuses_to_overwrite_existing_per_tile_xml(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scene_root = Path(tmp_dir)
+            source_xml = write_scene_xml(scene_root)
+            write_per_tile_xml(scene_root)
+            tile_a_xml = scene_root / "tiles" / "TILE_A.xml"
+            original_tile_a = tile_a_xml.read_text(encoding="utf-8")
+
+            with self.assertRaises(PerTileSceneExists) as error:
+                migrate_legacy_scene_xml(scene_root, source_xml)
+
+            self.assertEqual(error.exception.stats.existing_tile_xml_count, 2)
+            self.assertEqual(tile_a_xml.read_text(encoding="utf-8"), original_tile_a)
+
+    def test_migration_merges_only_missing_tiles(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scene_root = Path(tmp_dir)
+            source_xml = write_scene_xml(scene_root)
+            write_per_tile_xml(scene_root)
+            tile_a_xml = scene_root / "tiles" / "TILE_A.xml"
+            tile_b_xml = scene_root / "tiles" / "TILE_B.xml"
+            original_tile_a = tile_a_xml.read_text(encoding="utf-8")
+            tile_b_xml.unlink()
+
+            result = migrate_legacy_scene_xml(scene_root, source_xml, merge_missing_tiles=True)
+
+            self.assertEqual(result.written_tile_count, 1)
+            self.assertEqual(result.skipped_existing_tile_count, 1)
+            self.assertEqual(tile_a_xml.read_text(encoding="utf-8"), original_tile_a)
+            self.assertTrue(tile_b_xml.exists())
+
+
 class LazyRTRuntimeTests(unittest.TestCase):
     def wait_for_ready(self, runtime: RTRuntime, timeout: float = 2.0) -> dict:
         deadline = time.time() + timeout
@@ -286,6 +363,7 @@ class LazyRTRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             scene_root = Path(tmp_dir)
             source_xml = write_scene_xml(scene_root)
+            split_scene_xml(scene_root, source_xml)
             builder = TileSceneXmlBuilder(scene_root, source_xml, scene_root / "generated")
 
             def loader(_path: Path, _frequency: float):
@@ -301,6 +379,7 @@ class LazyRTRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             scene_root = Path(tmp_dir)
             source_xml = write_scene_xml(scene_root)
+            split_scene_xml(scene_root, source_xml)
             builder = TileSceneXmlBuilder(scene_root, source_xml, scene_root / "generated")
 
             def loader(path: Path, frequency: float):
@@ -320,6 +399,7 @@ class LazyRTRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             scene_root = Path(tmp_dir)
             source_xml = write_scene_xml(scene_root)
+            split_scene_xml(scene_root, source_xml)
             builder = TileSceneXmlBuilder(scene_root, source_xml, scene_root / "generated")
 
             def loader(path: Path, frequency: float):
@@ -339,6 +419,7 @@ class LazyRTRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             scene_root = Path(tmp_dir)
             source_xml = write_scene_xml(scene_root)
+            split_scene_xml(scene_root, source_xml)
             builder = TileSceneXmlBuilder(scene_root, source_xml, scene_root / "generated")
             started = Event()
             release = Event()

@@ -16,7 +16,7 @@ from backend import config
 from backend.jobs.deepmimo_jobs import DeepMIMOJobManager, DeepMIMOQueueFull
 from backend.jobs.mobility_jobs import MobilityJobManager, MobilityQueueFull
 from backend.jobs.radiomap_jobs import RadiomapJobManager, RadiomapQueueFull
-from backend.jobs.tile_download_jobs import TileDownloadJobManager
+from backend.jobs.tile_download_jobs import TileDownloadBusy, TileDownloadJobManager
 from backend.rt.common import antenna_array_capabilities
 from backend.rt.runtime import RTRuntime, SceneNotReady, current_scene_generation
 from backend.rt.solve_link import solve_link
@@ -27,7 +27,12 @@ from backend.scene.tile_bundles import (
     compressed_tile_bundle_path,
     ensure_tile_bundle,
 )
-from backend.scene.tile_scene_xml import TileSceneXmlBuilder
+from backend.scene.tile_scene_xml import (
+    COMMON_SCENE_RELATIVE_PATH,
+    TILE_SCENE_RELATIVE_DIR,
+    TileSceneXmlBuilder,
+    ensure_scene_layout,
+)
 from backend.scene.xml_catalog import SceneManifest, load_scene_manifest
 
 
@@ -87,6 +92,7 @@ def parse_single_byte_range(value: str | None, size: int) -> tuple[int, int] | N
 class AppState:
     def __init__(self) -> None:
         self.reload_lock = threading.Lock()
+        ensure_scene_layout(config.SCENE_ROOT)
         self.manifest: SceneManifest = load_scene_manifest(config.SCENE_ROOT, config.SCENE_XML)
         self.manifest_lookup = self.manifest.mesh_lookup
         self.rt_scene_builder = TileSceneXmlBuilder(
@@ -380,7 +386,11 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_json(
                 {
                     "ok": True,
-                    "scene_xml": str(config.SCENE_XML),
+                    "scene_source_mode": "per_tile",
+                    "scene_root": str(config.SCENE_ROOT),
+                    "common_scene_xml": str(config.SCENE_ROOT / COMMON_SCENE_RELATIVE_PATH),
+                    "tile_xml_dir": str(config.SCENE_ROOT / TILE_SCENE_RELATIVE_DIR),
+                    "legacy_scene_xml": str(config.SCENE_XML),
                     "mesh_root": str(config.MESH_ROOT),
                 }
             )
@@ -566,6 +576,16 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return
 
             self.send_text("Not Found", code=404)
+        except TileDownloadBusy as exc:
+            self.send_json(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                    "active_job_id": exc.active_job_id,
+                    "active_tile_id": exc.active_tile_id,
+                },
+                code=409,
+            )
         except RadiomapQueueFull as exc:
             self.send_json(
                 {
@@ -608,7 +628,8 @@ def main() -> None:
     server.app_state = app_state  # type: ignore[attr-defined]
 
     print(f"Serving HKU-RT v3.0 on http://{config.HOST}:{config.PORT}")
-    print(f"Scene XML: {config.SCENE_XML}")
+    print(f"Scene root: {config.SCENE_ROOT}")
+    print(f"Scene source: {config.SCENE_ROOT / COMMON_SCENE_RELATIVE_PATH} + {config.SCENE_ROOT / TILE_SCENE_RELATIVE_DIR}")
     print(f"Mesh root: {config.MESH_ROOT}")
     server.serve_forever()
 

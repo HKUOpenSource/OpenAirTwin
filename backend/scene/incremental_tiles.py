@@ -6,11 +6,11 @@ import math
 import re
 import shutil
 import socket
-import tempfile
 import time
 from typing import Callable
 import urllib.error
 import urllib.request
+from uuid import uuid4
 import zipfile
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -19,8 +19,8 @@ import numpy as np
 
 from backend.scene.tile_scene_xml import (
     TILE_SCENE_RELATIVE_DIR,
+    ensure_scene_layout,
     load_tile_scene_xml_source,
-    per_tile_scene_xml_available,
 )
 
 
@@ -60,6 +60,15 @@ DEFAULT_CATEGORY_TO_MATERIAL = {
     "VEGETATION_TB": "itu_wood",
     "WATERBODY": "itu_wet_ground",
 }
+OPEN3D_HK_CATEGORIES = (
+    "BUILDING",
+    "GENERIC",
+    "INFRASTRUCTURE",
+    "INFRASTRUCTURE(TB)",
+    "TERRAIN(TB)",
+    "VEGETATION(TB)",
+    "WATERBODY",
+)
 
 
 def _trimesh_module():
@@ -132,6 +141,23 @@ def _raise_if_cancelled(cancel_check: CancelCheck | None) -> None:
         raise TileDownloadCancelled("Tile download cancelled")
 
 
+def _tile_mesh_dir(scene_root: Path, tile_id: str) -> Path:
+    ids = normalize_tile_id(tile_id)
+    return scene_root / "meshes" / ids.internal
+
+
+def _tile_xml_path(scene_root: Path, tile_id: str) -> Path:
+    ids = normalize_tile_id(tile_id)
+    return scene_root / TILE_SCENE_RELATIVE_DIR / f"{ids.internal}.xml"
+
+
+def cleanup_tile_scene_outputs(tile_id: str, scene_root: Path) -> None:
+    mesh_dir = _tile_mesh_dir(scene_root, tile_id)
+    if mesh_dir.exists():
+        shutil.rmtree(mesh_dir)
+    _tile_xml_path(scene_root, tile_id).unlink(missing_ok=True)
+
+
 def cleanup_tile_download_artifacts(tile_id: str, workspace_root: Path, stage_root: Path, scene_root: Path | None = None) -> None:
     ids = normalize_tile_id(tile_id)
     for path in (
@@ -147,10 +173,7 @@ def cleanup_tile_download_artifacts(tile_id: str, workspace_root: Path, stage_ro
         if path.exists():
             shutil.rmtree(path)
     if scene_root is not None:
-        mesh_dir = scene_root / "meshes" / ids.internal
-        if mesh_dir.exists():
-            shutil.rmtree(mesh_dir)
-        (scene_root / TILE_SCENE_RELATIVE_DIR / f"{ids.internal}.xml").unlink(missing_ok=True)
+        cleanup_tile_scene_outputs(ids.internal, scene_root)
 
 
 def download_tile_zip(
@@ -292,6 +315,28 @@ def sanitize_id(text: str) -> str:
     return cleaned or "unnamed"
 
 
+def _category_lookup_key(text: str) -> str:
+    return sanitize_id(text).upper()
+
+
+OPEN3D_HK_CATEGORY_BY_KEY = {
+    key: category
+    for category in OPEN3D_HK_CATEGORIES
+    for key in (category.upper(), _category_lookup_key(category))
+}
+
+
+def _canonical_open3d_category(text: str) -> str | None:
+    return OPEN3D_HK_CATEGORY_BY_KEY.get(text.strip().upper()) or OPEN3D_HK_CATEGORY_BY_KEY.get(_category_lookup_key(text))
+
+
+def _material_for_category(category: str) -> str:
+    return DEFAULT_CATEGORY_TO_MATERIAL.get(
+        category,
+        DEFAULT_CATEGORY_TO_MATERIAL.get(sanitize_id(category), "itu_concrete"),
+    )
+
+
 def iter_scene_meshes(scene: trimesh.Scene):
     trimesh = _trimesh_module()
     for node_index, node_name in enumerate(scene.graph.nodes_geometry):
@@ -338,12 +383,50 @@ def load_stage_mesh(stage_path: Path) -> trimesh.Trimesh:
 
 def _gltf_category(path: Path, source_root: Path, ids: TileIds) -> str:
     rel_parts = path.relative_to(source_root).parts
+    for part in rel_parts[:-1]:
+        category = _canonical_open3d_category(part)
+        if category:
+            return category
+    source_root_category = _canonical_open3d_category(source_root.name)
+    if source_root_category:
+        return source_root_category
     for index, part in enumerate(rel_parts[:-1]):
         if part.replace("_", "-").upper() == ids.display.upper() and index + 1 < len(rel_parts) - 1:
             return rel_parts[index + 1]
     if len(rel_parts) >= 2:
         return rel_parts[0]
     return path.parent.name
+
+
+def _cached_stage_manifest_is_current(manifest_path: Path, source_root: Path, ids: TileIds) -> bool:
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if manifest.get("schema_version") != STAGE_SCHEMA_VERSION or manifest.get("tile") != ids.internal:
+        return False
+
+    objects = manifest.get("objects")
+    if not isinstance(objects, list) or not objects:
+        return False
+    for staged_object in objects:
+        if not isinstance(staged_object, dict):
+            return False
+        source_gltf = staged_object.get("source_gltf")
+        if not isinstance(source_gltf, str) or not source_gltf:
+            return False
+        source_path = source_root / source_gltf
+        try:
+            expected_category = _gltf_category(source_path, source_root, ids)
+        except ValueError:
+            return False
+        if staged_object.get("category") != expected_category:
+            return False
+        if staged_object.get("category_path") != sanitize_id(expected_category):
+            return False
+        if staged_object.get("material_id") != _material_for_category(expected_category):
+            return False
+    return True
 
 
 def stage_tile_assets(
@@ -359,8 +442,10 @@ def stage_tile_assets(
     tile_stage_dir = stage_root / "tiles" / ids.internal
     manifest_path = tile_stage_dir / "tile_manifest.json"
     if manifest_path.exists() and not overwrite:
-        _report(progress_cb, 0.82, "Using cached staged tile meshes")
-        return manifest_path
+        if _cached_stage_manifest_is_current(manifest_path, source_root, ids):
+            _report(progress_cb, 0.82, "Using cached staged tile meshes")
+            return manifest_path
+        _report(progress_cb, 0.62, "Refreshing stale staged tile category cache")
     if tile_stage_dir.exists():
         shutil.rmtree(tile_stage_dir)
     tile_stage_dir.mkdir(parents=True, exist_ok=True)
@@ -385,7 +470,7 @@ def stage_tile_assets(
         scene = trimesh.load(asset_path, force="scene", process=False)
         meshes = list(iter_scene_meshes(scene))
         num_nodes = len(meshes)
-        material_id = DEFAULT_CATEGORY_TO_MATERIAL.get(category, DEFAULT_CATEGORY_TO_MATERIAL.get(sanitize_id(category), "itu_concrete"))
+        material_id = _material_for_category(category)
 
         for node_index, node_name, mesh_world_yup in meshes:
             _raise_if_cancelled(cancel_check)
@@ -475,8 +560,6 @@ def _tile_bounds(tile_id: str) -> dict[str, float] | None:
 
 
 def _scene_tile_ids(scene_root: Path, scene_xml: Path) -> set[str]:
-    if not scene_xml.exists():
-        return set()
     source = load_tile_scene_xml_source(scene_root, scene_xml)
     return set(source.shape_by_tile)
 
@@ -490,7 +573,13 @@ def _origin_path(stage_root: Path) -> Path:
     return stage_root / "origin.json"
 
 
-def load_or_create_scene_origin(scene_root: Path, scene_xml: Path, stage_root: Path) -> np.ndarray:
+def load_or_create_scene_origin(
+    scene_root: Path,
+    scene_xml: Path,
+    stage_root: Path,
+    *,
+    fallback_tile_id: str | None = None,
+) -> np.ndarray:
     path = _origin_path(stage_root)
     if path.exists():
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -499,6 +588,10 @@ def load_or_create_scene_origin(scene_root: Path, scene_xml: Path, stage_root: P
     tile_ids = sorted(_scene_tile_ids(scene_root, scene_xml))
     bounds = [_tile_bounds(tile_id) for tile_id in tile_ids]
     bounds = [item for item in bounds if item is not None]
+    if not bounds and fallback_tile_id:
+        fallback_bounds = _tile_bounds(fallback_tile_id)
+        if fallback_bounds is not None:
+            bounds = [fallback_bounds]
     if not bounds:
         raise ValueError("Cannot infer current scene origin because the scene XML has no tile mesh paths")
 
@@ -537,35 +630,13 @@ def make_local(mesh: trimesh.Trimesh, origin: np.ndarray) -> trimesh.Trimesh:
     return mesh
 
 
-def _append_tile_shapes(scene_xml: Path, records: list[dict]) -> None:
-    tree = ET.parse(scene_xml)
-    root = tree.getroot()
-    existing_shape_ids = {shape.attrib.get("id", "") for shape in root.findall("shape")}
-    for record in records:
-        shape_id = record["shape_id"]
-        if shape_id in existing_shape_ids:
-            continue
-        shape = ET.SubElement(root, "shape", {"type": "ply", "id": shape_id})
-        ET.SubElement(shape, "string", {"name": "filename", "value": record["mesh_relpath"]})
-        ET.SubElement(shape, "boolean", {"name": "face_normals", "value": "true"})
-        ET.SubElement(shape, "ref", {"name": "bsdf", "id": record["material_id"]})
-    ET.indent(tree, space="  ")
-    with tempfile.NamedTemporaryFile("wb", delete=False, dir=str(scene_xml.parent), suffix=".xml.tmp") as handle:
-        temp_path = Path(handle.name)
-        tree.write(handle, encoding="utf-8", xml_declaration=True)
-    temp_path.replace(scene_xml)
-
-
-def _write_tile_scene_xml(scene_root: Path, scene_xml: Path, tile_id: str, records: list[dict]) -> Path | None:
-    if not per_tile_scene_xml_available(scene_root):
-        _append_tile_shapes(scene_xml, records)
-        return None
-
+def _build_tile_scene_xml_tree(scene_root: Path, scene_xml: Path, tile_id: str, records: list[dict]) -> ET.ElementTree:
+    ensure_scene_layout(scene_root)
     ids = normalize_tile_id(tile_id)
     source = load_tile_scene_xml_source(scene_root, scene_xml)
     root = ET.Element(source.scene_tag, dict(source.scene_attrib))
     existing_shape_ids: set[str] = set()
-    tile_xml_path = scene_root / TILE_SCENE_RELATIVE_DIR / f"{ids.internal}.xml"
+    tile_xml_path = _tile_xml_path(scene_root, ids.internal)
     if tile_xml_path.exists():
         tile_root = ET.parse(tile_xml_path).getroot()
         existing_shape_ids = {shape.attrib.get("id", "") for shape in tile_root.findall("shape")}
@@ -581,11 +652,69 @@ def _write_tile_scene_xml(scene_root: Path, scene_xml: Path, tile_id: str, recor
         ET.SubElement(shape, "boolean", {"name": "face_normals", "value": "true"})
         ET.SubElement(shape, "ref", {"name": "bsdf", "id": record["material_id"]})
 
-    ET.indent(ET.ElementTree(root), space="  ")
-    tile_xml_path.parent.mkdir(parents=True, exist_ok=True)
+    tree = ET.ElementTree(root)
+    ET.indent(tree, space="  ")
+    return tree
+
+
+def _write_xml_tree(tree: ET.ElementTree, output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    tree.write(output_path, encoding="utf-8", xml_declaration=True)
+
+
+def _replace_path(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    source.replace(target)
+
+
+def _write_tile_scene_xml(scene_root: Path, scene_xml: Path, tile_id: str, records: list[dict]) -> Path:
+    ids = normalize_tile_id(tile_id)
+    tile_xml_path = _tile_xml_path(scene_root, ids.internal)
+    tree = _build_tile_scene_xml_tree(scene_root, scene_xml, ids.internal, records)
     temp_path = tile_xml_path.with_suffix(".xml.tmp")
-    ET.ElementTree(root).write(temp_path, encoding="utf-8", xml_declaration=True)
-    temp_path.replace(tile_xml_path)
+    _write_xml_tree(tree, temp_path)
+    _replace_path(temp_path, tile_xml_path)
+    return tile_xml_path
+
+
+def _tile_commit_root(scene_root: Path, tile_id: str) -> Path:
+    ids = normalize_tile_id(tile_id)
+    return scene_root / "cache" / "incremental_tile_commits" / ids.internal / uuid4().hex
+
+
+def _cleanup_tile_commit_root(commit_root: Path) -> None:
+    shutil.rmtree(commit_root, ignore_errors=True)
+    for parent in (commit_root.parent, commit_root.parent.parent):
+        try:
+            parent.rmdir()
+        except OSError:
+            break
+
+
+def _move_staged_mesh_dir(staged_mesh_dir: Path, final_mesh_dir: Path) -> None:
+    if not staged_mesh_dir.exists():
+        return
+    final_mesh_dir.parent.mkdir(parents=True, exist_ok=True)
+    if not final_mesh_dir.exists():
+        shutil.move(str(staged_mesh_dir), str(final_mesh_dir))
+        return
+
+    for staged_path in sorted(staged_mesh_dir.rglob("*")):
+        relative_path = staged_path.relative_to(staged_mesh_dir)
+        target_path = final_mesh_dir / relative_path
+        if staged_path.is_dir():
+            target_path.mkdir(parents=True, exist_ok=True)
+            continue
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.unlink(missing_ok=True)
+        shutil.move(str(staged_path), str(target_path))
+
+
+def _commit_staged_tile_outputs(scene_root: Path, tile_id: str, commit_root: Path, staged_tile_xml_path: Path) -> Path:
+    ids = normalize_tile_id(tile_id)
+    _move_staged_mesh_dir(commit_root / "meshes" / ids.internal, _tile_mesh_dir(scene_root, ids.internal))
+    tile_xml_path = _tile_xml_path(scene_root, ids.internal)
+    _replace_path(staged_tile_xml_path, tile_xml_path)
     return tile_xml_path
 
 
@@ -602,43 +731,55 @@ def integrate_staged_tile(
     if scene_contains_tile(scene_root, scene_xml, ids.internal):
         return {"status": "already_integrated", "tile": ids.internal, "tile_sheet_num": ids.display, "mesh_count": 0}
 
-    manifest_path = stage_root / "tiles" / ids.internal / "tile_manifest.json"
-    if not manifest_path.exists():
-        raise FileNotFoundError(f"Tile {ids.display} has not been staged yet")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    origin = load_or_create_scene_origin(scene_root, scene_xml, stage_root)
-    records: list[dict] = []
-    staged_objects = manifest["objects"]
-    report_every = max(1, len(staged_objects) // 40)
+    commit_root = _tile_commit_root(scene_root, ids.internal)
+    try:
+        manifest_path = stage_root / "tiles" / ids.internal / "tile_manifest.json"
+        if not manifest_path.exists():
+            raise FileNotFoundError(f"Tile {ids.display} has not been staged yet")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        origin = load_or_create_scene_origin(scene_root, scene_xml, stage_root, fallback_tile_id=ids.internal)
+        records: list[dict] = []
+        staged_objects = manifest["objects"]
+        report_every = max(1, len(staged_objects) // 40)
 
-    for object_index, staged_object in enumerate(staged_objects, start=1):
-        _raise_if_cancelled(cancel_check)
-        if object_index == 1 or object_index % report_every == 0:
-            _report(
-                progress_cb,
-                0.84 + 0.11 * ((object_index - 1) / len(staged_objects)),
-                f"Writing scene mesh {object_index} of {len(staged_objects)}",
+        for object_index, staged_object in enumerate(staged_objects, start=1):
+            _raise_if_cancelled(cancel_check)
+            if object_index == 1 or object_index % report_every == 0:
+                _report(
+                    progress_cb,
+                    0.84 + 0.11 * ((object_index - 1) / len(staged_objects)),
+                    f"Writing scene mesh {object_index} of {len(staged_objects)}",
+                )
+            mesh_world = load_stage_mesh(stage_root / staged_object["stage_cache_relpath"])
+            mesh_local = make_local(mesh_world, origin)
+            rel_mesh_path = (
+                Path("meshes")
+                / ids.internal
+                / sanitize_id(staged_object["category"])
+                / f"{staged_object['shape_id']}.ply"
             )
-        mesh_world = load_stage_mesh(stage_root / staged_object["stage_cache_relpath"])
-        mesh_local = make_local(mesh_world, origin)
-        rel_mesh_path = (
-            Path("meshes")
-            / ids.internal
-            / sanitize_id(staged_object["category"])
-            / f"{staged_object['shape_id']}.ply"
-        )
-        write_mesh(mesh_local, scene_root / rel_mesh_path)
-        records.append(
-            {
-                "shape_id": staged_object["shape_id"],
-                "material_id": staged_object["material_id"],
-                "mesh_relpath": str(rel_mesh_path).replace("\\", "/"),
-            }
-        )
+            write_mesh(mesh_local, commit_root / rel_mesh_path)
+            records.append(
+                {
+                    "shape_id": staged_object["shape_id"],
+                    "material_id": staged_object["material_id"],
+                    "mesh_relpath": str(rel_mesh_path).replace("\\", "/"),
+                }
+            )
 
-    _raise_if_cancelled(cancel_check)
-    _report(progress_cb, 0.96, "Writing tile scene XML")
-    tile_xml_path = _write_tile_scene_xml(scene_root, scene_xml, ids.display, records)
+        _raise_if_cancelled(cancel_check)
+        _report(progress_cb, 0.96, "Writing tile scene XML")
+        staged_tile_xml_path = commit_root / TILE_SCENE_RELATIVE_DIR / f"{ids.internal}.xml"
+        tree = _build_tile_scene_xml_tree(scene_root, scene_xml, ids.internal, records)
+        _write_xml_tree(tree, staged_tile_xml_path)
+        _raise_if_cancelled(cancel_check)
+        _report(progress_cb, 0.98, "Committing tile scene files")
+        tile_xml_path = _commit_staged_tile_outputs(scene_root, ids.internal, commit_root, staged_tile_xml_path)
+        _cleanup_tile_commit_root(commit_root)
+    except Exception:
+        _cleanup_tile_commit_root(commit_root)
+        cleanup_tile_scene_outputs(ids.internal, scene_root)
+        raise
     return {
         "status": "integrated",
         "tile": ids.internal,
@@ -694,6 +835,9 @@ def download_stage_and_integrate_tile(
         )
     except TileDownloadCancelled:
         cleanup_tile_download_artifacts(ids.display, workspace_root, stage_root, scene_root)
+        raise
+    except Exception:
+        cleanup_tile_scene_outputs(ids.display, scene_root)
         raise
     result["download_url"] = url
     result["zip_path"] = str(zip_path)

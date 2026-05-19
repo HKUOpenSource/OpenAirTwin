@@ -61,7 +61,7 @@ def _building_aabbs(
     roi_min: tuple[float, float],
     roi_max: tuple[float, float],
 ) -> np.ndarray:
-    manifest = load_scene_manifest(scene_root, scene_root / "scenario_HKU.xml")
+    manifest = load_scene_manifest(scene_root, scene_root / "scene.xml")
     selected_tile_ids = set(tile_ids)
     boxes: list[tuple[float, float, float, float]] = []
     roi_min_x, roi_min_y = roi_min

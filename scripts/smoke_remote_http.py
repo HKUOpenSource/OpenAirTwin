@@ -13,6 +13,7 @@ import urllib.request
 
 
 DEFAULT_BASE_URL = "http://100.65.77.20:8090"
+DEFAULT_TILE_ID = "11_SW_8D"
 
 
 class SmokeFailure(RuntimeError):
@@ -29,6 +30,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=30.0, help="HTTP request timeout in seconds.")
     parser.add_argument("--poll-timeout", type=float, default=90.0, help="Radio-map job poll timeout in seconds.")
     parser.add_argument("--poll-interval", type=float, default=1.0, help="Radio-map job poll interval in seconds.")
+    parser.add_argument(
+        "--tile-id",
+        default=os.environ.get("HKU_RT_SMOKE_TILE_ID", DEFAULT_TILE_ID),
+        help=f"Tile to load for RT smoke checks. Defaults to {DEFAULT_TILE_ID} or HKU_RT_SMOKE_TILE_ID.",
+    )
     return parser.parse_args()
 
 
@@ -91,7 +97,7 @@ def assert_true(condition: bool, message: str) -> None:
 def smoke_health(base_url: str, timeout: float) -> None:
     health = request_json(base_url, "/api/health", timeout=timeout)
     assert_true(health.get("ok") is True, "/api/health did not return ok=true")
-    ok(f"health scene={health.get('scene_xml')}")
+    ok(f"health scene_root={health.get('scene_root') or health.get('scene_xml')}")
 
 
 def smoke_manifest(base_url: str, timeout: float) -> dict:
@@ -102,14 +108,22 @@ def smoke_manifest(base_url: str, timeout: float) -> dict:
     return manifest
 
 
-def smoke_rt_scene_selection(base_url: str, manifest: dict, timeout: float, poll_timeout: float, poll_interval: float) -> None:
+def smoke_rt_scene_selection(
+    base_url: str,
+    manifest: dict,
+    timeout: float,
+    poll_timeout: float,
+    poll_interval: float,
+    tile_id: str,
+) -> None:
     tile_ids = [str(tile["id"]) for tile in manifest.get("tiles") or [] if tile.get("id")]
     assert_true(bool(tile_ids), "manifest has no selectable tiles")
+    selected_tile_id = tile_id if tile_id in tile_ids else tile_ids[0]
     status = request_json(
         base_url,
         "/api/rt/scene-selection",
         method="POST",
-        payload={"tile_ids": tile_ids},
+        payload={"tile_ids": [selected_tile_id]},
         timeout=timeout,
     )
     generation = status.get("generation")
@@ -120,7 +134,7 @@ def smoke_rt_scene_selection(base_url: str, manifest: dict, timeout: float, poll
         current = request_json(base_url, "/api/rt/scene-selection", timeout=timeout)
         if current.get("generation") == generation and current.get("status") == "ready":
             ok(
-                f"rt scene tiles={len(current.get('active_tile_ids') or [])} "
+                f"rt scene tile={selected_tile_id} "
                 f"preload={current.get('preload_seconds')}s"
             )
             return
@@ -271,7 +285,7 @@ def main() -> int:
     try:
         smoke_health(base_url, args.timeout)
         manifest = smoke_manifest(base_url, args.timeout)
-        smoke_rt_scene_selection(base_url, manifest, args.timeout, args.poll_timeout, args.poll_interval)
+        smoke_rt_scene_selection(base_url, manifest, args.timeout, args.poll_timeout, args.poll_interval, args.tile_id)
         smoke_bundle(base_url, manifest, args.timeout)
         smoke_link(base_url, args.timeout)
         smoke_advanced_link(base_url, args.timeout)

@@ -29,6 +29,16 @@ rsync -av \
   "${REMOTE_HOST}:${REMOTE_ROOT}/scripts/"
 
 rsync -av \
+  --delete \
+  --exclude '__pycache__/' \
+  --exclude '*.pyc' \
+  --exclude '.DS_Store' \
+  --exclude '._*' \
+  "${ROOT_DIR}/tests/" \
+  "${REMOTE_HOST}:${REMOTE_ROOT}/tests/"
+
+rsync -av \
   "${ROOT_DIR}/README.md" \
   "${ROOT_DIR}/.gitignore" \
+  "${ROOT_DIR}/requirements.txt" \
   "${REMOTE_HOST}:${REMOTE_ROOT}/"

@@ -7,8 +7,8 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = BACKEND_ROOT.parent
 STATIC_ROOT = BACKEND_ROOT / "static"
-SCENE_ROOT = Path(os.environ.get("HKU_RT_SCENE_ROOT", str(PROJECT_ROOT / "HKU_scenes"))).resolve()
-SCENE_XML = SCENE_ROOT / "scenario_HKU.xml"
+SCENE_ROOT = Path(os.environ.get("HKU_RT_SCENE_ROOT", str(PROJECT_ROOT / "scene"))).expanduser()
+SCENE_XML = SCENE_ROOT / "scene.xml"
 MESH_ROOT = SCENE_ROOT / "meshes"
 BUNDLE_ROOT = SCENE_ROOT / "cache" / "render_bundles"
 

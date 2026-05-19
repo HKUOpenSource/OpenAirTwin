@@ -5,14 +5,18 @@
 ### Versioned Project Content
 
 - `backend/`
-- `HKU_scenes/scenario_HKU.xml`
-- `HKU_scenes/meshes/`
 - `docs/`
 - `scripts/`
 
+### Non-Versioned Runtime Scene Content
+
+- `scene/common/scene_common.xml`
+- `scene/tiles/*.xml`
+- `scene/meshes/`
+
 ### Generated Content
 
-- `HKU_scenes/cache/`
+- `scene/cache/`
 - `__pycache__/`
 - `*.pyc`
 - `.DS_Store`
@@ -45,13 +49,14 @@ Use the remote workspace for:
 
 - Host: `defaultuser@100.65.77.20`
 - Shared/legacy root: `/home/defaultuser/HKU-RT/v3.0`
-- Shared scene root: `/home/defaultuser/HKU-RT/v3.0/HKU_scenes`
 - Zhaolin worktree: `/home/defaultuser/worktree-zhaolin`, port `8090`
 - Zihao worktree: `/home/defaultuser/worktree-zihao`, port `18091`
 
 The sync scripts default to the shared/legacy root for backward compatibility.
 For developer code work, pass `HKU_RT_REMOTE_ROOT` explicitly and target the
 developer's own `worktree-*` directory.
+Each developer worktree should expose runtime scene data at `<worktree>/scene`;
+that entry can be a symlink to the shared asset store when needed.
 
 ## Remote Operation Rule
 
@@ -64,27 +69,29 @@ Before syncing, restarting, or cleaning remote files:
 
 ## Recommended Team Workflow
 
-1. Pull the latest source assets from remote if local `HKU_scenes/meshes/` is missing or stale.
+1. Pull the latest source assets from remote if local `scene/meshes/` is missing or stale.
 2. Make code changes locally in `backend/`.
 3. Run local cleanup before sharing or syncing.
 4. Push code/docs/scripts to the selected developer worktree with explicit
    `HKU_RT_REMOTE_ROOT`.
-5. Push source assets to remote when `scenario_HKU.xml` or `meshes/` changes.
+5. Push source assets to remote when `scene/common/`, `scene/tiles/`, or `scene/meshes/` changes.
 6. Validate on remote.
 7. Rebuild caches only when scene or render-bundle logic changes.
 
 ## Runtime Notes
 
-The current code expects:
+The current code bootstraps an empty `scene/` directory when needed. RT solve
+flows expect:
 
-- `HKU_scenes/scenario_HKU.xml`
-- `HKU_scenes/meshes/`
+- `scene/common/scene_common.xml`
+- `scene/tiles/*.xml`
+- `scene/meshes/`
 
 The Python backend reads the scene root from:
 
 - `HKU_RT_SCENE_ROOT`
 
-If unset, it defaults to the local `HKU_scenes/` directory in this workspace.
+If unset, it defaults to the local `scene/` directory in this workspace.
 
 ## Remote Runtime Baseline
 

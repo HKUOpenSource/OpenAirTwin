@@ -2,8 +2,8 @@ __pycache__/
 *.pyc
 .DS_Store
 ._*
-HKU_scenes/
-HKU_scenes/cache/
+scene/
+scene/cache/
 generated/
 server_*.log
 .venv/

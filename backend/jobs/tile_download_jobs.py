@@ -9,6 +9,16 @@ from uuid import uuid4
 from backend.scene.incremental_tiles import TileDownloadCancelled
 
 
+ACTIVE_TILE_DOWNLOAD_STATUSES = {"queued", "running", "canceling"}
+
+
+class TileDownloadBusy(RuntimeError):
+    def __init__(self, active_job_id: str, active_tile_id: str) -> None:
+        super().__init__(f"Tile download already running for {active_tile_id}")
+        self.active_job_id = active_job_id
+        self.active_tile_id = active_tile_id
+
+
 @dataclass
 class TileDownloadJob:
     job_id: str
@@ -45,6 +55,7 @@ class TileDownloadJobManager:
         self._max_jobs = max_jobs
         self._jobs: dict[str, TileDownloadJob] = {}
         self._active_by_tile: dict[str, str] = {}
+        self._active_job_id: str | None = None
         self._lock = threading.Lock()
 
     def create_job(self, tile_id: str) -> TileDownloadJob:
@@ -52,8 +63,14 @@ class TileDownloadJobManager:
             active_job_id = self._active_by_tile.get(tile_id)
             if active_job_id:
                 active_job = self._jobs.get(active_job_id)
-                if active_job and active_job.status in {"queued", "running", "canceling"}:
+                if active_job and active_job.status in ACTIVE_TILE_DOWNLOAD_STATUSES:
                     return active_job
+
+            if self._active_job_id:
+                active_job = self._jobs.get(self._active_job_id)
+                if active_job and active_job.status in ACTIVE_TILE_DOWNLOAD_STATUSES:
+                    raise TileDownloadBusy(active_job.job_id, active_job.tile_id)
+                self._active_job_id = None
 
             while len(self._jobs) >= self._max_jobs:
                 oldest_id = min(self._jobs.values(), key=lambda job: job.created_at).job_id
@@ -62,6 +79,7 @@ class TileDownloadJobManager:
             job = TileDownloadJob(job_id=f"tile_{uuid4().hex[:12]}", tile_id=tile_id)
             self._jobs[job.job_id] = job
             self._active_by_tile[tile_id] = job.job_id
+            self._active_job_id = job.job_id
 
         thread = threading.Thread(target=self._run_job, args=(job.job_id,), daemon=True)
         thread.start()
@@ -144,3 +162,5 @@ class TileDownloadJobManager:
                 final_job = self._jobs.get(job_id)
                 if final_job is not None and self._active_by_tile.get(final_job.tile_id) == job_id:
                     self._active_by_tile.pop(final_job.tile_id, None)
+                if self._active_job_id == job_id:
+                    self._active_job_id = None
