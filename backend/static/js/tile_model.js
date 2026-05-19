@@ -111,6 +111,20 @@ export function toDisplayTileId(tileId) {
   return displayTileId(parsed.sheet, parsed.region, parsed.row, parsed.column);
 }
 
+export function allEntryTileIds() {
+  const tileIds = [];
+  for (let sheet = 1; sheet <= ENTRY_MAP_SHEET_COUNT; sheet += 1) {
+    for (const quadrant of ENTRY_MAP_QUADRANTS) {
+      for (let number = 1; number <= 25; number += 1) {
+        for (const subTile of ENTRY_MAP_SUBTILES) {
+          tileIds.push(internalTileId(sheet, quadrant, number, subTile));
+        }
+      }
+    }
+  }
+  return tileIds;
+}
+
 
 export function assertEntryMapDeps() {
   if (!window.L || !window.proj4) {

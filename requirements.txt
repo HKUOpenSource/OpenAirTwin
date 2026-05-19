@@ -2,3 +2,4 @@ numpy
 sionna
 mitsuba
 drjit
+trimesh

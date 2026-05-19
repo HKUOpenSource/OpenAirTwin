@@ -3,6 +3,7 @@ export const ui = {
   loadingTitle: document.getElementById("loadingTitle"),
   loadingPhase: document.getElementById("loadingPhase"),
   progressBar: document.getElementById("bar"),
+  btnLoadingCancel: document.getElementById("btnLoadingCancel"),
   paramTooltipLayer: document.getElementById("paramTooltipLayer"),
   paramTooltipText: document.getElementById("paramTooltipText"),
   entryScreen: document.getElementById("entryScreen"),

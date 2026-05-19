@@ -8,6 +8,7 @@ import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import sys
+import threading
 import traceback
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -15,9 +16,11 @@ from backend import config
 from backend.jobs.deepmimo_jobs import DeepMIMOJobManager, DeepMIMOQueueFull
 from backend.jobs.mobility_jobs import MobilityJobManager, MobilityQueueFull
 from backend.jobs.radiomap_jobs import RadiomapJobManager, RadiomapQueueFull
+from backend.jobs.tile_download_jobs import TileDownloadJobManager
 from backend.rt.common import antenna_array_capabilities
 from backend.rt.runtime import RTRuntime, SceneNotReady, current_scene_generation
 from backend.rt.solve_link import solve_link
+from backend.scene.incremental_tiles import download_stage_and_integrate_tile, normalize_tile_id
 from backend.scene.tile_bundles import (
     bundle_cache_key,
     compressed_tile_bundle_is_fresh,
@@ -83,6 +86,7 @@ def parse_single_byte_range(value: str | None, size: int) -> tuple[int, int] | N
 
 class AppState:
     def __init__(self) -> None:
+        self.reload_lock = threading.Lock()
         self.manifest: SceneManifest = load_scene_manifest(config.SCENE_ROOT, config.SCENE_XML)
         self.manifest_lookup = self.manifest.mesh_lookup
         self.rt_scene_builder = TileSceneXmlBuilder(
@@ -98,6 +102,37 @@ class AppState:
         self.job_manager = RadiomapJobManager(self.rt_runtime)
         self.mobility_job_manager = MobilityJobManager(self.rt_runtime)
         self.deepmimo_job_manager = DeepMIMOJobManager()
+        self.tile_download_job_manager = TileDownloadJobManager(self.download_and_integrate_tile)
+
+    def reload_scene_catalog(self) -> None:
+        with self.reload_lock:
+            self.manifest = load_scene_manifest(config.SCENE_ROOT, config.SCENE_XML)
+            self.manifest_lookup = self.manifest.mesh_lookup
+            self.rt_scene_builder = TileSceneXmlBuilder(
+                config.SCENE_ROOT,
+                config.SCENE_XML,
+                config.GENERATED_ROOT / "rt_scene_xml",
+            )
+            self.rt_runtime.scene_builder = self.rt_scene_builder
+
+    def download_and_integrate_tile(self, tile_id: str, *, progress_cb=None, cancel_check=None) -> dict:
+        result = download_stage_and_integrate_tile(
+            tile_id,
+            scene_root=config.SCENE_ROOT,
+            scene_xml=config.SCENE_XML,
+            workspace_root=config.INCREMENTAL_TILE_ROOT,
+            stage_root=config.INCREMENTAL_TILE_STAGE_ROOT,
+            base_url=config.MAP_DOWNLOAD_BASE_URL,
+            file_format=config.MAP_DOWNLOAD_FORMAT,
+            key=config.MAP_DOWNLOAD_KEY,
+            progress_cb=progress_cb,
+            cancel_check=cancel_check,
+        )
+        if result.get("status") != "already_integrated":
+            if progress_cb:
+                progress_cb(0.98, "Reloading scene manifest")
+            self.reload_scene_catalog()
+        return result
 
 
 def capture_ready_scene_generation(rt_runtime) -> int | None:
@@ -363,6 +398,15 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_json(self.app_state.manifest.to_api_dict())
             return
 
+        if path.startswith("/api/scene/tile-downloads/"):
+            job_id = path.removeprefix("/api/scene/tile-downloads/")
+            job = self.app_state.tile_download_job_manager.get_job(job_id)
+            if job is None:
+                self.send_text("Unknown job id", code=404)
+                return
+            self.send_json(job.to_status_dict())
+            return
+
         if path.startswith("/api/scene/mesh/"):
             mesh_id = unquote(path.removeprefix("/api/scene/mesh/"))
             self.serve_mesh(mesh_id)
@@ -503,6 +547,22 @@ class RequestHandler(BaseHTTPRequestHandler):
                 payload["scene"] = {"tile_ids": list(active_tile_ids)}
                 job = self.app_state.deepmimo_job_manager.create_job(payload)
                 self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
+                return
+
+            if path.startswith("/api/scene/tile-downloads/") and path.endswith("/cancel"):
+                job_id = path.removeprefix("/api/scene/tile-downloads/").removesuffix("/cancel")
+                job = self.app_state.tile_download_job_manager.cancel_job(job_id)
+                if job is None:
+                    self.send_text("Unknown job id", code=404)
+                    return
+                self.send_json(job.to_status_dict())
+                return
+
+            if path == "/api/scene/tile-downloads":
+                payload = self.read_json_body()
+                tile_id = normalize_tile_id(str(payload.get("tile_id", ""))).internal
+                job = self.app_state.tile_download_job_manager.create_job(tile_id)
+                self.send_json({"ok": True, "job_id": job.job_id, "status": job.status, "tile_id": tile_id})
                 return
 
             self.send_text("Not Found", code=404)
