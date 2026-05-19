@@ -56,6 +56,15 @@ DEEPMIMO_ENV_PYTHON = os.environ.get(
     "/home/defaultuser/venvs/env_hku_rt_gpu/bin/python",
 )
 GENERATED_ROOT = Path(os.environ.get("HKU_RT_GENERATED_ROOT", str(PROJECT_ROOT / "generated"))).resolve()
+MAP_DOWNLOAD_KEY = os.environ.get("HKU_RT_MAP_DOWNLOAD_KEY", "ad5940a63bd344c48b0351ef1c7a905e")
+MAP_DOWNLOAD_FORMAT = os.environ.get("HKU_RT_MAP_DOWNLOAD_FORMAT", "GLTF")
+MAP_DOWNLOAD_BASE_URL = os.environ.get("HKU_RT_MAP_DOWNLOAD_BASE_URL", "https://data11.map.gov.hk/api/3d-zip")
+INCREMENTAL_TILE_ROOT = Path(
+    os.environ.get("HKU_RT_INCREMENTAL_TILE_ROOT", str(GENERATED_ROOT / "incremental_tiles"))
+).resolve()
+INCREMENTAL_TILE_STAGE_ROOT = Path(
+    os.environ.get("HKU_RT_INCREMENTAL_TILE_STAGE_ROOT", str(SCENE_ROOT / "cache" / "incremental_tile_stage"))
+).resolve()
 DEEPMIMO_JOB_ROOT = Path(os.environ.get("HKU_RT_DEEPMIMO_JOB_ROOT", str(GENERATED_ROOT / "deepmimo_jobs"))).resolve()
 DEEPMIMO_MAX_PENDING_JOBS = int(os.environ.get("HKU_RT_DEEPMIMO_MAX_PENDING_JOBS", "2"))
 DEEPMIMO_MAX_STORED_JOBS = int(os.environ.get("HKU_RT_DEEPMIMO_MAX_STORED_JOBS", "16"))

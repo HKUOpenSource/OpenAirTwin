@@ -89,6 +89,7 @@ export const state = {
     sceneReady: false,
     overview: null,
     sidebarCollapsed: false,
+    downloadingTileIds: new Map(),
     search: {
       results: [],
       selectedIndex: -1,

@@ -1,6 +1,7 @@
 import {compareTileIds, toDisplayTileId} from "/js/tile_model.js";
 
 const LOAD_PROGRESS_RENDER_INTERVAL_MS = 250;
+let overlayCancelHandler = null;
 
 export function createSceneRenderStateController(context) {
   const {api, state, ui, viewerRef} = context;
@@ -103,17 +104,44 @@ function setProgress(percent, message, indeterminate = false) {
   }
 }
 
-function showOverlay({title = "Working", message = "Loading...", percent = 0, indeterminate = false} = {}) {
+function clearOverlayCancel() {
+  if (overlayCancelHandler && ui.btnLoadingCancel) {
+    ui.btnLoadingCancel.removeEventListener("click", overlayCancelHandler);
+  }
+  overlayCancelHandler = null;
+  if (ui.btnLoadingCancel) {
+    ui.btnLoadingCancel.classList.add("hidden");
+    ui.btnLoadingCancel.disabled = false;
+    ui.btnLoadingCancel.textContent = "Cancel";
+  }
+}
+
+function showOverlay({
+  title = "Working",
+  message = "Loading...",
+  percent = 0,
+  indeterminate = false,
+  cancelLabel = "",
+  onCancel = null,
+} = {}) {
   state.pickTarget = null;
   state.deviceControl.activeTarget = null;
+  clearOverlayCancel();
   ui.loadingTitle.textContent = title;
   setProgress(percent, message, indeterminate);
+  if (onCancel && ui.btnLoadingCancel) {
+    ui.btnLoadingCancel.textContent = cancelLabel || "Cancel";
+    ui.btnLoadingCancel.classList.remove("hidden");
+    overlayCancelHandler = onCancel;
+    ui.btnLoadingCancel.addEventListener("click", overlayCancelHandler);
+  }
   ui.loadingScreen.style.display = "flex";
   syncModeUi();
   syncPerformanceUi();
 }
 
 function hideOverlay() {
+  clearOverlayCancel();
   ui.loadingScreen.style.display = "none";
   ui.loadingTitle.textContent = "Loading Scene";
   ui.loadingPhase.textContent = "Initializing...";

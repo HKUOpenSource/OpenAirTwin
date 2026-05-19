@@ -27,6 +27,24 @@ export function setRtSceneSelection(tileIds) {
   });
 }
 
+export function createTileDownloadJob(tileId) {
+  return requestJson("/api/scene/tile-downloads", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({tile_id: tileId}),
+  });
+}
+
+export function getTileDownloadJob(jobId) {
+  return requestJson(`/api/scene/tile-downloads/${encodeURIComponent(jobId)}`);
+}
+
+export function cancelTileDownloadJob(jobId) {
+  return requestJson(`/api/scene/tile-downloads/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+  });
+}
+
 export function solveLink(payload, options = {}) {
   return requestJson("/api/link/solve", {
     method: "POST",

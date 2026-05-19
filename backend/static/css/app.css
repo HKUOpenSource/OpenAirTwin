@@ -370,12 +370,13 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 .hint{position:absolute;right:16px;bottom:14px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.78);border:1px solid rgba(130,140,160,.28);font-size:11px;color:#5c6f8f;pointer-events:none;z-index:11}
 
 #loadingScreen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:24}
-.loadingCard{width:min(520px,88vw);padding:18px 20px;border-radius:14px;background:rgba(255,255,255,.86);border:1px solid rgba(130,140,160,.25);box-shadow:0 14px 28px rgba(25,37,58,.16);}
+.loadingCard{width:min(520px,88vw);padding:18px 20px;border-radius:14px;background:rgba(255,255,255,.86);border:1px solid rgba(130,140,160,.25);box-shadow:0 14px 28px rgba(25,37,58,.16);pointer-events:auto}
 .loadingTitle{font-size:14px;font-weight:700;color:#1f2c42;margin-bottom:10px}
 #loadingPhase{font-size:12px;color:#64748b;margin-top:7px;line-height:1.45;min-height:18px}
 #barWrap{height:8px;background:#e6ebf4;border:1px solid #c8d2e2;border-radius:999px;overflow:hidden;}
 #bar{height:100%;width:0;background:linear-gradient(90deg,#2ea0ff,#56eeb5);transition:width .2s;}
 #bar.indeterminate{width:38% !important;animation:overlayIndeterminate 1.1s ease-in-out infinite;transition:none}
+.loadingCancelBtn{width:100%;margin-top:12px;flex:0 0 auto}
 
 @keyframes overlayIndeterminate{
   0%{transform:translateX(-120%)}

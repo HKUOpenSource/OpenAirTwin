@@ -15,6 +15,7 @@ import {
   NOMINATIM_RESULT_LIMIT,
   NOMINATIM_SEARCH_URL,
   assertEntryMapDeps,
+  allEntryTileIds,
   boundsForTileId,
   compareTileIds,
   entryFallbackImageBounds,
@@ -36,6 +37,7 @@ import {
 
 export function createEntryMapController(context) {
   const {state, entryMap, ui, viewerRef} = context;
+  const {createTileDownloadJob, getTileDownloadJob, cancelTileDownloadJob, getManifest} = context.api;
   const getViewer = () => viewerRef.current;
   const scene = () => context.controllers.scene;
   const performancePanel = () => context.controllers.performance;
@@ -397,7 +399,7 @@ function hideEntryMapTooltip() {
   ui.entryMapTooltip.classList.add("hidden");
 }
 
-function updateEntryMapBadge({selectedCount = 0, loadedCount = 0, pendingCount = 0, meshCount = 0} = {}) {
+function updateEntryMapBadge({selectedCount = 0, loadedCount = 0, pendingCount = 0, downloadingCount = 0, meshCount = 0} = {}) {
   ui.entryMapBadgeValue.textContent = `${selectedCount} selected`;
   const detailParts = [
     `${loadedCount} loaded`,
@@ -406,13 +408,20 @@ function updateEntryMapBadge({selectedCount = 0, loadedCount = 0, pendingCount =
   if (meshCount > 0) {
     detailParts.push(`${meshCount.toLocaleString()} meshes`);
   }
+  if (downloadingCount > 0) {
+    detailParts.push(`${downloadingCount} downloading`);
+  }
   ui.entryMapBadgeDetail.textContent = detailParts.join(" · ");
 }
 
 function entryMapTooltipHtml(tileId) {
+  const downloadState = state.entry.downloadingTileIds.get(tileId);
+  if (downloadState) {
+    return `<strong>${toDisplayTileId(tileId)}</strong><br>${downloadState.message || "Downloading GLTF tile..."}`;
+  }
   const tile = state.entry.overview?.tileById.get(tileId);
   if (!tile) {
-    return `<strong>${toDisplayTileId(tileId)}</strong><br>No scene data in the current manifest.`;
+    return `<strong>${toDisplayTileId(tileId)}</strong><br>Click to download GLTF and create this tile XML.`;
   }
   return `<strong>${toDisplayTileId(tileId)}</strong><br>${tile.mesh_count.toLocaleString()} meshes • ${tile.bundle_count} bundles`;
 }
@@ -421,10 +430,11 @@ function selectEntryMapTile(tileId) {
   if (!tileId) {
     return;
   }
-  if (state.tileLoadBusy) {
+  if (state.tileLoadBusy || state.entry.downloadingTileIds.has(tileId)) {
     return;
   }
   if (!state.entry.overview?.tileById.has(tileId)) {
+    downloadEntryMapTile(tileId);
     return;
   }
   toggleTileChecked(tileId);
@@ -450,6 +460,16 @@ function entryGridStyle(kind = "number") {
 }
 
 function entryTileLayerStyle(tileEntry, hover = false) {
+  if (tileEntry.downloading) {
+    return {
+      color: "rgba(180,83,9,.98)",
+      weight: hover ? 1.35 : 1,
+      opacity: 1,
+      fillColor: "#f59e0b",
+      fillOpacity: hover ? 0.34 : 0.24,
+      renderer: entryMap.tileRenderer,
+    };
+  }
   if (tileEntry.loaded) {
     return {
       color: tileEntry.selected ? "rgba(27,139,87,.98)" : "rgba(27,139,87,.92)",
@@ -471,11 +491,11 @@ function entryTileLayerStyle(tileEntry, hover = false) {
     };
   }
   return {
-    color: hover ? "rgba(31,111,255,.95)" : "rgba(31,111,255,.44)",
+    color: tileEntry.available ? (hover ? "rgba(31,111,255,.95)" : "rgba(31,111,255,.44)") : "rgba(71,88,113,.48)",
     weight: hover ? 1.25 : 0.85,
     opacity: 1,
-    fillColor: "#1f6fff",
-    fillOpacity: hover ? 0.22 : 0.075,
+    fillColor: tileEntry.available ? "#1f6fff" : "#64748b",
+    fillOpacity: tileEntry.available ? (hover ? 0.22 : 0.075) : (hover ? 0.18 : 0.1),
     renderer: entryMap.tileRenderer,
   };
 }
@@ -732,7 +752,7 @@ function buildEntryMap(overview) {
   }
   entryMap.gridLayer.setItems(gridItems);
 
-  for (const tileId of overview.availableTileIds) {
+  for (const tileId of allEntryTileIds()) {
     const bounds = boundsForTileId(tileId);
     if (!bounds) {
       continue;
@@ -740,9 +760,10 @@ function buildEntryMap(overview) {
     const tileEntry = {
       id: tileId,
       displayId: toDisplayTileId(tileId),
-      available: true,
+      available: overview.tileById.has(tileId),
       selected: false,
       loaded: false,
+      downloading: state.entry.downloadingTileIds.has(tileId),
       bounds,
       layer: null,
     };
@@ -825,14 +846,16 @@ function syncEntryOverviewUi() {
   const selectedMeshCount = selected.reduce((sum, tileId) => sum + overview.tileById.get(tileId).mesh_count, 0);
   const selectedLoadedCount = selected.filter((tileId) => loadedSet.has(tileId)).length;
   const pendingCount = Math.max(0, selected.length - selectedLoadedCount);
+  const downloadingCount = state.entry.downloadingTileIds.size;
 
   updateEntryMapBadge({
     selectedCount: selected.length,
     loadedCount: selected.length ? selectedLoadedCount : loaded.length,
     pendingCount,
+    downloadingCount,
     meshCount: selectedMeshCount,
   });
-  const sceneActionDisabled = state.tileLoadBusy || selected.length === 0;
+  const sceneActionDisabled = state.tileLoadBusy || downloadingCount > 0 || selected.length === 0;
   const sceneActionLabel = state.entry.sceneReady ? "Apply Tile Selection" : "Load Selected Tiles";
   ui.btnEnterScene.disabled = sceneActionDisabled;
   ui.btnEnterScene.textContent = sceneActionLabel;
@@ -840,13 +863,118 @@ function syncEntryOverviewUi() {
   ui.btnEntrySearch.disabled = state.tileLoadBusy || state.entry.search.inFlight;
   ui.entryPlaceInput.disabled = state.tileLoadBusy || state.entry.search.inFlight;
   ui.btnEntryFocusSelection.disabled = selected.length === 0;
-  ui.btnOpenTileIndex.disabled = state.tileLoadBusy;
+  ui.btnOpenTileIndex.disabled = state.tileLoadBusy || downloadingCount > 0;
 
   for (const [tileId, tileEntry] of entryMap.tilesById.entries()) {
     tileEntry.available = overview.tileById.has(tileId);
     tileEntry.selected = selectedSet.has(tileId);
     tileEntry.loaded = loadedSet.has(tileId);
+    tileEntry.downloading = state.entry.downloadingTileIds.has(tileId);
     syncEntryTileLayerStyle(tileEntry);
+  }
+}
+
+async function pollTileDownloadJob(jobId, tileId) {
+  while (true) {
+    const job = await getTileDownloadJob(jobId);
+    state.entry.downloadingTileIds.set(tileId, {
+      status: job.status,
+      message: job.message,
+      progress: job.progress,
+    });
+    syncEntryOverviewUi();
+    scene().setProgress(
+      Number.isFinite(job.progress) ? Math.max(5, job.progress * 100) : NaN,
+      job.message || "Downloading tile...",
+      job.status === "running" && !Number.isFinite(job.progress),
+    );
+
+    if (job.status === "succeeded") {
+      return job;
+    }
+    if (job.status === "canceled") {
+      const error = new Error(job.message || "Tile download cancelled");
+      error.cancelled = true;
+      throw error;
+    }
+    if (job.status === "failed") {
+      throw new Error(job.error || job.message || "Tile download failed");
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 1500));
+  }
+}
+
+async function refreshManifestAfterTileDownload(tileId, manifestPayload = null) {
+  state.manifest = manifestPayload || await getManifest();
+  scene().populateTileList(state.manifest);
+  performancePanel().populatePerformanceControls(state.manifest);
+  state.entry.overview = buildEntryOverview(state.manifest);
+  renderEntryOverview();
+  scene().setTileChecked(tileId, true);
+  setEntrySearchHint(`${toDisplayTileId(tileId)} was downloaded and added as a tile XML.`);
+}
+
+async function downloadEntryMapTile(tileId) {
+  if (state.entry.downloadingTileIds.has(tileId)) {
+    return;
+  }
+  const displayTileId = toDisplayTileId(tileId);
+  if (!window.confirm(`Download tile ${displayTileId} and merge it into the scene XML?`)) {
+    setEntrySearchHint(`Download for ${displayTileId} was not started.`);
+    return;
+  }
+
+  let activeJobId = null;
+  let cancelRequested = false;
+  async function requestCancelDownload() {
+    if (cancelRequested) {
+      return;
+    }
+    cancelRequested = true;
+    if (ui.btnLoadingCancel) {
+      ui.btnLoadingCancel.disabled = true;
+      ui.btnLoadingCancel.textContent = "Cancelling...";
+    }
+    scene().setProgress(NaN, `Cancelling ${displayTileId} and cleaning partial files...`, true);
+    if (activeJobId) {
+      await cancelTileDownloadJob(activeJobId).catch(() => {});
+    }
+  }
+
+  state.entry.downloadingTileIds.set(tileId, {
+    status: "queued",
+    message: "Starting GLTF download...",
+  });
+  syncEntryOverviewUi();
+  scene().showOverlay({
+    title: "Downloading Tile",
+    message: `Preparing ${displayTileId}...`,
+    indeterminate: true,
+    cancelLabel: "Cancel Download",
+    onCancel: () => {
+      requestCancelDownload();
+    },
+  });
+
+  try {
+    const created = await createTileDownloadJob(tileId);
+    activeJobId = created.job_id;
+    if (cancelRequested) {
+      await cancelTileDownloadJob(activeJobId).catch(() => {});
+    }
+    const job = await pollTileDownloadJob(created.job_id, tileId);
+    await refreshManifestAfterTileDownload(tileId, job.result?.manifest || null);
+  } catch (error) {
+    if (error.cancelled || cancelRequested) {
+      setEntrySearchHint(`Download for ${displayTileId} was cancelled and partial files were removed.`);
+    } else {
+      setEntrySearchHint(`Could not download ${displayTileId}: ${error.message}`, true);
+      window.alert(`Tile download failed: ${error.message}`);
+    }
+  } finally {
+    state.entry.downloadingTileIds.delete(tileId);
+    scene().hideOverlay();
+    syncEntryOverviewUi();
   }
 }
 
