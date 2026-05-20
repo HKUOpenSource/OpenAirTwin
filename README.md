@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="backend/static/assets/openairtwin_logo.png" alt="OpenAirTwin" width="620">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="backend/static/assets/openairtwin_logo_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="backend/static/assets/openairtwin_logo.png">
+    <img src="backend/static/assets/openairtwin_logo.png" alt="OpenAirTwin" width="620">
+  </picture>
 </p>
 
 
