@@ -105,6 +105,9 @@ If no scene assets are present, the server creates an empty `scene/` layout and
 the frontend opens with an empty scene manifest. Add scene data before running
 ray-tracing workflows.
 
+During interactive installation, you can choose to download a sample scene for
+first-run testing.
+
 ## Requirements
 
 - Python 3.11 or newer.
@@ -150,6 +153,8 @@ Useful installer options:
 - `--yes` uses non-interactive defaults.
 - `--recreate-venv` rebuilds `.venv/` from scratch.
 - `--dry-run` prints the planned actions without creating files.
+- `--with-sample-scene` downloads the bundled `11_SW_7A-D` sample scene.
+- `--no-sample-scene` skips the sample-scene prompt.
 
 On CPU-only systems, install LLVM before running ray-tracing workloads. On
 Windows, the doctor also checks Dr.Jit/CUDA cache directories that commonly
@@ -162,6 +167,27 @@ python3.11 -m venv .venv
 ./.venv/bin/python -m pip install --upgrade pip setuptools wheel
 ./.venv/bin/python -m pip install -r requirements.txt
 ```
+
+## Sample Scene Data
+
+OpenAirTwin includes an optional GitHub Release download with four Open3Dhk
+tiles: `11_SW_7A`, `11_SW_7B`, `11_SW_7C`, and `11_SW_7D`. This avoids relying
+on slow government tile downloads when testing the app for the first time.
+
+Download it through the installer:
+
+```bash
+python3.11 install.py --with-sample-scene
+```
+
+The archive is installed under `scene/` and contains runtime source data only:
+`common/`, `tiles/`, and `meshes/`. Render caches are rebuilt locally when
+needed.
+
+The sample data comes from the Hong Kong Lands Department / Common Spatial Data
+Infrastructure / Open3Dhk. It is not licensed under this project's Apache-2.0
+license. See the release archive's `THIRD_PARTY_DATA.md` and the
+[CSDI 3D Visualisation Map API Terms](https://portal.csdi.gov.hk/csdi-webpage/apidoc/3d-visualisation-map-api).
 
 ## Project Structure
 

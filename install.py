@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+import hashlib
 import os
 from pathlib import Path
 import platform
@@ -11,7 +12,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 import venv
+from zipfile import ZipFile
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -19,6 +22,12 @@ VENV_DIR = PROJECT_ROOT / ".venv"
 ENV_FILE = PROJECT_ROOT / ".oat-env"
 REQUIREMENTS_FILE = PROJECT_ROOT / "requirements.txt"
 MIN_PYTHON = (3, 11)
+SAMPLE_SCENE_TILES = ("11_SW_7A", "11_SW_7B", "11_SW_7C", "11_SW_7D")
+SAMPLE_SCENE_URL = (
+    "https://github.com/zhaolin820/HKU-Ray-Tracing-Platform/releases/download/"
+    "sample-scene-11-sw-7abcd-v1/openairtwin-sample-scene-11-sw-7abcd-v1.zip"
+)
+SAMPLE_SCENE_SHA256 = "553cea78df549b8077060d02358b3fb78c3fe5bf90128e285b5ed47b1ddc13b3"
 
 
 @dataclass(frozen=True)
@@ -189,6 +198,124 @@ def write_env_file(values: dict[str, str], path: Path = ENV_FILE, *, dry_run: bo
         return
     path.write_text(format_env_file(values), encoding="utf-8")
     print(f"Wrote local environment config: {path}")
+
+
+def sample_scene_present(scene_root: Path | None = None) -> bool:
+    root = scene_root or PROJECT_ROOT / "scene"
+    if not (root / "common" / "scene_common.xml").is_file():
+        return False
+    for tile in SAMPLE_SCENE_TILES:
+        if not (root / "tiles" / f"{tile}.xml").is_file():
+            return False
+        if not (root / "meshes" / tile).is_dir():
+            return False
+    return True
+
+
+def choose_sample_scene_download(
+    *,
+    with_sample_scene: bool,
+    no_sample_scene: bool,
+    assume_yes: bool,
+    interactive: bool | None = None,
+) -> tuple[bool, str]:
+    if with_sample_scene:
+        return True, "Sample scene download requested."
+    if no_sample_scene:
+        return False, "Sample scene download skipped by request."
+    if assume_yes:
+        return False, "Sample scene download skipped in --yes mode. Re-run with --with-sample-scene to download it."
+
+    is_interactive = sys.stdin.isatty() if interactive is None else interactive
+    if not is_interactive:
+        return False, "Sample scene download skipped in non-interactive mode. Re-run with --with-sample-scene to download it."
+
+    answer = input("Download the 11_SW_7A-D sample scene now? This is about 161 MB. [y/N]: ").strip().lower()
+    if answer in {"y", "yes"}:
+        return True, "Sample scene download selected."
+    return False, "Sample scene download skipped."
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def download_file(url: str, destination: Path) -> None:
+    with urllib.request.urlopen(url, timeout=60) as response, open(destination, "wb") as output:
+        shutil.copyfileobj(response, output)
+
+
+def extract_sample_scene_zip(
+    archive_path: Path,
+    *,
+    project_root: Path = PROJECT_ROOT,
+    skip_existing: bool = True,
+) -> tuple[int, int]:
+    root = project_root.resolve()
+    scene_root = (root / "scene").resolve()
+    extracted = 0
+    skipped = 0
+
+    with ZipFile(archive_path) as archive:
+        for member in archive.infolist():
+            if member.is_dir():
+                continue
+            member_name = member.filename.replace("\\", "/")
+            if member_name == "THIRD_PARTY_DATA.md":
+                continue
+            if not member_name.startswith("scene/"):
+                raise ValueError(f"Unexpected sample scene archive entry: {member.filename}")
+
+            target = (root / member_name).resolve()
+            try:
+                target.relative_to(scene_root)
+            except ValueError:
+                raise ValueError(f"Unsafe sample scene archive entry: {member.filename}") from None
+
+            if skip_existing and target.exists():
+                skipped += 1
+                continue
+
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member) as source, open(target, "wb") as output:
+                shutil.copyfileobj(source, output)
+            extracted += 1
+
+    return extracted, skipped
+
+
+def install_sample_scene(
+    *,
+    url: str = SAMPLE_SCENE_URL,
+    expected_sha256: str = SAMPLE_SCENE_SHA256,
+    project_root: Path = PROJECT_ROOT,
+    dry_run: bool = False,
+) -> None:
+    if sample_scene_present(project_root / "scene"):
+        print("Sample scene 11_SW_7A-D is already present; skipping download.")
+        return
+    if dry_run:
+        print(f"[dry-run] Would download sample scene from {url}")
+        print(f"[dry-run] Would verify SHA256 {expected_sha256}")
+        print(f"[dry-run] Would extract scene/ into {project_root / 'scene'}")
+        return
+
+    with tempfile.TemporaryDirectory(prefix="openairtwin-sample-scene-") as tmp:
+        archive_path = Path(tmp) / "sample-scene.zip"
+        print(f"Downloading sample scene from {url}")
+        download_file(url, archive_path)
+        actual_sha256 = sha256_file(archive_path)
+        if actual_sha256.lower() != expected_sha256.lower():
+            raise RuntimeError(
+                "Sample scene SHA256 mismatch: "
+                f"expected {expected_sha256}, got {actual_sha256}"
+            )
+        extracted, skipped = extract_sample_scene_zip(archive_path, project_root=project_root)
+        print(f"Sample scene installed: {extracted} files extracted, {skipped} existing files skipped.")
 
 
 def windows_cache_paths(env: dict[str, str] | os._Environ[str]) -> dict[str, Path]:
@@ -471,6 +598,19 @@ def run_install(args: argparse.Namespace) -> int:
     env_values = build_env_values(python_executable=python_path, gpu_value=gpu_value)
     write_env_file(env_values, ENV_FILE, dry_run=args.dry_run)
 
+    download_sample_scene, sample_scene_message = choose_sample_scene_download(
+        with_sample_scene=args.with_sample_scene,
+        no_sample_scene=args.no_sample_scene,
+        assume_yes=args.yes,
+    )
+    print(sample_scene_message)
+    if download_sample_scene:
+        try:
+            install_sample_scene(dry_run=args.dry_run)
+        except Exception as exc:
+            print(f"Sample scene download failed: {exc}", file=sys.stderr)
+            return 1
+
     if args.dry_run:
         print("Dry run complete; no virtual environment or local env file was changed.")
         return 0
@@ -501,6 +641,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     gpu_group = parser.add_mutually_exclusive_group()
     gpu_group.add_argument("--gpu", help="Pin CUDA_VISIBLE_DEVICES to a GPU index or UUID.")
     gpu_group.add_argument("--cpu", action="store_true", help="Force CPU mode by setting CUDA_VISIBLE_DEVICES to empty.")
+    scene_group = parser.add_mutually_exclusive_group()
+    scene_group.add_argument("--with-sample-scene", action="store_true", help="Download and install the 11_SW_7A-D sample scene.")
+    scene_group.add_argument("--no-sample-scene", action="store_true", help="Skip the sample scene prompt and download.")
     return parser.parse_args(argv)
 
 
