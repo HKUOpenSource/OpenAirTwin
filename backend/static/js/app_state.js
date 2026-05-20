@@ -18,6 +18,7 @@ function createViewerStub() {
     stopTxOrbit() {},
     isTxOrbiting() { return false; },
     clearRadiomap() {},
+    clearSurfacePreview() {},
     renderMobilityTrajectory() {},
     focusOnTiles() { return false; },
     getLoadedCategoryStats() { return []; },
@@ -99,6 +100,7 @@ export const state = {
     },
   },
   link: {
+    generation: 0,
     tx: [72.0, 37.0, 40.0],
     txVisual: [72.0, 37.0, 40.0],
     rx: [90.0, 52.0, 1.5],
@@ -137,6 +139,7 @@ export const state = {
     },
   },
   radiomap: {
+    generation: 0,
     tx: [72.0, 37.0, 40.0],
     txVisual: [72.0, 37.0, 40.0],
     surfaceClearanceM: 1.5,
@@ -159,6 +162,7 @@ export const state = {
     status: "Idle",
   },
   deepmimo: {
+    generation: 0,
     tx: [72.0, 37.0, 40.0],
     txVisual: [72.0, 37.0, 40.0],
     surfaceClearanceM: 1.5,
@@ -192,6 +196,7 @@ export const state = {
     datasetTrayOpen: false,
   },
   mobility: {
+    generation: 0,
     tx: [72.0, 37.0, 40.0],
     txVisual: [72.0, 37.0, 40.0],
     rx: [90.0, 52.0, 1.5],
