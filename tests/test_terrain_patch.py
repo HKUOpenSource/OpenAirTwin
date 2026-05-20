@@ -9,6 +9,7 @@ from backend.rt.terrain_patch import (
     _build_cell_size_grid,
     _check_radiomap_grid_limit,
     _check_radiomap_cell_limit,
+    _interpolate_points_on_terrain,
     _max_triangle_edge_length,
 )
 
@@ -106,6 +107,23 @@ class TerrainPatchResolutionTests(unittest.TestCase):
                 _check_radiomap_grid_limit(2, 2, 100.0)
         finally:
             config.MAX_RADIOMAP_CELLS = previous
+
+    def test_outside_point_projection_is_rejected(self) -> None:
+        terrain_triangles = np.asarray(
+            [
+                [
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [0.0, 1.0, 10.0],
+                ]
+            ],
+            dtype=np.float32,
+        )
+        with self.assertRaisesRegex(ValueError, "outside the selected terrain surface"):
+            _interpolate_points_on_terrain(
+                np.asarray([[10.0, 10.0]], dtype=np.float32),
+                terrain_triangles,
+            )
 
 
 if __name__ == "__main__":

@@ -106,6 +106,11 @@ class DeepMIMOExportWorkerTests(unittest.TestCase):
         arange.assert_not_called()
         meshgrid.assert_not_called()
 
+    def test_receiver_grid_does_not_overshoot_roi(self) -> None:
+        grid = _receiver_grid((0.0, 0.0), (10.0, 10.0), 6.0, max_receivers=10)
+
+        self.assertEqual(grid.tolist(), [[0.0, 0.0], [6.0, 0.0], [0.0, 6.0], [6.0, 6.0]])
+
     def test_deepmimo_terrain_sampling_accepts_multiple_selected_tile_surfaces(self) -> None:
         material = SimpleNamespace(name=config.RADIOMAP_MEASUREMENT_MATERIAL)
 
