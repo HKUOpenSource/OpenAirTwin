@@ -82,16 +82,35 @@ More functions are coming:
 
 ## Quickstart
 
-Install the Python dependencies:
+Run the installer from the project root:
 
 ```bash
-python3 -m pip install -r requirements.txt
+# macOS / Linux
+bash install.sh
+
+# Windows PowerShell
+.\install.ps1
+```
+
+The installer creates a project-local `.venv/`, installs `requirements.txt`,
+checks the Sionna RT / Mitsuba / Dr.Jit runtime, and writes local startup
+settings to `.oat-env`. You can also call it directly:
+
+```bash
+python3.11 install.py
 ```
 
 Start the backend:
 
 ```bash
-python3 -m backend.server
+set -a; . ./.oat-env; set +a
+./.venv/bin/python -m backend.server
+```
+
+On Windows PowerShell, set the variables printed by the installer, then run:
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.server
 ```
 
 Open the frontend:
@@ -111,6 +130,14 @@ If no scene assets are present, the server creates an empty `scene/` layout and
 the frontend opens with an empty scene manifest. Add scene data before running
 ray-tracing workflows.
 
+Manual installation is still available for advanced users:
+
+```bash
+python3.11 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip setuptools wheel
+./.venv/bin/python -m pip install -r requirements.txt
+```
+
 ## Requirements
 
 - Python 3.11 or newer.
@@ -122,8 +149,28 @@ ray-tracing workflows.
   development.
 
 Sionna RT, Mitsuba, Dr.Jit, CUDA, and GPU driver compatibility are environment
-specific. Follow the upstream installation guidance for those packages when
-preparing a solver machine.
+specific. The installer follows the public Sionna RT, Mitsuba, and CUDA guidance
+where it can, then reports the parts that still require system-level action.
+
+## Installation Diagnostics
+
+Run the environment doctor without installing packages:
+
+```bash
+python3.11 install.py --doctor
+```
+
+Useful installer options:
+
+- `--gpu <index-or-uuid>` pins `CUDA_VISIBLE_DEVICES` on multi-GPU machines.
+- `--cpu` forces CPU mode; the Dr.Jit LLVM backend must be available.
+- `--yes` uses non-interactive defaults.
+- `--recreate-venv` rebuilds `.venv/` from scratch.
+- `--dry-run` prints the planned actions without creating files.
+
+On CPU-only systems, install LLVM before running ray-tracing workloads. On
+Windows, the doctor also checks Dr.Jit/CUDA cache directories that commonly
+surface as OptiX or cache write errors.
 
 ## Project Structure
 
@@ -138,6 +185,9 @@ preparing a solver machine.
 |   |-- static/            # Browser UI assets
 |   `-- tools/             # Public scene bundle-build utilities
 |-- tests/                 # Unit and regression tests
+|-- install.py             # Cross-platform installer and environment doctor
+|-- install.sh             # macOS/Linux installer wrapper
+|-- install.ps1            # Windows PowerShell installer wrapper
 |-- requirements.txt       # Python package names
 |-- LICENSE
 `-- README.md
@@ -195,7 +245,7 @@ overrides.
 Run the Python checks:
 
 ```bash
-python3 -m compileall -q backend tests
+python3 -m compileall -q install.py backend tests
 python3 -m unittest discover -s tests
 ```
 

@@ -4,9 +4,11 @@ __pycache__/
 ._*
 /docs/
 /scripts/
-scene/
-scene/cache/
-generated/
-server_*.log
-.venv/
-venv/
+/scene/
+/generated/
+/server_*.log
+/server-*.log
+/.oat-env
+/.env.local
+/.venv/
+/venv/
