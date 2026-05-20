@@ -3,6 +3,7 @@ import {
   createMobilityJob,
   createRadiomapJob,
   createTileDownloadJob,
+  cancelDeepMimoJob,
   cancelTileDownloadJob,
   deepMimoDownloadUrl,
   getManifest,
@@ -37,6 +38,7 @@ const context = {
     createRadiomapJob,
     createMobilityJob,
     createTileDownloadJob,
+    cancelDeepMimoJob,
     cancelTileDownloadJob,
     deepMimoDownloadUrl,
     getDeepMimoJob,
@@ -142,13 +144,7 @@ function isEditableKeyboardTarget(target) {
 }
 
 function invalidateMobilityResult() {
-  if (state.mode !== "mobility") {
-    return;
-  }
-  solverControls.stopMobilityPlayback();
-  state.mobility.result = null;
-  state.mobility.selectedStep = 0;
-  state.mobility.selectedPath = -1;
+  solverControls.invalidateMobilityResult();
 }
 
 function clearPickTapCandidate() {
@@ -494,6 +490,7 @@ function attachEvents() {
   ui.btnEnterScene.addEventListener("click", handleEnterScene);
   ui.btnOpenTileIndex.addEventListener("click", () => {
     clearPickTapCandidate();
+    solverControls.cancelLivePreview();
     state.pickTarget = null;
     state.deviceControl.activeTarget = null;
     setPickStatus();
@@ -701,6 +698,7 @@ function attachEvents() {
   ]) {
     input.addEventListener("change", () => {
       solverControls.readLinkInputs();
+      solverControls.invalidateLinkResult();
       invalidateMobilityResult();
       if (isLinkDeviceTarget(state.deviceControl.activeTarget)) {
         setPickStatus(placementPromptForTarget(state.deviceControl.activeTarget));
@@ -727,9 +725,7 @@ function attachEvents() {
   for (const input of [inputs.mobilityVelocity, inputs.mobilityTimeStep, inputs.mobilityMaxSteps]) {
     input.addEventListener("change", () => {
       solverControls.readMobilityInputs();
-      state.mobility.result = null;
-      state.mobility.selectedStep = 0;
-      state.mobility.selectedPath = -1;
+      invalidateMobilityResult();
       sceneRenderState.renderAll();
     });
   }
@@ -776,7 +772,27 @@ function attachEvents() {
   ]) {
     input.addEventListener("change", () => {
       solverControls.readLinkInputs();
+      solverControls.invalidateLinkResult();
       invalidateMobilityResult();
+      solverControls.invalidateDeepMimoResult();
+      sceneRenderState.renderAll();
+    });
+  }
+
+  for (const input of [
+    inputs.cfgFrequency,
+    inputs.cfgMaxDepth,
+    inputs.cfgLos,
+    inputs.cfgSpecular,
+    inputs.cfgDiffuse,
+    inputs.cfgRefraction,
+    inputs.cfgSeed,
+  ]) {
+    input.addEventListener("change", () => {
+      solverControls.invalidateLinkResult();
+      solverControls.invalidateRadiomapResult();
+      invalidateMobilityResult();
+      solverControls.invalidateDeepMimoResult();
       sceneRenderState.renderAll();
     });
   }
@@ -797,6 +813,8 @@ function attachEvents() {
   ]) {
     input.addEventListener("change", () => {
       solverControls.readAntennaArrayInputs();
+      solverControls.invalidateLinkResult();
+      solverControls.invalidateRadiomapResult();
       invalidateMobilityResult();
       sceneRenderState.renderAll();
     });
@@ -805,6 +823,7 @@ function attachEvents() {
   for (const input of [inputs.rmTxX, inputs.rmTxY, inputs.rmTxZ]) {
     input.addEventListener("change", () => {
       solverControls.readRadiomapInputs();
+      solverControls.invalidateRadiomapResult();
       if (state.deviceControl.activeTarget === "rm-tx") {
         setPickStatus(placementPromptForTarget(state.deviceControl.activeTarget));
       }
@@ -817,6 +836,7 @@ function attachEvents() {
   ]) {
     input.addEventListener("change", () => {
       solverControls.readRadiomapInputs();
+      solverControls.invalidateRadiomapResult();
       sceneRenderState.renderAll();
     });
   }
@@ -840,6 +860,7 @@ function attachEvents() {
   ]) {
     input.addEventListener("change", () => {
       solverControls.readDeepMimoInputs();
+      solverControls.invalidateDeepMimoResult();
       solverControls.renderDeepMimoState();
       sceneRenderState.renderAll();
     });
@@ -861,6 +882,8 @@ function attachEvents() {
 
   inputs.linkSurfaceClearance.addEventListener("change", () => {
     solverControls.readSurfaceClearanceInput();
+    solverControls.invalidateLinkResult();
+    invalidateMobilityResult();
     sceneRenderState.renderAll();
   });
 
