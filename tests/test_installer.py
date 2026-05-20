@@ -70,6 +70,8 @@ class InstallerHelperTests(unittest.TestCase):
         self.assertEqual(self.installer.resolve_gpu_selection("GPU-b", gpus), "GPU-bbbb")
         with self.assertRaises(ValueError):
             self.installer.resolve_gpu_selection("4", gpus)
+        with self.assertRaisesRegex(ValueError, "ambiguous"):
+            self.installer.resolve_gpu_selection("GPU-", gpus)
 
     def test_choose_gpu_value_keeps_multi_gpu_unset_when_non_interactive(self) -> None:
         gpus = [
@@ -203,6 +205,9 @@ class InstallerHelperTests(unittest.TestCase):
             for tile in self.installer.SAMPLE_SCENE_TILES:
                 (scene / "tiles" / f"{tile}.xml").write_text("<scene />", encoding="utf-8")
                 (scene / "meshes" / tile).mkdir()
+            self.assertFalse(self.installer.sample_scene_present(scene))
+            for tile in self.installer.SAMPLE_SCENE_TILES:
+                (scene / "meshes" / tile / "mesh.ply").write_text("ply", encoding="utf-8")
             self.assertTrue(self.installer.sample_scene_present(scene))
             (scene / "tiles" / "11_SW_7D.xml").unlink()
             self.assertFalse(self.installer.sample_scene_present(scene))
