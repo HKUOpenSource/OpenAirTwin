@@ -49,7 +49,7 @@ def receiver_grid_axis_count(lower: float, upper: float, spacing: float) -> int:
         raise ValueError("receiver grid bounds and spacing must be finite")
     if stop < start:
         return 0
-    return int(math.ceil(((stop - start) / step) + 0.5))
+    return int(math.floor(((stop - start) / step) + 1e-9)) + 1
 
 
 def receiver_grid_candidate_count(
