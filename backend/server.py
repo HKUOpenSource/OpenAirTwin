@@ -23,8 +23,6 @@ from backend.rt.solve_link import solve_link
 from backend.scene.incremental_tiles import download_stage_and_integrate_tile, normalize_tile_id
 from backend.scene.open3dhk_coverage import is_open3dhk_download_base_url, open3dhk_tile_is_downloadable
 from backend.scene.tile_bundles import (
-    bundle_cache_key,
-    compressed_tile_bundle_is_fresh,
     compressed_tile_bundle_path,
     ensure_tile_bundle,
 )
@@ -48,6 +46,10 @@ def resolve_under(root: Path, relative_path: str | Path) -> Path | None:
 
 
 class InvalidRangeHeader(ValueError):
+    pass
+
+
+class RequestBodyTooLarge(ValueError):
     pass
 
 
@@ -111,13 +113,17 @@ class AppState:
 
     def reload_scene_catalog(self) -> None:
         with self.reload_lock:
-            self.manifest = load_scene_manifest(config.SCENE_ROOT)
-            self.manifest_lookup = self.manifest.mesh_lookup
-            self.rt_scene_builder = TileSceneXmlBuilder(
+            manifest = load_scene_manifest(config.SCENE_ROOT)
+            manifest_lookup = manifest.mesh_lookup
+            rt_scene_builder = TileSceneXmlBuilder(
                 config.SCENE_ROOT,
                 config.GENERATED_ROOT / "rt_scene_xml",
             )
-            self.rt_runtime.scene_builder = self.rt_scene_builder
+            with self.rt_runtime.lock:
+                self.rt_scene_builder = rt_scene_builder
+                self.rt_runtime.scene_builder = rt_scene_builder
+                self.manifest = manifest
+                self.manifest_lookup = manifest_lookup
 
     def download_and_integrate_tile(self, tile_id: str, *, progress_cb=None, cancel_check=None) -> dict:
         result = download_stage_and_integrate_tile(
@@ -131,7 +137,12 @@ class AppState:
             progress_cb=progress_cb,
             cancel_check=cancel_check,
         )
-        if result.get("status") != "already_integrated":
+        internal_tile_id = normalize_tile_id(tile_id).internal
+        needs_reload = (
+            result.get("status") != "already_integrated"
+            or internal_tile_id not in self.manifest.tiles
+        )
+        if needs_reload:
             if progress_cb:
                 progress_cb(0.98, "Reloading scene manifest")
             self.reload_scene_catalog()
@@ -165,99 +176,125 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def send_file(self, file_path: Path, *, content_type: str = "application/octet-stream") -> None:
-        stat = file_path.stat()
-        self.send_response(200)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(stat.st_size))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
         with open(file_path, "rb") as handle:
-            while True:
-                chunk = handle.read(1024 * 1024)
+            size = os.fstat(handle.fileno()).st_size
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(size))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            remaining = size
+            while remaining > 0:
+                chunk = handle.read(min(1024 * 1024, remaining))
                 if not chunk:
                     break
                 self.wfile.write(chunk)
+                remaining -= len(chunk)
 
     def send_download_file(self, file_path: Path, *, content_type: str, filename: str) -> None:
-        self.close_connection = True
         with open(file_path, "rb") as handle:
-            size = int(os.fstat(handle.fileno()).st_size)
-            try:
-                byte_range = parse_single_byte_range(self.headers.get("Range"), size)
-            except InvalidRangeHeader:
-                self.send_response(416)
-                self.send_header("Content-Range", f"bytes */{size}")
-                self.send_header("Content-Length", "0")
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("Accept-Ranges", "bytes")
-                self.send_header("Connection", "close")
-                try:
-                    self.end_headers()
-                    self.wfile.flush()
-                except (BrokenPipeError, ConnectionResetError):
-                    return
-                return
+            self.send_download_handle(handle, content_type=content_type, filename=filename)
 
-            if byte_range is None:
-                status = 200
-                start = 0
-                end = size - 1
-                content_length = size
-            else:
-                status = 206
-                start, end = byte_range
-                content_length = end - start + 1
-
-            self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(content_length))
+    def send_download_handle(self, handle, *, content_type: str, filename: str) -> None:
+        self.close_connection = True
+        size = int(os.fstat(handle.fileno()).st_size)
+        try:
+            byte_range = parse_single_byte_range(self.headers.get("Range"), size)
+        except InvalidRangeHeader:
+            self.send_response(416)
+            self.send_header("Content-Range", f"bytes */{size}")
+            self.send_header("Content-Length", "0")
             self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Connection", "close")
-            if byte_range is not None:
-                self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
             try:
                 self.end_headers()
-                handle.seek(start)
-                remaining = content_length
-                while remaining > 0:
-                    chunk = handle.read(min(1024 * 1024, remaining))
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
-                    remaining -= len(chunk)
                 self.wfile.flush()
             except (BrokenPipeError, ConnectionResetError):
                 return
-
-    def send_bundle_file(self, raw_path: Path) -> None:
-        raw_stat = raw_path.stat()
-        gzip_path = compressed_tile_bundle_path(raw_path)
-        use_gzip = self.accepts_content_encoding("gzip") and compressed_tile_bundle_is_fresh(raw_path, gzip_path)
-        response_path = gzip_path if use_gzip else raw_path
-        response_stat = response_path.stat()
-        encoding = "gzip" if use_gzip else "identity"
-        etag = f'"{bundle_cache_key(raw_path)}-{encoding}"'
-        last_modified = formatdate(raw_stat.st_mtime, usegmt=True)
-        cache_control = (
-            "public, max-age=31536000, immutable"
-            if "v" in parse_qs(urlparse(self.path).query)
-            else "no-store"
-        )
-
-        if self.client_cache_is_fresh(etag, raw_stat.st_mtime):
-            self.send_response(304)
-            self.send_header("Cache-Control", cache_control)
-            self.send_header("ETag", etag)
-            self.send_header("Last-Modified", last_modified)
-            self.send_header("Vary", "Accept-Encoding")
-            self.end_headers()
             return
 
+        if byte_range is None:
+            status = 200
+            start = 0
+            end = size - 1
+            content_length = size
+        else:
+            status = 206
+            start, end = byte_range
+            content_length = end - start + 1
+
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(content_length))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Connection", "close")
+        if byte_range is not None:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        try:
+            self.end_headers()
+            handle.seek(start)
+            remaining = content_length
+            while remaining > 0:
+                chunk = handle.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                remaining -= len(chunk)
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
+    def send_bundle_file(self, raw_path: Path) -> None:
+        with open(raw_path, "rb") as raw_handle:
+            raw_stat = os.fstat(raw_handle.fileno())
+            gzip_path = compressed_tile_bundle_path(raw_path)
+            gzip_handle = None
+            try:
+                if self.accepts_content_encoding("gzip"):
+                    candidate = open(gzip_path, "rb")
+                    candidate_stat = os.fstat(candidate.fileno())
+                    if candidate_stat.st_mtime_ns == raw_stat.st_mtime_ns:
+                        gzip_handle = candidate
+                    else:
+                        candidate.close()
+            except OSError:
+                gzip_handle = None
+            use_gzip = gzip_handle is not None
+            encoding = "gzip" if use_gzip else "identity"
+            etag = f'"{raw_stat.st_mtime_ns:x}-{raw_stat.st_size:x}-{encoding}"'
+            last_modified = formatdate(raw_stat.st_mtime, usegmt=True)
+            cache_control = (
+                "public, max-age=31536000, immutable"
+                if "v" in parse_qs(urlparse(self.path).query)
+                else "no-store"
+            )
+
+            if self.client_cache_is_fresh(etag, raw_stat.st_mtime):
+                if gzip_handle is not None:
+                    gzip_handle.close()
+                self.send_response(304)
+                self.send_header("Cache-Control", cache_control)
+                self.send_header("ETag", etag)
+                self.send_header("Last-Modified", last_modified)
+                self.send_header("Vary", "Accept-Encoding")
+                self.end_headers()
+                return
+
+            handle = gzip_handle if use_gzip else raw_handle
+            try:
+                self._send_open_bundle_handle(handle, raw_stat=raw_stat, cache_control=cache_control, etag=etag, last_modified=last_modified, use_gzip=use_gzip)
+            finally:
+                if handle is not raw_handle:
+                    handle.close()
+
+    def _send_open_bundle_handle(self, handle, *, raw_stat, cache_control: str, etag: str, last_modified: str, use_gzip: bool) -> None:
+        response_size = os.fstat(handle.fileno()).st_size
         self.send_response(200)
         self.send_header("Content-Type", "model/gltf-binary")
-        self.send_header("Content-Length", str(response_stat.st_size))
+        self.send_header("Content-Length", str(response_size))
         self.send_header("Cache-Control", cache_control)
         self.send_header("ETag", etag)
         self.send_header("Last-Modified", last_modified)
@@ -265,14 +302,15 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_header("X-Original-Content-Length", str(raw_stat.st_size))
         if use_gzip:
             self.send_header("Content-Encoding", "gzip")
-            self.send_header("X-Compressed-Content-Length", str(response_stat.st_size))
+            self.send_header("X-Compressed-Content-Length", str(response_size))
         self.end_headers()
-        with open(response_path, "rb") as handle:
-            while True:
-                chunk = handle.read(1024 * 1024)
-                if not chunk:
-                    break
-                self.wfile.write(chunk)
+        remaining = response_size
+        while remaining > 0:
+            chunk = handle.read(min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            self.wfile.write(chunk)
+            remaining -= len(chunk)
 
     def accepts_content_encoding(self, encoding: str) -> bool:
         requested = self.headers.get("Accept-Encoding", "")
@@ -297,8 +335,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         if_none_match = self.headers.get("If-None-Match")
         if if_none_match:
             candidates = [candidate.strip() for candidate in if_none_match.split(",")]
-            if "*" in candidates or etag in candidates:
-                return True
+            return "*" in candidates or etag in candidates
 
         if_modified_since = self.headers.get("If-Modified-Since")
         if not if_modified_since:
@@ -321,13 +358,26 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_bytes(text.encode("utf-8"), code=code, content_type="text/plain; charset=utf-8")
 
     def read_json_body(self) -> dict:
-        length = int(self.headers.get("Content-Length", "0"))
+        raw_length = self.headers.get("Content-Length", "0")
+        try:
+            length = int(raw_length)
+        except (TypeError, ValueError):
+            raise RequestBodyTooLarge("Invalid Content-Length header")
+        if length < 0:
+            raise RequestBodyTooLarge("Invalid Content-Length header")
+        if length > config.MAX_REQUEST_BODY_BYTES:
+            raise RequestBodyTooLarge(
+                f"Request body of {length} bytes exceeds limit of {config.MAX_REQUEST_BODY_BYTES} bytes"
+            )
         raw = self.rfile.read(length) if length > 0 else b"{}"
-        return json.loads(raw.decode("utf-8"))
+        payload = json.loads(raw.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("Request body must be a JSON object")
+        return payload
 
     def serve_static_file(self, relative_path: str) -> None:
         file_path = resolve_under(config.STATIC_ROOT, unquote(relative_path))
-        if file_path is None or not file_path.exists():
+        if file_path is None or not file_path.is_file():
             self.send_text("Not Found", code=404)
             return
         content_type, _ = mimetypes.guess_type(str(file_path))
@@ -340,7 +390,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
 
         file_path = resolve_under(config.SCENE_ROOT, mesh.relative_path)
-        if file_path is None or not file_path.exists():
+        if file_path is None or not file_path.is_file():
             self.send_text("Mesh file missing", code=404)
             return
         self.send_file(file_path, content_type="application/octet-stream")
@@ -362,6 +412,23 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         path = urlparse(self.path).path
 
+        try:
+            self._dispatch_get(path)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        except ValueError as exc:
+            try:
+                self.send_json({"ok": False, "error": str(exc)}, code=400)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
+        except Exception as exc:
+            traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
+            try:
+                self.send_json({"ok": False, "error": "Internal server error"}, code=500)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
+
+    def _dispatch_get(self, path: str) -> None:
         if path in ("/", "/index.html"):
             self.serve_static_file("index.html")
             return
@@ -477,7 +544,21 @@ class RequestHandler(BaseHTTPRequestHandler):
             suffix = path.removeprefix("/api/deepmimo/jobs/")
             if suffix.endswith("/download"):
                 job_id = suffix.removesuffix("/download")
-                archive = self.app_state.deepmimo_job_manager.get_download_path(job_id)
+                manager = self.app_state.deepmimo_job_manager
+                lease_factory = getattr(manager, "open_download_file", None)
+                if lease_factory is not None:
+                    lease = lease_factory(job_id)
+                    if lease is None:
+                        self.send_text("DeepMIMO dataset is not ready", code=404)
+                        return
+                    with lease as handle:
+                        self.send_download_handle(
+                            handle,
+                            content_type="application/zip",
+                            filename=f"deepmimo_{job_id}.zip",
+                        )
+                    return
+                archive = manager.get_download_path(job_id)
                 if archive is None:
                     self.send_text("DeepMIMO dataset is not ready", code=404)
                     return
@@ -545,8 +626,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                         self.app_state.rt_runtime.require_ready()
                         active_tile_ids = tuple(
                             getattr(self.app_state.rt_runtime, "active_tile_ids", ())
-                            or self.app_state.rt_runtime.status_dict().get("active_tile_ids", ())
                         )
+                        if not active_tile_ids and hasattr(self.app_state.rt_runtime, "_status_dict_unlocked"):
+                            active_tile_ids = tuple(
+                                self.app_state.rt_runtime._status_dict_unlocked().get("active_tile_ids", ())
+                            )
                 if not active_tile_ids:
                     raise SceneNotReady("empty", "No Sionna RT scene is ready; select at least one tile")
                 payload = dict(payload)
@@ -558,6 +642,15 @@ class RequestHandler(BaseHTTPRequestHandler):
             if path.startswith("/api/scene/tile-downloads/") and path.endswith("/cancel"):
                 job_id = path.removeprefix("/api/scene/tile-downloads/").removesuffix("/cancel")
                 job = self.app_state.tile_download_job_manager.cancel_job(job_id)
+                if job is None:
+                    self.send_text("Unknown job id", code=404)
+                    return
+                self.send_json(job.to_status_dict())
+                return
+
+            if path.startswith("/api/deepmimo/jobs/") and path.endswith("/cancel"):
+                job_id = path.removeprefix("/api/deepmimo/jobs/").removesuffix("/cancel")
+                job = self.app_state.deepmimo_job_manager.cancel_job(job_id)
                 if job is None:
                     self.send_text("Unknown job id", code=404)
                     return
@@ -613,6 +706,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             )
         except SceneNotReady as exc:
             self.send_json({"ok": False, "error": exc.message, "status": exc.status}, code=409)
+        except RequestBodyTooLarge as exc:
+            self.send_json({"ok": False, "error": str(exc)}, code=413)
         except ValueError as exc:
             self.send_json({"ok": False, "error": str(exc)}, code=400)
         except Exception as exc:

@@ -14,6 +14,7 @@ BUNDLE_ROOT = SCENE_ROOT / "cache" / "render_bundles"
 
 HOST = os.environ.get("OAT_HOST", "0.0.0.0")
 PORT = int(os.environ.get("OAT_PORT", "8090"))
+MAX_REQUEST_BODY_BYTES = int(os.environ.get("OAT_MAX_REQUEST_BODY_BYTES", str(16 * 1024 * 1024)))
 
 DEFAULT_FREQUENCY_HZ = float(os.environ.get("OAT_DEFAULT_FREQUENCY_HZ", "3500000000"))
 DEFAULT_MAX_DEPTH = int(os.environ.get("OAT_DEFAULT_MAX_DEPTH", "4"))
