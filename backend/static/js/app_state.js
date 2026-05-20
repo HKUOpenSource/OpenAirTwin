@@ -88,6 +88,7 @@ export const state = {
     visible: false,
     sceneReady: false,
     overview: null,
+    coverage: null,
     sidebarCollapsed: false,
     downloadingTileIds: new Map(),
     search: {

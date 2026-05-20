@@ -109,7 +109,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 .legendSwatch.available{background:rgba(31,111,255,.12);border-color:rgba(31,111,255,.52)}
 .legendSwatch.selected{background:rgba(31,111,255,.34);border-color:rgba(31,111,255,.98)}
 .legendSwatch.loaded{background:rgba(30,185,128,.24);border-color:rgba(27,139,87,.92)}
-.legendSwatch.unavailable{background:linear-gradient(90deg,transparent 48%,rgba(91,107,127,.1) 49%,rgba(91,107,127,.1) 51%,transparent 52%),linear-gradient(0deg,transparent 48%,rgba(91,107,127,.1) 49%,rgba(91,107,127,.1) 51%,transparent 52%),rgba(255,255,255,.82);border-color:rgba(91,107,127,.14)}
+.legendSwatch.downloadable{background:linear-gradient(90deg,transparent 48%,rgba(91,107,127,.16) 49%,rgba(91,107,127,.16) 51%,transparent 52%),linear-gradient(0deg,transparent 48%,rgba(91,107,127,.16) 49%,rgba(91,107,127,.16) 51%,transparent 52%),rgba(255,255,255,.86);border-color:rgba(91,107,127,.3)}
 .entryManual{flex:1 1 auto;min-height:0;overflow:auto}
 .entryManualLabel{display:block;margin-bottom:8px;font-size:11px;font-weight:800;color:#5b6f8b;letter-spacing:.24px;text-transform:uppercase}
 .entryManualRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
