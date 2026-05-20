@@ -3,12 +3,15 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 import gzip
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import struct
 from threading import Lock
+from uuid import uuid4
 
 import numpy as np
 
@@ -24,6 +27,19 @@ _GL_ARRAY_BUFFER = 34962
 _GL_ELEMENT_ARRAY_BUFFER = 34963
 _GL_FLOAT = 5126
 _GL_UNSIGNED_INT = 5125
+_BUNDLE_SOURCE_MANIFEST_VERSION = 1
+
+
+def _safe_path_component(value: object) -> str:
+    text = str(value)
+    cleaned = re.sub(r"[^0-9A-Za-z_.() -]+", "_", text)
+    cleaned = cleaned.strip("._")
+    if not cleaned:
+        cleaned = "unnamed"
+    if cleaned != text or cleaned in {".", ".."}:
+        digest = hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
+        cleaned = f"{cleaned}_{digest}"
+    return cleaned
 
 
 @dataclass(frozen=True)
@@ -84,7 +100,12 @@ def build_tile_bundle_records(meshes: list[object], scene_root: Path | None = No
     bundles: list[TileBundleRecord] = []
     for tile, category, bsdf_id in sorted(grouped):
         mesh_paths = tuple(sorted(grouped[(tile, category, bsdf_id)]))
-        relative_path = f"cache/render_bundles/{tile}/{category}__{bsdf_id}.glb"
+        if not mesh_paths:
+            continue
+        relative_path = (
+            f"cache/render_bundles/{_safe_path_component(tile)}/"
+            f"{_safe_path_component(category)}__{_safe_path_component(bsdf_id)}.glb"
+        )
         bundle_path = None if scene_root is None else scene_root / relative_path
         cache_exists = bool(bundle_path is not None and bundle_path.exists())
         size_bytes = None
@@ -93,7 +114,20 @@ def build_tile_bundle_records(meshes: list[object], scene_root: Path | None = No
         compressed_size_bytes = None
         if cache_exists and bundle_path is not None:
             size_bytes = bundle_path.stat().st_size
-            cache_key = bundle_cache_key(bundle_path)
+            cache_key = bundle_source_cache_key(scene_root, TileBundleRecord(
+                bundle_id=f"{tile}__{category}__{bsdf_id}",
+                relative_path=relative_path,
+                tile=tile,
+                category=category,
+                bsdf_id=bsdf_id,
+                mesh_count=len(mesh_paths),
+                source_relative_paths=mesh_paths,
+                size_bytes=None,
+                cache_exists=False,
+                cache_key=None,
+                compressed_size_bytes=None,
+                compressed_cache_exists=False,
+            )) or bundle_cache_key(bundle_path)
             compressed_path = compressed_tile_bundle_path(bundle_path)
             compressed_cache_exists = compressed_tile_bundle_is_fresh(bundle_path, compressed_path)
             compressed_size_bytes = compressed_path.stat().st_size if compressed_cache_exists else None
@@ -124,7 +158,13 @@ def ensure_tile_bundle(
     compress: bool = True,
     compress_existing: bool = False,
 ) -> TileBundleBuildResult:
-    bundle_path = (scene_root / bundle.relative_path).resolve()
+    resolved_scene_root = Path(scene_root).resolve()
+    bundle_root = (resolved_scene_root / "cache" / "render_bundles").resolve()
+    bundle_path = (resolved_scene_root / bundle.relative_path).resolve()
+    try:
+        bundle_path.relative_to(bundle_root)
+    except ValueError:
+        raise ValueError(f"Bundle path escapes the render bundle cache: {bundle.relative_path}") from None
     built = False
     compressed = False
     vertex_count = 0
@@ -188,6 +228,59 @@ def bundle_cache_key(bundle_path: Path) -> str:
     return f"{stat.st_mtime_ns:x}-{stat.st_size:x}"
 
 
+def bundle_source_cache_key(scene_root: Path | None, bundle: TileBundleRecord) -> str | None:
+    if scene_root is None or not bundle.source_relative_paths:
+        return None
+    try:
+        source_manifest = _bundle_source_manifest(scene_root, bundle)
+    except (FileNotFoundError, OSError, ValueError):
+        return None
+    payload = json.dumps(source_manifest, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return f"src-{hashlib.sha1(payload.encode('utf-8')).hexdigest()[:20]}"
+
+
+def _bundle_source_manifest_path(bundle_path: Path) -> Path:
+    return bundle_path.with_name(f"{bundle_path.name}.sources.json")
+
+
+def _source_fingerprint(path: Path) -> dict[str, int]:
+    stat = path.stat()
+    return {"mtime_ns": int(stat.st_mtime_ns), "size_bytes": int(stat.st_size)}
+
+
+def _resolve_source_path(scene_root: Path, relative_path: str) -> tuple[Path, str]:
+    resolved_scene_root = Path(scene_root).resolve()
+    source_path = (resolved_scene_root / relative_path).resolve()
+    try:
+        normalized_relative_path = source_path.relative_to(resolved_scene_root).as_posix()
+    except ValueError:
+        raise ValueError(f"Source mesh path escapes the scene root: {relative_path}") from None
+    if not normalized_relative_path.startswith("meshes/"):
+        raise ValueError(f"Source mesh must be under the scene meshes directory: {relative_path}")
+    return source_path, normalized_relative_path
+
+
+def _bundle_source_manifest(scene_root: Path, bundle: TileBundleRecord) -> dict:
+    sources = []
+    for relative_path in bundle.source_relative_paths:
+        source_path, normalized_relative_path = _resolve_source_path(scene_root, relative_path)
+        if not source_path.exists():
+            raise FileNotFoundError(f"Missing source mesh for bundle {bundle.bundle_id}: {source_path}")
+        sources.append({"path": normalized_relative_path, **_source_fingerprint(source_path)})
+    return {
+        "version": _BUNDLE_SOURCE_MANIFEST_VERSION,
+        "bundle_id": bundle.bundle_id,
+        "sources": sources,
+    }
+
+
+def _write_bundle_source_manifest(bundle_path: Path, manifest: dict) -> None:
+    manifest_path = _bundle_source_manifest_path(bundle_path)
+    temp_path = manifest_path.with_name(f"{manifest_path.name}.{uuid4().hex}.tmp")
+    temp_path.write_text(json.dumps(manifest, allow_nan=False, indent=2), encoding="utf-8")
+    temp_path.replace(manifest_path)
+
+
 def compressed_tile_bundle_path(bundle_path: Path) -> Path:
     return bundle_path.with_name(f"{bundle_path.name}.gz")
 
@@ -210,33 +303,39 @@ def ensure_compressed_tile_bundle(bundle_path: Path, *, force: bool = False) -> 
         return compressed_path, False
 
     compressed_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = compressed_path.with_name(f"{compressed_path.name}.tmp")
+    temp_path = compressed_path.with_name(f"{compressed_path.name}.{uuid4().hex}.tmp")
     source_stat = bundle_path.stat()
-    with open(bundle_path, "rb") as source, open(temp_path, "wb") as target:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=target, compresslevel=1, mtime=int(source_stat.st_mtime)) as gz:
-            shutil.copyfileobj(source, gz, length=1024 * 1024 * 4)
+    try:
+        with open(bundle_path, "rb") as source, open(temp_path, "wb") as target:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=target, compresslevel=1, mtime=int(source_stat.st_mtime)) as gz:
+                shutil.copyfileobj(source, gz, length=1024 * 1024 * 4)
 
-    temp_path.replace(compressed_path)
-    os.utime(compressed_path, ns=(source_stat.st_mtime_ns, source_stat.st_mtime_ns))
+        temp_path.replace(compressed_path)
+        os.utime(compressed_path, ns=(source_stat.st_mtime_ns, source_stat.st_mtime_ns))
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
     return compressed_path, True
 
 
 def _bundle_needs_build(scene_root: Path, bundle: TileBundleRecord, bundle_path: Path) -> bool:
     if not bundle_path.exists():
         return True
+    if not bundle.source_relative_paths:
+        return False
 
-    bundle_mtime = bundle_path.stat().st_mtime_ns
-    for relative_path in bundle.source_relative_paths:
-        source_path = (scene_root / relative_path).resolve()
-        if not source_path.exists():
-            raise FileNotFoundError(f"Missing source mesh for bundle {bundle.bundle_id}: {source_path}")
-        if source_path.stat().st_mtime_ns > bundle_mtime:
-            return True
-    return False
+    expected_manifest = _bundle_source_manifest(scene_root, bundle)
+    manifest_path = _bundle_source_manifest_path(bundle_path)
+    try:
+        cached_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return True
+    return cached_manifest != expected_manifest
 
 
 def _build_tile_bundle(scene_root: Path, bundle: TileBundleRecord, bundle_path: Path) -> tuple[int, int]:
-    mesh_paths = [(scene_root / relative_path).resolve() for relative_path in bundle.source_relative_paths]
+    source_manifest = _bundle_source_manifest(scene_root, bundle)
+    mesh_paths = [Path(scene_root).resolve() / source["path"] for source in source_manifest["sources"]]
     headers = [_read_source_ply_header(path) for path in mesh_paths]
     total_vertices = sum(header.vertex_count for header in headers)
     total_faces = sum(header.face_count for header in headers)
@@ -274,11 +373,15 @@ def _build_tile_bundle(scene_root: Path, bundle: TileBundleRecord, bundle_path: 
     total_faces = int(merged_triangles.shape[0])
 
     bundle_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = bundle_path.with_suffix(".tmp")
-    with open(temp_path, "wb") as handle:
-        handle.write(_build_glb_blob(bundle, vertices, normals, merged_triangles))
-
-    temp_path.replace(bundle_path)
+    temp_path = bundle_path.with_name(f"{bundle_path.name}.{uuid4().hex}.tmp")
+    try:
+        with open(temp_path, "wb") as handle:
+            handle.write(_build_glb_blob(bundle, vertices, normals, merged_triangles))
+        temp_path.replace(bundle_path)
+        _write_bundle_source_manifest(bundle_path, source_manifest)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
     return total_vertices, total_faces
 
 
@@ -295,7 +398,9 @@ def _read_source_mesh(path: Path, header: _PlyHeader) -> tuple[np.ndarray, np.nd
     if len(face_blob) == expected_triangle_bytes:
         face_block = np.frombuffer(face_blob, dtype=TRIANGLE_FACE_DTYPE, count=header.face_count)
         if np.all(face_block["count"] == 3):
-            return vertices, face_block["indices"].astype(np.uint32, copy=True)
+            indices = face_block["indices"].astype(np.int64, copy=True)
+            _validate_face_indices(indices, header.vertex_count, path)
+            return vertices, indices.astype(np.uint32, copy=False)
 
     triangles: list[tuple[int, int, int]] = []
     blob = memoryview(face_blob)
@@ -306,7 +411,10 @@ def _read_source_mesh(path: Path, header: _PlyHeader) -> tuple[np.ndarray, np.nd
         vertex_count = blob[offset]
         offset += 1
         index_bytes = vertex_count * 4
+        if offset + index_bytes > len(blob):
+            raise ValueError(f"Incomplete face section in {path}")
         face = np.frombuffer(blob[offset:offset + index_bytes], dtype="<i4", count=vertex_count).copy()
+        _validate_face_indices(face, header.vertex_count, path)
         triangles.extend(_triangulate_face(face.astype(np.uint32, copy=False)))
         offset += index_bytes
 
@@ -317,6 +425,18 @@ def _read_source_mesh(path: Path, header: _PlyHeader) -> tuple[np.ndarray, np.nd
         return vertices, np.empty((0, 3), dtype=np.uint32)
 
     return vertices, np.asarray(triangles, dtype=np.uint32)
+
+
+def _validate_face_indices(indices: np.ndarray, vertex_count: int, path: Path) -> None:
+    if indices.size == 0:
+        return
+    min_index = int(np.min(indices))
+    max_index = int(np.max(indices))
+    if min_index < 0 or max_index >= int(vertex_count):
+        raise ValueError(
+            f"Face index out of bounds in {path}: valid range is 0..{int(vertex_count) - 1}, "
+            f"got {min_index}..{max_index}"
+        )
 
 
 def _read_source_ply_header(path_or_handle: Path | object) -> _PlyHeader:
@@ -405,6 +525,9 @@ def _build_glb_blob(
     normals: np.ndarray,
     triangles: np.ndarray,
 ) -> bytes:
+    if len(vertices) < 1 or int(np.asarray(triangles).size) < 3:
+        raise ValueError(f"Cannot build GLB bundle {bundle.bundle_id} without triangle geometry")
+
     position_blob = np.asarray(vertices, dtype="<f4").reshape(-1).tobytes(order="C")
     normal_blob = np.asarray(normals, dtype="<f4").reshape(-1).tobytes(order="C")
     index_blob = np.asarray(triangles, dtype="<u4").reshape(-1).tobytes(order="C")
