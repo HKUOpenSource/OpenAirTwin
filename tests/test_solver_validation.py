@@ -333,13 +333,13 @@ class SolverValidationTests(unittest.TestCase):
                     "points": [[0, 0, 0], [60, 0, 0]],
                     "velocity_mps": 1.0,
                     "time_step_s": 1.0,
-                    "max_steps": 500,
+                    "max_steps": 1200,
                 }
             }
         )
 
         trajectory = parsed["rx_trajectory"]
-        self.assertEqual(trajectory["max_steps"], 500)
+        self.assertEqual(trajectory["max_steps"], 1200)
         self.assertEqual(len(trajectory["samples"]), 61)
 
     def test_mobility_payload_bounds_are_enforced(self) -> None:
@@ -352,7 +352,6 @@ class SolverValidationTests(unittest.TestCase):
             {"rx_trajectory": {"points": valid_points, "time_step_s": config.MIN_MOBILITY_TIME_STEP_S / 2}},
             {"rx_trajectory": {"points": valid_points, "time_step_s": config.MAX_MOBILITY_TIME_STEP_S + 1}},
             {"rx_trajectory": {"points": valid_points, "max_steps": config.MIN_MOBILITY_STEPS - 1}},
-            {"rx_trajectory": {"points": valid_points, "max_steps": config.MAX_MOBILITY_STEPS + 1}},
             {"rx_trajectory": {"points": valid_points, "max_steps": 3.5}},
         ]
 
@@ -377,7 +376,7 @@ class SolverValidationTests(unittest.TestCase):
             parse_mobility_payload(
                 {
                     "rx_trajectory": {
-                        "points": [[0, 0, 0], [60, 0, 0]],
+                        "points": [[0, 0, 0], [1001, 0, 0]],
                         "velocity_mps": 1.0,
                         "time_step_s": 1.0,
                     }

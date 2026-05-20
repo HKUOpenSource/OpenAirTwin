@@ -200,7 +200,7 @@ export const state = {
       points: [],
       velocityMps: 1.5,
       timeStepS: 1.0,
-      maxSteps: 50,
+      maxSteps: 1000,
     },
     jobId: null,
     result: null,

@@ -1940,8 +1940,8 @@ async function runMobility() {
   if (state.mobility.trajectory.points.length < 2) {
     throw new Error("Mobility trajectory needs at least two Rx waypoints");
   }
-  if (!Number.isInteger(estimate.maxSteps) || estimate.maxSteps < 2 || estimate.maxSteps > 500) {
-    throw new Error("Mobility Max Steps must be an integer between 2 and 500");
+  if (!Number.isInteger(estimate.maxSteps) || estimate.maxSteps < 2) {
+    throw new Error("Mobility Max Steps must be an integer of at least 2");
   }
   if (estimate.steps > estimate.maxSteps) {
     throw new Error(

@@ -423,8 +423,8 @@ class SolverRuntimeCleanupTests(unittest.TestCase):
 
         self.assertEqual(result["summary"]["step_count"], 3)
         self.assertEqual(result["summary"]["duration_s"], 2.0)
-        self.assertEqual(result["summary"]["max_steps"], 50)
-        self.assertEqual(result["trajectory"]["max_steps"], 50)
+        self.assertEqual(result["summary"]["max_steps"], 1000)
+        self.assertEqual(result["trajectory"]["max_steps"], 1000)
         self.assertEqual(result["series"]["time_s"], [0.0, 1.0, 2.0])
         self.assertEqual(result["series"]["valid_paths"], [1, 1, 1])
         self.assertEqual(result["series"]["max_abs_doppler_hz"], [1.0, 1.0, 1.0])

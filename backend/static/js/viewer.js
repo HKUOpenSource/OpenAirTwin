@@ -15,6 +15,9 @@ const CAMERA_NEAR_MIN = 0.05;
 const CAMERA_NEAR_MAX = 5;
 const CAMERA_FAR_MIN = 20000;
 const CAMERA_FAR_MULTIPLIER = 150;
+const VIEW_GROUND_Z = 0;
+const VIEW_CAMERA_MIN_CLEARANCE_M = 2.0;
+const VIEW_TARGET_MIN_Z = 0;
 const BUNDLE_LOAD_CONCURRENCY = 2;
 const DEFAULT_PERFORMANCE_MODE = "auto";
 const PERFORMANCE_MODES = new Set(["auto", "quality", "fast"]);
@@ -30,11 +33,57 @@ const TX_ORBIT_DEFAULT_RADIUS = 130;
 const TX_ORBIT_MIN_HEIGHT = 20;
 const TX_ORBIT_DEFAULT_HEIGHT = 55;
 
-const MATERIAL_COLORS = {
+const MATERIAL_FALLBACK_COLORS = {
   itu_concrete: "#5b5d61",
   itu_medium_dry_ground: "#d9cfbb",
   itu_wet_ground: "#87aec1",
   itu_wood: "#5c7a57",
+};
+
+const CATEGORY_MATERIAL_STYLES = {
+  BUILDING: {
+    color: "#d8d2c4",
+    roughness: 0.86,
+    metalness: 0.0,
+    lightnessVariation: 0.045,
+    saturationVariation: 0.012,
+  },
+  INFRASTRUCTURE: {
+    color: "#50565c",
+    roughness: 0.82,
+    metalness: 0.0,
+  },
+  INFRASTRUCTURE_TB: {
+    color: "#50565c",
+    roughness: 0.82,
+    metalness: 0.0,
+  },
+  GENERIC: {
+    color: "#8c8981",
+    roughness: 0.84,
+    metalness: 0.0,
+    lightnessVariation: 0.025,
+    saturationVariation: 0.012,
+  },
+  TERRAIN_TB: {
+    color: "#8c9586",
+    roughness: 0.92,
+    metalness: 0.0,
+  },
+  VEGETATION_TB: {
+    color: "#557b5c",
+    roughness: 0.96,
+    metalness: 0.0,
+    lightnessVariation: 0.025,
+    saturationVariation: 0.02,
+  },
+  WATERBODY: {
+    color: "#245766",
+    roughness: 0.56,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.84,
+  },
 };
 
 const CATEGORY_DISPLAY_LAYERS = {
@@ -117,8 +166,43 @@ function normalize(values) {
   return {min: Math.min(...finite), max: Math.max(...finite)};
 }
 
-function colorForMesh(mesh) {
-  return new THREE.Color(MATERIAL_COLORS[mesh.bsdf_id] || "#7a8088");
+function hashString(text) {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function centeredByte(hash, shift) {
+  return (((hash >>> shift) & 0xff) / 255) * 2 - 1;
+}
+
+function styleForBundle(bundle) {
+  return CATEGORY_MATERIAL_STYLES[bundle.category] || {
+    color: MATERIAL_FALLBACK_COLORS[bundle.bsdf_id] || "#7a8088",
+    roughness: 0.86,
+    metalness: 0.0,
+  };
+}
+
+function colorForBundle(bundle) {
+  const style = styleForBundle(bundle);
+  const color = new THREE.Color(style.color);
+  const lightnessVariation = Number(style.lightnessVariation) || 0;
+  const saturationVariation = Number(style.saturationVariation) || 0;
+  if (lightnessVariation > 0 || saturationVariation > 0) {
+    const hsl = {};
+    const hash = hashString(bundle.bundle_id || `${bundle.tile || ""}:${bundle.category || ""}:${bundle.bsdf_id || ""}`);
+    color.getHSL(hsl);
+    color.setHSL(
+      hsl.h,
+      clamp01(hsl.s + centeredByte(hash, 8) * saturationVariation),
+      clamp01(hsl.l + centeredByte(hash, 16) * lightnessVariation),
+    );
+  }
+  return color;
 }
 
 function displayLayerForBundle(bundle) {
@@ -170,7 +254,7 @@ export class Viewer {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.18;
+    this.renderer.toneMappingExposure = 1.08;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xe7eaef);
@@ -264,12 +348,15 @@ export class Viewer {
     this.rxMarker = this.#createMarker("#ff8b3d", this.rxMarkerRadius);
     this.markerGroup.add(this.txMarker, this.rxMarker);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 1.35);
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.05);
-    keyLight.position.set(-120, -180, 220);
-    const fillLight = new THREE.DirectionalLight(0xc5d3f1, 0.65);
-    fillLight.position.set(180, 120, 120);
-    this.scene.add(ambient, keyLight, fillLight);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.28);
+    const hemisphere = new THREE.HemisphereLight(0xe8eefb, 0x6f756f, 0.62);
+    const keyLight = new THREE.DirectionalLight(0xfff1d6, 1.65);
+    keyLight.position.set(-260, -150, 360);
+    const fillLight = new THREE.DirectionalLight(0xb7c5df, 0.24);
+    fillLight.position.set(230, 150, 160);
+    const rimLight = new THREE.DirectionalLight(0xdbe5f7, 0.42);
+    rimLight.position.set(180, 260, 240);
+    this.scene.add(ambient, hemisphere, keyLight, fillLight, rimLight);
 
     window.addEventListener("resize", () => this.#onResize());
     this.canvas.addEventListener("pointerdown", (event) => this.#onPointerDown(event), {capture: true});
@@ -454,6 +541,7 @@ export class Viewer {
     }
     if (!this.freeLook.active) {
       this.controls.update(deltaSeconds);
+      this.#clampViewAboveGround();
     }
     this.#syncRendererPixelRatio(time);
     this.#syncClipPlanes();
@@ -517,6 +605,37 @@ export class Viewer {
     this.camera.updateProjectionMatrix();
   }
 
+  #clampViewAboveGround({preserveOffset = false} = {}) {
+    const minCameraZ = VIEW_GROUND_Z + VIEW_CAMERA_MIN_CLEARANCE_M;
+    if (preserveOffset) {
+      const lift = Math.max(
+        VIEW_TARGET_MIN_Z - this.controls.target.z,
+        minCameraZ - this.camera.position.z,
+        0,
+      );
+      if (lift <= 0) {
+        return false;
+      }
+      this.controls.target.z += lift;
+      this.camera.position.z += lift;
+      return true;
+    }
+
+    let changed = false;
+    if (this.controls.target.z < VIEW_TARGET_MIN_Z) {
+      this.controls.target.z = VIEW_TARGET_MIN_Z;
+      changed = true;
+    }
+    if (this.camera.position.z < minCameraZ) {
+      this.camera.position.z = minCameraZ;
+      changed = true;
+    }
+    if (changed) {
+      this.camera.lookAt(this.controls.target);
+    }
+    return changed;
+  }
+
   #cameraDirection() {
     const direction = new THREE.Vector3();
     this.camera.getWorldDirection(direction);
@@ -539,6 +658,7 @@ export class Viewer {
     ).normalize();
     const distance = Math.max(this.camera.position.distanceTo(this.controls.target), 1.0);
     this.controls.target.copy(this.camera.position).addScaledVector(direction, distance);
+    this.#clampViewAboveGround();
     this.camera.lookAt(this.controls.target);
   }
 
@@ -617,6 +737,7 @@ export class Viewer {
     movement.normalize().multiplyScalar(speed * deltaSeconds);
     this.camera.position.add(movement);
     this.controls.target.add(movement);
+    this.#clampViewAboveGround({preserveOffset: true});
     this.camera.lookAt(this.controls.target);
   }
 
@@ -632,7 +753,8 @@ export class Viewer {
       center.y + Math.sin(this.txOrbit.angle) * this.txOrbit.radius,
       center.z + this.txOrbit.height,
     );
-    this.camera.lookAt(center);
+    this.#clampViewAboveGround();
+    this.camera.lookAt(this.controls.target);
     this.#markInteraction(time);
   }
 
@@ -747,11 +869,13 @@ export class Viewer {
     this.stopTxOrbit();
     this.camera.position.copy(DEFAULT_VIEW.position);
     this.controls.target.copy(DEFAULT_VIEW.target);
+    this.#clampViewAboveGround();
     this.camera.lookAt(this.controls.target);
     this.#cancelFreeLook();
     this.canvas.style.cursor = "";
     this.controls.enabled = true;
     this.controls.update();
+    this.#clampViewAboveGround();
   }
 
   setTx(position) {
@@ -800,8 +924,10 @@ export class Viewer {
 
     this.controls.enabled = true;
     this.controls.target.copy(nextCenter);
-    this.camera.lookAt(nextCenter);
+    this.#clampViewAboveGround();
+    this.camera.lookAt(this.controls.target);
     this.controls.update();
+    this.#clampViewAboveGround();
     this.#markInteraction();
     if (!wasActive) {
       this.#dispatchTxOrbitChange();
@@ -861,12 +987,14 @@ export class Viewer {
 
     this.controls.target.copy(center);
     this.camera.position.copy(center).addScaledVector(direction, distance);
+    this.#clampViewAboveGround();
     this.#syncClipPlanes();
     this.camera.lookAt(this.controls.target);
     this.#cancelFreeLook();
     this.canvas.style.cursor = "";
     this.controls.enabled = true;
     this.controls.update();
+    this.#clampViewAboveGround();
     return true;
   }
 
@@ -1404,13 +1532,14 @@ export class Viewer {
   }
 
   #createBundleMaterial(bundle) {
-    const transparent = bundle.bsdf_id === "itu_wet_ground";
+    const style = styleForBundle(bundle);
+    const transparent = Boolean(style.transparent) || bundle.bsdf_id === "itu_wet_ground";
     const layer = displayLayerForBundle(bundle);
     const base = {
-      color: colorForMesh(bundle),
+      color: colorForBundle(bundle),
       side: THREE.DoubleSide,
       transparent,
-      opacity: transparent ? 0.86 : 1.0,
+      opacity: transparent ? (style.opacity ?? 0.86) : 1.0,
       depthWrite: transparent ? layer.depthWrite : true,
       polygonOffset: layer.polygonOffsetFactor !== 0 || layer.polygonOffsetUnits !== 0,
       polygonOffsetFactor: layer.polygonOffsetFactor,
@@ -1423,8 +1552,8 @@ export class Viewer {
 
     return new THREE.MeshStandardMaterial({
       ...base,
-      roughness: 0.88,
-      metalness: 0.0,
+      roughness: style.roughness ?? 0.88,
+      metalness: style.metalness ?? 0.0,
     });
   }
 
