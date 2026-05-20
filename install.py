@@ -25,7 +25,7 @@ MIN_PYTHON = (3, 11)
 SAMPLE_SCENE_TILES = ("11_SW_7A", "11_SW_7B", "11_SW_7C", "11_SW_7D")
 SAMPLE_SCENE_URL = (
     "https://github.com/Zihao-Felix-Zhou/HKU-Ray-Tracing-Platform/releases/download/"
-    "sample-scene-11-sw-7abcd-v1/openairtwin-sample-scene-11-sw-7abcd-v1.zip"
+    "sample-scene-11-sw-7abcd-v1/OAT-Sample-Scene.zip"
 )
 SAMPLE_SCENE_SHA256 = "553cea78df549b8077060d02358b3fb78c3fe5bf90128e285b5ed47b1ddc13b3"
 
