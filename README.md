@@ -25,7 +25,7 @@
 OpenAirTwin is an open-source platform for interactive urban wireless
 propagation studies. It combines a Python backend, a static browser frontend,
 tile-based scene management, and Sionna RT workflows for link analysis,
-radio-map generation, mobility simulation, and DeepMIMO dataset export.
+radio-map generation, mobility simulation, DeepMIMO dataset export, and more.
 
 ## Features
 
@@ -75,7 +75,7 @@ radio-map generation, mobility simulation, and DeepMIMO dataset export.
 </table>
 
 More functions are coming:
-- Integrated Sensing and Communication,
+- Integrated Sensing and Communication
 - Beamforming
 - 3D Radio Map
 - ...
