@@ -116,8 +116,16 @@ def resolve_gpu_selection(selection: str, gpus: list[GpuInfo]) -> str:
     for gpu in gpus:
         if text == gpu.index:
             return gpu.index
-        if gpu.uuid and (text == gpu.uuid or gpu.uuid.startswith(text)):
-            return gpu.uuid
+    uuid_matches = [
+        gpu.uuid
+        for gpu in gpus
+        if gpu.uuid and (text == gpu.uuid or gpu.uuid.startswith(text))
+    ]
+    if len(uuid_matches) == 1:
+        return uuid_matches[0]
+    if len(uuid_matches) > 1:
+        matches = ", ".join(uuid_matches)
+        raise ValueError(f"GPU UUID prefix '{selection}' is ambiguous: {matches}")
     if not gpus:
         return text
     valid = ", ".join(
@@ -207,7 +215,8 @@ def sample_scene_present(scene_root: Path | None = None) -> bool:
     for tile in SAMPLE_SCENE_TILES:
         if not (root / "tiles" / f"{tile}.xml").is_file():
             return False
-        if not (root / "meshes" / tile).is_dir():
+        mesh_dir = root / "meshes" / tile
+        if not mesh_dir.is_dir() or not any(mesh_dir.rglob("*.ply")):
             return False
     return True
 
