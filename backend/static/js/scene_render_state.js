@@ -2,6 +2,7 @@ import {compareTileIds, toDisplayTileId} from "/js/tile_model.js";
 
 const LOAD_PROGRESS_RENDER_INTERVAL_MS = 250;
 let overlayCancelHandler = null;
+let overlayOwner = null;
 
 const MODE_META = {
   link: {title: "Link Analysis"},
@@ -133,7 +134,18 @@ function showOverlay({
   indeterminate = false,
   cancelLabel = "",
   onCancel = null,
+  owner = null,
+  force = false,
 } = {}) {
+  if (
+    owner
+    && !force
+    && ui.loadingScreen.style.display !== "none"
+    && overlayOwner !== owner
+  ) {
+    return false;
+  }
+  overlayOwner = owner || null;
   state.pickTarget = null;
   state.deviceControl.activeTarget = null;
   clearOverlayCancel();
@@ -148,9 +160,14 @@ function showOverlay({
   ui.loadingScreen.style.display = "flex";
   syncModeUi();
   syncPerformanceUi();
+  return true;
 }
 
-function hideOverlay() {
+function hideOverlay(owner = null) {
+  if (owner && overlayOwner !== owner) {
+    return false;
+  }
+  overlayOwner = null;
   clearOverlayCancel();
   ui.loadingScreen.style.display = "none";
   ui.loadingTitle.textContent = "Loading Scene";
@@ -160,6 +177,7 @@ function hideOverlay() {
   syncModeUi();
   syncControlSidebarUi();
   syncPerformanceUi();
+  return true;
 }
 function tileInputFor(tileId) {
   return ui.tileList.querySelector(`input[value="${tileId}"]`);
@@ -613,14 +631,31 @@ function createLoadProgressRenderer() {
   };
 }
 
-async function waitForRtSceneSelection(generation) {
+function sameTileIds(left, right) {
+  const leftValues = [...(left || [])].sort(compareTileIds);
+  const rightValues = [...(right || [])].sort(compareTileIds);
+  return leftValues.length === rightValues.length
+    && leftValues.every((value, index) => value === rightValues[index]);
+}
+
+function rtSceneReadyForSelection(status, tileIds) {
+  return status.status === "ready" && sameTileIds(status.active_tile_ids || [], tileIds);
+}
+
+async function waitForRtSceneSelection(generation, tileIds) {
   while (true) {
     const status = await api.getRtSceneSelection();
-    if (status.generation === generation && status.status === "ready") {
+    if (status.generation === generation && rtSceneReadyForSelection(status, tileIds)) {
       return status;
     }
     if (status.generation === generation && status.status === "failed") {
       throw new Error(status.message || "Sionna RT scene failed to load");
+    }
+    if (Number(status.generation) > Number(generation)) {
+      if (rtSceneReadyForSelection(status, tileIds)) {
+        return status;
+      }
+      throw new Error("Sionna RT scene selection changed before this load completed");
     }
     showOverlay({
       title: "Loading Scene",
@@ -640,6 +675,9 @@ async function syncRtSceneSelection(selectedTileIds) {
   });
   const status = await api.setRtSceneSelection(tileIds);
   if (status.status === "ready") {
+    if (!rtSceneReadyForSelection(status, tileIds)) {
+      throw new Error("Sionna RT scene selection changed before this load completed");
+    }
     return status;
   }
   if (status.status === "failed") {
@@ -648,26 +686,38 @@ async function syncRtSceneSelection(selectedTileIds) {
   if (status.status === "empty") {
     return status;
   }
-  return waitForRtSceneSelection(status.generation);
+  return waitForRtSceneSelection(status.generation, tileIds);
 }
 
 async function enterScene() {
+  if (state.tileLoadBusy) {
+    return;
+  }
   const selectedTileIds = tileSelections();
   if (!selectedTileIds.length) {
     return;
   }
+  state.tileLoadBusy = true;
+  syncTileListUi();
   showOverlay({title: "Preparing 3D Scene", message: "Initializing viewer...", indeterminate: true});
-  await ensureViewer();
-  await loadScene();
-  state.entry.sceneReady = true;
-  state.mode = "link";
-  state.pickTarget = null;
-  ui.panel.style.display = "flex";
-  state.panelCollapsed = false;
-  syncControlSidebarUi();
-  hideEntryScreen();
-  getViewer().focusOnTiles(selectedTileIds);
-  renderAll();
+  try {
+    await ensureViewer();
+    await loadScene();
+    state.entry.sceneReady = true;
+    state.mode = "link";
+    state.pickTarget = null;
+    ui.panel.style.display = "flex";
+    state.panelCollapsed = false;
+    syncControlSidebarUi();
+    hideEntryScreen();
+    getViewer().focusOnTiles(selectedTileIds);
+    renderAll();
+  } finally {
+    if (state.tileLoadBusy) {
+      state.tileLoadBusy = false;
+      syncTileListUi();
+    }
+  }
 }
 
 async function loadScene() {
@@ -680,14 +730,10 @@ async function loadScene() {
   const bundles = state.manifest.bundles.filter((bundle) => selectedTiles.has(bundle.tile));
   state.tileLoadBusy = true;
   if (diff.toAdd.length || diff.toRemove.length) {
-    state.link.result = null;
-    state.link.selectedPath = -1;
-    state.mobility.jobId = null;
-    state.mobility.result = null;
-    state.mobility.status = "Idle";
-    state.radiomap.jobId = null;
-    state.radiomap.result = null;
-    state.radiomap.status = "Idle";
+    solver().invalidateLinkResult({clearOverlay: false, clearPaths: false});
+    solver().invalidateMobilityResult({clearOverlay: false, clearPaths: false});
+    solver().invalidateRadiomapResult({clearOverlay: false});
+    solver().invalidateDeepMimoResult({clearOverlay: false});
     getViewer().clearOverlay();
   }
   syncTileListUi();
