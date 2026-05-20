@@ -487,7 +487,6 @@ def parse_mobility_payload(payload: dict) -> dict:
         trajectory.get("max_steps", config.DEFAULT_MOBILITY_MAX_STEPS),
         name="rx_trajectory.max_steps",
         min_value=config.MIN_MOBILITY_STEPS,
-        max_value=config.MAX_MOBILITY_STEPS,
     )
 
     channel = dict(parse_object(payload.get("channel", {}), name="channel"))

@@ -32,6 +32,54 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("loadedCount === expectedCount", source)
         self.assertNotIn("loadedTileIds.add(bundle.tile)", source)
 
+    def test_city_model_uses_category_palette_for_natural_materials(self) -> None:
+        source = read_static_js("viewer.js")
+        expected_category_colors = {
+            "BUILDING": "#d8d2c4",
+            "INFRASTRUCTURE": "#50565c",
+            "INFRASTRUCTURE_TB": "#50565c",
+            "GENERIC": "#8c8981",
+            "TERRAIN_TB": "#8c9586",
+            "VEGETATION_TB": "#557b5c",
+            "WATERBODY": "#245766",
+        }
+
+        self.assertIn("const CATEGORY_MATERIAL_STYLES = {", source)
+        for category, color in expected_category_colors.items():
+            self.assertIn(f"{category}: {{", source)
+            self.assertIn(f'color: "{color}"', source)
+        self.assertIn("CATEGORY_MATERIAL_STYLES[bundle.category]", source)
+        self.assertIn("const MATERIAL_FALLBACK_COLORS = {", source)
+        self.assertIn("function colorForBundle(bundle)", source)
+        self.assertIn("hashString(bundle.bundle_id", source)
+        self.assertIn("lightnessVariation", source)
+        self.assertIn("saturationVariation", source)
+        self.assertIn('transparent: true', source)
+        self.assertIn('opacity: 0.84', source)
+        self.assertIn('Boolean(style.transparent) || bundle.bsdf_id === "itu_wet_ground"', source)
+        self.assertIn("new THREE.HemisphereLight", source)
+        self.assertIn("new THREE.DirectionalLight(0xdbe5f7, 0.42)", source)
+        self.assertIn("toneMappingExposure = 1.08", source)
+        self.assertIn("roughness: style.roughness ?? 0.88", source)
+        self.assertIn("metalness: style.metalness ?? 0.0", source)
+        self.assertNotIn("MATERIAL_COLORS[mesh.bsdf_id]", source)
+
+    def test_viewer_clamps_camera_and_target_above_ground(self) -> None:
+        source = read_static_js("viewer.js")
+        orbit_source = (PROJECT_ROOT / "backend" / "static" / "lib" / "OrbitControls.js").read_text(encoding="utf-8")
+
+        self.assertIn("const VIEW_GROUND_Z = 0;", source)
+        self.assertIn("const VIEW_CAMERA_MIN_CLEARANCE_M = 2.0;", source)
+        self.assertIn("const VIEW_TARGET_MIN_Z = 0;", source)
+        self.assertIn("#clampViewAboveGround({preserveOffset = false} = {})", source)
+        self.assertIn("const minCameraZ = VIEW_GROUND_Z + VIEW_CAMERA_MIN_CLEARANCE_M;", source)
+        self.assertIn("this.controls.target.z = VIEW_TARGET_MIN_Z;", source)
+        self.assertIn("this.camera.position.z = minCameraZ;", source)
+        self.assertIn("this.#clampViewAboveGround({preserveOffset: true});", source)
+        self.assertGreaterEqual(source.count("this.#clampViewAboveGround();"), 6)
+        self.assertNotIn("#clampViewAboveGround", orbit_source)
+        self.assertNotIn("VIEW_CAMERA_MIN_CLEARANCE_M", orbit_source)
+
     def test_bundle_progress_totals_are_updated_from_runtime_headers(self) -> None:
         source = read_static_js("viewer.js")
 
@@ -451,7 +499,8 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('id="tabMobility"', html)
         self.assertIn('id="btnRunMobility"', html)
         self.assertIn('id="mobilityWaypointList"', html)
-        self.assertIn('id="mobilityMaxSteps" type="number" step="1" min="2" max="500" value="50"', html)
+        self.assertIn('id="mobilityMaxSteps" type="number" step="1" min="2" value="1000"', html)
+        self.assertNotIn('id="mobilityMaxSteps" type="number" step="1" min="2" max="500"', html)
         self.assertIn('id="mobilitySeriesChart"', html)
         self.assertIn('id="mobilityTxDeviceCard"', html)
         self.assertIn('id="mobilityRxDeviceCard"', html)
@@ -498,6 +547,8 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("setLogicalAndVisual(state.mobility.rx, state.mobility.rxVisual", source)
         self.assertIn("${estimate.steps} / ${estimate.maxSteps} steps", source)
         self.assertNotIn("estimate.steps > 50", source)
+        self.assertNotIn("estimate.maxSteps > 500", source)
+        self.assertNotIn("between 2 and 500", source)
         self.assertIn("solver: linkSolverConfig()", source)
         self.assertIn("channel: linkChannelConfig()", source)
         self.assertIn("getViewer().renderPaths(sample?.paths || [], -1);", source)
