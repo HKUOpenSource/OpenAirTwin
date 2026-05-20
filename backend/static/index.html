@@ -660,74 +660,74 @@
             <div class="paramGroupBody">
               <div class="paramGrid">
               <label class="paramField" for="deepMimoScenarioName">
-                <span class="paramLabel">Scenario Name</span>
+                <span class="paramLabel">Scenario Name <span class="infoTip" tabindex="0" aria-label="DeepMIMO scenario name details">i<span class="tipBubble" role="tooltip">Dataset folder/name used in the DeepMIMO export. Unsafe path characters are sanitized before packaging.</span></span></span>
                 <input id="deepMimoScenarioName" type="text" value="hku_deepmimo_roi" />
               </label>
               <label class="paramField" for="deepMimoRoiCenterX">
-                <span class="paramLabel">ROI Center X</span>
+                <span class="paramLabel">ROI Center X <span class="infoTip" tabindex="0" aria-label="DeepMIMO ROI center X details">i<span class="tipBubble" role="tooltip">ROI rectangle center X coordinate in the local scene frame. Updated when you draw or edit the ROI.</span></span></span>
                 <span class="unitInput">
                   <input id="deepMimoRoiCenterX" type="number" step="1.0" />
                   <span class="unitSuffix" aria-hidden="true">m</span>
                 </span>
               </label>
               <label class="paramField" for="deepMimoRoiCenterY">
-                <span class="paramLabel">ROI Center Y</span>
+                <span class="paramLabel">ROI Center Y <span class="infoTip" tabindex="0" aria-label="DeepMIMO ROI center Y details">i<span class="tipBubble" role="tooltip">ROI rectangle center Y coordinate in the local scene frame. Updated when you draw or edit the ROI.</span></span></span>
                 <span class="unitInput">
                   <input id="deepMimoRoiCenterY" type="number" step="1.0" />
                   <span class="unitSuffix" aria-hidden="true">m</span>
                 </span>
               </label>
               <label class="paramField" for="deepMimoRoiWidth">
-                <span class="paramLabel">ROI Width</span>
+                <span class="paramLabel">ROI Width <span class="infoTip" tabindex="0" aria-label="DeepMIMO ROI width details">i<span class="tipBubble" role="tooltip">Rectangle span along local X. Larger areas create more receiver candidates and longer exports.</span></span></span>
                 <span class="unitInput">
                   <input id="deepMimoRoiWidth" type="number" step="1.0" min="0.25" />
                   <span class="unitSuffix" aria-hidden="true">m</span>
                 </span>
               </label>
               <label class="paramField" for="deepMimoRoiLength">
-                <span class="paramLabel">ROI Length</span>
+                <span class="paramLabel">ROI Length <span class="infoTip" tabindex="0" aria-label="DeepMIMO ROI length details">i<span class="tipBubble" role="tooltip">Rectangle span along local Y. Larger areas create more receiver candidates and longer exports.</span></span></span>
                 <span class="unitInput">
                   <input id="deepMimoRoiLength" type="number" step="1.0" min="0.25" />
                   <span class="unitSuffix" aria-hidden="true">m</span>
                 </span>
               </label>
               <label class="paramField" for="deepMimoGridSpacing">
-                <span class="paramLabel">Rx Spacing</span>
+                <span class="paramLabel">Rx Spacing <span class="infoTip" tabindex="0" aria-label="DeepMIMO Rx spacing details">i<span class="tipBubble" role="tooltip">Distance between generated receiver grid points. Smaller spacing creates denser datasets and higher runtime.</span></span></span>
                 <span class="unitInput">
                   <input id="deepMimoGridSpacing" type="number" step="0.5" min="0.25" max="100" value="2.0" />
                   <span class="unitSuffix" aria-hidden="true">m</span>
                 </span>
               </label>
               <label class="paramField" for="deepMimoRxHeight">
-                <span class="paramLabel">Rx Height <span class="infoTip" tabindex="0" aria-label="DeepMIMO Rx height details">i<span class="tipBubble" role="tooltip">Receiver height above the sampled terrain surface. The ROI footprint only selects the XY area and does not control receiver height.</span></span></span>
+                <span class="paramLabel">Rx Height <span class="infoTip" tabindex="0" aria-label="DeepMIMO Rx height details">i<span class="tipBubble" role="tooltip">Receiver height above the sampled terrain surface. The ROI footprint controls XY only.</span></span></span>
                 <span class="unitInput">
                   <input id="deepMimoRxHeight" type="number" step="0.1" min="0" max="100" value="1.5" />
                   <span class="unitSuffix" aria-hidden="true">m</span>
                 </span>
               </label>
               <label class="paramField" for="deepMimoMaxReceivers">
-                <span class="paramLabel">Max Receivers</span>
+                <span class="paramLabel">Max Receivers <span class="infoTip" tabindex="0" aria-label="DeepMIMO max receivers details">i<span class="tipBubble" role="tooltip">Safety cap for generated receiver candidates. Increase only when the Rx Candidates count is intentional.</span></span></span>
                 <input id="deepMimoMaxReceivers" type="number" step="1000" min="1" max="200000" value="30000" />
               </label>
               <label class="paramField" for="deepMimoChunkSize">
-                <span class="paramLabel">Chunk Size</span>
+                <span class="paramLabel">Chunk Size <span class="infoTip" tabindex="0" aria-label="DeepMIMO chunk size details">i<span class="tipBubble" role="tooltip">Receivers traced per worker batch. Larger chunks reduce overhead but use more memory.</span></span></span>
                 <input id="deepMimoChunkSize" type="number" step="256" min="1" max="8192" value="1024" />
               </label>
               <label class="paramField" for="deepMimoSamplesPerSrc">
-                <span class="paramLabel">Samples / Source</span>
+                <span class="paramLabel">Samples / Source <span class="infoTip" tabindex="0" aria-label="DeepMIMO samples per source details">i<span class="tipBubble" role="tooltip">Monte Carlo rays per transmitter for each chunk. Higher values reduce noise and scale runtime.</span></span></span>
                 <input id="deepMimoSamplesPerSrc" type="number" step="1000" min="1" max="1000000" value="30000" />
               </label>
               <label class="paramField" for="deepMimoMaxPaths">
-                <span class="paramLabel">Max Paths / Source</span>
+                <span class="paramLabel">Max Paths / Source <span class="infoTip" tabindex="0" aria-label="DeepMIMO max paths per source details">i<span class="tipBubble" role="tooltip">Upper bound on paths retained per solve. Higher values may preserve more multipath but use more memory.</span></span></span>
                 <input id="deepMimoMaxPaths" type="number" step="1000" min="1" max="1000000" value="1000000" />
               </label>
               <label class="paramField" for="deepMimoRxCandidates">
-                <span class="paramLabel">Rx Candidates</span>
+                <span class="paramLabel">Rx Candidates <span class="infoTip" tabindex="0" aria-label="DeepMIMO Rx candidates details">i<span class="tipBubble" role="tooltip">Read-only estimate of receiver grid points before building filtering.</span></span></span>
                 <input id="deepMimoRxCandidates" type="text" value="--" readonly tabindex="-1" aria-readonly="true" />
               </label>
               <label class="paramCheck computeCheck">
                 <input id="deepMimoFilterBuildings" type="checkbox" checked />
-                <span>Filter building footprints</span>
+                <span>Filter building footprints <span class="infoTip" tabindex="0" aria-label="DeepMIMO building footprint filter details">i<span class="tipBubble" role="tooltip">Drops receiver candidates inside building footprint boxes before terrain projection.</span></span></span>
               </label>
               </div>
             </div>
