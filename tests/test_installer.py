@@ -6,6 +6,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+from zipfile import ZipFile
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -126,6 +128,28 @@ class InstallerHelperTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
             self.assertFalse((root / ".venv").exists())
             self.assertFalse((root / ".oat-env").exists())
+            self.assertFalse((root / "scene").exists())
+            self.assertIn("Sample scene download skipped in --yes mode", completed.stdout)
+            self.assertIn("Dry run complete", completed.stdout)
+
+    def test_dry_run_with_sample_scene_does_not_create_scene(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "install.py").write_text(INSTALLER_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+            (root / "requirements.txt").write_text("", encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(root / "install.py"), "--dry-run", "--yes", "--with-sample-scene"],
+                cwd=str(root),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertFalse((root / ".venv").exists())
+            self.assertFalse((root / ".oat-env").exists())
+            self.assertFalse((root / "scene").exists())
+            self.assertIn("Would download sample scene", completed.stdout)
             self.assertIn("Dry run complete", completed.stdout)
 
     def test_gitignore_covers_generated_install_artifacts(self) -> None:
@@ -133,6 +157,103 @@ class InstallerHelperTests(unittest.TestCase):
         self.assertIn("/.venv/", gitignore)
         self.assertIn("/.oat-env", gitignore)
         self.assertIn("/.env.local", gitignore)
+
+    def test_choose_sample_scene_download_defaults_to_skip_in_yes_mode(self) -> None:
+        value, message = self.installer.choose_sample_scene_download(
+            with_sample_scene=False,
+            no_sample_scene=False,
+            assume_yes=True,
+        )
+        self.assertFalse(value)
+        self.assertIn("--yes", message)
+
+    def test_choose_sample_scene_download_honors_explicit_flags(self) -> None:
+        value, _ = self.installer.choose_sample_scene_download(
+            with_sample_scene=True,
+            no_sample_scene=False,
+            assume_yes=True,
+        )
+        self.assertTrue(value)
+        value, _ = self.installer.choose_sample_scene_download(
+            with_sample_scene=False,
+            no_sample_scene=True,
+            assume_yes=False,
+            interactive=True,
+        )
+        self.assertFalse(value)
+
+    def test_choose_sample_scene_download_prompts_interactively(self) -> None:
+        with patch("builtins.input", return_value="y"):
+            value, message = self.installer.choose_sample_scene_download(
+                with_sample_scene=False,
+                no_sample_scene=False,
+                assume_yes=False,
+                interactive=True,
+            )
+        self.assertTrue(value)
+        self.assertIn("selected", message)
+
+    def test_sample_scene_present_requires_common_tiles_and_meshes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scene = Path(tmp) / "scene"
+            (scene / "common").mkdir(parents=True)
+            (scene / "tiles").mkdir()
+            (scene / "meshes").mkdir()
+            (scene / "common" / "scene_common.xml").write_text("<scene />", encoding="utf-8")
+            for tile in self.installer.SAMPLE_SCENE_TILES:
+                (scene / "tiles" / f"{tile}.xml").write_text("<scene />", encoding="utf-8")
+                (scene / "meshes" / tile).mkdir()
+            self.assertTrue(self.installer.sample_scene_present(scene))
+            (scene / "tiles" / "11_SW_7D.xml").unlink()
+            self.assertFalse(self.installer.sample_scene_present(scene))
+
+    def test_extract_sample_scene_zip_writes_only_scene_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "sample.zip"
+            with ZipFile(archive, "w") as zf:
+                zf.writestr("THIRD_PARTY_DATA.md", "metadata")
+                zf.writestr("scene/common/scene_common.xml", "<scene />")
+                zf.writestr("scene/tiles/11_SW_7A.xml", "<scene />")
+                zf.writestr("scene/meshes/11_SW_7A/mesh.ply", "ply")
+            extracted, skipped = self.installer.extract_sample_scene_zip(archive, project_root=root)
+            self.assertEqual((extracted, skipped), (3, 0))
+            self.assertTrue((root / "scene" / "common" / "scene_common.xml").exists())
+            self.assertTrue((root / "scene" / "meshes" / "11_SW_7A" / "mesh.ply").exists())
+            self.assertFalse((root / "THIRD_PARTY_DATA.md").exists())
+
+            extracted, skipped = self.installer.extract_sample_scene_zip(archive, project_root=root)
+            self.assertEqual(extracted, 0)
+            self.assertEqual(skipped, 3)
+
+    def test_extract_sample_scene_zip_rejects_path_traversal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "sample.zip"
+            with ZipFile(archive, "w") as zf:
+                zf.writestr("scene/../evil.txt", "bad")
+            with self.assertRaises(ValueError):
+                self.installer.extract_sample_scene_zip(archive, project_root=root)
+            self.assertFalse((root / "evil.txt").exists())
+
+    def test_install_sample_scene_rejects_sha_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "sample.zip"
+            with ZipFile(archive, "w") as zf:
+                zf.writestr("scene/common/scene_common.xml", "<scene />")
+
+            def fake_download(_url, destination):
+                destination.write_bytes(archive.read_bytes())
+
+            with patch.object(self.installer, "download_file", side_effect=fake_download):
+                with self.assertRaises(RuntimeError):
+                    self.installer.install_sample_scene(
+                        url="https://example.test/sample.zip",
+                        expected_sha256="0" * 64,
+                        project_root=root,
+                    )
+            self.assertFalse((root / "scene").exists())
 
 
 if __name__ == "__main__":
