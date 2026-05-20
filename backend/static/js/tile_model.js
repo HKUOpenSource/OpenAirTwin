@@ -17,7 +17,7 @@ export const ENTRY_MAP_IMAGE = {
 };
 export const ENTRY_MAP_GRID = {
   west: 800000,
-  east: 867500,
+  east: 860000,
   south: 800000,
   north: 848000,
 };
