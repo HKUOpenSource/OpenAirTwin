@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 
 from backend import config
+from backend.scene.incremental_tiles import normalize_tile_id
 from backend.scene.tile_bundles import build_all_tile_bundles
 from backend.scene.xml_catalog import load_scene_manifest
 
@@ -22,11 +23,17 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    tile_ids = set()
+    for tile_id in args.tile:
+        try:
+            tile_ids.add(normalize_tile_id(tile_id).internal)
+        except ValueError:
+            tile_ids.add(tile_id)
     manifest = load_scene_manifest(config.SCENE_ROOT)
     results = build_all_tile_bundles(
         config.SCENE_ROOT,
         manifest.bundles,
-        tile_ids=set(args.tile) or None,
+        tile_ids=tile_ids or None,
         bundle_ids=set(args.bundle_id) or None,
         force=args.force,
         compress_existing=args.compress,
