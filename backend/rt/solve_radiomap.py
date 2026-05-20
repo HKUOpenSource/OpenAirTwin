@@ -43,6 +43,7 @@ def solve_terrain_radiomap(
         require_scene_generation(rt_runtime, expected_scene_generation)
         rt_runtime.set_frequency(params["frequency_hz"])
         rt_runtime.set_arrays(tx_array=params["tx_array"])
+        transmitter_added = False
         try:
             scene.add(
                 Transmitter(
@@ -51,6 +52,7 @@ def solve_terrain_radiomap(
                     orientation=params["tx_orientation"],
                 )
             )
+            transmitter_added = True
 
             report(0.16, "Preparing terrain patch")
             patch_started_at = perf_counter()
@@ -105,7 +107,11 @@ def solve_terrain_radiomap(
 
             path_gain = np.asarray(to_numpy(radio_map.path_gain), dtype=float)
         finally:
-            scene.remove("tx_radiomap")
+            if transmitter_added:
+                try:
+                    scene.remove("tx_radiomap")
+                except Exception:
+                    pass
 
     report(0.85, "Finalizing radio map")
     finalize_started_at = perf_counter()
@@ -116,6 +122,11 @@ def solve_terrain_radiomap(
             f"Radio map returned {values_linear.shape[0]} cells, but the terrain patch contains {patch_meta['cell_count']} cells"
         )
     values_db = linear_to_db(values_linear)
+    finite_values_db = values_db[np.isfinite(values_db)]
+    values_payload = [
+        float(value) if np.isfinite(value) else None
+        for value in values_db.astype(float)
+    ]
     log_timing("radiomap_finalize", finalize_started_at, cells=patch_meta["cell_count"])
 
     report(1.0, "Radio map ready")
@@ -156,12 +167,12 @@ def solve_terrain_radiomap(
             "sample_multiplier": int(sample_multiplier),
         },
         "range": {
-            "min": float(np.min(values_db)),
-            "max": float(np.max(values_db)),
+            "min": float(np.min(finite_values_db)) if finite_values_db.size else None,
+            "max": float(np.max(finite_values_db)) if finite_values_db.size else None,
         },
         "values": {
             "count": int(values_db.shape[0]),
-            "data": values_db.astype(float).tolist(),
+            "data": values_payload,
         },
         "geometry": {
             "triangle_positions": patch_meta["triangle_positions"].reshape(-1).astype(float).tolist(),
