@@ -61,7 +61,7 @@ def _building_aabbs(
     roi_min: tuple[float, float],
     roi_max: tuple[float, float],
 ) -> np.ndarray:
-    manifest = load_scene_manifest(scene_root, scene_root / "scene.xml")
+    manifest = load_scene_manifest(scene_root)
     selected_tile_ids = set(tile_ids)
     boxes: list[tuple[float, float, float, float]] = []
     roi_min_x, roi_min_y = roi_min
@@ -92,7 +92,6 @@ def _building_aabbs(
 def _write_selected_tile_scene_xml(job_dir: Path, tile_ids: tuple[str, ...]) -> tuple[TileSceneXmlResult, str]:
     builder = TileSceneXmlBuilder(
         config.SCENE_ROOT,
-        config.SCENE_XML,
         job_dir / "scene_xml",
     )
     result = builder.write_selection(tile_ids)

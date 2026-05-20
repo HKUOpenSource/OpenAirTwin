@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 .DS_Store
 ._*
+/docs/
+/scripts/
 scene/
 scene/cache/
 generated/

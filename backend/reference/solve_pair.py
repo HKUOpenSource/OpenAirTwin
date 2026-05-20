@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-import json, sys
+import json, os, sys
 import numpy as np
 from pathlib import Path
 from sionna.rt import load_scene, Transmitter, Receiver, PlanarArray, PathSolver, InteractionType
 
 ROOT = Path(__file__).resolve().parent
 WORKSPACE = ROOT.parent
-HKU_XML = WORKSPACE / 'HKU.xml'
-if not HKU_XML.exists():
-    HKU_XML = Path('/home/defaultuser/hku_demo/HKU.xml')
+REFERENCE_XML = Path(os.environ.get('OAT_REFERENCE_XML', str(WORKSPACE / 'reference.xml')))
 
 def main():
     req = json.loads(sys.stdin.read() or '{}')
@@ -24,7 +22,7 @@ def main():
     seed = int(req.get('seed', 10))
     frequency = float(req.get('frequency', 28e9))
 
-    scene = load_scene(str(HKU_XML))
+    scene = load_scene(str(REFERENCE_XML))
     scene.frequency = frequency
     scene.tx_array = PlanarArray(num_rows=1, num_cols=1, vertical_spacing=0.5, horizontal_spacing=0.5, pattern='iso', polarization='V')
     scene.rx_array = PlanarArray(num_rows=1, num_cols=1, vertical_spacing=0.5, horizontal_spacing=0.5, pattern='iso', polarization='V')

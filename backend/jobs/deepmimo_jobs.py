@@ -130,7 +130,7 @@ class DeepMIMOJobManager:
             cwd=str(config.PROJECT_ROOT),
             env={
                 **dict(__import__("os").environ),
-                "HKU_RT_SCENE_ROOT": str(config.SCENE_ROOT),
+                "OAT_SCENE_ROOT": str(config.SCENE_ROOT),
             },
             stdout=log_handle,
             stderr=subprocess.STDOUT,

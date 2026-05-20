@@ -51,7 +51,6 @@ def require_scene_generation(rt_runtime, expected_generation: int | None) -> Non
 
 @dataclass
 class RTRuntime:
-    scene_xml: Path
     default_frequency_hz: float
     scene_builder: TileSceneXmlBuilder
     scene_loader: Callable[[Path, float], object] = build_scene
@@ -70,7 +69,7 @@ class RTRuntime:
 
     def __post_init__(self) -> None:
         print(
-            f"[rt] scene_preload skipped lazy=true scene_xml={self.scene_xml}",
+            "[rt] scene_preload skipped lazy=true",
             flush=True,
         )
 

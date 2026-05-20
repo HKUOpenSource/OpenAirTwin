@@ -188,7 +188,6 @@ class ServerHardeningTests(unittest.TestCase):
             scene_root = root / "scene"
             previous = {
                 "SCENE_ROOT": config.SCENE_ROOT,
-                "SCENE_XML": config.SCENE_XML,
                 "MESH_ROOT": config.MESH_ROOT,
                 "BUNDLE_ROOT": config.BUNDLE_ROOT,
                 "GENERATED_ROOT": config.GENERATED_ROOT,
@@ -196,7 +195,6 @@ class ServerHardeningTests(unittest.TestCase):
                 "INCREMENTAL_TILE_STAGE_ROOT": config.INCREMENTAL_TILE_STAGE_ROOT,
             }
             config.SCENE_ROOT = scene_root
-            config.SCENE_XML = scene_root / "scene.xml"
             config.MESH_ROOT = scene_root / "meshes"
             config.BUNDLE_ROOT = scene_root / "cache" / "render_bundles"
             config.GENERATED_ROOT = root / "generated"
@@ -209,7 +207,6 @@ class ServerHardeningTests(unittest.TestCase):
                     setattr(config, name, value)
 
             manifest = app_state.manifest.to_api_dict()
-            self.assertFalse((scene_root / "scene.xml").exists())
             self.assertTrue((scene_root / "common" / "scene_common.xml").exists())
             self.assertTrue((scene_root / "tiles").is_dir())
             self.assertEqual(manifest["mesh_count"], 0)

@@ -93,15 +93,13 @@ class AppState:
     def __init__(self) -> None:
         self.reload_lock = threading.Lock()
         ensure_scene_layout(config.SCENE_ROOT)
-        self.manifest: SceneManifest = load_scene_manifest(config.SCENE_ROOT, config.SCENE_XML)
+        self.manifest: SceneManifest = load_scene_manifest(config.SCENE_ROOT)
         self.manifest_lookup = self.manifest.mesh_lookup
         self.rt_scene_builder = TileSceneXmlBuilder(
             config.SCENE_ROOT,
-            config.SCENE_XML,
             config.GENERATED_ROOT / "rt_scene_xml",
         )
         self.rt_runtime = RTRuntime(
-            config.SCENE_XML,
             config.DEFAULT_FREQUENCY_HZ,
             self.rt_scene_builder,
         )
@@ -112,11 +110,10 @@ class AppState:
 
     def reload_scene_catalog(self) -> None:
         with self.reload_lock:
-            self.manifest = load_scene_manifest(config.SCENE_ROOT, config.SCENE_XML)
+            self.manifest = load_scene_manifest(config.SCENE_ROOT)
             self.manifest_lookup = self.manifest.mesh_lookup
             self.rt_scene_builder = TileSceneXmlBuilder(
                 config.SCENE_ROOT,
-                config.SCENE_XML,
                 config.GENERATED_ROOT / "rt_scene_xml",
             )
             self.rt_runtime.scene_builder = self.rt_scene_builder
@@ -125,7 +122,6 @@ class AppState:
         result = download_stage_and_integrate_tile(
             tile_id,
             scene_root=config.SCENE_ROOT,
-            scene_xml=config.SCENE_XML,
             workspace_root=config.INCREMENTAL_TILE_ROOT,
             stage_root=config.INCREMENTAL_TILE_STAGE_ROOT,
             base_url=config.MAP_DOWNLOAD_BASE_URL,
@@ -153,7 +149,7 @@ def capture_ready_scene_generation(rt_runtime) -> int | None:
 
 
 class RequestHandler(BaseHTTPRequestHandler):
-    server_version = "HKU-RT/3.0"
+    server_version = "OpenAirTwin/3.0"
 
     @property
     def app_state(self) -> AppState:
@@ -390,7 +386,6 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "scene_root": str(config.SCENE_ROOT),
                     "common_scene_xml": str(config.SCENE_ROOT / COMMON_SCENE_RELATIVE_PATH),
                     "tile_xml_dir": str(config.SCENE_ROOT / TILE_SCENE_RELATIVE_DIR),
-                    "legacy_scene_xml": str(config.SCENE_XML),
                     "mesh_root": str(config.MESH_ROOT),
                 }
             )
@@ -627,7 +622,7 @@ def main() -> None:
     server = ThreadingHTTPServer((config.HOST, config.PORT), RequestHandler)
     server.app_state = app_state  # type: ignore[attr-defined]
 
-    print(f"Serving HKU-RT v3.0 on http://{config.HOST}:{config.PORT}")
+    print(f"Serving OpenAirTwin v3.0 on http://{config.HOST}:{config.PORT}")
     print(f"Scene root: {config.SCENE_ROOT}")
     print(f"Scene source: {config.SCENE_ROOT / COMMON_SCENE_RELATIVE_PATH} + {config.SCENE_ROOT / TILE_SCENE_RELATIVE_DIR}")
     print(f"Mesh root: {config.MESH_ROOT}")

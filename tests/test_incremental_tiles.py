@@ -235,12 +235,11 @@ class IncrementalTileTests(unittest.TestCase):
             self.assertFalse((scene / "tiles" / "11_SW_7A.xml").exists())
             self.assertFalse((scene / "meshes" / "11_SW_7A").exists())
 
-    def test_per_tile_only_scene_infers_origin_without_legacy_scene_xml(self) -> None:
+    def test_per_tile_scene_infers_origin_from_existing_tiles(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             scene_root = root / "scene"
             stage_root = root / "stage"
-            scene_xml = scene_root / "scene.xml"
             (scene_root / "common").mkdir(parents=True)
             (scene_root / "tiles").mkdir(parents=True)
             (scene_root / "common" / "scene_common.xml").write_text(
@@ -260,10 +259,9 @@ class IncrementalTileTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            self.assertFalse(scene_xml.exists())
-            self.assertTrue(scene_contains_tile(scene_root, scene_xml, "11-SW-8A"))
+            self.assertTrue(scene_contains_tile(scene_root, "11-SW-8A"))
 
-            origin = load_or_create_scene_origin(scene_root, scene_xml, stage_root)
+            origin = load_or_create_scene_origin(scene_root, stage_root)
 
             origin_path = stage_root / "origin.json"
             self.assertTrue(origin_path.exists())
@@ -276,7 +274,6 @@ class IncrementalTileTests(unittest.TestCase):
             root = Path(tmpdir)
             scene_root = root / "scene"
             stage_root = root / "stage"
-            scene_xml = scene_root / "scene.xml"
 
             cache_relpath = Path("tiles") / "11_SW_7A" / ".cache" / "BUILDING" / "obj_11_SW_7A__BUILDING__demo.npz"
             cache_path = stage_root / cache_relpath
@@ -304,10 +301,9 @@ class IncrementalTileTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            result = integrate_staged_tile(scene_root, scene_xml, stage_root, "11-SW-7A")
+            result = integrate_staged_tile(scene_root, stage_root, "11-SW-7A")
 
             tile_xml = scene_root / "tiles" / "11_SW_7A.xml"
-            self.assertFalse(scene_xml.exists())
             self.assertTrue((scene_root / "common" / "scene_common.xml").exists())
             self.assertTrue((stage_root / "origin.json").exists())
             self.assertEqual(result["tile_xml_path"], str(tile_xml))
@@ -321,12 +317,11 @@ class IncrementalTileTests(unittest.TestCase):
             root = Path(tmpdir)
             scene_root = root / "scene"
             stage_root = root / "stage"
-            scene_xml = scene_root / "scene.xml"
             self._write_staged_tile_manifest(stage_root)
 
             with patch("backend.scene.incremental_tiles._build_tile_scene_xml_tree", side_effect=RuntimeError("xml boom")):
                 with self.assertRaises(RuntimeError):
-                    integrate_staged_tile(scene_root, scene_xml, stage_root, "11-SW-7A")
+                    integrate_staged_tile(scene_root, stage_root, "11-SW-7A")
 
             self.assertFalse((scene_root / "meshes" / "11_SW_7A").exists())
             self.assertFalse((scene_root / "tiles" / "11_SW_7A.xml").exists())
@@ -338,7 +333,6 @@ class IncrementalTileTests(unittest.TestCase):
             root = Path(tmpdir)
             scene_root = root / "scene"
             stage_root = root / "stage"
-            scene_xml = scene_root / "scene.xml"
             self._write_staged_tile_manifest(stage_root)
 
             def fail_xml_replace(source: Path, target: Path) -> None:
@@ -348,7 +342,7 @@ class IncrementalTileTests(unittest.TestCase):
 
             with patch("backend.scene.incremental_tiles._replace_path", side_effect=fail_xml_replace):
                 with self.assertRaises(OSError):
-                    integrate_staged_tile(scene_root, scene_xml, stage_root, "11-SW-7A")
+                    integrate_staged_tile(scene_root, stage_root, "11-SW-7A")
 
             self.assertFalse((scene_root / "meshes" / "11_SW_7A").exists())
             self.assertFalse((scene_root / "tiles" / "11_SW_7A.xml").exists())
@@ -360,7 +354,6 @@ class IncrementalTileTests(unittest.TestCase):
             root = Path(tmpdir)
             scene_root = root / "scene"
             stage_root = root / "stage"
-            scene_xml = scene_root / "scene.xml"
             self._write_staged_tile_manifest(stage_root, object_count=2)
             checks = {"count": 0}
 
@@ -369,7 +362,7 @@ class IncrementalTileTests(unittest.TestCase):
                 return checks["count"] > 1
 
             with self.assertRaises(TileDownloadCancelled):
-                integrate_staged_tile(scene_root, scene_xml, stage_root, "11-SW-7A", cancel_check=cancel_after_first_mesh)
+                integrate_staged_tile(scene_root, stage_root, "11-SW-7A", cancel_check=cancel_after_first_mesh)
 
             self.assertFalse((scene_root / "meshes" / "11_SW_7A").exists())
             self.assertFalse((scene_root / "tiles" / "11_SW_7A.xml").exists())
@@ -380,7 +373,6 @@ class IncrementalTileTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             scene_root = root / "scene"
-            scene_xml = scene_root / "scene.xml"
             workspace_root = root / "workspace"
             stage_root = root / "stage"
             (scene_root / "meshes" / "11_SW_7A").mkdir(parents=True)
@@ -399,7 +391,6 @@ class IncrementalTileTests(unittest.TestCase):
                     download_stage_and_integrate_tile(
                         "11-SW-7A",
                         scene_root=scene_root,
-                        scene_xml=scene_xml,
                         workspace_root=workspace_root,
                         stage_root=stage_root,
                         base_url="https://example.test",
@@ -410,15 +401,13 @@ class IncrementalTileTests(unittest.TestCase):
             self.assertFalse((scene_root / "meshes" / "11_SW_7A").exists())
             self.assertFalse((scene_root / "tiles" / "11_SW_7A.xml").exists())
 
-    def test_integrate_staged_tile_writes_per_tile_xml_when_split_scene_exists(self) -> None:
+    def test_integrate_staged_tile_writes_per_tile_xml_with_existing_layout(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             scene_root = root / "scene"
             stage_root = root / "stage"
-            scene_xml = scene_root / "scene.xml"
             (scene_root / "common").mkdir(parents=True)
             (scene_root / "tiles").mkdir(parents=True)
-            scene_xml.write_text('<scene version="2.1.0"><shape id="legacy"/></scene>', encoding="utf-8")
             (scene_root / "common" / "scene_common.xml").write_text(
                 '<scene version="2.1.0"><bsdf type="diffuse" id="itu_concrete"/></scene>',
                 encoding="utf-8",
@@ -453,13 +442,12 @@ class IncrementalTileTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            result = integrate_staged_tile(scene_root, scene_xml, stage_root, "11-SW-7A")
+            result = integrate_staged_tile(scene_root, stage_root, "11-SW-7A")
 
             tile_xml = scene_root / "tiles" / "11_SW_7A.xml"
             self.assertEqual(result["tile_xml_path"], str(tile_xml))
             self.assertTrue(tile_xml.exists())
             self.assertIn('value="meshes/11_SW_7A/BUILDING/obj_11_SW_7A__BUILDING__demo.ply"', tile_xml.read_text())
-            self.assertNotIn("obj_11_SW_7A__BUILDING__demo", scene_xml.read_text())
 
 
 if __name__ == "__main__":
