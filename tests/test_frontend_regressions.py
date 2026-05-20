@@ -120,6 +120,27 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("Click the tile on the map to download it.", source)
         self.assertIn("if (state.entry.overview) {\n    entryMapController.showEntryScreen();", app_source)
 
+    def test_entry_map_uses_open3dhk_coverage_for_clickable_download_tiles(self) -> None:
+        source = read_static_js("entry_map.js")
+        api_source = read_static_js("api.js")
+        app_source = read_static_js("app.js")
+        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn('requestJson("/assets/open3dhk_tile_coverage.json")', api_source)
+        self.assertIn("state.entry.coverage = await getOpen3dHkTileCoverage();", app_source)
+        self.assertIn("buildEntryOverview(state.manifest, state.entry.coverage)", app_source)
+        self.assertIn("const coverageById = new Map();", source)
+        self.assertIn("...overview.coverageById.keys()", source)
+        self.assertIn("...overview.tileById.keys()", source)
+        self.assertNotIn("allEntryTileIds()", source)
+        self.assertNotIn("createEntryGridCanvasLayer", source)
+        self.assertNotIn("entryGridPane", source)
+        self.assertIn("Open3DHK has no downloadable tile at that point.", source)
+        self.assertIn("outside the Open3DHK downloadable coverage", source)
+        self.assertIn("Downloadable from Open3DHK", source)
+        self.assertIn("In Scene", html)
+        self.assertIn("Downloadable", html)
+
     def test_rt_capabilities_are_loaded_for_antenna_arrays(self) -> None:
         api_source = read_static_js("api.js")
         app_source = read_static_js("app.js")

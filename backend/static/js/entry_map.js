@@ -6,8 +6,6 @@ import {
   ENTRY_MAP_INITIAL_ZOOM,
   ENTRY_MAP_MAX_ZOOM,
   ENTRY_MAP_MIN_ZOOM,
-  ENTRY_MAP_QUADRANTS,
-  ENTRY_MAP_SHEET_COUNT,
   ENTRY_MAP_SUBTILES,
   ENTRY_PLACE_SEARCH_ZOOM,
   NOMINATIM_HK_COUNTRYCODES,
@@ -15,7 +13,6 @@ import {
   NOMINATIM_RESULT_LIMIT,
   NOMINATIM_SEARCH_URL,
   assertEntryMapDeps,
-  allEntryTileIds,
   boundsForTileId,
   compareTileIds,
   entryFallbackImageBounds,
@@ -26,12 +23,9 @@ import {
   hkBoundsCorners,
   latLngBoundsFromHk,
   latLngToHk,
-  majorBounds,
   mergeHkBounds,
   parseTileId,
   pointInHkBounds,
-  quadrantBounds,
-  numberBounds,
   toDisplayTileId,
 } from "/js/tile_model.js";
 
@@ -72,6 +66,32 @@ function tileIdAtLatLng(latLng) {
     }
   }
   return null;
+}
+
+function coverageTileCorners(coverageTile) {
+  const corners = Array.isArray(coverageTile?.wgs84_corners) ? coverageTile.wgs84_corners : [];
+  const latLngs = corners
+    .map((corner) => {
+      const lon = Number(corner?.[0]);
+      const lat = Number(corner?.[1]);
+      return Number.isFinite(lon) && Number.isFinite(lat) ? window.L.latLng(lat, lon) : null;
+    })
+    .filter(Boolean);
+  return latLngs.length >= 3 ? latLngs : null;
+}
+
+function hkBoundsFromLatLngCorners(corners) {
+  const points = corners.map((corner) => latLngToHk(corner));
+  return {
+    west: Math.min(...points.map((point) => point.east)),
+    east: Math.max(...points.map((point) => point.east)),
+    south: Math.min(...points.map((point) => point.north)),
+    north: Math.max(...points.map((point) => point.north)),
+  };
+}
+
+function tileLayerCorners(tileEntry) {
+  return tileEntry.corners || hkBoundsCorners(tileEntry.bounds);
 }
 
 function parsePlaceLatLng(result) {
@@ -181,7 +201,7 @@ function setEntrySearchFocus(latLng, tileId) {
   if (!tileEntry) {
     return;
   }
-  entryMap.searchHighlightLayer = createEntryPolygon(tileEntry.bounds, {
+  entryMap.searchHighlightLayer = createEntryTilePolygon(tileEntry, {
     pane: "entrySearchPane",
     color: "#b45309",
     weight: 2.2,
@@ -226,7 +246,7 @@ function focusEntryPlaceResult(index) {
       setEntrySearchHint(`Located in ${toDisplayTileId(tileId)}. Click the tile on the map to download it.`);
     }
   } else {
-    setEntrySearchHint("Located the place, but the current manifest has no available tile at that point.", true);
+    setEntrySearchHint("Located the place, but Open3DHK has no downloadable tile at that point.", true);
   }
 }
 
@@ -293,9 +313,17 @@ async function runEntryPlaceSearch() {
     syncEntryOverviewUi();
   }
 }
-function buildEntryOverview(manifest) {
+function buildEntryOverview(manifest, coverage = null) {
   const tileById = new Map();
+  const coverageById = new Map();
   const grouped = new Map();
+
+  for (const tile of coverage?.tiles || []) {
+    if (!tile?.id || !Array.isArray(tile.wgs84_corners)) {
+      continue;
+    }
+    coverageById.set(tile.id, tile);
+  }
 
   for (const tile of manifest.tiles) {
     const parsed = parseTileId(tile.id);
@@ -329,6 +357,7 @@ function buildEntryOverview(manifest) {
 
   return {
     tileById,
+    coverageById,
     availableTileIds,
     regions,
     primaryRegion: regions[0] || null,
@@ -418,10 +447,13 @@ function entryMapTooltipHtml(tileId) {
     return `<strong>${toDisplayTileId(tileId)}</strong><br>${downloadState.message || "Downloading GLTF tile..."}`;
   }
   const tile = state.entry.overview?.tileById.get(tileId);
-  if (!tile) {
-    return `<strong>${toDisplayTileId(tileId)}</strong><br>Click to download GLTF and create this tile XML.`;
+  if (tile) {
+    return `<strong>${toDisplayTileId(tileId)}</strong><br>In scene: ${tile.mesh_count.toLocaleString()} meshes • ${tile.bundle_count} bundles`;
   }
-  return `<strong>${toDisplayTileId(tileId)}</strong><br>${tile.mesh_count.toLocaleString()} meshes • ${tile.bundle_count} bundles`;
+  if (state.entry.overview?.coverageById.has(tileId)) {
+    return `<strong>${toDisplayTileId(tileId)}</strong><br>Downloadable from Open3DHK. Click to download GLTF and create this tile XML.`;
+  }
+  return `<strong>${toDisplayTileId(tileId)}</strong><br>No Open3DHK download is available for this tile.`;
 }
 
 function selectEntryMapTile(tileId) {
@@ -435,30 +467,15 @@ function selectEntryMapTile(tileId) {
     setEntrySearchHint("Finish or cancel the current tile download before starting another.", true);
     return;
   }
+  if (!state.entry.overview?.tileById.has(tileId) && !state.entry.overview?.coverageById.has(tileId)) {
+    setEntrySearchHint(`${toDisplayTileId(tileId)} is outside the Open3DHK downloadable coverage.`, true);
+    return;
+  }
   if (!state.entry.overview?.tileById.has(tileId)) {
     downloadEntryMapTile(tileId);
     return;
   }
   toggleTileChecked(tileId);
-}
-
-function entryGridStyle(kind = "number") {
-  if (kind === "major") {
-    return {
-      color: "rgba(63,82,108,.2)",
-      weight: 1.25,
-    };
-  }
-  if (kind === "quadrant") {
-    return {
-      color: "rgba(85,105,130,.1)",
-      weight: 0.75,
-    };
-  }
-  return {
-    color: "rgba(92,108,128,.045)",
-    weight: 0.45,
-  };
 }
 
 function entryTileLayerStyle(tileEntry, hover = false) {
@@ -493,11 +510,12 @@ function entryTileLayerStyle(tileEntry, hover = false) {
     };
   }
   return {
-    color: tileEntry.available ? (hover ? "rgba(31,111,255,.88)" : "rgba(31,111,255,.40)") : "rgba(91,107,127,.12)",
+    color: tileEntry.inScene ? (hover ? "rgba(31,111,255,.88)" : "rgba(31,111,255,.40)") : "rgba(91,107,127,.44)",
     weight: hover ? 1.2 : 0.75,
     opacity: 1,
-    fillColor: tileEntry.available ? "#1f6fff" : "#8a98aa",
-    fillOpacity: tileEntry.available ? (hover ? 0.18 : 0.065) : (hover ? 0.1 : 0.03),
+    fillColor: tileEntry.inScene ? "#1f6fff" : "#8a98aa",
+    fillOpacity: tileEntry.inScene ? (hover ? 0.18 : 0.065) : (hover ? 0.12 : 0.045),
+    dashArray: tileEntry.inScene ? null : "4 3",
     renderer: entryMap.tileRenderer,
   };
 }
@@ -513,103 +531,12 @@ function createEntryPolygon(bounds, options) {
   return window.L.polygon(hkBoundsCorners(bounds), options);
 }
 
-function createEntryGridCanvasLayer(items = []) {
-  const EntryGridCanvasLayer = window.L.Layer.extend({
-    options: {
-      pane: "entryGridPane",
-      padding: 0.35,
-    },
-
-    initialize(gridItems) {
-      this._items = gridItems;
-    },
-
-    onAdd(map) {
-      this._map = map;
-      this._canvas = window.L.DomUtil.create("canvas", "entryGridCanvasLayer leaflet-zoom-animated");
-      this._ctx = this._canvas.getContext("2d");
-      map.getPane(this.options.pane).appendChild(this._canvas);
-      map.on("moveend zoomend resize viewreset", this._reset, this);
-      if (map.options.zoomAnimation && window.L.Browser.any3d) {
-        map.on("zoomanim", this._animateZoom, this);
-      }
-      this._reset();
-    },
-
-    onRemove(map) {
-      map.off("moveend zoomend resize viewreset", this._reset, this);
-      if (map.options.zoomAnimation && window.L.Browser.any3d) {
-        map.off("zoomanim", this._animateZoom, this);
-      }
-      window.L.DomUtil.remove(this._canvas);
-      this._canvas = null;
-      this._ctx = null;
-    },
-
-    setItems(nextItems) {
-      this._items = nextItems;
-      this._reset();
-    },
-
-    _reset() {
-      if (!this._map || !this._canvas) {
-        return;
-      }
-      const size = this._map.getSize();
-      const topLeft = this._map.containerPointToLayerPoint([0, 0]);
-      const dpr = window.devicePixelRatio || 1;
-      this._topLeft = topLeft;
-      this._canvas.width = Math.ceil(size.x * dpr);
-      this._canvas.height = Math.ceil(size.y * dpr);
-      this._canvas.style.width = `${size.x}px`;
-      this._canvas.style.height = `${size.y}px`;
-      window.L.DomUtil.setPosition(this._canvas, topLeft);
-      this._redraw(size, dpr);
-    },
-
-    _animateZoom(event) {
-      if (!this._map || !this._canvas) {
-        return;
-      }
-      const scale = this._map.getZoomScale(event.zoom);
-      const offset = this._map._latLngBoundsToNewLayerBounds(
-        this._map.getBounds(),
-        event.zoom,
-        event.center,
-      ).min;
-      window.L.DomUtil.setTransform(this._canvas, offset, scale);
-    },
-
-    _redraw(size, dpr) {
-      if (!this._ctx) {
-        return;
-      }
-      const ctx = this._ctx;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, size.x, size.y);
-      ctx.lineJoin = "miter";
-      ctx.lineCap = "butt";
-
-      for (const item of this._items) {
-        const style = entryGridStyle(item.kind);
-        const points = item.corners.map((latLng) => this._map.latLngToLayerPoint(latLng).subtract(this._topLeft));
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        ctx.lineTo(points[1].x, points[1].y);
-        ctx.lineTo(points[2].x, points[2].y);
-        ctx.lineTo(points[3].x, points[3].y);
-        ctx.closePath();
-        ctx.strokeStyle = style.color;
-        ctx.lineWidth = style.weight;
-        ctx.stroke();
-      }
-    },
-  });
-  return new EntryGridCanvasLayer(items);
+function createEntryTilePolygon(tileEntry, options) {
+  return window.L.polygon(tileLayerCorners(tileEntry), options);
 }
 
 function createEntryTileLayer(tileEntry) {
-  const layer = createEntryPolygon(tileEntry.bounds, {
+  const layer = createEntryTilePolygon(tileEntry, {
     ...entryTileLayerStyle(tileEntry),
     interactive: true,
   });
@@ -669,9 +596,6 @@ function ensureEntryMap() {
   });
   entryMap.map.setMaxBounds(latLngBoundsFromHk(ENTRY_MAP_GRID).pad(0.35));
   entryMap.map.setView(entryMapCenter(), ENTRY_MAP_INITIAL_ZOOM);
-  entryMap.map.createPane("entryGridPane");
-  entryMap.map.getPane("entryGridPane").style.zIndex = "620";
-  entryMap.map.getPane("entryGridPane").style.pointerEvents = "none";
   entryMap.map.createPane("entryTilePane");
   entryMap.map.getPane("entryTilePane").style.zIndex = "650";
   entryMap.map.getPane("entryTilePane").style.pointerEvents = "auto";
@@ -682,8 +606,6 @@ function ensureEntryMap() {
     pane: "entryTilePane",
     padding: 0.45,
   });
-  entryMap.gridLayer = createEntryGridCanvasLayer();
-  entryMap.gridLayer.addTo(entryMap.map);
   entryMap.tileLayerGroup = window.L.layerGroup().addTo(entryMap.map);
 
   entryMap.tileLayer = window.L.tileLayer(CARTO_LIGHT_URL, {
@@ -737,36 +659,27 @@ function buildEntryMap(overview) {
   entryMap.hoveredTileId = null;
   entryMap.tileLayerGroup.clearLayers();
 
-  const gridItems = [];
-  for (let sheet = 1; sheet <= ENTRY_MAP_SHEET_COUNT; sheet += 1) {
-    const major = majorBounds(sheet);
-    gridItems.push({kind: "major", corners: hkBoundsCorners(major)});
-
-    for (const quadrantId of ENTRY_MAP_QUADRANTS) {
-      const quadrant = quadrantBounds(major, quadrantId);
-      gridItems.push({kind: "quadrant", corners: hkBoundsCorners(quadrant)});
-
-      for (let number = 1; number <= 25; number += 1) {
-        const numberCell = numberBounds(quadrant, number);
-        gridItems.push({kind: "number", corners: hkBoundsCorners(numberCell)});
-      }
-    }
-  }
-  entryMap.gridLayer.setItems(gridItems);
-
-  for (const tileId of allEntryTileIds()) {
-    const bounds = boundsForTileId(tileId);
+  const interactiveTileIds = new Set([
+    ...overview.coverageById.keys(),
+    ...overview.tileById.keys(),
+  ]);
+  for (const tileId of [...interactiveTileIds].sort(compareTileIds)) {
+    const coverageTile = overview.coverageById.get(tileId);
+    const corners = coverageTileCorners(coverageTile);
+    const bounds = boundsForTileId(tileId) || (corners ? hkBoundsFromLatLngCorners(corners) : null);
     if (!bounds) {
       continue;
     }
     const tileEntry = {
       id: tileId,
       displayId: toDisplayTileId(tileId),
-      available: overview.tileById.has(tileId),
+      inScene: overview.tileById.has(tileId),
+      downloadable: overview.coverageById.has(tileId),
       selected: false,
       loaded: false,
       downloading: state.entry.downloadingTileIds.has(tileId),
       bounds,
+      corners,
       layer: null,
     };
     tileEntry.layer = createEntryTileLayer(tileEntry);
@@ -868,7 +781,8 @@ function syncEntryOverviewUi() {
   ui.btnOpenTileIndex.disabled = state.tileLoadBusy || downloadingCount > 0;
 
   for (const [tileId, tileEntry] of entryMap.tilesById.entries()) {
-    tileEntry.available = overview.tileById.has(tileId);
+    tileEntry.inScene = overview.tileById.has(tileId);
+    tileEntry.downloadable = overview.coverageById.has(tileId);
     tileEntry.selected = selectedSet.has(tileId);
     tileEntry.loaded = loadedSet.has(tileId);
     tileEntry.downloading = state.entry.downloadingTileIds.has(tileId);
@@ -910,7 +824,7 @@ async function refreshManifestAfterTileDownload(tileId, manifestPayload = null) 
   state.manifest = manifestPayload || await getManifest();
   scene().populateTileList(state.manifest);
   performancePanel().populatePerformanceControls(state.manifest);
-  state.entry.overview = buildEntryOverview(state.manifest);
+  state.entry.overview = buildEntryOverview(state.manifest, state.entry.coverage);
   renderEntryOverview();
   scene().setTileChecked(tileId, true);
   setEntrySearchHint(`${toDisplayTileId(tileId)} was downloaded and added as a tile XML.`);

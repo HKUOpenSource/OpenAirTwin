@@ -21,6 +21,7 @@ from backend.rt.common import antenna_array_capabilities
 from backend.rt.runtime import RTRuntime, SceneNotReady, current_scene_generation
 from backend.rt.solve_link import solve_link
 from backend.scene.incremental_tiles import download_stage_and_integrate_tile, normalize_tile_id
+from backend.scene.open3dhk_coverage import is_open3dhk_download_base_url, open3dhk_tile_is_downloadable
 from backend.scene.tile_bundles import (
     bundle_cache_key,
     compressed_tile_bundle_is_fresh,
@@ -566,6 +567,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             if path == "/api/scene/tile-downloads":
                 payload = self.read_json_body()
                 tile_id = normalize_tile_id(str(payload.get("tile_id", ""))).internal
+                if is_open3dhk_download_base_url(config.MAP_DOWNLOAD_BASE_URL) and not open3dhk_tile_is_downloadable(tile_id):
+                    raise ValueError(f"No Open3D HK download is available for tile {tile_id}")
                 job = self.app_state.tile_download_job_manager.create_job(tile_id)
                 self.send_json({"ok": True, "job_id": job.job_id, "status": job.status, "tile_id": tile_id})
                 return

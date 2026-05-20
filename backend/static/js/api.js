@@ -11,6 +11,10 @@ export function getManifest() {
   return requestJson("/api/scene/manifest");
 }
 
+export function getOpen3dHkTileCoverage() {
+  return requestJson("/assets/open3dhk_tile_coverage.json");
+}
+
 export function getRtCapabilities() {
   return requestJson("/api/rt/capabilities");
 }

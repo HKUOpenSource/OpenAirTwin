@@ -6,6 +6,7 @@ import {
   cancelTileDownloadJob,
   deepMimoDownloadUrl,
   getManifest,
+  getOpen3dHkTileCoverage,
   getDeepMimoJob,
   getMobilityJob,
   getMobilityResult,
@@ -42,6 +43,7 @@ const context = {
     getMobilityJob,
     getMobilityResult,
     getManifest,
+    getOpen3dHkTileCoverage,
     getRadiomapJob,
     getRadiomapResult,
     getRtCapabilities,
@@ -931,9 +933,11 @@ async function bootstrap() {
   solverControls.applyRtCapabilities(state.rtCapabilities);
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 18});
   state.manifest = await getManifest();
+  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading Open3DHK coverage...", percent: 22});
+  state.entry.coverage = await getOpen3dHkTileCoverage();
   sceneRenderState.populateTileList(state.manifest);
   performancePanel.populatePerformanceControls(state.manifest);
-  state.entry.overview = entryMapController.buildEntryOverview(state.manifest);
+  state.entry.overview = entryMapController.buildEntryOverview(state.manifest, state.entry.coverage);
   entryMapController.renderEntryOverview();
   sceneRenderState.setTileSelection([]);
   sceneRenderState.hideOverlay();

@@ -367,6 +367,69 @@ class ServerHardeningTests(unittest.TestCase):
             thread.join(timeout=2)
             server.server_close()
 
+    def test_open3dhk_tile_download_rejects_tiles_outside_coverage(self) -> None:
+        class RecordingTileDownloadJobManager:
+            def __init__(self) -> None:
+                self.created_tile_id = None
+
+            def create_job(self, tile_id):
+                self.created_tile_id = tile_id
+                return SimpleNamespace(job_id="tile_test", status="queued")
+
+        manager = RecordingTileDownloadJobManager()
+        server, thread = self.run_server(SimpleNamespace(tile_download_job_manager=manager))
+        try:
+            host, port = server.server_address
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/scene/tile-downloads",
+                data=json.dumps({"tile_id": "1_NW_1A"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with patch.object(config, "MAP_DOWNLOAD_BASE_URL", "https://data11.map.gov.hk/api/3d-zip"):
+                with patch("backend.server.open3dhk_tile_is_downloadable", return_value=False):
+                    with self.assertRaises(urllib.error.HTTPError) as error:
+                        urllib.request.urlopen(request)
+            self.assertEqual(error.exception.code, 400)
+            payload = json.loads(error.exception.read().decode("utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertIn("No Open3D HK download is available for tile 1_NW_1A", payload["error"])
+            self.assertIsNone(manager.created_tile_id)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_open3dhk_tile_download_allows_tiles_inside_coverage(self) -> None:
+        class RecordingTileDownloadJobManager:
+            def __init__(self) -> None:
+                self.created_tile_id = None
+
+            def create_job(self, tile_id):
+                self.created_tile_id = tile_id
+                return SimpleNamespace(job_id="tile_test", status="queued")
+
+        manager = RecordingTileDownloadJobManager()
+        server, thread = self.run_server(SimpleNamespace(tile_download_job_manager=manager))
+        try:
+            host, port = server.server_address
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/scene/tile-downloads",
+                data=json.dumps({"tile_id": "11_SW_7A"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with patch.object(config, "MAP_DOWNLOAD_BASE_URL", "https://data11.map.gov.hk/api/3d-zip"):
+                with patch("backend.server.open3dhk_tile_is_downloadable", return_value=True):
+                    payload = json.loads(urllib.request.urlopen(request).read().decode("utf-8"))
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["tile_id"], "11_SW_7A")
+            self.assertEqual(manager.created_tile_id, "11_SW_7A")
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
     def test_mobility_job_routes_return_status_and_result(self) -> None:
         manager = FakeMobilityJobManager()
         server, thread = self.run_server(SimpleNamespace(mobility_job_manager=manager))
