@@ -102,6 +102,12 @@ export function getDeepMimoJob(jobId) {
   return requestJson(`/api/deepmimo/jobs/${encodeURIComponent(jobId)}`);
 }
 
+export function cancelDeepMimoJob(jobId) {
+  return requestJson(`/api/deepmimo/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+  });
+}
+
 export function deepMimoDownloadUrl(jobId) {
   return `/api/deepmimo/jobs/${encodeURIComponent(jobId)}/download`;
 }
