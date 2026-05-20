@@ -39,11 +39,10 @@ class TileSceneXmlSource:
 
 
 class TileSceneXmlBuilder:
-    def __init__(self, scene_root: Path, source_xml: Path, output_root: Path) -> None:
+    def __init__(self, scene_root: Path, output_root: Path) -> None:
         self.scene_root = Path(scene_root).resolve()
-        self.source_xml = Path(source_xml).resolve()
         self.output_root = Path(output_root).resolve()
-        self._source = load_tile_scene_xml_source(self.scene_root, self.source_xml)
+        self._source = load_tile_scene_xml_source(self.scene_root)
         self._common_children = self._source.common_children
         self._shape_by_tile = self._source.shape_by_tile
         self.source_mode = self._source.source_mode
@@ -134,7 +133,7 @@ def default_common_scene_root() -> ET.Element:
     return root
 
 
-def load_tile_scene_xml_source(scene_root: Path, source_xml: Path | None = None) -> TileSceneXmlSource:
+def load_tile_scene_xml_source(scene_root: Path) -> TileSceneXmlSource:
     resolved_scene_root = Path(scene_root).resolve()
     ensure_scene_layout(resolved_scene_root)
     common_xml = resolved_scene_root / COMMON_SCENE_RELATIVE_PATH
@@ -218,36 +217,6 @@ def _load_per_tile_scene_source(
         shape_by_tile=shape_by_tile,
         source_mode="per_tile",
     )
-
-
-def _load_legacy_scene_source(scene_root: Path, source_xml: Path) -> TileSceneXmlSource:
-    source_root = ET.parse(source_xml).getroot()
-    common_children = [
-        copy.deepcopy(child)
-        for child in list(source_root)
-        if child.tag != "shape"
-    ]
-    shape_by_tile: dict[str, list[ET.Element]] = {}
-    for shape in source_root.findall("shape"):
-        filename_node = shape.find('string[@name="filename"]')
-        if filename_node is None:
-            continue
-        tile_id = tile_id_for_mesh_path(scene_root, filename_node.attrib.get("value", ""))
-        if tile_id is None:
-            continue
-        shape_by_tile.setdefault(tile_id, []).append(copy.deepcopy(shape))
-
-    return TileSceneXmlSource(
-        scene_tag=source_root.tag,
-        scene_attrib=dict(source_root.attrib),
-        common_children=common_children,
-        shape_by_tile=shape_by_tile,
-        source_mode="legacy",
-    )
-
-
-def load_legacy_scene_xml_source(scene_root: Path, source_xml: Path) -> TileSceneXmlSource:
-    return _load_legacy_scene_source(Path(scene_root).resolve(), Path(source_xml).resolve())
 
 
 def _write_xml(tree: ET.ElementTree, path: Path) -> None:

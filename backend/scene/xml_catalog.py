@@ -67,9 +67,9 @@ class SceneManifest:
         }
 
 
-def load_scene_manifest(scene_root: Path, scene_xml: Path) -> SceneManifest:
+def load_scene_manifest(scene_root: Path) -> SceneManifest:
     scene_root = Path(scene_root).resolve()
-    source = load_tile_scene_xml_source(scene_root, scene_xml)
+    source = load_tile_scene_xml_source(scene_root)
     tile_counts: dict[str, Counter[str]] = defaultdict(Counter)
     bsdf_counts: Counter[str] = Counter()
     meshes: list[MeshRecord] = []

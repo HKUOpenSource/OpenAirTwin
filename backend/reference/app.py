@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import json, re, subprocess
+import json, os, re, subprocess, sys
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, unquote
@@ -9,21 +9,12 @@ ROOT = Path(__file__).resolve().parent
 WORKSPACE = ROOT.parent
 STATIC = ROOT / 'static'
 
-# Prefer local workspace paths; fallback to legacy absolute deployment paths
-DATA_JSON = WORKSPACE / 'precomputed_paths.json'
-HKU_XML = WORKSPACE / 'HKU.xml'
-MESH_ROOT = WORKSPACE / 'meshes'
-if not DATA_JSON.exists():
-    DATA_JSON = Path('/home/defaultuser/hku_demo/offline_demo/precomputed_paths.json')
-if not HKU_XML.exists():
-    HKU_XML = Path('/home/defaultuser/hku_demo/HKU.xml')
-if not MESH_ROOT.exists():
-    MESH_ROOT = Path('/home/defaultuser/hku_demo/meshes')
+DATA_JSON = Path(os.environ.get('OAT_REFERENCE_DATA_JSON', str(WORKSPACE / 'precomputed_paths.json')))
+REFERENCE_XML = Path(os.environ.get('OAT_REFERENCE_XML', str(WORKSPACE / 'reference.xml')))
+MESH_ROOT = Path(os.environ.get('OAT_REFERENCE_MESH_ROOT', str(WORKSPACE / 'meshes')))
 
 SOLVE_PAIR = ROOT / 'solve_pair.py'
-PY_BIN = Path('/home/defaultuser/venvs/env_hku_rt_gpu/bin/python')
-if not PY_BIN.exists():
-    PY_BIN = Path('python3')
+PY_BIN = Path(os.environ.get('OAT_REFERENCE_PYTHON', sys.executable))
 
 def ctype_for(p: Path):
     s = p.suffix.lower()
@@ -38,10 +29,10 @@ def ctype_for(p: Path):
     }.get(s, 'application/octet-stream')
 
 def build_manifest():
-    if not HKU_XML.exists():
+    if not REFERENCE_XML.exists():
         return {'count': 0, 'meshes': []}
 
-    xml = HKU_XML.read_text(encoding='utf-8', errors='replace')
+    xml = REFERENCE_XML.read_text(encoding='utf-8', errors='replace')
     files = re.findall(r'<string\s+name="filename"\s+value="([^"]+)"', xml)
     uniq, seen = [], set()
     for f in files:

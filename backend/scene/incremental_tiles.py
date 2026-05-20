@@ -559,14 +559,14 @@ def _tile_bounds(tile_id: str) -> dict[str, float] | None:
     return {"west": mid_x, "east": east, "south": south, "north": mid_y}
 
 
-def _scene_tile_ids(scene_root: Path, scene_xml: Path) -> set[str]:
-    source = load_tile_scene_xml_source(scene_root, scene_xml)
+def _scene_tile_ids(scene_root: Path) -> set[str]:
+    source = load_tile_scene_xml_source(scene_root)
     return set(source.shape_by_tile)
 
 
-def scene_contains_tile(scene_root: Path, scene_xml: Path, tile_id: str) -> bool:
+def scene_contains_tile(scene_root: Path, tile_id: str) -> bool:
     ids = normalize_tile_id(tile_id)
-    return ids.internal in _scene_tile_ids(scene_root, scene_xml)
+    return ids.internal in _scene_tile_ids(scene_root)
 
 
 def _origin_path(stage_root: Path) -> Path:
@@ -575,7 +575,6 @@ def _origin_path(stage_root: Path) -> Path:
 
 def load_or_create_scene_origin(
     scene_root: Path,
-    scene_xml: Path,
     stage_root: Path,
     *,
     fallback_tile_id: str | None = None,
@@ -585,7 +584,7 @@ def load_or_create_scene_origin(
         payload = json.loads(path.read_text(encoding="utf-8"))
         return np.asarray(payload["origin_world_z_up"], dtype=np.float64)
 
-    tile_ids = sorted(_scene_tile_ids(scene_root, scene_xml))
+    tile_ids = sorted(_scene_tile_ids(scene_root))
     bounds = [_tile_bounds(tile_id) for tile_id in tile_ids]
     bounds = [item for item in bounds if item is not None]
     if not bounds and fallback_tile_id:
@@ -606,7 +605,7 @@ def load_or_create_scene_origin(
             {
                 "origin_world_z_up": origin.tolist(),
                 "source": "inferred from current scene tile sheet bounds",
-                "scene_xml": str(scene_xml),
+                "scene_source": "per_tile",
             },
             indent=2,
         ),
@@ -630,10 +629,10 @@ def make_local(mesh: trimesh.Trimesh, origin: np.ndarray) -> trimesh.Trimesh:
     return mesh
 
 
-def _build_tile_scene_xml_tree(scene_root: Path, scene_xml: Path, tile_id: str, records: list[dict]) -> ET.ElementTree:
+def _build_tile_scene_xml_tree(scene_root: Path, tile_id: str, records: list[dict]) -> ET.ElementTree:
     ensure_scene_layout(scene_root)
     ids = normalize_tile_id(tile_id)
-    source = load_tile_scene_xml_source(scene_root, scene_xml)
+    source = load_tile_scene_xml_source(scene_root)
     root = ET.Element(source.scene_tag, dict(source.scene_attrib))
     existing_shape_ids: set[str] = set()
     tile_xml_path = _tile_xml_path(scene_root, ids.internal)
@@ -667,10 +666,10 @@ def _replace_path(source: Path, target: Path) -> None:
     source.replace(target)
 
 
-def _write_tile_scene_xml(scene_root: Path, scene_xml: Path, tile_id: str, records: list[dict]) -> Path:
+def _write_tile_scene_xml(scene_root: Path, tile_id: str, records: list[dict]) -> Path:
     ids = normalize_tile_id(tile_id)
     tile_xml_path = _tile_xml_path(scene_root, ids.internal)
-    tree = _build_tile_scene_xml_tree(scene_root, scene_xml, ids.internal, records)
+    tree = _build_tile_scene_xml_tree(scene_root, ids.internal, records)
     temp_path = tile_xml_path.with_suffix(".xml.tmp")
     _write_xml_tree(tree, temp_path)
     _replace_path(temp_path, tile_xml_path)
@@ -720,7 +719,6 @@ def _commit_staged_tile_outputs(scene_root: Path, tile_id: str, commit_root: Pat
 
 def integrate_staged_tile(
     scene_root: Path,
-    scene_xml: Path,
     stage_root: Path,
     tile_id: str,
     *,
@@ -728,7 +726,7 @@ def integrate_staged_tile(
     cancel_check: CancelCheck | None = None,
 ) -> dict:
     ids = normalize_tile_id(tile_id)
-    if scene_contains_tile(scene_root, scene_xml, ids.internal):
+    if scene_contains_tile(scene_root, ids.internal):
         return {"status": "already_integrated", "tile": ids.internal, "tile_sheet_num": ids.display, "mesh_count": 0}
 
     commit_root = _tile_commit_root(scene_root, ids.internal)
@@ -737,7 +735,7 @@ def integrate_staged_tile(
         if not manifest_path.exists():
             raise FileNotFoundError(f"Tile {ids.display} has not been staged yet")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        origin = load_or_create_scene_origin(scene_root, scene_xml, stage_root, fallback_tile_id=ids.internal)
+        origin = load_or_create_scene_origin(scene_root, stage_root, fallback_tile_id=ids.internal)
         records: list[dict] = []
         staged_objects = manifest["objects"]
         report_every = max(1, len(staged_objects) // 40)
@@ -770,7 +768,7 @@ def integrate_staged_tile(
         _raise_if_cancelled(cancel_check)
         _report(progress_cb, 0.96, "Writing tile scene XML")
         staged_tile_xml_path = commit_root / TILE_SCENE_RELATIVE_DIR / f"{ids.internal}.xml"
-        tree = _build_tile_scene_xml_tree(scene_root, scene_xml, ids.internal, records)
+        tree = _build_tile_scene_xml_tree(scene_root, ids.internal, records)
         _write_xml_tree(tree, staged_tile_xml_path)
         _raise_if_cancelled(cancel_check)
         _report(progress_cb, 0.98, "Committing tile scene files")
@@ -794,7 +792,6 @@ def download_stage_and_integrate_tile(
     tile_id: str,
     *,
     scene_root: Path,
-    scene_xml: Path,
     workspace_root: Path,
     stage_root: Path,
     base_url: str,
@@ -804,7 +801,7 @@ def download_stage_and_integrate_tile(
     cancel_check: CancelCheck | None = None,
 ) -> dict:
     ids = normalize_tile_id(tile_id)
-    if scene_contains_tile(scene_root, scene_xml, ids.internal):
+    if scene_contains_tile(scene_root, ids.internal):
         return {"status": "already_integrated", "tile": ids.internal, "tile_sheet_num": ids.display}
     try:
         zip_path, url = download_tile_zip(
@@ -827,7 +824,6 @@ def download_stage_and_integrate_tile(
         )
         result = integrate_staged_tile(
             scene_root,
-            scene_xml,
             stage_root,
             ids.display,
             progress_cb=progress_cb,

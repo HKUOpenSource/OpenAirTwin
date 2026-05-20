@@ -8,7 +8,7 @@ from backend.scene.xml_catalog import load_scene_manifest
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build cached GLB render bundles for HKU-RT v3.0.")
+    parser = argparse.ArgumentParser(description="Build cached GLB render bundles for OpenAirTwin.")
     parser.add_argument("--force", action="store_true", help="Rebuild bundles even if cache files are fresh.")
     parser.add_argument(
         "--compress",
@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    manifest = load_scene_manifest(config.SCENE_ROOT, config.SCENE_XML)
+    manifest = load_scene_manifest(config.SCENE_ROOT)
     results = build_all_tile_bundles(
         config.SCENE_ROOT,
         manifest.bundles,

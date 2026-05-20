@@ -1,1 +1,1 @@
-"""HKU Ray Tracing Platform v3.0 backend package."""
+"""OpenAirTwin backend package."""

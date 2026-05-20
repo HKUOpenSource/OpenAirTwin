@@ -63,22 +63,18 @@ def write_per_tile_xml(scene_root: Path) -> None:
 
 
 class DeepMIMOExportWorkerTests(unittest.TestCase):
-    def test_selected_tile_scene_xml_uses_per_tile_source_without_legacy_scene(self) -> None:
+    def test_selected_tile_scene_xml_uses_per_tile_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             scene_root = Path(tmp_dir)
             write_per_tile_xml(scene_root)
             previous_scene_root = config.SCENE_ROOT
-            previous_scene_xml = config.SCENE_XML
             config.SCENE_ROOT = scene_root
-            config.SCENE_XML = scene_root / "scene.xml"
             try:
                 result, source_mode = _write_selected_tile_scene_xml(scene_root / "job", ("TILE_A",))
             finally:
                 config.SCENE_ROOT = previous_scene_root
-                config.SCENE_XML = previous_scene_xml
 
             self.assertEqual(source_mode, "per_tile")
-            self.assertFalse((scene_root / "scene.xml").exists())
             self.assertEqual(result.tile_ids, ("TILE_A",))
             self.assertEqual(result.shape_count, 1)
             root = ET.parse(result.path).getroot()

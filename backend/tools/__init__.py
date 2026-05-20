@@ -1,1 +1,1 @@
-"""Operational scripts for the HKU-RT backend."""
+"""Operational scripts for the OpenAirTwin backend."""
