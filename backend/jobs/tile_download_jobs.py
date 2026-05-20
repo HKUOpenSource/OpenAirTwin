@@ -142,7 +142,7 @@ class TileDownloadJobManager:
         except TileDownloadCancelled:
             self._update(
                 job_id,
-                status="canceled",
+                status="cancelled",
                 progress=1.0,
                 message="Tile download cancelled; partial files removed",
                 result=None,
