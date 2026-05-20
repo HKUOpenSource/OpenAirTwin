@@ -82,35 +82,17 @@ More functions are coming:
 
 ## Quickstart
 
-Run the installer from the project root:
+Install the runtime:
 
 ```bash
-# macOS / Linux
 bash install.sh
-
-# Windows PowerShell
-.\install.ps1
 ```
 
-The installer creates a project-local `.venv/`, installs `requirements.txt`,
-checks the Sionna RT / Mitsuba / Dr.Jit runtime, and writes local startup
-settings to `.oat-env`. You can also call it directly:
-
-```bash
-python3.11 install.py
-```
-
-Start the backend:
+Start OpenAirTwin:
 
 ```bash
 set -a; . ./.oat-env; set +a
 ./.venv/bin/python -m backend.server
-```
-
-On Windows PowerShell, set the variables printed by the installer, then run:
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.server
 ```
 
 Open the frontend:
@@ -119,24 +101,9 @@ Open the frontend:
 http://127.0.0.1:8090
 ```
 
-The server listens on `0.0.0.0:8090` by default. Override the bind address when
-needed:
-
-```bash
-OAT_HOST=127.0.0.1 OAT_PORT=8090 python3 -m backend.server
-```
-
 If no scene assets are present, the server creates an empty `scene/` layout and
 the frontend opens with an empty scene manifest. Add scene data before running
 ray-tracing workflows.
-
-Manual installation is still available for advanced users:
-
-```bash
-python3.11 -m venv .venv
-./.venv/bin/python -m pip install --upgrade pip setuptools wheel
-./.venv/bin/python -m pip install -r requirements.txt
-```
 
 ## Requirements
 
@@ -153,6 +120,22 @@ specific. The installer follows the public Sionna RT, Mitsuba, and CUDA guidance
 where it can, then reports the parts that still require system-level action.
 
 ## Installation Diagnostics
+
+Use this section when the Quickstart install fails, ray tracing does not start,
+or the machine has CPU-only, multi-GPU, or Windows-specific runtime issues. If
+Quickstart succeeds and the web app opens normally, you can skip it.
+
+On Windows PowerShell, run the installer with:
+
+```powershell
+.\install.ps1
+```
+
+Then set the variables printed by the installer and start the backend with:
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.server
+```
 
 Run the environment doctor without installing packages:
 
@@ -171,6 +154,14 @@ Useful installer options:
 On CPU-only systems, install LLVM before running ray-tracing workloads. On
 Windows, the doctor also checks Dr.Jit/CUDA cache directories that commonly
 surface as OptiX or cache write errors.
+
+Manual installation is still available for advanced users:
+
+```bash
+python3.11 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip setuptools wheel
+./.venv/bin/python -m pip install -r requirements.txt
+```
 
 ## Project Structure
 
