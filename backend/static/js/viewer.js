@@ -707,7 +707,14 @@ export class Viewer {
 
     const movement = new THREE.Vector3();
     const forward = this.#cameraDirection();
-    const right = new THREE.Vector3().crossVectors(forward, this.camera.up).normalize();
+    const right = new THREE.Vector3().crossVectors(forward, this.camera.up);
+    if (right.lengthSq() < 1e-10) {
+      right.set(forward.y, -forward.x, 0);
+      if (right.lengthSq() < 1e-10) {
+        right.set(1, 0, 0);
+      }
+    }
+    right.normalize();
     const up = this.camera.up.clone().normalize();
 
     if (this.fly.moveState.forward) {
@@ -771,14 +778,12 @@ export class Viewer {
   }
 
   #onKeyUp(event) {
-    if (this.#isFormTarget(event.target)) {
+    const handled = this.#setFlyMovementKey(event.code, false);
+    if (!handled || this.#isFormTarget(event.target)) {
       return;
     }
-    const handled = this.#setFlyMovementKey(event.code, false);
-    if (handled) {
-      this.#markInteraction();
-      event.preventDefault();
-    }
+    this.#markInteraction();
+    event.preventDefault();
   }
 
   #setFlyMovementKey(code, pressed) {
@@ -1371,22 +1376,6 @@ export class Viewer {
     });
   }
 
-  previewSurface(surface) {
-    this.clearSurfacePreview();
-    const geometry = new THREE.PlaneGeometry(surface.size[0], surface.size[1]);
-    const material = new THREE.MeshBasicMaterial({
-      color: "#b8d7f8",
-      opacity: 0.18,
-      transparent: true,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(surface.center[0], surface.center[1], surface.center[2] + 0.04);
-    this.overlayGroup.add(mesh);
-    this.surfacePreview = mesh;
-  }
-
   clearSurfacePreview() {
     if (!this.surfacePreview) {
       return;
@@ -1480,11 +1469,14 @@ export class Viewer {
     const displayRange = Math.max(displayMax - displayMin, 1e-6);
     const colormap = colorRange.colormap || "jet";
     const colors = new Float32Array(triangleCount * 9);
+    const invalidColor = {r: 112, g: 118, b: 128};
 
     for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
-      const value = rawValues[triangleIndex];
-      const t = clamp01((value - displayMin) / displayRange);
-      const color = colorForColormap(colormap, t);
+      const rawValue = rawValues[triangleIndex];
+      const value = Number(rawValue);
+      const color = rawValue !== null && Number.isFinite(value)
+        ? colorForColormap(colormap, clamp01((value - displayMin) / displayRange))
+        : invalidColor;
       for (let vertexIndex = 0; vertexIndex < 3; vertexIndex += 1) {
         const base = triangleIndex * 9 + vertexIndex * 3;
         colors[base] = color.r / 255;
