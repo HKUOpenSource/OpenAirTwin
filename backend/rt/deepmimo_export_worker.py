@@ -7,12 +7,13 @@ import os
 from pathlib import Path
 import shutil
 import traceback
+from uuid import uuid4
 
 import numpy as np
 
 from backend import config
 from backend.rt.common import build_scene
-from backend.rt.deepmimo_payload import parse_deepmimo_payload, validate_receiver_grid_limit
+from backend.rt.deepmimo_payload import parse_deepmimo_payload, receiver_grid_axis_count, validate_receiver_grid_limit
 from backend.rt.terrain_patch import sample_points_on_terrain
 from backend.scene.tile_scene_xml import TileSceneXmlBuilder, TileSceneXmlResult
 from backend.scene.xml_catalog import load_scene_manifest
@@ -49,8 +50,12 @@ def _receiver_grid(
     max_receivers: int,
 ) -> np.ndarray:
     validate_receiver_grid_limit(min_xy, max_xy, spacing, max_receivers)
-    xs = np.arange(float(min_xy[0]), float(max_xy[0]) + (spacing * 0.5), spacing, dtype=np.float32)
-    ys = np.arange(float(min_xy[1]), float(max_xy[1]) + (spacing * 0.5), spacing, dtype=np.float32)
+    x_count = receiver_grid_axis_count(min_xy[0], max_xy[0], spacing)
+    y_count = receiver_grid_axis_count(min_xy[1], max_xy[1], spacing)
+    xs = float(min_xy[0]) + np.arange(x_count, dtype=np.float32) * np.float32(spacing)
+    ys = float(min_xy[1]) + np.arange(y_count, dtype=np.float32) * np.float32(spacing)
+    xs = np.minimum(xs, np.float32(max_xy[0]))
+    ys = np.minimum(ys, np.float32(max_xy[1]))
     xx, yy = np.meshgrid(xs, ys)
     return np.column_stack([xx.reshape(-1), yy.reshape(-1)]).astype(np.float32, copy=False)
 
@@ -180,13 +185,14 @@ def _remove_devices(scene, names: list[str]) -> None:
 def _solve_chunk(scene, tx_position: tuple[float, float, float], tx_orientation: tuple[float, float, float], rx_positions: np.ndarray, solver: dict):
     from sionna.rt import PathSolver, Receiver, Transmitter
 
-    device_names = ["tx_deepmimo"]
+    device_names: list[str] = []
     try:
         scene.add(Transmitter(name="tx_deepmimo", position=tx_position, orientation=tx_orientation))
+        device_names.append("tx_deepmimo")
         for index, position in enumerate(rx_positions):
             name = f"rx_deepmimo_{index:05d}"
-            device_names.append(name)
             scene.add(Receiver(name=name, position=tuple(float(value) for value in position), orientation=(0.0, 0.0, 0.0)))
+            device_names.append(name)
         params = {
             "max_depth": solver["max_depth"],
             "max_num_paths_per_src": solver["max_num_paths_per_src"],
@@ -207,11 +213,15 @@ def _solve_chunk(scene, tx_position: tuple[float, float, float], tx_orientation:
 
 
 def _zip_directory(source_dir: Path, archive_path: Path) -> None:
-    if archive_path.exists():
-        archive_path.unlink()
-    base_name = archive_path.with_suffix("")
-    result = shutil.make_archive(str(base_name), "zip", root_dir=str(source_dir))
-    Path(result).replace(archive_path)
+    tmp_base = archive_path.parent / f".{archive_path.stem}.{uuid4().hex}"
+    tmp_result_path: Path | None = None
+    try:
+        tmp_result_path = Path(shutil.make_archive(str(tmp_base), "zip", root_dir=str(source_dir)))
+        tmp_result_path.replace(archive_path)
+    except Exception:
+        if tmp_result_path is not None:
+            tmp_result_path.unlink(missing_ok=True)
+        raise
 
 
 def run(job_dir: Path) -> None:
