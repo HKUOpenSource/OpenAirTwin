@@ -188,10 +188,8 @@ The archive is installed under `scene/` and contains runtime source data only:
 `common/`, `tiles/`, and `meshes/`. Render caches are rebuilt locally when
 needed.
 
-The sample data comes from the Hong Kong Lands Department / Common Spatial Data
-Infrastructure / Open3Dhk. It is not licensed under this project's Apache-2.0
-license. See the release archive's `THIRD_PARTY_DATA.md` and the
-[CSDI 3D Visualisation Map API Terms](https://portal.csdi.gov.hk/csdi-webpage/apidoc/3d-visualisation-map-api).
+The sample data is subject to the Open3Dhk data use notice below. See the
+release archive's `THIRD_PARTY_DATA.md` for the bundled data attribution.
 
 ## Project Structure
 
@@ -215,6 +213,27 @@ license. See the release archive's `THIRD_PARTY_DATA.md` and the
 ```
 
 ## Scene Data
+
+### Open3Dhk Data Use Notice
+
+OpenAirTwin can use scene data obtained from or derived from Open3Dhk, the
+Common Spatial Data Infrastructure (CSDI), and the Hong Kong Lands Department.
+That data is third-party government spatial data and is not licensed under this
+repository's Apache-2.0 software license.
+
+When browsing, downloading, using, reproducing, redistributing, or publishing
+copies or derivatives of Open3Dhk/CSDI data, users are responsible for complying
+with the applicable official terms. In particular, users should clearly identify
+the Government, CSDI, Lands Department, and/or Open3Dhk as the data source where
+applicable, and acknowledge the relevant intellectual property ownership.
+
+OpenAirTwin provides tooling for working with this data, but does not provide
+any warranty regarding the data's accuracy, completeness, availability,
+timeliness, or suitability for any particular purpose. See the
+[CSDI 3D Visualisation Map API Terms](https://portal.csdi.gov.hk/csdi-webpage/apidoc/3d-visualisation-map-api)
+and the Lands Department's
+[Open Data (Geospatial)](https://www.landsd.gov.hk/en/spatial-data/open-data.html)
+page for the official data terms and download guidance.
 
 OpenAirTwin expects runtime scene assets under `scene/` by default:
 
