@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from time import perf_counter
 
 from backend.rt.common import parse_mobility_payload
@@ -8,14 +9,21 @@ from backend.rt.solve_link import solve_link
 
 
 def _finite_values(values: list[float | None]) -> list[float]:
-    return [float(value) for value in values if value is not None]
+    finite_values = []
+    for value in values:
+        if value is None:
+            continue
+        parsed = float(value)
+        if math.isfinite(parsed):
+            finite_values.append(parsed)
+    return finite_values
 
 
 def _max_abs_doppler(paths: list[dict]) -> float | None:
     values = [
         abs(float(path["doppler_hz"]))
         for path in paths
-        if isinstance(path.get("doppler_hz"), (int, float))
+        if isinstance(path.get("doppler_hz"), (int, float)) and math.isfinite(float(path["doppler_hz"]))
     ]
     return max(values) if values else None
 

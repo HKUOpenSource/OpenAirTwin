@@ -14,6 +14,9 @@ from backend.rt.common import parse_radiomap_payload
 from backend.rt.solve_radiomap import solve_terrain_radiomap
 
 
+_ACTIVE_STATUSES = frozenset({"queued", "running"})
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -86,6 +89,9 @@ class RadiomapJobManager:
         )
         with self._lock:
             self._cleanup_locked(time.time())
+            active_count = sum(1 for existing in self._jobs.values() if existing.status in _ACTIVE_STATUSES)
+            if active_count >= self.max_pending_jobs:
+                raise RadiomapQueueFull(self.max_pending_jobs)
             self._jobs[job.job_id] = job
             try:
                 self._queue.put_nowait((job.job_id, payload))

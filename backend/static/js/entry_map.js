@@ -808,7 +808,10 @@ async function pollTileDownloadJob(jobId, tileId) {
     if (job.status === "succeeded") {
       return job;
     }
-    if (job.status === "canceled") {
+    if (job.status === "canceled" || job.status === "cancelled") {
+      // Accept both spellings: pre-PR-#26 backends emit "canceled" (American),
+      // PR #26 standardizes on "cancelled" (British) to match the other
+      // job managers. PR #28 brings the rest of the frontend in line.
       const error = new Error(job.message || "Tile download cancelled");
       error.cancelled = true;
       throw error;
