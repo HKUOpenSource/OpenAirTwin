@@ -187,7 +187,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             while remaining > 0:
                 chunk = handle.read(min(1024 * 1024, remaining))
                 if not chunk:
-                    break
+                    # File shrank mid-read. Headers already advertised `size`
+                    # bytes, so the only way to flag the protocol mismatch is
+                    # to force-close the connection.
+                    self.close_connection = True
+                    raise OSError(
+                        f"send_file: {file_path} shrank during read "
+                        f"({remaining} bytes short of declared Content-Length)"
+                    )
                 self.wfile.write(chunk)
                 remaining -= len(chunk)
 

@@ -700,7 +700,12 @@ def _tile_bounds(tile_id: str) -> dict[str, float] | None:
 
 
 def _scene_tile_ids(scene_root: Path) -> set[str]:
-    source = load_tile_scene_xml_source(scene_root)
+    try:
+        source = load_tile_scene_xml_source(scene_root)
+    except ValueError:
+        # Malformed tile XML (e.g., mesh path outside the scene root) should not
+        # take down "is this tile already integrated?" checks.
+        return set()
     return set(source.shape_by_tile)
 
 
@@ -722,7 +727,10 @@ def _shape_mesh_exists(scene_root: Path, shape: ET.Element) -> bool:
 
 def scene_contains_tile(scene_root: Path, tile_id: str) -> bool:
     ids = normalize_tile_id(tile_id)
-    source = load_tile_scene_xml_source(scene_root)
+    try:
+        source = load_tile_scene_xml_source(scene_root)
+    except ValueError:
+        return False
     shapes = source.shape_by_tile.get(ids.internal, [])
     return bool(shapes) and all(_shape_mesh_exists(scene_root, shape) for shape in shapes)
 

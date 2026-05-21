@@ -319,7 +319,7 @@ def ensure_compressed_tile_bundle(bundle_path: Path, *, force: bool = False) -> 
 
 
 def _bundle_needs_build(scene_root: Path, bundle: TileBundleRecord, bundle_path: Path) -> bool:
-    if not bundle_path.exists():
+    if not bundle_path.is_file():
         return True
     if not bundle.source_relative_paths:
         return False

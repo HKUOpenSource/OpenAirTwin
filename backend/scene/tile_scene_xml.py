@@ -209,7 +209,7 @@ def _load_per_tile_scene_source(
             shape_tile_id = tile_id_for_mesh_path(scene_root, filename_node.attrib.get("value", ""))
             if shape_tile_id is None:
                 raise ValueError(f"Tile XML {tile_xml_path} contains a mesh filename outside the scene mesh tree")
-            if shape_tile_id is not None and shape_tile_id != tile_id:
+            if shape_tile_id != tile_id:
                 raise ValueError(
                     f"Tile XML {tile_xml_path} contains shape for tile {shape_tile_id}; expected {tile_id}"
                 )
