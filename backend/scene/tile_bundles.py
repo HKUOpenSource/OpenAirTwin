@@ -107,7 +107,7 @@ def build_tile_bundle_records(meshes: list[object], scene_root: Path | None = No
             f"{_safe_path_component(category)}__{_safe_path_component(bsdf_id)}.glb"
         )
         bundle_path = None if scene_root is None else scene_root / relative_path
-        cache_exists = bool(bundle_path is not None and bundle_path.exists())
+        cache_exists = bool(bundle_path is not None and bundle_path.is_file())
         size_bytes = None
         cache_key = None
         compressed_cache_exists = False
@@ -288,14 +288,14 @@ def compressed_tile_bundle_path(bundle_path: Path) -> Path:
 def compressed_tile_bundle_is_fresh(bundle_path: Path, compressed_path: Path | None = None) -> bool:
     compressed_path = compressed_path or compressed_tile_bundle_path(bundle_path)
     return (
-        bundle_path.exists()
-        and compressed_path.exists()
+        bundle_path.is_file()
+        and compressed_path.is_file()
         and compressed_path.stat().st_mtime_ns >= bundle_path.stat().st_mtime_ns
     )
 
 
 def ensure_compressed_tile_bundle(bundle_path: Path, *, force: bool = False) -> tuple[Path, bool]:
-    if not bundle_path.exists():
+    if not bundle_path.is_file():
         raise FileNotFoundError(f"Cannot compress missing bundle: {bundle_path}")
 
     compressed_path = compressed_tile_bundle_path(bundle_path)

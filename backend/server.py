@@ -650,7 +650,13 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             if path.startswith("/api/deepmimo/jobs/") and path.endswith("/cancel"):
                 job_id = path.removeprefix("/api/deepmimo/jobs/").removesuffix("/cancel")
-                job = self.app_state.deepmimo_job_manager.cancel_job(job_id)
+                cancel_job = getattr(self.app_state.deepmimo_job_manager, "cancel_job", None)
+                if cancel_job is None:
+                    # cancel_job ships with the rt-solver-correctness work; deployments
+                    # missing it cannot fulfil the request.
+                    self.send_text("DeepMIMO cancellation not supported on this build", code=501)
+                    return
+                job = cancel_job(job_id)
                 if job is None:
                     self.send_text("Unknown job id", code=404)
                     return
