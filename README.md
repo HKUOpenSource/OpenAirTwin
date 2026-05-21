@@ -90,7 +90,7 @@ More functions are coming:
 Install the runtime:
 
 ```bash
-bash install.sh
+python install.py
 ```
 
 Start OpenAirTwin:
@@ -148,7 +148,7 @@ Then set the variables printed by the installer and start the backend with:
 Run the environment doctor without installing packages:
 
 ```bash
-python3.11 install.py --doctor
+python install.py --doctor
 ```
 
 Useful installer options:
@@ -182,7 +182,7 @@ on slow government tile downloads when testing the app for the first time.
 Download it through the installer:
 
 ```bash
-python3.11 install.py --with-sample-scene
+python install.py --with-sample-scene
 ```
 
 The archive is installed under `scene/` and contains runtime source data only:
