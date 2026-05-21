@@ -505,7 +505,7 @@ export const quickStart = [
   {
     title: "Install the runtime",
     body: "Run the installer from the project root to create the local environment.",
-    code: "bash install.sh",
+    code: "python install.py",
   },
   {
     title: "Start and open",
