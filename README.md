@@ -27,15 +27,10 @@
 </p>
 
 
-OpenAirTwin is an open-source platform for interactive urban wireless
-propagation studies. It combines a Python backend, a static browser frontend,
+OpenAirTwin is an open-source digital twin platform for wireless studies. It combines a Python backend, a static browser frontend,
 tile-based scene management, and Sionna RT workflows for link analysis,
 radio-map generation, mobility simulation, DeepMIMO dataset export, and more.
 
-> New users can start with the
-> [video-led tutorial website](https://zhaolin820.github.io/HKU-Ray-Tracing-Platform/),
-> which walks through map selection, link analysis, mobility simulation, radio
-> maps, and DeepMIMO export without requiring a running backend.
 
 ## Features
 
