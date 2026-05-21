@@ -9,7 +9,7 @@ export function createSolverControlsController(context) {
   const scene = () => context.controllers.scene;
 
   function showOverlay(options) {
-    scene().showOverlay(options);
+    return scene().showOverlay(options);
   }
 
   function hideOverlay(owner = null) {
@@ -1823,8 +1823,8 @@ async function cancelDeepMimoExport(jobId) {
     if (state.deepmimo.jobId !== jobId) {
       return;
     }
-    state.deepmimo.jobId = null;
     if (job.status === "succeeded") {
+      state.deepmimo.jobId = null;
       state.deepmimo.result = job.result || state.deepmimo.result;
       state.deepmimo.status = "succeeded";
       state.deepmimo.progress = 1;
@@ -1836,13 +1836,27 @@ async function cancelDeepMimoExport(jobId) {
       deepMimoRunOwner = null;
       return;
     }
-    state.deepmimo.pendingDataset = null;
-    state.deepmimo.status = job.status || "cancelled";
-    state.deepmimo.progress = Number(job.progress ?? 1);
-    state.deepmimo.message = job.message || "Cancelled";
+    if (TERMINAL_DEEPMIMO_STATUSES.has(job.status)) {
+      state.deepmimo.jobId = null;
+      state.deepmimo.pendingDataset = null;
+      state.deepmimo.status = job.status;
+      state.deepmimo.progress = Number(job.progress ?? 1);
+      state.deepmimo.message = job.message || "Cancelled";
+      renderDeepMimoState();
+      hideOverlay(deepMimoRunOwner);
+      deepMimoRunOwner = null;
+      return;
+    }
+    // Non-terminal cancel ack (e.g. status="cancelling"): keep jobId so
+    // pollDeepMimo's preservingCancel branch continues to drive the UI
+    // until the worker reaches a terminal status.
+    if (typeof job.progress === "number") {
+      state.deepmimo.progress = job.progress;
+    }
+    if (job.message) {
+      state.deepmimo.message = job.message;
+    }
     renderDeepMimoState();
-    hideOverlay(deepMimoRunOwner);
-    deepMimoRunOwner = null;
   } catch (error) {
     if (state.deepmimo.jobId !== jobId) {
       return;
