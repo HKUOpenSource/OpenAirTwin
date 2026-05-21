@@ -167,8 +167,12 @@ def solve_terrain_radiomap(
             "sample_multiplier": int(sample_multiplier),
         },
         "range": {
-            "min": float(np.min(finite_values_db)) if finite_values_db.size else None,
-            "max": float(np.max(finite_values_db)) if finite_values_db.size else None,
+            # Fall back to a numeric default (0.0) when every cell is
+            # non-finite so the frontend `.toFixed(1)` does not crash. The
+            # degenerate radio map is still flagged via `values.count` and
+            # the data array.
+            "min": float(np.min(finite_values_db)) if finite_values_db.size else 0.0,
+            "max": float(np.max(finite_values_db)) if finite_values_db.size else 0.0,
         },
         "values": {
             "count": int(values_db.shape[0]),
