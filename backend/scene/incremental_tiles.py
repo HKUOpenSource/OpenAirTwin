@@ -741,9 +741,23 @@ def load_or_create_scene_origin(
     if path.exists():
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-            origin = np.asarray(payload.get("origin_world_z_up"), dtype=np.float64)
-            if origin.shape == (3,) and np.all(np.isfinite(origin)):
-                return origin
+            cached_origin = np.asarray(payload.get("origin_world_z_up"), dtype=np.float64)
+            if cached_origin.shape == (3,) and np.all(np.isfinite(cached_origin)):
+                cached_tile_ids = payload.get("source_tile_ids")
+                if not isinstance(cached_tile_ids, list) or not cached_tile_ids:
+                    # Legacy origin.json (no source_tile_ids recorded).
+                    return cached_origin
+                current_internal: set[str] = set()
+                for scene_tile_id in _scene_tile_ids(scene_root):
+                    try:
+                        current_internal.add(normalize_tile_id(scene_tile_id).internal)
+                    except ValueError:
+                        continue
+                if set(cached_tile_ids).issubset(current_internal):
+                    # Tiles that informed the origin are still present;
+                    # newly added tiles attach without shifting the origin.
+                    return cached_origin
+                # Scene lost tiles the origin was derived from; recompute.
         except (OSError, TypeError, ValueError, json.JSONDecodeError):
             pass
 

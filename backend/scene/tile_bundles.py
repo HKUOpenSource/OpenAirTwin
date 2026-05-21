@@ -264,7 +264,7 @@ def _bundle_source_manifest(scene_root: Path, bundle: TileBundleRecord) -> dict:
     sources = []
     for relative_path in bundle.source_relative_paths:
         source_path, normalized_relative_path = _resolve_source_path(scene_root, relative_path)
-        if not source_path.exists():
+        if not source_path.is_file():
             raise FileNotFoundError(f"Missing source mesh for bundle {bundle.bundle_id}: {source_path}")
         sources.append({"path": normalized_relative_path, **_source_fingerprint(source_path)})
     return {

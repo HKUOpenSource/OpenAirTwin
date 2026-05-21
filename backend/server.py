@@ -361,10 +361,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         raw_length = self.headers.get("Content-Length", "0")
         try:
             length = int(raw_length)
-        except (TypeError, ValueError):
-            raise RequestBodyTooLarge("Invalid Content-Length header")
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid Content-Length header") from exc
         if length < 0:
-            raise RequestBodyTooLarge("Invalid Content-Length header")
+            raise ValueError("Invalid Content-Length header")
         if length > config.MAX_REQUEST_BODY_BYTES:
             raise RequestBodyTooLarge(
                 f"Request body of {length} bytes exceeds limit of {config.MAX_REQUEST_BODY_BYTES} bytes"

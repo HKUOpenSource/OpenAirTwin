@@ -446,7 +446,43 @@ class IncrementalTileTests(unittest.TestCase):
             np.testing.assert_allclose(origin, np.asarray(payload["origin_world_z_up"], dtype=np.float64))
             self.assertEqual(origin[2], 0.0)
 
-    def test_existing_scene_origin_is_not_recomputed_when_tiles_change(self) -> None:
+    def test_existing_scene_origin_is_preserved_when_cached_tiles_subset_of_current(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            scene_root = root / "scene"
+            stage_root = root / "stage"
+            (scene_root / "common").mkdir(parents=True)
+            (scene_root / "tiles").mkdir(parents=True)
+            (scene_root / "common" / "scene_common.xml").write_text(
+                '<scene version="2.1.0"><bsdf type="diffuse" id="itu_concrete"/></scene>',
+                encoding="utf-8",
+            )
+            (scene_root / "tiles" / "11_SW_8A.xml").write_text(
+                """
+<scene version="2.1.0">
+  <shape type="ply" id="existing_11_SW_8A">
+    <string name="filename" value="meshes/11_SW_8A/BUILDING/existing.ply" />
+    <ref name="bsdf" id="itu_concrete" />
+  </shape>
+</scene>
+""".strip(),
+                encoding="utf-8",
+            )
+            mesh_path = scene_root / "meshes" / "11_SW_8A" / "BUILDING" / "existing.ply"
+            mesh_path.parent.mkdir(parents=True)
+            mesh_path.write_text("ply\n", encoding="utf-8")
+            origin_path = stage_root / "origin.json"
+            origin_path.parent.mkdir(parents=True)
+            origin_path.write_text(
+                json.dumps({"origin_world_z_up": [1.0, 2.0, 3.0], "source_tile_ids": ["11_SW_8A"]}),
+                encoding="utf-8",
+            )
+
+            origin = load_or_create_scene_origin(scene_root, stage_root)
+
+            np.testing.assert_allclose(origin, np.asarray([1.0, 2.0, 3.0], dtype=np.float64))
+
+    def test_existing_scene_origin_is_preserved_for_legacy_payload_without_source_tile_ids(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             scene_root = root / "scene"
@@ -461,13 +497,51 @@ class IncrementalTileTests(unittest.TestCase):
             origin_path = stage_root / "origin.json"
             origin_path.parent.mkdir(parents=True)
             origin_path.write_text(
-                json.dumps({"origin_world_z_up": [1.0, 2.0, 3.0], "source_tile_ids": ["old_tile"]}),
+                json.dumps({"origin_world_z_up": [1.0, 2.0, 3.0]}),
                 encoding="utf-8",
             )
 
             origin = load_or_create_scene_origin(scene_root, stage_root)
 
             np.testing.assert_allclose(origin, np.asarray([1.0, 2.0, 3.0], dtype=np.float64))
+
+    def test_existing_scene_origin_is_recomputed_when_cached_tiles_disappear(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            scene_root = root / "scene"
+            stage_root = root / "stage"
+            (scene_root / "common").mkdir(parents=True)
+            (scene_root / "tiles").mkdir(parents=True)
+            (scene_root / "common" / "scene_common.xml").write_text(
+                '<scene version="2.1.0"><bsdf type="diffuse" id="itu_concrete"/></scene>',
+                encoding="utf-8",
+            )
+            (scene_root / "tiles" / "11_SW_8A.xml").write_text(
+                """
+<scene version="2.1.0">
+  <shape type="ply" id="existing_11_SW_8A">
+    <string name="filename" value="meshes/11_SW_8A/BUILDING/existing.ply" />
+    <ref name="bsdf" id="itu_concrete" />
+  </shape>
+</scene>
+""".strip(),
+                encoding="utf-8",
+            )
+            mesh_path = scene_root / "meshes" / "11_SW_8A" / "BUILDING" / "existing.ply"
+            mesh_path.parent.mkdir(parents=True)
+            mesh_path.write_text("ply\n", encoding="utf-8")
+            origin_path = stage_root / "origin.json"
+            origin_path.parent.mkdir(parents=True)
+            # Cached origin was derived from a tile no longer present in the scene.
+            origin_path.write_text(
+                json.dumps({"origin_world_z_up": [99.0, 99.0, 99.0], "source_tile_ids": ["11_SW_9Z"]}),
+                encoding="utf-8",
+            )
+
+            origin = load_or_create_scene_origin(scene_root, stage_root)
+
+            # Recomputed from the present tile rather than honoring the stale cache.
+            self.assertFalse(np.allclose(origin, np.asarray([99.0, 99.0, 99.0], dtype=np.float64)))
 
     def test_existing_scene_origin_survives_broken_tile_xml(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
