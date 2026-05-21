@@ -117,7 +117,7 @@ first-run testing.
 
 - Python 3.11 or newer.
 - Python packages listed in `requirements.txt`: `numpy`, `sionna-rt`,
-  `mitsuba`, `drjit`, `trimesh`, and `DeepMIMO`.
+  `mitsuba`, `drjit`, `trimesh`, `DeepMIMO`, and `defusedxml`.
 - A GPU-capable environment is recommended for practical Sionna RT workloads.
 - A modern browser with WebGL support.
 - Node.js is optional, but useful for JavaScript syntax checks during
@@ -129,17 +129,13 @@ where it can, then reports the parts that still require system-level action.
 
 ## Installation Diagnostics
 
-Use this section when the Quickstart install fails, ray tracing does not start,
+The Quickstart `python install.py` command is the normal installer on all
+platforms. Use this section when that install fails, ray tracing does not start,
 or the machine has CPU-only, multi-GPU, or Windows-specific runtime issues. If
 Quickstart succeeds and the web app opens normally, you can skip it.
 
-On Windows PowerShell, run the installer with:
-
-```powershell
-.\install.ps1
-```
-
-Then set the variables printed by the installer and start the backend with:
+On Windows PowerShell, set the variables printed by the installer and start the
+backend with:
 
 ```powershell
 .\.venv\Scripts\python.exe -m backend.server
@@ -165,12 +161,18 @@ On CPU-only systems, install LLVM before running ray-tracing workloads. On
 Windows, the doctor also checks Dr.Jit/CUDA cache directories that commonly
 surface as OptiX or cache write errors.
 
-Manual installation is still available for advanced users:
+Common diagnostic commands:
+
+To rebuild the virtual environment from scratch, run:
 
 ```bash
-python3.11 -m venv .venv
-./.venv/bin/python -m pip install --upgrade pip setuptools wheel
-./.venv/bin/python -m pip install -r requirements.txt
+python install.py --recreate-venv
+```
+
+To inspect what the installer would do without changing local files, run:
+
+```bash
+python install.py --dry-run
 ```
 
 ## Sample Scene Data
@@ -205,9 +207,8 @@ release archive's `THIRD_PARTY_DATA.md` for the bundled data attribution.
 |   |-- static/            # Browser UI assets
 |   `-- tools/             # Public scene bundle-build utilities
 |-- tests/                 # Unit and regression tests
+|-- website/               # Vite tutorial website
 |-- install.py             # Cross-platform installer and environment doctor
-|-- install.sh             # macOS/Linux installer wrapper
-|-- install.ps1            # Windows PowerShell installer wrapper
 |-- requirements.txt       # Python package names
 |-- LICENSE
 `-- README.md
@@ -253,13 +254,13 @@ The per-tile layout is the runtime source of truth. Point the application at a
 different scene root with:
 
 ```bash
-OAT_SCENE_ROOT=/path/to/scene python3 -m backend.server
+OAT_SCENE_ROOT=/path/to/scene python -m backend.server
 ```
 
 Build or refresh frontend render bundles with:
 
 ```bash
-python3 -m backend.tools.build_tile_bundles --help
+python -m backend.tools.build_tile_bundles --help
 ```
 
 ## Configuration
@@ -286,8 +287,8 @@ overrides.
 Run the Python checks:
 
 ```bash
-python3 -m compileall -q install.py backend tests
-python3 -m unittest discover -s tests
+python -m compileall -q install.py backend tests
+python -m unittest discover -s tests
 ```
 
 Run frontend syntax checks when Node.js is available:
@@ -295,6 +296,15 @@ Run frontend syntax checks when Node.js is available:
 ```bash
 find backend/static/js -maxdepth 1 -name '*.js' -print0 | xargs -0 -n1 node --check
 node --check backend/static/lib/GLBGeometryLoader.js
+```
+
+Run the tutorial website checks when Node.js is available:
+
+```bash
+cd website
+npm ci
+npm run check
+npm run build
 ```
 
 Check for whitespace issues before committing:
