@@ -770,9 +770,11 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("state.deepmimo.roi.visualZ = null;", solver_source)
         self.assertIn("function deepMimoPayload()", solver_source)
         self.assertIn("function deepMimoReceiverAxisCount(size, spacing)", solver_source)
-        self.assertIn("Math.ceil(Number(size) / spacing + 0.5)", solver_source)
+        # Frontend mirrors backend receiver_grid_axis_count (inclusive floor +
+        # 1, with the same 1e-9 epsilon).
+        self.assertIn("Math.floor((numericSize / numericSpacing) + 1e-9) + 1", solver_source)
         self.assertIn("const nx = deepMimoReceiverAxisCount(bounds.size[0], spacing);", solver_source)
-        self.assertNotIn("Math.floor(bounds.size[0] / spacing) + 1", solver_source)
+        self.assertNotIn("Math.ceil(Number(size) / spacing + 0.5)", solver_source)
         self.assertIn('ui.deepMimoRxCandidates.value = bounds && Number.isFinite(estimate)', solver_source)
         self.assertIn("tx: {position: state.deepmimo.tx, orientation: [0, 0, 0]}", solver_source)
         self.assertIn("setLogicalAndVisual(state.deepmimo.tx, state.deepmimo.txVisual", solver_source)

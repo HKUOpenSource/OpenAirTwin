@@ -342,16 +342,32 @@ class SolverValidationTests(unittest.TestCase):
         self.assertEqual(trajectory["max_steps"], 1200)
         self.assertEqual(len(trajectory["samples"]), 61)
 
+    def test_mobility_step_estimate_matches_duration_tolerance(self) -> None:
+        parsed = parse_mobility_payload(
+            {
+                "rx_trajectory": {
+                    "points": [[0, 0, 0], [10.0000000005, 0, 0]],
+                    "velocity_mps": 1.0,
+                    "time_step_s": 1.0,
+                    "max_steps": 11,
+                }
+            }
+        )
+
+        self.assertEqual(len(parsed["rx_trajectory"]["samples"]), 11)
+
     def test_mobility_payload_bounds_are_enforced(self) -> None:
         valid_points = [[0, 0, 0], [3, 0, 0]]
         invalid_payloads = [
             {"rx_trajectory": {"points": [[0, 0, 0]]}},
             {"rx_trajectory": {"points": [[0, 0, 0], [0, 0, 0]]}},
+            {"rx_trajectory": {"points": [[0, 0, 0], [0.0001, 0, 0]]}},
             {"rx_trajectory": {"points": valid_points, "velocity_mps": config.MIN_MOBILITY_VELOCITY_MPS / 2}},
             {"rx_trajectory": {"points": valid_points, "velocity_mps": config.MAX_MOBILITY_VELOCITY_MPS + 1}},
             {"rx_trajectory": {"points": valid_points, "time_step_s": config.MIN_MOBILITY_TIME_STEP_S / 2}},
             {"rx_trajectory": {"points": valid_points, "time_step_s": config.MAX_MOBILITY_TIME_STEP_S + 1}},
             {"rx_trajectory": {"points": valid_points, "max_steps": config.MIN_MOBILITY_STEPS - 1}},
+            {"rx_trajectory": {"points": valid_points, "max_steps": config.MAX_MOBILITY_STEPS + 1}},
             {"rx_trajectory": {"points": valid_points, "max_steps": 3.5}},
         ]
 

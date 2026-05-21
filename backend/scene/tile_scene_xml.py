@@ -5,6 +5,8 @@ import copy
 import hashlib
 from pathlib import Path, PurePosixPath
 import xml.etree.ElementTree as ET
+from uuid import uuid4
+from defusedxml.ElementTree import parse as _safe_parse
 
 
 COMMON_SCENE_RELATIVE_PATH = Path("common") / "scene_common.xml"
@@ -86,12 +88,12 @@ class TileSceneXmlBuilder:
             self._rewrite_shape_filename(shape)
             root.append(shape)
 
-        key = hashlib.sha1(",".join(normalized_tile_ids).encode("utf-8")).hexdigest()[:16]
+        key = hashlib.sha1(ET.tostring(root, encoding="utf-8")).hexdigest()[:16]
         output_path = self.output_root / f"selection_{key}.xml"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         tree = ET.ElementTree(root)
         ET.indent(tree, space="  ")
-        temp_path = output_path.with_suffix(".xml.tmp")
+        temp_path = output_path.with_name(f"{output_path.name}.{uuid4().hex}.tmp")
         tree.write(temp_path, encoding="utf-8", xml_declaration=True)
         temp_path.replace(output_path)
 
@@ -173,7 +175,10 @@ def resolve_scene_filename(scene_root: Path, filename: str) -> Path:
 
 
 def tile_id_for_mesh_path(scene_root: Path, filename: str) -> str | None:
-    relative_path = scene_relative_mesh_path(scene_root, filename)
+    try:
+        relative_path = resolve_scene_filename(scene_root, filename).relative_to(Path(scene_root).resolve()).as_posix()
+    except ValueError:
+        return None
     parts = PurePosixPath(relative_path).parts
     if len(parts) < 4 or parts[0] != "meshes":
         return None
@@ -185,7 +190,7 @@ def _load_per_tile_scene_source(
     common_xml: Path,
     tile_xml_paths: list[Path],
 ) -> TileSceneXmlSource:
-    common_root = ET.parse(common_xml).getroot()
+    common_root = _safe_parse(common_xml).getroot()
     common_children = [
         copy.deepcopy(child)
         for child in list(common_root)
@@ -195,14 +200,16 @@ def _load_per_tile_scene_source(
 
     for tile_xml_path in tile_xml_paths:
         tile_id = tile_xml_path.stem
-        tile_root = ET.parse(tile_xml_path).getroot()
+        tile_root = _safe_parse(tile_xml_path).getroot()
         shapes: list[ET.Element] = []
         for shape in tile_root.findall("shape"):
             filename_node = shape.find('string[@name="filename"]')
             if filename_node is None:
                 continue
             shape_tile_id = tile_id_for_mesh_path(scene_root, filename_node.attrib.get("value", ""))
-            if shape_tile_id is not None and shape_tile_id != tile_id:
+            if shape_tile_id is None:
+                raise ValueError(f"Tile XML {tile_xml_path} contains a mesh filename outside the scene mesh tree")
+            if shape_tile_id != tile_id:
                 raise ValueError(
                     f"Tile XML {tile_xml_path} contains shape for tile {shape_tile_id}; expected {tile_id}"
                 )
@@ -221,6 +228,6 @@ def _load_per_tile_scene_source(
 
 def _write_xml(tree: ET.ElementTree, path: Path) -> None:
     ET.indent(tree, space="  ")
-    temp_path = path.with_suffix(f"{path.suffix}.tmp")
+    temp_path = path.with_name(f"{path.name}.{uuid4().hex}.tmp")
     tree.write(temp_path, encoding="utf-8", xml_declaration=True)
     temp_path.replace(path)

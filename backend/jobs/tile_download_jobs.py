@@ -9,7 +9,7 @@ from uuid import uuid4
 from backend.scene.incremental_tiles import TileDownloadCancelled
 
 
-ACTIVE_TILE_DOWNLOAD_STATUSES = {"queued", "running", "canceling"}
+ACTIVE_TILE_DOWNLOAD_STATUSES = {"queued", "running", "cancelling"}
 
 
 class TileDownloadBusy(RuntimeError):
@@ -96,7 +96,7 @@ class TileDownloadJobManager:
                 return None
             if job.status in {"queued", "running"}:
                 job.cancel_event.set()
-                job.status = "canceling"
+                job.status = "cancelling"
                 job.message = "Cancelling tile download and cleaning partial files"
                 job.updated_at = datetime.now(timezone.utc)
             return job
@@ -142,7 +142,7 @@ class TileDownloadJobManager:
         except TileDownloadCancelled:
             self._update(
                 job_id,
-                status="canceled",
+                status="cancelled",
                 progress=1.0,
                 message="Tile download cancelled; partial files removed",
                 result=None,

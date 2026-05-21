@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from backend.scene.tile_bundles import TileBundleRecord, build_tile_bundle_records
-from backend.scene.tile_scene_xml import load_tile_scene_xml_source, scene_relative_mesh_path
+from backend.scene.tile_scene_xml import load_tile_scene_xml_source, resolve_scene_filename
 
 
 @dataclass(frozen=True)
@@ -83,7 +83,13 @@ def load_scene_manifest(scene_root: Path) -> SceneManifest:
             if filename_node is None or bsdf_node is None:
                 continue
 
-            relative_path = scene_relative_mesh_path(scene_root, filename_node.attrib["value"])
+            filename_value = filename_node.attrib.get("value", "")
+            if not filename_value:
+                continue
+            try:
+                relative_path = resolve_scene_filename(scene_root, filename_value).relative_to(scene_root).as_posix()
+            except ValueError:
+                continue
             parts = PurePosixPath(relative_path).parts
             if len(parts) < 4 or parts[0] != "meshes":
                 continue

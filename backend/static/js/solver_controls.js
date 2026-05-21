@@ -1505,7 +1505,18 @@ function readDeepMimoRoiInputs() {
 }
 
 function deepMimoReceiverAxisCount(size, spacing) {
-  return Math.max(0, Math.ceil(Number(size) / spacing + 0.5));
+  // Match backend receiver_grid_axis_count in deepmimo_payload.py:
+  // inclusive floor + 1, with the same 1e-9 epsilon so float rounding
+  // doesn't shave a sample off near integer step boundaries.
+  const numericSize = Number(size);
+  const numericSpacing = Number(spacing);
+  if (!Number.isFinite(numericSize) || !Number.isFinite(numericSpacing) || numericSpacing <= 0) {
+    return NaN;
+  }
+  if (numericSize < 0) {
+    return 0;
+  }
+  return Math.floor((numericSize / numericSpacing) + 1e-9) + 1;
 }
 
 function deepMimoReceiverEstimate(bounds = deepMimoRoiBounds()) {

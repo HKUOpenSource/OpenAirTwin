@@ -14,6 +14,7 @@ BUNDLE_ROOT = SCENE_ROOT / "cache" / "render_bundles"
 
 HOST = os.environ.get("OAT_HOST", "0.0.0.0")
 PORT = int(os.environ.get("OAT_PORT", "8090"))
+MAX_REQUEST_BODY_BYTES = max(0, int(os.environ.get("OAT_MAX_REQUEST_BODY_BYTES", str(16 * 1024 * 1024))))
 
 DEFAULT_FREQUENCY_HZ = float(os.environ.get("OAT_DEFAULT_FREQUENCY_HZ", "3500000000"))
 DEFAULT_MAX_DEPTH = int(os.environ.get("OAT_DEFAULT_MAX_DEPTH", "4"))
@@ -112,3 +113,4 @@ MIN_MOBILITY_TIME_STEP_S = float(os.environ.get("OAT_MIN_MOBILITY_TIME_STEP_S", 
 MAX_MOBILITY_TIME_STEP_S = float(os.environ.get("OAT_MAX_MOBILITY_TIME_STEP_S", "10.0"))
 MIN_MOBILITY_STEPS = int(os.environ.get("OAT_MIN_MOBILITY_STEPS", "2"))
 DEFAULT_MOBILITY_MAX_STEPS = int(os.environ.get("OAT_DEFAULT_MOBILITY_MAX_STEPS", "1000"))
+MAX_MOBILITY_STEPS = int(os.environ.get("OAT_MAX_MOBILITY_STEPS", str(max(DEFAULT_MOBILITY_MAX_STEPS, 10000))))

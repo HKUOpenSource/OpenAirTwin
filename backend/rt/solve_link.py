@@ -20,15 +20,15 @@ def _link_dependencies():
 def _channel_summary(paths, params: dict) -> dict:
     tap_indices = list(range(params["channel_l_min"], params["channel_l_max"] + 1))
     tap_count = len(tap_indices)
-    sampling_frequency_hz = float(params["channel_subcarrier_spacing_hz"])
-    bandwidth_hz = int(params["channel_fft_size"]) * sampling_frequency_hz
+    subcarrier_spacing_hz = float(params["channel_subcarrier_spacing_hz"])
+    bandwidth_hz = int(params["channel_fft_size"]) * subcarrier_spacing_hz
 
     taps = np.asarray(
         paths.taps(
             bandwidth=bandwidth_hz,
             l_min=params["channel_l_min"],
             l_max=params["channel_l_max"],
-            sampling_frequency=sampling_frequency_hz,
+            sampling_frequency=bandwidth_hz,
             num_time_steps=params["channel_num_time_steps"],
             normalize=False,
             normalize_delays=True,
@@ -41,6 +41,7 @@ def _channel_summary(paths, params: dict) -> dict:
         tap_power_linear = np.sum(np.abs(taps.reshape(-1, tap_count)) ** 2, axis=0)
     else:
         raise ValueError(f"paths.taps returned {taps.size} values for {tap_count} requested taps")
+    tap_power_linear = np.where(np.isfinite(tap_power_linear), tap_power_linear, 0.0)
 
     tap_power_db = linear_to_db(tap_power_linear)
     total_power_linear = float(np.sum(tap_power_linear))
@@ -49,6 +50,7 @@ def _channel_summary(paths, params: dict) -> dict:
     cir = paths.cir(normalize_delays=True, out_type="numpy")
     coefficients = np.asarray(cir[0] if isinstance(cir, (tuple, list)) and cir else cir)
     coefficient_abs = np.abs(coefficients).reshape(-1)
+    coefficient_abs = coefficient_abs[np.isfinite(coefficient_abs)]
     if coefficient_abs.size:
         strongest_coefficient_abs = float(np.max(coefficient_abs))
     else:
@@ -56,7 +58,7 @@ def _channel_summary(paths, params: dict) -> dict:
 
     return {
         "tap_indices": [int(index) for index in tap_indices],
-        "delays_s": [float(index / sampling_frequency_hz) for index in tap_indices],
+        "delays_s": [float(index / bandwidth_hz) for index in tap_indices],
         "power_db": [float(value) for value in tap_power_db],
         "total_power_db": (
             float(linear_to_db(np.array([total_power_linear]))[0])
@@ -73,7 +75,7 @@ def _channel_summary(paths, params: dict) -> dict:
             "l_min": int(params["channel_l_min"]),
             "l_max": int(params["channel_l_max"]),
             "fft_size": int(params["channel_fft_size"]),
-            "subcarrier_spacing_hz": sampling_frequency_hz,
+            "subcarrier_spacing_hz": subcarrier_spacing_hz,
             "bandwidth_hz": float(bandwidth_hz),
             "num_time_steps": int(params["channel_num_time_steps"]),
         },
@@ -168,13 +170,16 @@ def solve_link(
         require_scene_generation(rt_runtime, expected_scene_generation)
         rt_runtime.set_frequency(params["frequency_hz"])
         rt_runtime.set_arrays(tx_array=params["tx_array"], rx_array=params["rx_array"])
+        device_names: list[str] = []
         try:
             tx_device = Transmitter(name="tx_link", position=tx_position, orientation=params["tx_orientation"])
             rx_device = Receiver(name="rx_link", position=rx_position, orientation=params["rx_orientation"])
             _set_device_velocity(tx_device, params["tx_velocity"])
             _set_device_velocity(rx_device, params["rx_velocity"])
             scene.add(tx_device)
+            device_names.append("tx_link")
             scene.add(rx_device)
+            device_names.append("rx_link")
             solver_started_at = perf_counter()
             paths = PathSolver()(
                 scene,
@@ -223,8 +228,11 @@ def solve_link(
             a_imag = _path_tensor(to_numpy(a_imag), valid_shape=valid_shape, name="paths.a[1]")
             channel = _channel_summary(paths, params) if params["compute_taps"] else None
         finally:
-            scene.remove("tx_link")
-            scene.remove("rx_link")
+            for device_name in device_names:
+                try:
+                    scene.remove(device_name)
+                except Exception:
+                    pass
 
     pair_shape = valid.shape[:-1]
     path_count = valid.shape[-1]
@@ -243,7 +251,10 @@ def solve_link(
             a_real[..., path_index].reshape(-1) ** 2
             + a_imag[..., path_index].reshape(-1) ** 2
         )
-        valid_pair_powers = np.where(valid_pairs, pair_powers, -1.0)
+        finite_pairs = valid_pairs & np.isfinite(pair_powers)
+        if not np.any(finite_pairs):
+            continue
+        valid_pair_powers = np.where(finite_pairs, pair_powers, -1.0)
         strongest_pair_flat = int(np.argmax(valid_pair_powers))
         strongest_pair_index = _pair_index(strongest_pair_flat, pair_shape)
         representative_index = (*strongest_pair_index, path_index)
@@ -254,8 +265,9 @@ def solve_link(
             for code in interaction_chain
             if int(code) != int(InteractionType.NONE)
         ]
-        power_linear = float(np.sum(np.where(valid_pairs, pair_powers, 0.0)))
-        path_powers_linear.append(power_linear)
+        power_linear = float(np.sum(np.where(finite_pairs, pair_powers, 0.0)))
+        if not np.isfinite(power_linear):
+            continue
         power_db = float(linear_to_db(np.array([power_linear]))[0])
         strongest_pair_power_linear = float(max(pair_powers[strongest_pair_flat], 0.0))
         strongest_pair_power_db = float(linear_to_db(np.array([strongest_pair_power_linear]))[0])
@@ -276,10 +288,16 @@ def solve_link(
             path_type = "MIXED"
 
         polyline = [list(map(float, tx_position))]
+        has_nonfinite_vertex = False
         for depth in range(params["max_depth"]):
             if interaction_chain[depth] != InteractionType.NONE:
                 vertex = vertices[(depth, *strongest_pair_index, path_index, slice(None))].tolist()
+                if not all(np.isfinite(float(value)) for value in vertex):
+                    has_nonfinite_vertex = True
+                    break
                 polyline.append([float(vertex[0]), float(vertex[1]), float(vertex[2])])
+        if has_nonfinite_vertex:
+            continue
         polyline.append(list(map(float, rx_position)))
 
         coefficient_real = float(a_real[representative_index])
@@ -291,7 +309,25 @@ def solve_link(
         departure_azimuth_deg = float(np.degrees(phi_t[representative_index]))
         arrival_zenith_deg = float(np.degrees(theta_r[representative_index]))
         arrival_azimuth_deg = float(np.degrees(phi_r[representative_index]))
+        doppler_hz = float(doppler[representative_index])
+        if not all(
+            np.isfinite(value)
+            for value in (
+                coefficient_real,
+                coefficient_imag,
+                coefficient_abs,
+                coefficient_phase_deg,
+                delay_s,
+                departure_zenith_deg,
+                departure_azimuth_deg,
+                arrival_zenith_deg,
+                arrival_azimuth_deg,
+                doppler_hz,
+            )
+        ):
+            continue
 
+        path_powers_linear.append(power_linear)
         path_records.append(
             {
                 "path_index": path_index,
@@ -314,7 +350,7 @@ def solve_link(
                 "departure_azimuth_deg": departure_azimuth_deg,
                 "arrival_zenith_deg": arrival_zenith_deg,
                 "arrival_azimuth_deg": arrival_azimuth_deg,
-                "doppler_hz": float(doppler[representative_index]),
+                "doppler_hz": doppler_hz,
                 "interaction_count": len(interaction_sequence),
                 "interaction_sequence": interaction_sequence,
             }
