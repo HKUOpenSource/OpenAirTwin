@@ -77,6 +77,7 @@ class FakeMobilityJobManager:
 class FakeDeepMIMOJobManager:
     def __init__(self, download_path: Path | None = None) -> None:
         self.last_payload = None
+        self.cancelled_job_id = None
         self.download_path = download_path
         self.job = SimpleNamespace(
             job_id="dm_test",
@@ -105,6 +106,10 @@ class FakeDeepMIMOJobManager:
         if job_id != self.job.job_id:
             return None
         return self.download_path
+
+    def cancel_job(self, job_id):
+        self.cancelled_job_id = job_id
+        return self.job if job_id == self.job.job_id else None
 
 
 class FakeReadyRuntime:
@@ -236,6 +241,25 @@ class ServerHardeningTests(unittest.TestCase):
                 server.server_close()
                 config.STATIC_ROOT = previous_static_root
 
+    def test_static_directory_request_returns_404(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            previous_static_root = config.STATIC_ROOT
+            static_root = Path(tmp_dir) / "static"
+            (static_root / "js").mkdir(parents=True)
+            config.STATIC_ROOT = static_root
+
+            server, thread = self.run_server(SimpleNamespace())
+            try:
+                host, port = server.server_address
+                with self.assertRaises(urllib.error.HTTPError) as error:
+                    urllib.request.urlopen(f"http://{host}:{port}/js/")
+                self.assertEqual(error.exception.code, 404)
+            finally:
+                server.shutdown()
+                thread.join(timeout=2)
+                server.server_close()
+                config.STATIC_ROOT = previous_static_root
+
     def test_mesh_endpoint_rejects_prefix_sibling_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             previous_scene_root = config.SCENE_ROOT
@@ -250,6 +274,33 @@ class ServerHardeningTests(unittest.TestCase):
                 SimpleNamespace(
                     manifest_lookup={
                         "mesh": SimpleNamespace(relative_path="../scene_evil/secret.ply"),
+                    }
+                )
+            )
+            try:
+                host, port = server.server_address
+                url = f"http://{host}:{port}/api/scene/mesh/mesh"
+                with self.assertRaises(urllib.error.HTTPError) as error:
+                    urllib.request.urlopen(url)
+                self.assertEqual(error.exception.code, 404)
+            finally:
+                server.shutdown()
+                thread.join(timeout=2)
+                server.server_close()
+                config.SCENE_ROOT = previous_scene_root
+
+    def test_mesh_directory_request_returns_404(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            previous_scene_root = config.SCENE_ROOT
+            scene_root = Path(tmp_dir) / "scene"
+            mesh_dir = scene_root / "meshes" / "TILE_A"
+            mesh_dir.mkdir(parents=True)
+            config.SCENE_ROOT = scene_root
+
+            server, thread = self.run_server(
+                SimpleNamespace(
+                    manifest_lookup={
+                        "mesh": SimpleNamespace(relative_path="meshes/TILE_A"),
                     }
                 )
             )
@@ -503,6 +554,24 @@ class ServerHardeningTests(unittest.TestCase):
             thread.join(timeout=2)
             server.server_close()
 
+    def test_deepmimo_cancel_route_calls_job_manager(self) -> None:
+        manager = FakeDeepMIMOJobManager()
+        server, thread = self.run_server(SimpleNamespace(deepmimo_job_manager=manager))
+        try:
+            host, port = server.server_address
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/deepmimo/jobs/dm_test/cancel",
+                method="POST",
+            )
+            payload = json.loads(urllib.request.urlopen(request).read().decode("utf-8"))
+            self.assertEqual(manager.cancelled_job_id, "dm_test")
+            self.assertEqual(payload["job_id"], "dm_test")
+            self.assertEqual(payload["status"], "succeeded")
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
     def test_deepmimo_download_stream_returns_complete_zip_and_closes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             archive = Path(tmp_dir) / "dataset.zip"
@@ -675,6 +744,27 @@ class ServerHardeningTests(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 urllib.request.urlopen(bad_request)
             self.assertEqual(error.exception.code, 400)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_json_body_must_be_an_object(self) -> None:
+        server, thread = self.run_server(SimpleNamespace(rt_runtime=FakeSceneSelectionRuntime()))
+        try:
+            host, port = server.server_address
+            request = urllib.request.Request(
+                f"http://{host}:{port}/api/rt/scene-selection",
+                data=b"[]",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(request)
+            self.assertEqual(error.exception.code, 400)
+            payload = json.loads(error.exception.read().decode("utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["error"], "Request body must be a JSON object")
         finally:
             server.shutdown()
             thread.join(timeout=2)

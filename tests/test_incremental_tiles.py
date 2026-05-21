@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 import numpy as np
@@ -13,7 +14,9 @@ from backend.scene.incremental_tiles import (
     _gltf_category,
     build_download_url,
     cleanup_tile_download_artifacts,
+    download_tile_zip,
     download_stage_and_integrate_tile,
+    extract_tile_zip,
     integrate_staged_tile,
     load_or_create_scene_origin,
     normalize_tile_id,
@@ -180,6 +183,58 @@ class IncrementalTileTests(unittest.TestCase):
                 "tiles/11_SW_3B/.cache/BUILDING/obj_11_SW_3B_BUILDING_B340331785401063A0.npz",
             )
 
+    def test_stage_tile_assets_tracks_gltf_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_root = root / "source"
+            stage_root = root / "stage"
+            gltf_path = source_root / "BUILDING" / "demo" / "demo.gltf"
+            gltf_path.parent.mkdir(parents=True)
+            gltf_path.write_text("{}", encoding="utf-8")
+            (gltf_path.parent / "demo.bin").write_bytes(b"bin")
+            fake_mesh = type("FakeMesh", (), {"bounds": np.array([[0, 0, 0], [1, 1, 1]], dtype=np.float64)})()
+            fake_trimesh = type("FakeTrimesh", (), {"load": lambda self, *args, **kwargs: object()})()
+
+            with (
+                patch("backend.scene.incremental_tiles._trimesh_module", return_value=fake_trimesh),
+                patch("backend.scene.incremental_tiles.iter_scene_meshes", return_value=[(0, "node", fake_mesh)]),
+                patch("backend.scene.incremental_tiles.to_z_up_world", return_value=fake_mesh),
+                patch("backend.scene.incremental_tiles.write_stage_mesh_cache"),
+            ):
+                manifest_path = stage_tile_assets(source_root, stage_root, "11-SW-3B")
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["source_assets_count"], 2)
+            self.assertEqual(
+                {item["path"] for item in manifest["source_assets"]},
+                {"BUILDING/demo/demo.bin", "BUILDING/demo/demo.gltf"},
+            )
+
+    def test_stage_tile_assets_disambiguates_duplicate_gltf_stems(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_root = root / "source"
+            stage_root = root / "stage"
+            for parent in ("a", "b"):
+                gltf_path = source_root / "BUILDING" / parent / "duplicate.gltf"
+                gltf_path.parent.mkdir(parents=True, exist_ok=True)
+                gltf_path.write_text("{}", encoding="utf-8")
+            fake_mesh = type("FakeMesh", (), {"bounds": np.array([[0, 0, 0], [1, 1, 1]], dtype=np.float64)})()
+            fake_trimesh = type("FakeTrimesh", (), {"load": lambda self, *args, **kwargs: object()})()
+
+            with (
+                patch("backend.scene.incremental_tiles._trimesh_module", return_value=fake_trimesh),
+                patch("backend.scene.incremental_tiles.iter_scene_meshes", return_value=[(0, "node", fake_mesh)]),
+                patch("backend.scene.incremental_tiles.to_z_up_world", return_value=fake_mesh),
+                patch("backend.scene.incremental_tiles.write_stage_mesh_cache"),
+            ):
+                manifest_path = stage_tile_assets(source_root, stage_root, "11-SW-3B")
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            shape_ids = [item["shape_id"] for item in manifest["objects"]]
+            self.assertEqual(len(shape_ids), 2)
+            self.assertEqual(len(set(shape_ids)), 2)
+
     def test_stage_tile_assets_maps_open3d_hk_categories_to_materials(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -235,6 +290,125 @@ class IncrementalTileTests(unittest.TestCase):
             self.assertFalse((scene / "tiles" / "11_SW_7A.xml").exists())
             self.assertFalse((scene / "meshes" / "11_SW_7A").exists())
 
+    def test_extract_tile_zip_removes_partial_cache_on_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            archive_path = root / "tile.zip"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                archive.writestr("BUILDING/demo.gltf", "{}")
+                archive.writestr("BUILDING/demo.bin", b"data")
+
+            original_extract = zipfile.ZipFile.extract
+            calls = {"count": 0}
+
+            def fail_after_first_member(self, member, path=None, pwd=None):
+                calls["count"] += 1
+                if calls["count"] > 1:
+                    raise OSError("extract failed")
+                return original_extract(self, member, path, pwd)
+
+            with patch("zipfile.ZipFile.extract", fail_after_first_member):
+                with self.assertRaisesRegex(OSError, "extract failed"):
+                    extract_tile_zip(archive_path, root / "workspace", "11-SW-7A")
+
+            self.assertFalse((root / "workspace" / "sources" / "11_SW_7A").exists())
+
+    def test_download_tile_zip_refreshes_invalid_cached_archive(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload: bytes) -> None:
+                self.payload = payload
+                self.offset = 0
+                self.status = 200
+                self.headers = {"Content-Length": str(len(payload))}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def getcode(self) -> int:
+                return self.status
+
+            def read(self, size: int) -> bytes:
+                if self.offset >= len(self.payload):
+                    return b""
+                chunk = self.payload[self.offset:self.offset + size]
+                self.offset += len(chunk)
+                return chunk
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            cached_path = root / "downloads" / "11_SW_7A" / "11-SW-7A.zip"
+            cached_path.parent.mkdir(parents=True)
+            cached_path.write_bytes(b"not a zip")
+            valid_zip = root / "valid.zip"
+            with zipfile.ZipFile(valid_zip, "w") as archive:
+                archive.writestr("BUILDING/demo.gltf", "{}")
+            valid_payload = valid_zip.read_bytes()
+            calls = {"count": 0}
+
+            def fake_urlopen(*_args, **_kwargs):
+                calls["count"] += 1
+                return FakeResponse(valid_payload)
+
+            with patch("urllib.request.urlopen", fake_urlopen):
+                path, _url = download_tile_zip(
+                    "11-SW-7A",
+                    root,
+                    base_url="https://example.test",
+                    file_format="GLTF",
+                    key="key",
+                    retries=0,
+                )
+
+            self.assertEqual(path, cached_path)
+            self.assertEqual(calls["count"], 1)
+            self.assertTrue(zipfile.is_zipfile(cached_path))
+
+    def test_stage_tile_assets_refreshes_manifest_when_cache_file_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_root = root / "source"
+            stage_root = root / "stage"
+            gltf_path = source_root / "BUILDING" / "demo.gltf"
+            gltf_path.parent.mkdir(parents=True)
+            gltf_path.write_text("{}", encoding="utf-8")
+            tile_stage_dir = stage_root / "tiles" / "11_SW_7A"
+            tile_stage_dir.mkdir(parents=True)
+            (tile_stage_dir / "tile_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "tile": "11_SW_7A",
+                        "objects": [
+                            {
+                                "shape_id": "obj_11_SW_7A_BUILDING_demo",
+                                "category": "BUILDING",
+                                "category_path": "BUILDING",
+                                "source_gltf": "BUILDING/demo.gltf",
+                                "material_id": "itu_concrete",
+                                "stage_cache_relpath": "tiles/11_SW_7A/.cache/BUILDING/missing.npz",
+                            }
+                        ],
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            fake_mesh = type("FakeMesh", (), {"bounds": np.array([[0, 0, 0], [1, 1, 1]], dtype=np.float64)})()
+            fake_trimesh = type("FakeTrimesh", (), {"load": lambda self, *args, **kwargs: object()})()
+
+            with (
+                patch("backend.scene.incremental_tiles._trimesh_module", return_value=fake_trimesh) as trimesh_module,
+                patch("backend.scene.incremental_tiles.iter_scene_meshes", return_value=[(0, "node", fake_mesh)]),
+                patch("backend.scene.incremental_tiles.to_z_up_world", return_value=fake_mesh),
+                patch("backend.scene.incremental_tiles.write_stage_mesh_cache"),
+            ):
+                stage_tile_assets(source_root, stage_root, "11-SW-7A")
+
+            self.assertTrue(trimesh_module.called)
+
     def test_per_tile_scene_infers_origin_from_existing_tiles(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -258,6 +432,9 @@ class IncrementalTileTests(unittest.TestCase):
 """.strip(),
                 encoding="utf-8",
             )
+            existing_mesh = scene_root / "meshes" / "11_SW_8A" / "BUILDING" / "existing.ply"
+            existing_mesh.parent.mkdir(parents=True)
+            existing_mesh.write_text("ply\n", encoding="utf-8")
 
             self.assertTrue(scene_contains_tile(scene_root, "11-SW-8A"))
 
@@ -268,6 +445,126 @@ class IncrementalTileTests(unittest.TestCase):
             payload = json.loads(origin_path.read_text(encoding="utf-8"))
             np.testing.assert_allclose(origin, np.asarray(payload["origin_world_z_up"], dtype=np.float64))
             self.assertEqual(origin[2], 0.0)
+
+    def test_existing_scene_origin_is_preserved_when_cached_tiles_subset_of_current(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            scene_root = root / "scene"
+            stage_root = root / "stage"
+            (scene_root / "common").mkdir(parents=True)
+            (scene_root / "tiles").mkdir(parents=True)
+            (scene_root / "common" / "scene_common.xml").write_text(
+                '<scene version="2.1.0"><bsdf type="diffuse" id="itu_concrete"/></scene>',
+                encoding="utf-8",
+            )
+            (scene_root / "tiles" / "11_SW_8A.xml").write_text(
+                """
+<scene version="2.1.0">
+  <shape type="ply" id="existing_11_SW_8A">
+    <string name="filename" value="meshes/11_SW_8A/BUILDING/existing.ply" />
+    <ref name="bsdf" id="itu_concrete" />
+  </shape>
+</scene>
+""".strip(),
+                encoding="utf-8",
+            )
+            mesh_path = scene_root / "meshes" / "11_SW_8A" / "BUILDING" / "existing.ply"
+            mesh_path.parent.mkdir(parents=True)
+            mesh_path.write_text("ply\n", encoding="utf-8")
+            origin_path = stage_root / "origin.json"
+            origin_path.parent.mkdir(parents=True)
+            origin_path.write_text(
+                json.dumps({"origin_world_z_up": [1.0, 2.0, 3.0], "source_tile_ids": ["11_SW_8A"]}),
+                encoding="utf-8",
+            )
+
+            origin = load_or_create_scene_origin(scene_root, stage_root)
+
+            np.testing.assert_allclose(origin, np.asarray([1.0, 2.0, 3.0], dtype=np.float64))
+
+    def test_existing_scene_origin_is_preserved_for_legacy_payload_without_source_tile_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            scene_root = root / "scene"
+            stage_root = root / "stage"
+            (scene_root / "common").mkdir(parents=True)
+            (scene_root / "tiles").mkdir(parents=True)
+            (scene_root / "common" / "scene_common.xml").write_text(
+                '<scene version="2.1.0"><bsdf type="diffuse" id="itu_concrete"/></scene>',
+                encoding="utf-8",
+            )
+            (scene_root / "tiles" / "11_SW_8A.xml").write_text('<scene version="2.1.0"/>', encoding="utf-8")
+            origin_path = stage_root / "origin.json"
+            origin_path.parent.mkdir(parents=True)
+            origin_path.write_text(
+                json.dumps({"origin_world_z_up": [1.0, 2.0, 3.0]}),
+                encoding="utf-8",
+            )
+
+            origin = load_or_create_scene_origin(scene_root, stage_root)
+
+            np.testing.assert_allclose(origin, np.asarray([1.0, 2.0, 3.0], dtype=np.float64))
+
+    def test_existing_scene_origin_is_recomputed_when_cached_tiles_disappear(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            scene_root = root / "scene"
+            stage_root = root / "stage"
+            (scene_root / "common").mkdir(parents=True)
+            (scene_root / "tiles").mkdir(parents=True)
+            (scene_root / "common" / "scene_common.xml").write_text(
+                '<scene version="2.1.0"><bsdf type="diffuse" id="itu_concrete"/></scene>',
+                encoding="utf-8",
+            )
+            (scene_root / "tiles" / "11_SW_8A.xml").write_text(
+                """
+<scene version="2.1.0">
+  <shape type="ply" id="existing_11_SW_8A">
+    <string name="filename" value="meshes/11_SW_8A/BUILDING/existing.ply" />
+    <ref name="bsdf" id="itu_concrete" />
+  </shape>
+</scene>
+""".strip(),
+                encoding="utf-8",
+            )
+            mesh_path = scene_root / "meshes" / "11_SW_8A" / "BUILDING" / "existing.ply"
+            mesh_path.parent.mkdir(parents=True)
+            mesh_path.write_text("ply\n", encoding="utf-8")
+            origin_path = stage_root / "origin.json"
+            origin_path.parent.mkdir(parents=True)
+            # Cached origin was derived from a tile no longer present in the scene.
+            origin_path.write_text(
+                json.dumps({"origin_world_z_up": [99.0, 99.0, 99.0], "source_tile_ids": ["11_SW_9Z"]}),
+                encoding="utf-8",
+            )
+
+            origin = load_or_create_scene_origin(scene_root, stage_root)
+
+            # Recomputed from the present tile rather than honoring the stale cache.
+            self.assertFalse(np.allclose(origin, np.asarray([99.0, 99.0, 99.0], dtype=np.float64)))
+
+    def test_existing_scene_origin_survives_broken_tile_xml(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            scene_root = root / "scene"
+            stage_root = root / "stage"
+            (scene_root / "common").mkdir(parents=True)
+            (scene_root / "tiles").mkdir(parents=True)
+            (scene_root / "common" / "scene_common.xml").write_text(
+                '<scene version="2.1.0"><bsdf type="diffuse" id="itu_concrete"/></scene>',
+                encoding="utf-8",
+            )
+            (scene_root / "tiles" / "11_SW_8A.xml").write_text(
+                '<scene version="2.1.0"><shape type="ply" id="bad"><string name="filename" value="../outside.ply"/></shape></scene>',
+                encoding="utf-8",
+            )
+            origin_path = stage_root / "origin.json"
+            origin_path.parent.mkdir(parents=True)
+            origin_path.write_text(json.dumps({"origin_world_z_up": [4.0, 5.0, 6.0]}), encoding="utf-8")
+
+            origin = load_or_create_scene_origin(scene_root, stage_root)
+
+            np.testing.assert_allclose(origin, np.asarray([4.0, 5.0, 6.0], dtype=np.float64))
 
     def test_integrate_first_staged_tile_bootstraps_empty_scene_layout(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -312,6 +609,31 @@ class IncrementalTileTests(unittest.TestCase):
             self.assertTrue((scene_root / "meshes" / "11_SW_7A" / "BUILDING" / "obj_11_SW_7A__BUILDING__demo.ply").exists())
             self.assertFalse((scene_root / "cache" / "incremental_tile_commits" / "11_SW_7A").exists())
 
+    def test_integrate_staged_tile_replaces_stale_tile_xml_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            scene_root = root / "scene"
+            stage_root = root / "stage"
+            (scene_root / "common").mkdir(parents=True)
+            (scene_root / "tiles").mkdir(parents=True)
+            (scene_root / "common" / "scene_common.xml").write_text(
+                '<scene version="2.1.0"><bsdf type="diffuse" id="itu_concrete"/></scene>',
+                encoding="utf-8",
+            )
+            (scene_root / "tiles" / "11_SW_7A.xml").write_text(
+                '<scene version="2.1.0"><shape type="ply" id="obj_11_SW_7A__BUILDING__demo_0"><string name="filename" value="meshes/11_SW_7A/BUILDING/missing.ply"/></shape></scene>',
+                encoding="utf-8",
+            )
+            (stage_root / "origin.json").parent.mkdir(parents=True)
+            (stage_root / "origin.json").write_text('{"origin_world_z_up":[0,0,0]}', encoding="utf-8")
+            self._write_staged_tile_manifest(stage_root)
+
+            integrate_staged_tile(scene_root, stage_root, "11-SW-7A")
+
+            tile_xml = (scene_root / "tiles" / "11_SW_7A.xml").read_text(encoding="utf-8")
+            self.assertNotIn("missing.ply", tile_xml)
+            self.assertIn("obj_11_SW_7A__BUILDING__demo_0.ply", tile_xml)
+
     def test_integrate_staged_tile_cleans_temp_outputs_when_xml_prepare_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -327,6 +649,24 @@ class IncrementalTileTests(unittest.TestCase):
             self.assertFalse((scene_root / "tiles" / "11_SW_7A.xml").exists())
             self.assertFalse((scene_root / "cache" / "incremental_tile_commits" / "11_SW_7A").exists())
             self.assertTrue((stage_root / "origin.json").exists())
+
+    def test_integrate_staged_tile_preserves_existing_outputs_when_prepare_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            scene_root = root / "scene"
+            stage_root = root / "stage"
+            existing_mesh = scene_root / "meshes" / "11_SW_7A" / "BUILDING" / "keep.ply"
+            existing_mesh.parent.mkdir(parents=True)
+            existing_mesh.write_text("existing", encoding="utf-8")
+            self._write_staged_tile_manifest(stage_root)
+
+            with patch("backend.scene.incremental_tiles._build_tile_scene_xml_tree", side_effect=RuntimeError("xml boom")):
+                with self.assertRaises(RuntimeError):
+                    integrate_staged_tile(scene_root, stage_root, "11-SW-7A")
+
+            self.assertTrue(existing_mesh.exists())
+            self.assertFalse((scene_root / "tiles" / "11_SW_7A.xml").exists())
+            self.assertFalse((scene_root / "cache" / "incremental_tile_commits" / "11_SW_7A").exists())
 
     def test_integrate_staged_tile_cleans_final_mesh_when_xml_replace_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -369,7 +709,7 @@ class IncrementalTileTests(unittest.TestCase):
             self.assertFalse((scene_root / "cache" / "incremental_tile_commits" / "11_SW_7A").exists())
             self.assertTrue((stage_root / "origin.json").exists())
 
-    def test_download_stage_and_integrate_tile_cleans_scene_outputs_on_non_cancel_failure(self) -> None:
+    def test_download_stage_and_integrate_tile_preserves_scene_outputs_on_non_cancel_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             scene_root = root / "scene"
@@ -398,8 +738,8 @@ class IncrementalTileTests(unittest.TestCase):
                         key="key",
                     )
 
-            self.assertFalse((scene_root / "meshes" / "11_SW_7A").exists())
-            self.assertFalse((scene_root / "tiles" / "11_SW_7A.xml").exists())
+            self.assertTrue((scene_root / "meshes" / "11_SW_7A" / "partial.ply").exists())
+            self.assertTrue((scene_root / "tiles" / "11_SW_7A.xml").exists())
 
     def test_integrate_staged_tile_writes_per_tile_xml_with_existing_layout(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

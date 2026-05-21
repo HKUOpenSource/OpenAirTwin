@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 import math
 import re
@@ -14,21 +15,37 @@ from uuid import uuid4
 import zipfile
 from pathlib import Path
 import xml.etree.ElementTree as ET
+from defusedxml.ElementTree import parse as _safe_parse
 
 import numpy as np
 
 from backend.scene.tile_scene_xml import (
+    COMMON_SCENE_RELATIVE_PATH,
     TILE_SCENE_RELATIVE_DIR,
     ensure_scene_layout,
     load_tile_scene_xml_source,
+    resolve_scene_filename,
 )
 
 
 TILE_ID_PATTERN = re.compile(r"^(\d{1,2})[-_]([A-Za-z]{2})[-_](\d{1,2})([A-Za-z])$")
 STAGE_SCHEMA_VERSION = 1
+EXTRACT_SCHEMA_VERSION = 1
 ProgressCallback = Callable[[float, str], None]
 CancelCheck = Callable[[], bool]
 DOWNLOAD_STALL_TIMEOUT_SECONDS = 300
+GLTF_SOURCE_ASSET_SUFFIXES = {
+    ".bin",
+    ".basis",
+    ".glb",
+    ".gltf",
+    ".jpeg",
+    ".jpg",
+    ".ktx",
+    ".ktx2",
+    ".png",
+    ".webp",
+}
 GLTF_TO_Z_UP = np.array(
     [
         [1.0, 0.0, 0.0, 0.0],
@@ -127,6 +144,58 @@ def _content_range_total(value: str | None) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _zip_archive_is_valid(path: Path) -> bool:
+    try:
+        return zipfile.is_zipfile(path)
+    except OSError:
+        return False
+
+
+def _path_fingerprint(path: Path) -> dict[str, int]:
+    stat = path.stat()
+    return {"mtime_ns": int(stat.st_mtime_ns), "size_bytes": int(stat.st_size)}
+
+
+def _source_asset_fingerprints(source_root: Path) -> list[dict[str, object]]:
+    resolved_source_root = Path(source_root).resolve()
+    assets = []
+    for path in sorted(resolved_source_root.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in GLTF_SOURCE_ASSET_SUFFIXES:
+            continue
+        try:
+            relative_path = path.resolve().relative_to(resolved_source_root).as_posix()
+        except ValueError:
+            continue
+        assets.append({"path": relative_path, **_path_fingerprint(path)})
+    return assets
+
+
+def _extract_manifest_path(extract_dir: Path) -> Path:
+    return extract_dir / ".extract_manifest.json"
+
+
+def _extract_cache_is_current(zip_path: Path, extract_dir: Path, ids: TileIds) -> bool:
+    manifest_path = _extract_manifest_path(extract_dir)
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return (
+        manifest.get("schema_version") == EXTRACT_SCHEMA_VERSION
+        and manifest.get("tile") == ids.internal
+        and manifest.get("zip") == _path_fingerprint(zip_path)
+        and manifest.get("assets") == _source_asset_fingerprints(extract_dir)
+        and any(extract_dir.rglob("*.gltf"))
+    )
+
+
+def _promote_downloaded_zip(temp_path: Path, target_path: Path) -> None:
+    temp_path.replace(target_path)
+    if not _zip_archive_is_valid(target_path):
+        target_path.unlink(missing_ok=True)
+        raise zipfile.BadZipFile(f"Downloaded archive is not a valid zip file: {target_path}")
+
+
 def _report(progress_cb: ProgressCallback | None, progress: float, message: str) -> None:
     if progress_cb:
         progress_cb(progress, message)
@@ -194,8 +263,11 @@ def download_tile_zip(
     target_path = target_dir / f"{ids.display}.zip"
     url = build_download_url(ids.display, base_url=base_url, file_format=file_format, key=key)
     if target_path.exists() and target_path.stat().st_size > 0:
-        _report(progress_cb, 0.55, f"Using cached GLTF archive ({_format_bytes(target_path.stat().st_size)})")
-        return target_path, url
+        if _zip_archive_is_valid(target_path):
+            _report(progress_cb, 0.55, f"Using cached GLTF archive ({_format_bytes(target_path.stat().st_size)})")
+            return target_path, url
+        target_path.unlink(missing_ok=True)
+        _report(progress_cb, 0.05, "Cached GLTF archive is invalid; downloading it again")
 
     temp_path = target_path.with_suffix(".zip.tmp")
     last_error: Exception | None = None
@@ -222,7 +294,7 @@ def download_tile_zip(
 
                 downloaded = existing_size
                 if total_size and downloaded >= total_size and temp_path.exists():
-                    temp_path.replace(target_path)
+                    _promote_downloaded_zip(temp_path, target_path)
                     _report(progress_cb, 0.55, f"Downloaded GLTF archive ({_format_bytes(total_size)})")
                     return target_path, url
 
@@ -251,13 +323,13 @@ def download_tile_zip(
                 if total_size and downloaded < total_size:
                     raise OSError(f"Incomplete download: got {downloaded} of {total_size} bytes")
 
-                temp_path.replace(target_path)
+                _promote_downloaded_zip(temp_path, target_path)
                 _report(progress_cb, 0.55, f"Downloaded GLTF archive ({_format_bytes(downloaded)})")
                 return target_path, url
         except TileDownloadCancelled:
             temp_path.unlink(missing_ok=True)
             raise
-        except (TimeoutError, socket.timeout, urllib.error.URLError, OSError) as exc:
+        except (TimeoutError, socket.timeout, urllib.error.URLError, OSError, zipfile.BadZipFile) as exc:
             last_error = exc
             if attempt >= retries:
                 break
@@ -285,26 +357,47 @@ def extract_tile_zip(
 ) -> Path:
     ids = normalize_tile_id(tile_id)
     extract_dir = target_root / "sources" / ids.internal
-    if extract_dir.exists() and any(extract_dir.rglob("*.gltf")):
+    if extract_dir.exists() and _extract_cache_is_current(zip_path, extract_dir, ids):
         _report(progress_cb, 0.62, "Using cached extracted GLTF assets")
         return extract_dir
-    if extract_dir.exists():
-        shutil.rmtree(extract_dir)
-    extract_dir.mkdir(parents=True, exist_ok=True)
+    extract_dir.parent.mkdir(parents=True, exist_ok=True)
+    temp_extract_dir = extract_dir.parent / f".{extract_dir.name}.{uuid4().hex}.tmp"
+    if temp_extract_dir.exists():
+        shutil.rmtree(temp_extract_dir)
+    temp_extract_dir.mkdir(parents=True, exist_ok=False)
     _report(progress_cb, 0.56, "Extracting GLTF archive")
-    with zipfile.ZipFile(zip_path) as archive:
-        members = archive.infolist()
-        report_every = max(1, len(members) // 20)
-        for index, member in enumerate(members, start=1):
-            _raise_if_cancelled(cancel_check)
-            member_path = Path(member.filename)
-            if member.is_dir() or member_path.is_absolute() or ".." in member_path.parts:
-                continue
-            archive.extract(member, extract_dir)
-            if index % report_every == 0:
-                _report(progress_cb, 0.56 + 0.06 * (index / len(members)), "Extracting GLTF archive")
-    if not any(extract_dir.rglob("*.gltf")):
-        raise FileNotFoundError(f"No .gltf assets found in {zip_path}")
+    try:
+        with zipfile.ZipFile(zip_path) as archive:
+            members = archive.infolist()
+            report_every = max(1, len(members) // 20)
+            for index, member in enumerate(members, start=1):
+                _raise_if_cancelled(cancel_check)
+                member_path = Path(member.filename)
+                if member.is_dir() or member_path.is_absolute() or ".." in member_path.parts:
+                    continue
+                archive.extract(member, temp_extract_dir)
+                if index % report_every == 0:
+                    _report(progress_cb, 0.56 + 0.06 * (index / len(members)), "Extracting GLTF archive")
+        if not any(temp_extract_dir.rglob("*.gltf")):
+            raise FileNotFoundError(f"No .gltf assets found in {zip_path}")
+        _extract_manifest_path(temp_extract_dir).write_text(
+            json.dumps(
+                {
+                    "schema_version": EXTRACT_SCHEMA_VERSION,
+                    "tile": ids.internal,
+                    "zip": _path_fingerprint(zip_path),
+                    "assets": _source_asset_fingerprints(temp_extract_dir),
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        if extract_dir.exists():
+            shutil.rmtree(extract_dir)
+        temp_extract_dir.replace(extract_dir)
+    except Exception:
+        shutil.rmtree(temp_extract_dir, ignore_errors=True)
+        raise
     _report(progress_cb, 0.62, "Extracted GLTF assets")
     return extract_dir
 
@@ -364,6 +457,14 @@ def build_shape_id(tile: str, category: str, asset_stem: str, node_index: int, n
     return f"obj_{base}"
 
 
+def _asset_shape_key(asset_path: Path, source_root: Path, duplicate_stem: bool) -> str:
+    if not duplicate_stem:
+        return asset_path.stem
+    relative_path = asset_path.relative_to(source_root).as_posix()
+    digest = hashlib.sha1(relative_path.encode("utf-8")).hexdigest()[:10]
+    return f"{asset_path.stem}_{digest}"
+
+
 def write_stage_mesh_cache(output_path: Path, mesh_world_zup: trimesh.Trimesh) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
@@ -398,12 +499,14 @@ def _gltf_category(path: Path, source_root: Path, ids: TileIds) -> str:
     return path.parent.name
 
 
-def _cached_stage_manifest_is_current(manifest_path: Path, source_root: Path, ids: TileIds) -> bool:
+def _cached_stage_manifest_is_current(manifest_path: Path, source_root: Path, stage_root: Path, ids: TileIds) -> bool:
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
     if manifest.get("schema_version") != STAGE_SCHEMA_VERSION or manifest.get("tile") != ids.internal:
+        return False
+    if manifest.get("source_assets") != _source_asset_fingerprints(source_root):
         return False
 
     objects = manifest.get("objects")
@@ -415,7 +518,15 @@ def _cached_stage_manifest_is_current(manifest_path: Path, source_root: Path, id
         source_gltf = staged_object.get("source_gltf")
         if not isinstance(source_gltf, str) or not source_gltf:
             return False
-        source_path = source_root / source_gltf
+        source_path = (source_root / source_gltf).resolve()
+        try:
+            source_path.relative_to(Path(source_root).resolve())
+        except ValueError:
+            return False
+        if not source_path.is_file():
+            return False
+        if staged_object.get("source_fingerprint") != _path_fingerprint(source_path):
+            return False
         try:
             expected_category = _gltf_category(source_path, source_root, ids)
         except ValueError:
@@ -425,6 +536,16 @@ def _cached_stage_manifest_is_current(manifest_path: Path, source_root: Path, id
         if staged_object.get("category_path") != sanitize_id(expected_category):
             return False
         if staged_object.get("material_id") != _material_for_category(expected_category):
+            return False
+        stage_cache_relpath = staged_object.get("stage_cache_relpath")
+        if not isinstance(stage_cache_relpath, str) or not stage_cache_relpath:
+            return False
+        cache_path = (stage_root / stage_cache_relpath).resolve()
+        try:
+            cache_path.relative_to(stage_root.resolve())
+        except ValueError:
+            return False
+        if not cache_path.is_file():
             return False
     return True
 
@@ -442,7 +563,7 @@ def stage_tile_assets(
     tile_stage_dir = stage_root / "tiles" / ids.internal
     manifest_path = tile_stage_dir / "tile_manifest.json"
     if manifest_path.exists() and not overwrite:
-        if _cached_stage_manifest_is_current(manifest_path, source_root, ids):
+        if _cached_stage_manifest_is_current(manifest_path, source_root, stage_root, ids):
             _report(progress_cb, 0.82, "Using cached staged tile meshes")
             return manifest_path
         _report(progress_cb, 0.62, "Refreshing stale staged tile category cache")
@@ -453,24 +574,41 @@ def stage_tile_assets(
     gltf_paths = sorted(source_root.rglob("*.gltf"))
     if not gltf_paths:
         raise FileNotFoundError(f"No .gltf assets found under {source_root}")
+    source_assets = _source_asset_fingerprints(source_root)
+    asset_infos = [
+        (
+            asset_path,
+            _gltf_category(asset_path, source_root, ids),
+            asset_path.relative_to(source_root).as_posix(),
+        )
+        for asset_path in gltf_paths
+    ]
+    asset_identity_counts: dict[tuple[str, str], int] = {}
+    for asset_path, category, _relative_path in asset_infos:
+        key = (category, asset_path.stem)
+        asset_identity_counts[key] = asset_identity_counts.get(key, 0) + 1
 
     scene_min = np.array([np.inf, np.inf, np.inf], dtype=np.float64)
     scene_max = np.array([-np.inf, -np.inf, -np.inf], dtype=np.float64)
     objects: list[dict] = []
 
-    for asset_index, asset_path in enumerate(gltf_paths, start=1):
+    for asset_index, (asset_path, category, source_gltf) in enumerate(asset_infos, start=1):
         _raise_if_cancelled(cancel_check)
         _report(
             progress_cb,
             0.62 + 0.20 * ((asset_index - 1) / len(gltf_paths)),
             f"Staging GLTF mesh {asset_index} of {len(gltf_paths)}",
         )
-        category = _gltf_category(asset_path, source_root, ids)
         trimesh = _trimesh_module()
         scene = trimesh.load(asset_path, force="scene", process=False)
         meshes = list(iter_scene_meshes(scene))
         num_nodes = len(meshes)
         material_id = _material_for_category(category)
+        asset_key = _asset_shape_key(
+            asset_path,
+            source_root,
+            asset_identity_counts[(category, asset_path.stem)] > 1,
+        )
 
         for node_index, node_name, mesh_world_yup in meshes:
             _raise_if_cancelled(cancel_check)
@@ -478,7 +616,7 @@ def stage_tile_assets(
             bbox = mesh_world_zup.bounds.astype(float)
             scene_min = np.minimum(scene_min, bbox[0])
             scene_max = np.maximum(scene_max, bbox[1])
-            shape_id = build_shape_id(ids.internal, category, asset_path.stem, node_index, num_nodes)
+            shape_id = build_shape_id(ids.internal, category, asset_key, node_index, num_nodes)
             cache_relpath = Path("tiles") / ids.internal / ".cache" / sanitize_id(category) / f"{shape_id}.npz"
             write_stage_mesh_cache(stage_root / cache_relpath, mesh_world_zup)
             objects.append(
@@ -488,7 +626,8 @@ def stage_tile_assets(
                     "tile_sheet_num": ids.display,
                     "category": category,
                     "category_path": sanitize_id(category),
-                    "source_gltf": str(asset_path.relative_to(source_root)).replace("\\", "/"),
+                    "source_gltf": source_gltf,
+                    "source_fingerprint": _path_fingerprint(asset_path),
                     "source_node": node_name,
                     "node_index": int(node_index),
                     "material_id": material_id,
@@ -505,7 +644,8 @@ def stage_tile_assets(
         "tile": ids.internal,
         "tile_sheet_num": ids.display,
         "source_root": str(source_root),
-        "source_assets_count": len(gltf_paths),
+        "source_assets_count": len(source_assets),
+        "source_assets": source_assets,
         "staged_objects_count": len(objects),
         "world_bbox_z_up": np.array([scene_min, scene_max], dtype=np.float64).tolist(),
         "objects": objects,
@@ -560,13 +700,39 @@ def _tile_bounds(tile_id: str) -> dict[str, float] | None:
 
 
 def _scene_tile_ids(scene_root: Path) -> set[str]:
-    source = load_tile_scene_xml_source(scene_root)
+    try:
+        source = load_tile_scene_xml_source(scene_root)
+    except ValueError:
+        # Malformed tile XML (e.g., mesh path outside the scene root) should not
+        # take down "is this tile already integrated?" checks.
+        return set()
     return set(source.shape_by_tile)
+
+
+def _shape_mesh_exists(scene_root: Path, shape: ET.Element) -> bool:
+    filename_node = shape.find('string[@name="filename"]')
+    if filename_node is None:
+        return False
+    filename = filename_node.attrib.get("value", "")
+    if not filename:
+        return False
+    scene_root = Path(scene_root).resolve()
+    mesh_path = resolve_scene_filename(scene_root, filename)
+    try:
+        mesh_path.relative_to(scene_root)
+    except ValueError:
+        return False
+    return mesh_path.is_file()
 
 
 def scene_contains_tile(scene_root: Path, tile_id: str) -> bool:
     ids = normalize_tile_id(tile_id)
-    return ids.internal in _scene_tile_ids(scene_root)
+    try:
+        source = load_tile_scene_xml_source(scene_root)
+    except ValueError:
+        return False
+    shapes = source.shape_by_tile.get(ids.internal, [])
+    return bool(shapes) and all(_shape_mesh_exists(scene_root, shape) for shape in shapes)
 
 
 def _origin_path(stage_root: Path) -> Path:
@@ -581,16 +747,44 @@ def load_or_create_scene_origin(
 ) -> np.ndarray:
     path = _origin_path(stage_root)
     if path.exists():
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        return np.asarray(payload["origin_world_z_up"], dtype=np.float64)
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            cached_origin = np.asarray(payload.get("origin_world_z_up"), dtype=np.float64)
+            if cached_origin.shape == (3,) and np.all(np.isfinite(cached_origin)):
+                cached_tile_ids = payload.get("source_tile_ids")
+                if not isinstance(cached_tile_ids, list) or not cached_tile_ids:
+                    # Legacy origin.json (no source_tile_ids recorded).
+                    return cached_origin
+                current_internal: set[str] = set()
+                for scene_tile_id in _scene_tile_ids(scene_root):
+                    try:
+                        current_internal.add(normalize_tile_id(scene_tile_id).internal)
+                    except ValueError:
+                        continue
+                if set(cached_tile_ids).issubset(current_internal):
+                    # Tiles that informed the origin are still present;
+                    # newly added tiles attach without shifting the origin.
+                    return cached_origin
+                # Scene lost tiles the origin was derived from; recompute.
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            pass
 
-    tile_ids = sorted(_scene_tile_ids(scene_root))
-    bounds = [_tile_bounds(tile_id) for tile_id in tile_ids]
-    bounds = [item for item in bounds if item is not None]
+    source_tile_ids: list[str] = []
+    bounds: list[dict[str, float]] = []
+    for tile_id in sorted(_scene_tile_ids(scene_root)):
+        try:
+            tile_bounds = _tile_bounds(tile_id)
+        except ValueError:
+            continue
+        if tile_bounds is not None:
+            bounds.append(tile_bounds)
+            source_tile_ids.append(normalize_tile_id(tile_id).internal)
     if not bounds and fallback_tile_id:
         fallback_bounds = _tile_bounds(fallback_tile_id)
         if fallback_bounds is not None:
             bounds = [fallback_bounds]
+            source_tile_ids = [normalize_tile_id(fallback_tile_id).internal]
+
     if not bounds:
         raise ValueError("Cannot infer current scene origin because the scene XML has no tile mesh paths")
 
@@ -606,6 +800,8 @@ def load_or_create_scene_origin(
                 "origin_world_z_up": origin.tolist(),
                 "source": "inferred from current scene tile sheet bounds",
                 "scene_source": "per_tile",
+                "source_tile_ids": source_tile_ids,
+                "source_bounds": bounds,
             },
             indent=2,
         ),
@@ -632,20 +828,11 @@ def make_local(mesh: trimesh.Trimesh, origin: np.ndarray) -> trimesh.Trimesh:
 def _build_tile_scene_xml_tree(scene_root: Path, tile_id: str, records: list[dict]) -> ET.ElementTree:
     ensure_scene_layout(scene_root)
     ids = normalize_tile_id(tile_id)
-    source = load_tile_scene_xml_source(scene_root)
-    root = ET.Element(source.scene_tag, dict(source.scene_attrib))
-    existing_shape_ids: set[str] = set()
-    tile_xml_path = _tile_xml_path(scene_root, ids.internal)
-    if tile_xml_path.exists():
-        tile_root = ET.parse(tile_xml_path).getroot()
-        existing_shape_ids = {shape.attrib.get("id", "") for shape in tile_root.findall("shape")}
-        for shape in tile_root.findall("shape"):
-            root.append(shape)
+    common_root = _safe_parse(Path(scene_root) / COMMON_SCENE_RELATIVE_PATH).getroot()
+    root = ET.Element(common_root.tag, dict(common_root.attrib))
 
     for record in records:
         shape_id = record["shape_id"]
-        if shape_id in existing_shape_ids:
-            continue
         shape = ET.SubElement(root, "shape", {"type": "ply", "id": shape_id})
         ET.SubElement(shape, "string", {"name": "filename", "value": record["mesh_relpath"]})
         ET.SubElement(shape, "boolean", {"name": "face_normals", "value": "true"})
@@ -670,7 +857,7 @@ def _write_tile_scene_xml(scene_root: Path, tile_id: str, records: list[dict]) -
     ids = normalize_tile_id(tile_id)
     tile_xml_path = _tile_xml_path(scene_root, ids.internal)
     tree = _build_tile_scene_xml_tree(scene_root, ids.internal, records)
-    temp_path = tile_xml_path.with_suffix(".xml.tmp")
+    temp_path = tile_xml_path.with_name(f"{tile_xml_path.name}.{uuid4().hex}.tmp")
     _write_xml_tree(tree, temp_path)
     _replace_path(temp_path, tile_xml_path)
     return tile_xml_path
@@ -690,30 +877,46 @@ def _cleanup_tile_commit_root(commit_root: Path) -> None:
             break
 
 
-def _move_staged_mesh_dir(staged_mesh_dir: Path, final_mesh_dir: Path) -> None:
-    if not staged_mesh_dir.exists():
-        return
-    final_mesh_dir.parent.mkdir(parents=True, exist_ok=True)
-    if not final_mesh_dir.exists():
-        shutil.move(str(staged_mesh_dir), str(final_mesh_dir))
-        return
+def _remove_path(path: Path) -> None:
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
 
-    for staged_path in sorted(staged_mesh_dir.rglob("*")):
-        relative_path = staged_path.relative_to(staged_mesh_dir)
-        target_path = final_mesh_dir / relative_path
-        if staged_path.is_dir():
-            target_path.mkdir(parents=True, exist_ok=True)
-            continue
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.unlink(missing_ok=True)
-        shutil.move(str(staged_path), str(target_path))
+
+def _restore_backup_path(backup_path: Path, target_path: Path) -> None:
+    if not backup_path.exists():
+        return
+    _remove_path(target_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(backup_path), str(target_path))
 
 
 def _commit_staged_tile_outputs(scene_root: Path, tile_id: str, commit_root: Path, staged_tile_xml_path: Path) -> Path:
     ids = normalize_tile_id(tile_id)
-    _move_staged_mesh_dir(commit_root / "meshes" / ids.internal, _tile_mesh_dir(scene_root, ids.internal))
+    staged_mesh_dir = commit_root / "meshes" / ids.internal
+    final_mesh_dir = _tile_mesh_dir(scene_root, ids.internal)
     tile_xml_path = _tile_xml_path(scene_root, ids.internal)
-    _replace_path(staged_tile_xml_path, tile_xml_path)
+    rollback_root = commit_root / "rollback"
+    backup_mesh_dir = rollback_root / "meshes" / ids.internal
+    backup_tile_xml_path = rollback_root / TILE_SCENE_RELATIVE_DIR / f"{ids.internal}.xml"
+    try:
+        if final_mesh_dir.exists():
+            backup_mesh_dir.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(final_mesh_dir), str(backup_mesh_dir))
+        if tile_xml_path.exists():
+            backup_tile_xml_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(tile_xml_path), str(backup_tile_xml_path))
+        if staged_mesh_dir.exists():
+            final_mesh_dir.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(staged_mesh_dir), str(final_mesh_dir))
+        _replace_path(staged_tile_xml_path, tile_xml_path)
+    except Exception:
+        _remove_path(final_mesh_dir)
+        tile_xml_path.unlink(missing_ok=True)
+        _restore_backup_path(backup_mesh_dir, final_mesh_dir)
+        _restore_backup_path(backup_tile_xml_path, tile_xml_path)
+        raise
     return tile_xml_path
 
 
@@ -776,7 +979,6 @@ def integrate_staged_tile(
         _cleanup_tile_commit_root(commit_root)
     except Exception:
         _cleanup_tile_commit_root(commit_root)
-        cleanup_tile_scene_outputs(ids.internal, scene_root)
         raise
     return {
         "status": "integrated",
@@ -830,10 +1032,7 @@ def download_stage_and_integrate_tile(
             cancel_check=cancel_check,
         )
     except TileDownloadCancelled:
-        cleanup_tile_download_artifacts(ids.display, workspace_root, stage_root, scene_root)
-        raise
-    except Exception:
-        cleanup_tile_scene_outputs(ids.display, scene_root)
+        cleanup_tile_download_artifacts(ids.display, workspace_root, stage_root)
         raise
     result["download_url"] = url
     result["zip_path"] = str(zip_path)
