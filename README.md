@@ -19,6 +19,7 @@
 <p align="center">
   <a href="#quickstart">Quickstart</a> &bull;
   <a href="#features">Features</a> &bull;
+  <a href="https://zhaolin820.github.io/HKU-Ray-Tracing-Platform/">Tutorial Website</a> &bull;
   <a href="#scene-data">Scene Data</a> &bull;
   <a href="#configuration">Configuration</a> &bull;
   <a href="#validation">Validation</a> &bull;
@@ -30,6 +31,11 @@ OpenAirTwin is an open-source platform for interactive urban wireless
 propagation studies. It combines a Python backend, a static browser frontend,
 tile-based scene management, and Sionna RT workflows for link analysis,
 radio-map generation, mobility simulation, DeepMIMO dataset export, and more.
+
+> New users can start with the
+> [video-led tutorial website](https://zhaolin820.github.io/HKU-Ray-Tracing-Platform/),
+> which walks through map selection, link analysis, mobility simulation, radio
+> maps, and DeepMIMO export without requiring a running backend.
 
 ## Features
 
