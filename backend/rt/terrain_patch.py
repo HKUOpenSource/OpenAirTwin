@@ -237,6 +237,21 @@ def _triangle_normals(triangles: np.ndarray) -> np.ndarray:
     return normals.astype(np.float32, copy=False)
 
 
+def _vertex_normals_from_faces(positions: np.ndarray, faces: np.ndarray) -> np.ndarray:
+    triangles = np.asarray(positions, dtype=np.float32)[np.asarray(faces, dtype=np.int64)]
+    face_normals = _triangle_normals(triangles)
+    accumulator = np.zeros_like(positions, dtype=np.float32)
+    np.add.at(accumulator, faces[:, 0], face_normals)
+    np.add.at(accumulator, faces[:, 1], face_normals)
+    np.add.at(accumulator, faces[:, 2], face_normals)
+    lengths = np.linalg.norm(accumulator, axis=1, keepdims=True)
+    default = np.zeros_like(accumulator)
+    default[:, 2] = 1.0
+    return np.divide(accumulator, lengths, out=default, where=lengths > 0.0).astype(
+        np.float32, copy=False
+    )
+
+
 def _interpolate_points_on_terrain(
     points_xy: np.ndarray,
     terrain_triangles: np.ndarray,
@@ -416,7 +431,10 @@ def build_terrain_patch(
         raise ValueError(
             f"Could not find a terrain measurement surface with radio material '{config.RADIOMAP_MEASUREMENT_MATERIAL}'"
         )
-    selected_triangle_blocks: list[np.ndarray] = []
+    selected_position_blocks: list[np.ndarray] = []
+    selected_face_blocks: list[np.ndarray] = []
+    selected_normal_blocks: list[np.ndarray] = []
+    selected_texcoord_blocks: list[np.ndarray | None] = []
     patch_mesh = None
     for terrain in terrain_candidates:
         candidate_mesh = terrain.clone(as_mesh=True)
@@ -425,17 +443,54 @@ def build_terrain_patch(
         faces = np.asarray(to_numpy(candidate_params["faces"]), dtype=np.uint32).reshape(-1, 3)
         face_mask = _select_faces_in_xy_box(vertex_positions, faces, tx_position[:2], size_xy)
         selected_faces = faces[face_mask]
-        if selected_faces.size:
-            selected_triangle_blocks.append(vertex_positions[selected_faces])
-            if patch_mesh is None:
-                patch_mesh = candidate_mesh
+        if not selected_faces.size:
+            continue
+        # Dedup vertices per source mesh so shared edges keep their topology
+        # (single-tile parity) and `_subdivide_triangles` can cache midpoints.
+        unique_indices, inverse = np.unique(selected_faces.reshape(-1), return_inverse=True)
+        block_positions = vertex_positions[unique_indices]
+        block_faces = inverse.reshape(-1, 3).astype(np.uint32, copy=False)
+        source_normals = np.asarray(to_numpy(candidate_params["vertex_normals"]), dtype=np.float32)
+        if source_normals.size:
+            block_normals = source_normals.reshape(-1, 3)[unique_indices]
+        else:
+            block_normals = _vertex_normals_from_faces(block_positions, block_faces)
+        source_texcoords = np.asarray(to_numpy(candidate_params["vertex_texcoords"]), dtype=np.float32)
+        block_texcoords = (
+            source_texcoords.reshape(-1, 2)[unique_indices] if source_texcoords.size else None
+        )
+        selected_position_blocks.append(block_positions)
+        selected_face_blocks.append(block_faces)
+        selected_normal_blocks.append(block_normals)
+        selected_texcoord_blocks.append(block_texcoords)
+        if patch_mesh is None:
+            patch_mesh = candidate_mesh
 
-    if not selected_triangle_blocks or patch_mesh is None:
+    if not selected_position_blocks or patch_mesh is None:
         raise ValueError("Selected terrain patch contains no measurement cells around the chosen Tx")
 
-    terrain_triangles = np.concatenate(selected_triangle_blocks, axis=0).astype(np.float32, copy=False)
-    terrain_vertex_positions = terrain_triangles.reshape(-1, 3).copy()
-    terrain_faces = np.arange(terrain_vertex_positions.shape[0], dtype=np.uint32).reshape(-1, 3)
+    # Concatenate blocks with per-block index offsets so each tile keeps its
+    # own shared-edge topology (subdivision midpoint cache benefits from it),
+    # without merging vertices across tile seams where coordinates may not
+    # coincide exactly.
+    vertex_offsets = np.cumsum([0] + [block.shape[0] for block in selected_position_blocks[:-1]])
+    terrain_vertex_positions = np.concatenate(selected_position_blocks, axis=0).astype(
+        np.float32, copy=False
+    )
+    terrain_faces = np.concatenate(
+        [block + offset for block, offset in zip(selected_face_blocks, vertex_offsets)],
+        axis=0,
+    ).astype(np.uint32, copy=False)
+    terrain_vertex_normals = np.concatenate(selected_normal_blocks, axis=0).astype(
+        np.float32, copy=False
+    )
+    if all(block is not None for block in selected_texcoord_blocks):
+        terrain_vertex_texcoords = np.concatenate(
+            [block for block in selected_texcoord_blocks if block is not None],
+            axis=0,
+        ).astype(np.float32, copy=False)
+    else:
+        terrain_vertex_texcoords = None
     selected_count = int(terrain_faces.shape[0])
     params = mi.traverse(patch_mesh)
 
@@ -447,8 +502,11 @@ def build_terrain_patch(
         patch_positions = terrain_vertex_positions.copy()
         patch_positions[:, 2] += float(height_offset)
         patch_faces = terrain_faces.copy()
-        patch_normals = np.repeat(_triangle_normals(terrain_triangles), 3, axis=0)
-        patch_texcoords = np.zeros((patch_positions.shape[0], 2), dtype=np.float32)
+        patch_normals = terrain_vertex_normals.copy()
+        if terrain_vertex_texcoords is not None:
+            patch_texcoords = terrain_vertex_texcoords.copy()
+        else:
+            patch_texcoords = np.zeros((patch_positions.shape[0], 2), dtype=np.float32)
 
         patch_positions, patch_faces, patch_normals, patch_texcoords = _subdivide_triangles(
             patch_positions,

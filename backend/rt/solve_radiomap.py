@@ -125,7 +125,7 @@ def solve_terrain_radiomap(
     finite_values_db = values_db[np.isfinite(values_db)]
     values_payload = [
         float(value) if np.isfinite(value) else None
-        for value in values_db.astype(float)
+        for value in values_db
     ]
     log_timing("radiomap_finalize", finalize_started_at, cells=patch_meta["cell_count"])
 
