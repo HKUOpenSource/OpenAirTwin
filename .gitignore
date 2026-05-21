@@ -12,3 +12,6 @@ __pycache__/
 /.env.local
 /.venv/
 /venv/
+/website/node_modules/
+/website/dist/
+*.tsbuildinfo
