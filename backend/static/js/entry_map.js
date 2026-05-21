@@ -894,6 +894,7 @@ async function downloadEntryMapTile(tileId) {
     onCancel: () => {
       requestCancelDownload();
     },
+    force: true,
   });
 
   try {
@@ -913,7 +914,7 @@ async function downloadEntryMapTile(tileId) {
     }
   } finally {
     state.entry.downloadingTileIds.delete(tileId);
-    scene().hideOverlay();
+    scene().hideOverlay(null, true);
     syncEntryOverviewUi();
   }
 }

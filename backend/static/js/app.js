@@ -429,7 +429,7 @@ function attachEvents() {
     state.pickTarget = null;
     state.deviceControl.activeTarget = null;
     return sceneRenderState.enterScene().catch((error) => {
-      sceneRenderState.hideOverlay();
+      sceneRenderState.hideOverlay(null, true);
       state.tileLoadBusy = false;
       sceneRenderState.syncTileListUi();
       window.alert(error.message);
@@ -629,15 +629,15 @@ function attachEvents() {
   });
 
   ui.btnSolveLink.addEventListener("click", () => runSolveFromDock(ui.btnSolveLink, () => solverControls.runLinkSolve()).catch((error) => {
-    sceneRenderState.hideOverlay();
+    sceneRenderState.hideOverlay(null, true);
     window.alert(error.message);
   }));
   ui.btnRunRadiomap.addEventListener("click", () => runSolveFromDock(ui.btnRunRadiomap, () => solverControls.runRadiomap()).catch((error) => {
-    sceneRenderState.hideOverlay();
+    sceneRenderState.hideOverlay(null, true);
     window.alert(error.message);
   }));
   ui.btnRunMobility.addEventListener("click", () => runSolveFromDock(ui.btnRunMobility, () => solverControls.runMobility()).catch((error) => {
-    sceneRenderState.hideOverlay();
+    sceneRenderState.hideOverlay(null, true);
     solverControls.stopMobilityPlayback();
     window.alert(error.message);
   }));
@@ -949,21 +949,21 @@ function attachEvents() {
 }
 
 async function bootstrap() {
-  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 10});
+  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 10, force: true});
   attachEvents();
-  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading RT capabilities...", percent: 14});
+  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading RT capabilities...", percent: 14, force: true});
   state.rtCapabilities = await getRtCapabilities();
   solverControls.applyRtCapabilities(state.rtCapabilities);
-  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 18});
+  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 18, force: true});
   state.manifest = await getManifest();
-  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading Open3DHK coverage...", percent: 22});
+  sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading Open3DHK coverage...", percent: 22, force: true});
   state.entry.coverage = await getOpen3dHkTileCoverage();
   sceneRenderState.populateTileList(state.manifest);
   performancePanel.populatePerformanceControls(state.manifest);
   state.entry.overview = entryMapController.buildEntryOverview(state.manifest, state.entry.coverage);
   entryMapController.renderEntryOverview();
   sceneRenderState.setTileSelection([]);
-  sceneRenderState.hideOverlay();
+  sceneRenderState.hideOverlay(null, true);
 
   sceneRenderState.renderAll();
   if (state.entry.overview) {
@@ -975,6 +975,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error) => {
-  sceneRenderState.hideOverlay();
+  sceneRenderState.hideOverlay(null, true);
   window.alert(error.message);
 });

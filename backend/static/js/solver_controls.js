@@ -1841,7 +1841,15 @@ async function cancelDeepMimoExport(jobId) {
       state.deepmimo.pendingDataset = null;
       state.deepmimo.status = job.status;
       state.deepmimo.progress = Number(job.progress ?? 1);
-      state.deepmimo.message = job.message || "Cancelled";
+      // Status-appropriate fallback so a failed cancel response does not
+      // misreport itself as "Cancelled".
+      const fallbackMessage =
+        job.status === "failed"
+          ? "DeepMIMO export failed"
+          : job.status === "succeeded"
+          ? "Dataset ready"
+          : "Cancelled";
+      state.deepmimo.message = job.message || fallbackMessage;
       renderDeepMimoState();
       hideOverlay(deepMimoRunOwner);
       deepMimoRunOwner = null;

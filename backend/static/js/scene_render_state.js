@@ -137,12 +137,10 @@ function showOverlay({
   owner = null,
   force = false,
 } = {}) {
-  if (
-    owner
-    && !force
-    && ui.loadingScreen.style.display !== "none"
-    && overlayOwner !== owner
-  ) {
+  // When the overlay is already owned, only the owner (or an explicit
+  // `force: true` escape hatch) may update it. Without this guard an
+  // ownerless caller could clobber an in-flight solver overlay.
+  if (!force && overlayOwner && overlayOwner !== owner) {
     return false;
   }
   overlayOwner = owner || null;
@@ -163,8 +161,10 @@ function showOverlay({
   return true;
 }
 
-function hideOverlay(owner = null) {
-  if (owner && overlayOwner !== owner) {
+function hideOverlay(owner = null, force = false) {
+  // Same invariant as showOverlay: ownerless callers must not tear down an
+  // owned overlay unless they pass `force: true`.
+  if (!force && overlayOwner && overlayOwner !== owner) {
     return false;
   }
   overlayOwner = null;
@@ -661,6 +661,7 @@ async function waitForRtSceneSelection(generation, tileIds) {
       title: "Loading Scene",
       message: status.message || "Load scene...",
       indeterminate: true,
+      force: true,
     });
     await new Promise((resolve) => window.setTimeout(resolve, 1200));
   }
@@ -672,6 +673,7 @@ async function syncRtSceneSelection(selectedTileIds) {
     title: "Loading Scene",
     message: "Load scene...",
     indeterminate: true,
+    force: true,
   });
   const status = await api.setRtSceneSelection(tileIds);
   if (status.status === "ready") {
@@ -699,7 +701,7 @@ async function enterScene() {
   }
   state.tileLoadBusy = true;
   syncTileListUi();
-  showOverlay({title: "Preparing 3D Scene", message: "Initializing viewer...", indeterminate: true});
+  showOverlay({title: "Preparing 3D Scene", message: "Initializing viewer...", indeterminate: true, force: true});
   try {
     await ensureViewer();
     await loadScene();
@@ -741,10 +743,10 @@ async function loadScene() {
   try {
     if (!diff.toAdd.length && !diff.toRemove.length) {
       syncTileListUi();
-      showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100});
+      showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100, force: true});
       await new Promise((resolve) => window.setTimeout(resolve, 160));
     } else {
-      showOverlay({title: "Loading Scene", message: "Syncing tile bundles...", percent: 0});
+      showOverlay({title: "Loading Scene", message: "Syncing tile bundles...", percent: 0, force: true});
       const loadProgressRenderer = createLoadProgressRenderer();
 
       try {
@@ -762,7 +764,7 @@ async function loadScene() {
     getViewer().focusOnTiles([...selectedTiles]);
   } finally {
     state.tileLoadBusy = false;
-    hideOverlay();
+    hideOverlay(null, true);
     syncTileListUi();
     syncPerformanceUi();
   }
