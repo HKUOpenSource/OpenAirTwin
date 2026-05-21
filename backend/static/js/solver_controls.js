@@ -1,6 +1,7 @@
 import {colormapGradient, normalizeColormapName} from "/js/colormaps.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+const TERMINAL_DEEPMIMO_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
 
 export function createSolverControlsController(context) {
   const {state, ui, inputs, viewerRef, api} = context;
@@ -8,21 +9,27 @@ export function createSolverControlsController(context) {
   const scene = () => context.controllers.scene;
 
   function showOverlay(options) {
-    scene().showOverlay(options);
+    return scene().showOverlay(options);
   }
 
-  function hideOverlay() {
-    scene().hideOverlay();
+  function hideOverlay(owner = null) {
+    return scene().hideOverlay(owner);
   }
 
   function renderAll() {
     scene().renderAll();
   }
 
+  let linkRunOwner = null;
+  let radiomapRunOwner = null;
+  let mobilityRunOwner = null;
+  let deepMimoRunOwner = null;
+
   const {
     createDeepMimoJob,
     createMobilityJob,
     createRadiomapJob,
+    cancelDeepMimoJob,
     deepMimoDownloadUrl,
     getDeepMimoJob,
     getMobilityJob,
@@ -291,6 +298,63 @@ function resetMobilityResultState() {
   state.mobility.selectedPath = -1;
 }
 
+function invalidateLinkResult({clearPaths = true, clearOverlay = true} = {}) {
+  cancelLivePreview();
+  state.link.generation += 1;
+  state.link.result = null;
+  state.link.selectedPath = -1;
+  if (clearOverlay && linkRunOwner) {
+    hideOverlay(linkRunOwner);
+  }
+  linkRunOwner = null;
+  if (clearPaths && state.mode === "link") {
+    getViewer().clearPaths();
+  }
+}
+
+function invalidateRadiomapResult({clearOverlay = true} = {}) {
+  state.radiomap.generation += 1;
+  state.radiomap.jobId = null;
+  state.radiomap.result = null;
+  state.radiomap.status = "Idle";
+  if (clearOverlay && radiomapRunOwner) {
+    hideOverlay(radiomapRunOwner);
+  }
+  radiomapRunOwner = null;
+  if (clearOverlay) {
+    getViewer().clearRadiomap();
+  }
+}
+
+function invalidateMobilityResult({clearOverlay = true, clearPaths = true} = {}) {
+  state.mobility.generation += 1;
+  state.mobility.jobId = null;
+  state.mobility.status = "Idle";
+  resetMobilityResultState();
+  if (clearPaths && state.mode === "mobility") {
+    getViewer().clearPaths();
+  }
+  if (clearOverlay && mobilityRunOwner) {
+    hideOverlay(mobilityRunOwner);
+  }
+  mobilityRunOwner = null;
+  renderMobilityTrajectoryPreview();
+}
+
+function invalidateDeepMimoResult({clearOverlay = true} = {}) {
+  state.deepmimo.generation += 1;
+  state.deepmimo.jobId = null;
+  state.deepmimo.result = null;
+  state.deepmimo.status = "Idle";
+  state.deepmimo.progress = 0;
+  state.deepmimo.message = "Idle";
+  state.deepmimo.pendingDataset = null;
+  if (clearOverlay && deepMimoRunOwner) {
+    hideOverlay(deepMimoRunOwner);
+  }
+  deepMimoRunOwner = null;
+}
+
 function normalizeMobilityWaypointSelection() {
   const count = state.mobility.trajectory.points.length;
   if (count <= 0) {
@@ -310,7 +374,7 @@ function deleteMobilityWaypoint(index = state.mobility.selectedWaypointIndex) {
   }
   points.splice(index, 1);
   state.mobility.selectedWaypointIndex = points.length ? Math.min(index, points.length - 1) : -1;
-  resetMobilityResultState();
+  invalidateMobilityResult();
   renderAll();
   return true;
 }
@@ -614,8 +678,12 @@ function readRadiomapInputs() {
   state.radiomap.surface.cellSize = cellSizeText === "" ? null : Number(cellSizeText);
   state.radiomap.surface.densityLevel = Number(inputs.rmDensityLevel.value);
   state.radiomap.display.colormap = normalizeColormapName(inputs.rmColormap.value);
-  state.radiomap.display.colorMinDb = Number(inputs.rmColorMin.value);
-  state.radiomap.display.colorMaxDb = Number(inputs.rmColorMax.value);
+  const colorMinDb = Number(inputs.rmColorMin.value);
+  const colorMaxDb = Number(inputs.rmColorMax.value);
+  if (Number.isFinite(colorMinDb) && Number.isFinite(colorMaxDb) && colorMinDb < colorMaxDb) {
+    state.radiomap.display.colorMinDb = colorMinDb;
+    state.radiomap.display.colorMaxDb = colorMaxDb;
+  }
   readAntennaArrayInputs();
 }
 
@@ -660,7 +728,7 @@ function radiomapColorRange() {
   const minDb = Number(state.radiomap.display.colorMinDb);
   const maxDb = Number(state.radiomap.display.colorMaxDb);
   if (!(minDb < maxDb)) {
-    throw new Error("Radio map color range must satisfy Color Min < Color Max");
+    return {minDb: -140, maxDb: -80, colormap: normalizeColormapName(state.radiomap.display.colormap)};
   }
   const colormap = normalizeColormapName(state.radiomap.display.colormap);
   state.radiomap.display.colormap = colormap;
@@ -1359,7 +1427,11 @@ function renderRadiomapResult() {
       ui.rmCellSizeSummary.textContent = `Auto D${surface.density_level} | terrain-derived`;
     }
     ui.rmSamples.textContent = `${formatCount(solver?.base_samples_per_tx)} base | ${formatCount(solver?.effective_samples_per_tx)} effective`;
-    ui.rmRange.textContent = `${range.min.toFixed(1)} .. ${range.max.toFixed(1)} dB`;
+    const rangeMin = Number(range?.min);
+    const rangeMax = Number(range?.max);
+    ui.rmRange.textContent = Number.isFinite(rangeMin) && Number.isFinite(rangeMax)
+      ? `${rangeMin.toFixed(1)} .. ${rangeMax.toFixed(1)} dB`
+      : "N/A";
   } else {
     const cellSize = state.radiomap.surface.cellSize;
     const densityLevel = state.radiomap.surface.densityLevel;
@@ -1396,6 +1468,7 @@ function deepMimoRoiBounds() {
 }
 
 function setDeepMimoRoiCorners(cornerA, cornerB, {message = "ROI updated"} = {}) {
+  invalidateDeepMimoResult();
   const visualZ = Number.isFinite(Number(state.deepmimo.roi.visualZ))
     ? Number(state.deepmimo.roi.visualZ)
     : Number(cornerA[2] || cornerB[2] || 0);
@@ -1588,6 +1661,7 @@ function renderDeepMimoDatasetTray() {
 }
 
 function setDeepMimoRoiCorner(position) {
+  invalidateDeepMimoResult();
   const nextVisualZ = Number(position[2] || 0);
   const visualZ = (state.deepmimo.roi.pickingStep === "a" || !Number.isFinite(Number(state.deepmimo.roi.visualZ)))
     ? nextVisualZ
@@ -1609,6 +1683,7 @@ function setDeepMimoRoiCorner(position) {
 }
 
 function startDeepMimoRoiDrag(position) {
+  invalidateDeepMimoResult();
   const visualZ = Number(position[2] || 0);
   const point = [Number(position[0]), Number(position[1]), visualZ];
   state.deepmimo.roi.visualZ = visualZ;
@@ -1642,6 +1717,7 @@ function finishDeepMimoRoiDrag(position) {
 }
 
 function clearDeepMimoRoi() {
+  invalidateDeepMimoResult();
   state.deepmimo.roi.cornerA = null;
   state.deepmimo.roi.cornerB = null;
   state.deepmimo.roi.pickingStep = "a";
@@ -1654,8 +1730,26 @@ function clearDeepMimoRoi() {
 }
 
 async function pollDeepMimo(jobId) {
-  while (state.deepmimo.jobId === jobId) {
+  const token = state.deepmimo.generation;
+  const overlayOwner = deepMimoRunOwner;
+  while (state.deepmimo.jobId === jobId && token === state.deepmimo.generation) {
     const job = await getDeepMimoJob(jobId);
+    if (state.deepmimo.jobId !== jobId || token !== state.deepmimo.generation) {
+      return;
+    }
+    const preservingCancel = state.deepmimo.status === "cancelling" && !TERMINAL_DEEPMIMO_STATUSES.has(job.status);
+    if (preservingCancel) {
+      state.deepmimo.message = "Cancelling DeepMIMO export...";
+      renderDeepMimoState();
+      showOverlay({
+        title: "Exporting DeepMIMO Dataset",
+        message: "Cancelling DeepMIMO export...",
+        indeterminate: true,
+        owner: overlayOwner,
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      continue;
+    }
     state.deepmimo.status = job.status;
     state.deepmimo.progress = Number(job.progress || 0);
     state.deepmimo.message = job.message || "";
@@ -1667,26 +1761,128 @@ async function pollDeepMimo(jobId) {
     if (job.status === "succeeded") {
       state.deepmimo.message = "Dataset ready";
       addDeepMimoDataset(job);
+      state.deepmimo.jobId = null;
       state.deepmimo.pendingDataset = null;
       renderDeepMimoState();
       showOverlay({
         title: "Exporting DeepMIMO Dataset",
         message: "Dataset ready",
         percent: 100,
+        owner: overlayOwner,
       });
-      hideOverlay();
+      hideOverlay(overlayOwner);
+      if (deepMimoRunOwner === overlayOwner) {
+        deepMimoRunOwner = null;
+      }
       return;
     }
     if (job.status === "failed") {
-      hideOverlay();
+      const overlayWasCurrent = hideOverlay(overlayOwner);
+      if (deepMimoRunOwner === overlayOwner) {
+        deepMimoRunOwner = null;
+      }
+      if (!overlayWasCurrent) {
+        return;
+      }
       throw new Error(job.error || job.message || "DeepMIMO export failed");
+    }
+    if (job.status === "cancelled") {
+      state.deepmimo.jobId = null;
+      state.deepmimo.pendingDataset = null;
+      state.deepmimo.progress = 1;
+      state.deepmimo.message = job.message || "Cancelled";
+      renderDeepMimoState();
+      hideOverlay(overlayOwner);
+      if (deepMimoRunOwner === overlayOwner) {
+        deepMimoRunOwner = null;
+      }
+      return;
     }
     showOverlay({
       title: "Exporting DeepMIMO Dataset",
       message: job.message || "Preparing DeepMIMO dataset...",
       percent: Math.round(Math.max(0, Math.min(1, Number(job.progress || 0))) * 100),
+      cancelLabel: "Cancel Export",
+      onCancel: () => {
+        cancelDeepMimoExport(jobId);
+      },
+      owner: overlayOwner,
     });
     await new Promise((resolve) => window.setTimeout(resolve, 1500));
+  }
+}
+
+async function cancelDeepMimoExport(jobId) {
+  if (!jobId || state.deepmimo.jobId !== jobId) {
+    return;
+  }
+  if (state.deepmimo.status === "cancelling") {
+    return;
+  }
+  state.deepmimo.status = "cancelling";
+  state.deepmimo.message = "Cancelling DeepMIMO export...";
+  renderDeepMimoState();
+  showOverlay({
+    title: "Exporting DeepMIMO Dataset",
+    message: "Cancelling DeepMIMO export...",
+    indeterminate: true,
+    owner: deepMimoRunOwner,
+    force: true,
+  });
+  try {
+    const job = await cancelDeepMimoJob(jobId);
+    if (state.deepmimo.jobId !== jobId) {
+      return;
+    }
+    if (job.status === "succeeded") {
+      state.deepmimo.jobId = null;
+      state.deepmimo.result = job.result || state.deepmimo.result;
+      state.deepmimo.status = "succeeded";
+      state.deepmimo.progress = 1;
+      state.deepmimo.message = "Dataset ready";
+      addDeepMimoDataset(job);
+      state.deepmimo.pendingDataset = null;
+      renderDeepMimoState();
+      hideOverlay(deepMimoRunOwner);
+      deepMimoRunOwner = null;
+      return;
+    }
+    if (TERMINAL_DEEPMIMO_STATUSES.has(job.status)) {
+      state.deepmimo.jobId = null;
+      state.deepmimo.pendingDataset = null;
+      state.deepmimo.status = job.status;
+      state.deepmimo.progress = Number(job.progress ?? 1);
+      // Status-appropriate fallback so a failed cancel response does not
+      // misreport itself as "Cancelled".
+      const fallbackMessage =
+        job.status === "failed"
+          ? "DeepMIMO export failed"
+          : job.status === "succeeded"
+          ? "Dataset ready"
+          : "Cancelled";
+      state.deepmimo.message = job.message || fallbackMessage;
+      renderDeepMimoState();
+      hideOverlay(deepMimoRunOwner);
+      deepMimoRunOwner = null;
+      return;
+    }
+    // Non-terminal cancel ack (e.g. status="cancelling"): keep jobId so
+    // pollDeepMimo's preservingCancel branch continues to drive the UI
+    // until the worker reaches a terminal status.
+    if (typeof job.progress === "number") {
+      state.deepmimo.progress = job.progress;
+    }
+    if (job.message) {
+      state.deepmimo.message = job.message;
+    }
+    renderDeepMimoState();
+  } catch (error) {
+    if (state.deepmimo.jobId !== jobId) {
+      return;
+    }
+    state.deepmimo.status = "running";
+    state.deepmimo.message = error.message || "Could not cancel DeepMIMO export";
+    renderDeepMimoState();
   }
 }
 
@@ -1695,9 +1891,14 @@ async function runDeepMimo() {
     throw new Error("Load at least one selected tile before exporting DeepMIMO");
   }
   const payload = deepMimoPayload();
+  const token = ++state.deepmimo.generation;
+  const overlayOwner = `deepmimo:${token}`;
+  deepMimoRunOwner = overlayOwner;
+  const submittedScenarioName = payload.export?.scenario_name || state.deepmimo.export.scenarioName || "hku_deepmimo_roi";
   state.deepmimo.status = "Queued";
   state.deepmimo.progress = 0;
   state.deepmimo.message = "Submitting DeepMIMO export job...";
+  state.deepmimo.jobId = null;
   state.deepmimo.result = null;
   state.deepmimo.pendingDataset = null;
   renderDeepMimoState();
@@ -1705,14 +1906,19 @@ async function runDeepMimo() {
     title: "Exporting DeepMIMO Dataset",
     message: "Submitting DeepMIMO export job...",
     percent: 0,
+    owner: overlayOwner,
+    force: true,
   });
 
   try {
     const job = await createDeepMimoJob(payload);
+    if (token !== state.deepmimo.generation) {
+      return;
+    }
     state.deepmimo.jobId = job.job_id;
     state.deepmimo.pendingDataset = {
       jobId: job.job_id,
-      scenarioName: state.deepmimo.export.scenarioName,
+      scenarioName: submittedScenarioName,
     };
     state.deepmimo.status = job.status || "running";
     state.deepmimo.progress = Number(job.progress || 0);
@@ -1720,31 +1926,69 @@ async function runDeepMimo() {
     renderDeepMimoState();
     await pollDeepMimo(job.job_id);
   } catch (error) {
+    if (token !== state.deepmimo.generation) {
+      return;
+    }
+    state.deepmimo.jobId = null;
     state.deepmimo.status = "failed";
     state.deepmimo.progress = 1;
     state.deepmimo.message = error.message;
     state.deepmimo.pendingDataset = null;
     renderDeepMimoState();
-    hideOverlay();
+    const overlayWasCurrent = hideOverlay(overlayOwner);
+    if (deepMimoRunOwner === overlayOwner) {
+      deepMimoRunOwner = null;
+    }
+    if (!overlayWasCurrent) {
+      return;
+    }
     throw error;
+  } finally {
+    if (token !== state.deepmimo.generation && deepMimoRunOwner === overlayOwner) {
+      deepMimoRunOwner = null;
+    }
   }
 }
 async function runLinkSolve() {
   readLinkInputs();
+  const token = ++state.link.generation;
+  const overlayOwner = `link:${token}`;
+  linkRunOwner = overlayOwner;
   getViewer().clearOverlay();
   showOverlay({
     title: "Solving Link",
     message: "Computing link paths with Sionna RT...",
     indeterminate: true,
+    owner: overlayOwner,
+    force: true,
   });
   try {
     const result = await solveLink(linkSolvePayload());
+    if (token !== state.link.generation) {
+      return;
+    }
     state.link.result = result;
     state.link.selectedPath = -1;
-    getViewer().renderPaths(result.paths, -1);
+    if (state.mode === "link") {
+      getViewer().renderPaths(result.paths, -1);
+    }
+  } catch (error) {
+    if (token !== state.link.generation) {
+      return;
+    }
+    const overlayWasCurrent = hideOverlay(overlayOwner);
+    if (!overlayWasCurrent) {
+      return;
+    }
+    throw error;
   } finally {
-    hideOverlay();
-    renderAll();
+    if (token === state.link.generation) {
+      hideOverlay(overlayOwner);
+      renderAll();
+    }
+    if (linkRunOwner === overlayOwner) {
+      linkRunOwner = null;
+    }
   }
 }
 
@@ -1896,7 +2140,7 @@ function handleLivePreviewDeviceUpdate(target, phase = "change") {
 function resetMobilityTrajectoryFromRx() {
   state.mobility.trajectory.points = [];
   state.mobility.selectedWaypointIndex = -1;
-  resetMobilityResultState();
+  invalidateMobilityResult();
 }
 
 function addCurrentRxWaypoint() {
@@ -1911,28 +2155,47 @@ function addCurrentRxWaypoint() {
   }
   points.push(point);
   state.mobility.selectedWaypointIndex = points.length - 1;
-  resetMobilityResultState();
+  invalidateMobilityResult();
   renderAll();
 }
 
-async function pollMobility(jobId) {
-  while (true) {
+async function pollMobility(jobId, token = state.mobility.generation, overlayOwner = mobilityRunOwner) {
+  while (state.mobility.jobId === jobId && token === state.mobility.generation) {
     const job = await getMobilityJob(jobId);
+    if (state.mobility.jobId !== jobId || token !== state.mobility.generation) {
+      return;
+    }
     state.mobility.status = job.status;
 
     if (job.status === "succeeded") {
-      state.mobility.result = await getMobilityResult(jobId);
+      const result = await getMobilityResult(jobId);
+      if (state.mobility.jobId !== jobId || token !== state.mobility.generation) {
+        return;
+      }
+      state.mobility.result = result;
+      state.mobility.jobId = null;
       state.mobility.selectedStep = 0;
       state.mobility.selectedPath = -1;
       const sample = state.mobility.result.samples?.[0];
-      getViewer().renderPaths(sample?.paths || [], -1);
+      if (state.mode === "mobility") {
+        getViewer().renderPaths(sample?.paths || [], -1);
+      }
       renderMobilityResult();
-      hideOverlay();
+      hideOverlay(overlayOwner);
+      if (mobilityRunOwner === overlayOwner) {
+        mobilityRunOwner = null;
+      }
       return;
     }
 
     if (job.status === "failed") {
-      hideOverlay();
+      const overlayWasCurrent = hideOverlay(overlayOwner);
+      if (mobilityRunOwner === overlayOwner) {
+        mobilityRunOwner = null;
+      }
+      if (!overlayWasCurrent) {
+        return;
+      }
       throw new Error(job.error || job.message || "Mobility job failed");
     }
 
@@ -1940,6 +2203,7 @@ async function pollMobility(jobId) {
       title: "Running Mobility",
       message: job.message || "Computing Rx trajectory with Sionna RT...",
       indeterminate: true,
+      owner: overlayOwner,
     });
     await new Promise((resolve) => window.setTimeout(resolve, 1200));
   }
@@ -1962,7 +2226,11 @@ async function runMobility() {
 
   stopMobilityPlayback();
   getViewer().clearOverlay();
+  const token = ++state.mobility.generation;
+  const overlayOwner = `mobility:${token}`;
+  mobilityRunOwner = overlayOwner;
   state.mobility.status = "Queued";
+  state.mobility.jobId = null;
   state.mobility.result = null;
   state.mobility.selectedStep = 0;
   state.mobility.selectedPath = -1;
@@ -1971,40 +2239,88 @@ async function runMobility() {
     title: "Running Mobility",
     message: "Submitting mobility job...",
     indeterminate: true,
+    owner: overlayOwner,
+    force: true,
   });
 
-  const job = await createMobilityJob({
-    tx: {position: state.mobility.tx, orientation: [0, 0, 0]},
-    rx_trajectory: {
-      points: state.mobility.trajectory.points,
-      velocity_mps: state.mobility.trajectory.velocityMps,
-      time_step_s: state.mobility.trajectory.timeStepS,
-      max_steps: state.mobility.trajectory.maxSteps,
-    },
-    solver: linkSolverConfig(),
-    channel: linkChannelConfig(),
-  });
+  try {
+    const job = await createMobilityJob({
+      tx: {position: state.mobility.tx, orientation: [0, 0, 0]},
+      rx_trajectory: {
+        points: state.mobility.trajectory.points,
+        velocity_mps: state.mobility.trajectory.velocityMps,
+        time_step_s: state.mobility.trajectory.timeStepS,
+        max_steps: state.mobility.trajectory.maxSteps,
+      },
+      solver: linkSolverConfig(),
+      channel: linkChannelConfig(),
+    });
 
-  state.mobility.jobId = job.job_id;
-  await pollMobility(job.job_id);
+    if (token !== state.mobility.generation) {
+      return;
+    }
+    state.mobility.jobId = job.job_id;
+    await pollMobility(job.job_id, token, overlayOwner);
+  } catch (error) {
+    if (token !== state.mobility.generation) {
+      return;
+    }
+    state.mobility.jobId = null;
+    state.mobility.status = "failed";
+    state.mobility.result = null;
+    state.mobility.selectedStep = 0;
+    state.mobility.selectedPath = -1;
+    renderMobilityResult();
+    const overlayWasCurrent = hideOverlay(overlayOwner);
+    if (mobilityRunOwner === overlayOwner) {
+      mobilityRunOwner = null;
+    }
+    if (!overlayWasCurrent) {
+      return;
+    }
+    throw error;
+  } finally {
+    if (token !== state.mobility.generation && mobilityRunOwner === overlayOwner) {
+      mobilityRunOwner = null;
+    }
+  }
 }
 
-async function pollRadiomap(jobId, colorRange) {
-  while (true) {
+async function pollRadiomap(jobId, token = state.radiomap.generation, overlayOwner = radiomapRunOwner) {
+  while (state.radiomap.jobId === jobId && token === state.radiomap.generation) {
     const job = await getRadiomapJob(jobId);
+    if (state.radiomap.jobId !== jobId || token !== state.radiomap.generation) {
+      return;
+    }
     state.radiomap.status = job.status;
     renderRadiomapResult();
 
     if (job.status === "succeeded") {
-      state.radiomap.result = await getRadiomapResult(jobId);
-      getViewer().renderRadiomap(state.radiomap.result, colorRange);
+      const result = await getRadiomapResult(jobId);
+      if (state.radiomap.jobId !== jobId || token !== state.radiomap.generation) {
+        return;
+      }
+      state.radiomap.result = result;
+      state.radiomap.jobId = null;
+      if (state.mode === "radiomap") {
+        getViewer().renderRadiomap(state.radiomap.result, radiomapColorRange());
+      }
       renderRadiomapResult();
-      hideOverlay();
+      hideOverlay(overlayOwner);
+      if (radiomapRunOwner === overlayOwner) {
+        radiomapRunOwner = null;
+      }
       return;
     }
 
     if (job.status === "failed") {
-      hideOverlay();
+      const overlayWasCurrent = hideOverlay(overlayOwner);
+      if (radiomapRunOwner === overlayOwner) {
+        radiomapRunOwner = null;
+      }
+      if (!overlayWasCurrent) {
+        return;
+      }
       throw new Error(job.error || job.message || "Radio map job failed");
     }
 
@@ -2012,6 +2328,7 @@ async function pollRadiomap(jobId, colorRange) {
       title: "Running Radio Map",
       message: job.message || "Computing radio map with Sionna RT...",
       indeterminate: true,
+      owner: overlayOwner,
     });
     await new Promise((resolve) => window.setTimeout(resolve, 1200));
   }
@@ -2019,22 +2336,53 @@ async function pollRadiomap(jobId, colorRange) {
 
 async function runRadiomap() {
   readRadiomapInputs();
-  const colorRange = radiomapColorRange();
+  radiomapColorRange();
   getViewer().clearOverlay();
+  const token = ++state.radiomap.generation;
+  const overlayOwner = `radiomap:${token}`;
+  radiomapRunOwner = overlayOwner;
 
   state.radiomap.status = "Queued";
+  state.radiomap.jobId = null;
   state.radiomap.result = null;
   renderRadiomapResult();
   showOverlay({
     title: "Running Radio Map",
     message: "Submitting radio map job...",
     indeterminate: true,
+    owner: overlayOwner,
+    force: true,
   });
 
-  const job = await createRadiomapJob(radiomapJobPayload());
+  try {
+    const job = await createRadiomapJob(radiomapJobPayload());
 
-  state.radiomap.jobId = job.job_id;
-  await pollRadiomap(job.job_id, colorRange);
+    if (token !== state.radiomap.generation) {
+      return;
+    }
+    state.radiomap.jobId = job.job_id;
+    await pollRadiomap(job.job_id, token, overlayOwner);
+  } catch (error) {
+    if (token !== state.radiomap.generation) {
+      return;
+    }
+    state.radiomap.jobId = null;
+    state.radiomap.status = "failed";
+    state.radiomap.result = null;
+    renderRadiomapResult();
+    const overlayWasCurrent = hideOverlay(overlayOwner);
+    if (radiomapRunOwner === overlayOwner) {
+      radiomapRunOwner = null;
+    }
+    if (!overlayWasCurrent) {
+      return;
+    }
+    throw error;
+  } finally {
+    if (token !== state.radiomap.generation && radiomapRunOwner === overlayOwner) {
+      radiomapRunOwner = null;
+    }
+  }
 }
 
 function applyPick(pick) {
@@ -2045,21 +2393,27 @@ function applyPick(pick) {
   if (state.pickTarget === "link-tx") {
     const position = linkPickPosition(pick);
     setLogicalAndVisual(state.link.tx, state.link.txVisual, position);
+    invalidateLinkResult();
   } else if (state.pickTarget === "link-rx") {
     const position = linkPickPosition(pick);
     setLogicalAndVisual(state.link.rx, state.link.rxVisual, position);
+    invalidateLinkResult();
   } else if (state.pickTarget === "mobility-tx") {
     const position = mobilityPickPosition(pick);
     setLogicalAndVisual(state.mobility.tx, state.mobility.txVisual, position);
+    invalidateMobilityResult();
   } else if (state.pickTarget === "mobility-rx") {
     const position = mobilityPickPosition(pick);
     setLogicalAndVisual(state.mobility.rx, state.mobility.rxVisual, position);
+    invalidateMobilityResult();
   } else if (state.pickTarget === "rm-tx") {
     const position = radiomapTxPickPosition(pick);
     setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, position);
+    invalidateRadiomapResult();
   } else if (state.pickTarget === "deepmimo-tx") {
     const position = deepMimoTxPickPosition(pick);
     setLogicalAndVisual(state.deepmimo.tx, state.deepmimo.txVisual, position);
+    invalidateDeepMimoResult();
   } else if (state.pickTarget === "deepmimo-roi") {
     const position = Array.isArray(pick.surfacePosition) ? pick.surfacePosition : pick.logicalPosition;
     setDeepMimoRoiCorner(position);
@@ -2083,6 +2437,10 @@ function applyPick(pick) {
     readLivePreviewInputs,
     readMobilityInputs,
     readRadiomapInputs,
+    invalidateLinkResult,
+    invalidateRadiomapResult,
+    invalidateMobilityResult,
+    invalidateDeepMimoResult,
     readDeepMimoInputs,
     rerenderRadiomapOverlay,
     renderLinkResult,
