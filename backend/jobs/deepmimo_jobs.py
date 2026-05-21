@@ -166,7 +166,7 @@ class DeepMIMOJobManager:
                 else:
                     try:
                         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                    except (ProcessLookupError, PermissionError, OSError):
+                    except (AttributeError, ProcessLookupError, PermissionError, OSError):
                         try:
                             process.terminate()
                         except (ProcessLookupError, OSError):
@@ -194,6 +194,13 @@ class DeepMIMOJobManager:
 
     def shutdown(self) -> None:
         self._stop_event.set()
+        reaper = getattr(self, "_reaper", None)
+        if (
+            reaper is not None
+            and reaper.is_alive()
+            and reaper is not threading.current_thread()
+        ):
+            reaper.join(timeout=_REAPER_INTERVAL_SECONDS)
         with self._lock:
             for job in list(self._jobs.values()):
                 process = job.process
@@ -201,7 +208,7 @@ class DeepMIMOJobManager:
                     continue
                 try:
                     os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                except (ProcessLookupError, PermissionError, OSError):
+                except (AttributeError, ProcessLookupError, PermissionError, OSError):
                     try:
                         process.terminate()
                     except (ProcessLookupError, OSError):
