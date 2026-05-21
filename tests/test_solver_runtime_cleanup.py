@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from threading import Lock
 import unittest
 from unittest.mock import patch
@@ -181,6 +182,16 @@ class FakeRadioMapSolver:
         return FakeRadioMap()
 
 
+class FakeNaNRadioMap:
+    path_gain = np.asarray([[1.0, np.nan]], dtype=np.float32)
+
+
+class FakeNaNRadioMapSolver:
+    def __call__(self, scene, **_kwargs):
+        assert "tx_radiomap" in scene.items
+        return FakeNaNRadioMap()
+
+
 class FailingRadioMapSolver:
     def __call__(self, *_args, **_kwargs):
         raise RuntimeError("radio map solver failed")
@@ -329,7 +340,7 @@ class SolverRuntimeCleanupTests(unittest.TestCase):
 
         channel = result["channel"]
         self.assertEqual(channel["tap_indices"], [0, 1, 2])
-        self.assertEqual(channel["delays_s"], [0.0, 0.001, 0.002])
+        self.assertEqual(channel["delays_s"], [0.0, 0.0000625, 0.000125])
         self.assertAlmostEqual(channel["power_db"][0], 0.0, places=6)
         self.assertAlmostEqual(channel["power_db"][2], 6.020599913, places=6)
         self.assertEqual(channel["peak_tap_index"], 2)
@@ -485,6 +496,19 @@ class SolverRuntimeCleanupTests(unittest.TestCase):
         self.assertEqual(runtime.scene.items, {})
         self.assertEqual(runtime.scene.removed, ["tx_radiomap"])
 
+    def test_radiomap_solver_serializes_nonfinite_values_as_null(self) -> None:
+        runtime = FakeRuntime()
+        with patch("backend.rt.solve_radiomap.build_terrain_patch", fake_terrain_patch):
+            result = solve_terrain_radiomap(
+                runtime,
+                {"surface": {"density_level": 1}, "solver": {"samples_per_tx": 10}},
+                dependencies=(FakeNaNRadioMapSolver, FakeDevice),
+            )
+
+        self.assertEqual(result["range"], {"min": 0.0, "max": 0.0})
+        self.assertEqual(result["values"]["data"], [0.0, None])
+        json.dumps(result, allow_nan=False)
+
     def test_radiomap_solver_rejects_stale_scene_generation_before_adding_transmitter(self) -> None:
         runtime = FakeRuntime()
         runtime.generation = 2
@@ -499,6 +523,21 @@ class SolverRuntimeCleanupTests(unittest.TestCase):
                 )
 
         self.assertEqual(runtime.scene.items, {})
+        self.assertEqual(runtime.scene.removed, [])
+
+    def test_radiomap_solver_does_not_remove_transmitter_when_add_fails(self) -> None:
+        runtime = FakeRuntime()
+        runtime.scene.items["tx_radiomap"] = FakeDevice("tx_radiomap", (0, 0, 0), (0, 0, 0))
+
+        with patch("backend.rt.solve_radiomap.build_terrain_patch", fake_terrain_patch):
+            with self.assertRaisesRegex(ValueError, "duplicate item"):
+                solve_terrain_radiomap(
+                    runtime,
+                    {"surface": {"density_level": 1}, "solver": {"samples_per_tx": 10}},
+                    dependencies=(FakeRadioMapSolver, FakeDevice),
+                )
+
+        self.assertIn("tx_radiomap", runtime.scene.items)
         self.assertEqual(runtime.scene.removed, [])
 
     def test_radiomap_effective_sample_cap_is_enforced_after_patch(self) -> None:

@@ -104,6 +104,36 @@ class TileSceneXmlBuilderTests(unittest.TestCase):
             self.assertEqual(len(root.findall("bsdf")), 2)
             self.assertEqual(len(root.findall("shape")), 3)
 
+    def test_selection_filename_changes_when_common_xml_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scene_root = Path(tmp_dir)
+            write_per_tile_xml(scene_root)
+            output_root = scene_root / "generated"
+
+            first = TileSceneXmlBuilder(scene_root, output_root).write_selection(["TILE_A"])
+            common_xml = scene_root / "common" / "scene_common.xml"
+            common_xml.write_text(
+                common_xml.read_text(encoding="utf-8").replace(
+                    'value="0.7 0.7 0.7"',
+                    'value="0.2 0.2 0.2"',
+                ),
+                encoding="utf-8",
+            )
+            second = TileSceneXmlBuilder(scene_root, output_root).write_selection(["TILE_A"])
+
+            self.assertNotEqual(first.path.name, second.path.name)
+            self.assertTrue(first.path.exists())
+            self.assertTrue(second.path.exists())
+
+    def test_selection_xml_uses_unique_temp_paths(self) -> None:
+        source = (Path(__file__).resolve().parents[1] / "backend" / "scene" / "tile_scene_xml.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("uuid4().hex", source)
+        self.assertNotIn('with_suffix(".xml.tmp")', source)
+        self.assertNotIn('with_suffix(f"{path.suffix}.tmp")', source)
+
     def test_empty_and_unknown_tile_selection_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             scene_root = Path(tmp_dir)

@@ -2,6 +2,7 @@ import {compareTileIds, toDisplayTileId} from "/js/tile_model.js";
 
 const LOAD_PROGRESS_RENDER_INTERVAL_MS = 250;
 let overlayCancelHandler = null;
+let overlayOwner = null;
 
 const MODE_META = {
   link: {title: "Link Analysis"},
@@ -133,7 +134,16 @@ function showOverlay({
   indeterminate = false,
   cancelLabel = "",
   onCancel = null,
+  owner = null,
+  force = false,
 } = {}) {
+  // When the overlay is already owned, only the owner (or an explicit
+  // `force: true` escape hatch) may update it. Without this guard an
+  // ownerless caller could clobber an in-flight solver overlay.
+  if (!force && overlayOwner && overlayOwner !== owner) {
+    return false;
+  }
+  overlayOwner = owner || null;
   state.pickTarget = null;
   state.deviceControl.activeTarget = null;
   clearOverlayCancel();
@@ -148,9 +158,16 @@ function showOverlay({
   ui.loadingScreen.style.display = "flex";
   syncModeUi();
   syncPerformanceUi();
+  return true;
 }
 
-function hideOverlay() {
+function hideOverlay(owner = null, force = false) {
+  // Same invariant as showOverlay: ownerless callers must not tear down an
+  // owned overlay unless they pass `force: true`.
+  if (!force && overlayOwner && overlayOwner !== owner) {
+    return false;
+  }
+  overlayOwner = null;
   clearOverlayCancel();
   ui.loadingScreen.style.display = "none";
   ui.loadingTitle.textContent = "Loading Scene";
@@ -160,6 +177,7 @@ function hideOverlay() {
   syncModeUi();
   syncControlSidebarUi();
   syncPerformanceUi();
+  return true;
 }
 function tileInputFor(tileId) {
   return ui.tileList.querySelector(`input[value="${tileId}"]`);
@@ -613,19 +631,37 @@ function createLoadProgressRenderer() {
   };
 }
 
-async function waitForRtSceneSelection(generation) {
+function sameTileIds(left, right) {
+  const leftValues = [...(left || [])].sort(compareTileIds);
+  const rightValues = [...(right || [])].sort(compareTileIds);
+  return leftValues.length === rightValues.length
+    && leftValues.every((value, index) => value === rightValues[index]);
+}
+
+function rtSceneReadyForSelection(status, tileIds) {
+  return status.status === "ready" && sameTileIds(status.active_tile_ids || [], tileIds);
+}
+
+async function waitForRtSceneSelection(generation, tileIds) {
   while (true) {
     const status = await api.getRtSceneSelection();
-    if (status.generation === generation && status.status === "ready") {
+    if (status.generation === generation && rtSceneReadyForSelection(status, tileIds)) {
       return status;
     }
     if (status.generation === generation && status.status === "failed") {
       throw new Error(status.message || "Sionna RT scene failed to load");
     }
+    if (Number(status.generation) > Number(generation)) {
+      if (rtSceneReadyForSelection(status, tileIds)) {
+        return status;
+      }
+      throw new Error("Sionna RT scene selection changed before this load completed");
+    }
     showOverlay({
       title: "Loading Scene",
       message: status.message || "Load scene...",
       indeterminate: true,
+      force: true,
     });
     await new Promise((resolve) => window.setTimeout(resolve, 1200));
   }
@@ -637,9 +673,13 @@ async function syncRtSceneSelection(selectedTileIds) {
     title: "Loading Scene",
     message: "Load scene...",
     indeterminate: true,
+    force: true,
   });
   const status = await api.setRtSceneSelection(tileIds);
   if (status.status === "ready") {
+    if (!rtSceneReadyForSelection(status, tileIds)) {
+      throw new Error("Sionna RT scene selection changed before this load completed");
+    }
     return status;
   }
   if (status.status === "failed") {
@@ -648,26 +688,38 @@ async function syncRtSceneSelection(selectedTileIds) {
   if (status.status === "empty") {
     return status;
   }
-  return waitForRtSceneSelection(status.generation);
+  return waitForRtSceneSelection(status.generation, tileIds);
 }
 
 async function enterScene() {
+  if (state.tileLoadBusy) {
+    return;
+  }
   const selectedTileIds = tileSelections();
   if (!selectedTileIds.length) {
     return;
   }
-  showOverlay({title: "Preparing 3D Scene", message: "Initializing viewer...", indeterminate: true});
-  await ensureViewer();
-  await loadScene();
-  state.entry.sceneReady = true;
-  state.mode = "link";
-  state.pickTarget = null;
-  ui.panel.style.display = "flex";
-  state.panelCollapsed = false;
-  syncControlSidebarUi();
-  hideEntryScreen();
-  getViewer().focusOnTiles(selectedTileIds);
-  renderAll();
+  state.tileLoadBusy = true;
+  syncTileListUi();
+  showOverlay({title: "Preparing 3D Scene", message: "Initializing viewer...", indeterminate: true, force: true});
+  try {
+    await ensureViewer();
+    await loadScene();
+    state.entry.sceneReady = true;
+    state.mode = "link";
+    state.pickTarget = null;
+    ui.panel.style.display = "flex";
+    state.panelCollapsed = false;
+    syncControlSidebarUi();
+    hideEntryScreen();
+    getViewer().focusOnTiles(selectedTileIds);
+    renderAll();
+  } finally {
+    if (state.tileLoadBusy) {
+      state.tileLoadBusy = false;
+      syncTileListUi();
+    }
+  }
 }
 
 async function loadScene() {
@@ -680,14 +732,10 @@ async function loadScene() {
   const bundles = state.manifest.bundles.filter((bundle) => selectedTiles.has(bundle.tile));
   state.tileLoadBusy = true;
   if (diff.toAdd.length || diff.toRemove.length) {
-    state.link.result = null;
-    state.link.selectedPath = -1;
-    state.mobility.jobId = null;
-    state.mobility.result = null;
-    state.mobility.status = "Idle";
-    state.radiomap.jobId = null;
-    state.radiomap.result = null;
-    state.radiomap.status = "Idle";
+    solver().invalidateLinkResult({clearOverlay: false, clearPaths: false});
+    solver().invalidateMobilityResult({clearOverlay: false, clearPaths: false});
+    solver().invalidateRadiomapResult({clearOverlay: false});
+    solver().invalidateDeepMimoResult({clearOverlay: false});
     getViewer().clearOverlay();
   }
   syncTileListUi();
@@ -695,10 +743,10 @@ async function loadScene() {
   try {
     if (!diff.toAdd.length && !diff.toRemove.length) {
       syncTileListUi();
-      showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100});
+      showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100, force: true});
       await new Promise((resolve) => window.setTimeout(resolve, 160));
     } else {
-      showOverlay({title: "Loading Scene", message: "Syncing tile bundles...", percent: 0});
+      showOverlay({title: "Loading Scene", message: "Syncing tile bundles...", percent: 0, force: true});
       const loadProgressRenderer = createLoadProgressRenderer();
 
       try {
@@ -716,7 +764,7 @@ async function loadScene() {
     getViewer().focusOnTiles([...selectedTiles]);
   } finally {
     state.tileLoadBusy = false;
-    hideOverlay();
+    hideOverlay(null, true);
     syncTileListUi();
     syncPerformanceUi();
   }

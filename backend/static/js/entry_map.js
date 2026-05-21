@@ -414,9 +414,21 @@ function focusEntryMapTiles(tileIds) {
   return true;
 }
 
-function showEntryMapTooltip(clientX, clientY, html) {
+function setEntryMapTooltipContent(parts) {
+  const tooltip = ui.entryMapTooltip;
+  tooltip.replaceChildren();
+  const title = document.createElement("strong");
+  title.textContent = parts.title;
+  tooltip.appendChild(title);
+  if (parts.body) {
+    tooltip.appendChild(document.createElement("br"));
+    tooltip.appendChild(document.createTextNode(parts.body));
+  }
+}
+
+function showEntryMapTooltip(clientX, clientY, parts) {
   const viewport = ui.entryMapFigure.getBoundingClientRect();
-  ui.entryMapTooltip.innerHTML = html;
+  setEntryMapTooltipContent(parts);
   ui.entryMapTooltip.style.left = `${clientX - viewport.left + 14}px`;
   ui.entryMapTooltip.style.top = `${clientY - viewport.top + 14}px`;
   ui.entryMapTooltip.classList.remove("hidden");
@@ -441,19 +453,23 @@ function updateEntryMapBadge({selectedCount = 0, loadedCount = 0, pendingCount =
   ui.entryMapBadgeDetail.textContent = detailParts.join(" · ");
 }
 
-function entryMapTooltipHtml(tileId) {
+function entryMapTooltipParts(tileId) {
+  const title = toDisplayTileId(tileId);
   const downloadState = state.entry.downloadingTileIds.get(tileId);
   if (downloadState) {
-    return `<strong>${toDisplayTileId(tileId)}</strong><br>${downloadState.message || "Downloading GLTF tile..."}`;
+    return {title, body: downloadState.message || "Downloading GLTF tile..."};
   }
   const tile = state.entry.overview?.tileById.get(tileId);
   if (tile) {
-    return `<strong>${toDisplayTileId(tileId)}</strong><br>In scene: ${tile.mesh_count.toLocaleString()} meshes • ${tile.bundle_count} bundles`;
+    return {
+      title,
+      body: `In scene: ${tile.mesh_count.toLocaleString()} meshes • ${tile.bundle_count} bundles`,
+    };
   }
   if (state.entry.overview?.coverageById.has(tileId)) {
-    return `<strong>${toDisplayTileId(tileId)}</strong><br>Downloadable from Open3DHK. Click to download GLTF and create this tile XML.`;
+    return {title, body: "Downloadable from Open3DHK. Click to download GLTF and create this tile XML."};
   }
-  return `<strong>${toDisplayTileId(tileId)}</strong><br>No Open3DHK download is available for this tile.`;
+  return {title, body: "No Open3DHK download is available for this tile."};
 }
 
 function selectEntryMapTile(tileId) {
@@ -545,12 +561,12 @@ function createEntryTileLayer(tileEntry) {
     entryMap.hoveredTileId = tileEntry.id;
     syncEntryTileLayerStyle(tileEntry);
     if (event.originalEvent) {
-      showEntryMapTooltip(event.originalEvent.clientX, event.originalEvent.clientY, entryMapTooltipHtml(tileEntry.id));
+      showEntryMapTooltip(event.originalEvent.clientX, event.originalEvent.clientY, entryMapTooltipParts(tileEntry.id));
     }
   });
   layer.on("mousemove", (event) => {
     if (event.originalEvent) {
-      showEntryMapTooltip(event.originalEvent.clientX, event.originalEvent.clientY, entryMapTooltipHtml(tileEntry.id));
+      showEntryMapTooltip(event.originalEvent.clientX, event.originalEvent.clientY, entryMapTooltipParts(tileEntry.id));
     }
   });
   layer.on("mouseout", () => {
@@ -808,7 +824,10 @@ async function pollTileDownloadJob(jobId, tileId) {
     if (job.status === "succeeded") {
       return job;
     }
-    if (job.status === "canceled") {
+    if (job.status === "canceled" || job.status === "cancelled") {
+      // Accept both spellings: pre-PR-#26 backends emit "canceled" (American),
+      // PR #26 (now on master) standardizes on "cancelled" (British) to
+      // match the other job managers.
       const error = new Error(job.message || "Tile download cancelled");
       error.cancelled = true;
       throw error;
@@ -821,11 +840,15 @@ async function pollTileDownloadJob(jobId, tileId) {
 }
 
 async function refreshManifestAfterTileDownload(tileId, manifestPayload = null) {
+  const selectedTileIds = new Set(scene().tileSelections());
   state.manifest = manifestPayload || await getManifest();
   scene().populateTileList(state.manifest);
   performancePanel().populatePerformanceControls(state.manifest);
   state.entry.overview = buildEntryOverview(state.manifest, state.entry.coverage);
   renderEntryOverview();
+  for (const selectedTileId of selectedTileIds) {
+    scene().setTileChecked(selectedTileId, true);
+  }
   scene().setTileChecked(tileId, true);
   setEntrySearchHint(`${toDisplayTileId(tileId)} was downloaded and added as a tile XML.`);
 }
@@ -874,6 +897,7 @@ async function downloadEntryMapTile(tileId) {
     onCancel: () => {
       requestCancelDownload();
     },
+    force: true,
   });
 
   try {
@@ -893,7 +917,7 @@ async function downloadEntryMapTile(tileId) {
     }
   } finally {
     state.entry.downloadingTileIds.delete(tileId);
-    scene().hideOverlay();
+    scene().hideOverlay(null, true);
     syncEntryOverviewUi();
   }
 }

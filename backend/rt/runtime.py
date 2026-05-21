@@ -73,7 +73,7 @@ class RTRuntime:
             flush=True,
         )
 
-    def status_dict(self) -> dict:
+    def _status_dict_unlocked(self) -> dict:
         return {
             "ok": self.status != "failed",
             "status": self.status,
@@ -87,17 +87,23 @@ class RTRuntime:
             "requested_shape_count": int(self.requested_shape_count),
         }
 
-    def request_scene_selection(self, tile_ids: object) -> dict:
-        normalized_tile_ids = self.scene_builder.normalize_tile_ids(tile_ids)
-
+    def status_dict(self) -> dict:
         with self.lock:
-            if self.status == "ready" and tuple(normalized_tile_ids) == self.active_tile_ids:
+            return self._status_dict_unlocked()
+
+    def request_scene_selection(self, tile_ids: object) -> dict:
+        with self.lock:
+            normalized_tile_ids = self.scene_builder.normalize_tile_ids(tile_ids)
+            normalized_tile_ids = tuple(normalized_tile_ids)
+            if self.status == "ready" and normalized_tile_ids == self.active_tile_ids:
                 self.requested_tile_ids = self.active_tile_ids
-                return self.status_dict()
+                return self._status_dict_unlocked()
+            if self.status == "loading" and normalized_tile_ids == self.requested_tile_ids:
+                return self._status_dict_unlocked()
 
             self.generation += 1
             generation = self.generation
-            self.requested_tile_ids = tuple(normalized_tile_ids)
+            self.requested_tile_ids = normalized_tile_ids
             self.requested_shape_count = self.scene_builder.shape_count_for_tiles(normalized_tile_ids)
             self.preload_seconds = None
             self.active_scene_xml = None
@@ -108,11 +114,11 @@ class RTRuntime:
             if not normalized_tile_ids:
                 self.status = "empty"
                 self.message = "No Sionna RT tiles selected"
-                status = self.status_dict()
+                status = self._status_dict_unlocked()
             else:
                 self.status = "loading"
                 self.message = f"Load scene for {len(normalized_tile_ids)} tile(s)"
-                status = self.status_dict()
+                status = self._status_dict_unlocked()
 
         self._flush_runtime_memory()
 

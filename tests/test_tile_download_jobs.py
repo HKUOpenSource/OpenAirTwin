@@ -86,10 +86,10 @@ class TileDownloadJobManagerTests(unittest.TestCase):
         cancelled_job = cancelled_manager.create_job("11_SW_7A")
         cancelled_manager.cancel_job(cancelled_job.job_id)
         release.set()
-        wait_for_status(cancelled_job, {"canceled"})
+        wait_for_status(cancelled_job, {"cancelled"})
         next_cancelled_job = cancelled_manager.create_job("11_SW_7B")
         cancelled_manager.cancel_job(next_cancelled_job.job_id)
-        wait_for_status(next_cancelled_job, {"canceled"})
+        wait_for_status(next_cancelled_job, {"cancelled"})
         self.assertNotEqual(cancelled_job.job_id, next_cancelled_job.job_id)
 
 

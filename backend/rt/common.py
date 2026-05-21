@@ -8,6 +8,8 @@ import numpy as np
 
 from backend import config
 
+MIN_WAYPOINT_SEPARATION_M = 1e-3
+
 
 def parse_object(value: object, *, name: str) -> dict:
     if not isinstance(value, dict):
@@ -112,6 +114,10 @@ def solver_bool(payload: dict, key: str, default: bool) -> bool:
 
 
 def to_numpy(value) -> np.ndarray:
+    if isinstance(value, np.ndarray):
+        return value
+    if np.isscalar(value) or isinstance(value, (list, tuple)):
+        return np.asarray(value)
     try:
         import drjit as dr
 
@@ -407,12 +413,32 @@ def sample_rx_trajectory(
     for index in range(1, len(points)):
         segment = tuple(points[index][axis] - points[index - 1][axis] for axis in range(3))
         segment_length = vector_length(segment)
-        if segment_length <= 0.0:
-            raise ValueError("rx_trajectory.points must not contain repeated consecutive waypoints")
+        if not math.isfinite(segment_length):
+            raise ValueError("rx_trajectory segment length must be finite")
+        if segment_length < MIN_WAYPOINT_SEPARATION_M:
+            raise ValueError(
+                "rx_trajectory.points must be separated by at least "
+                f"{MIN_WAYPOINT_SEPARATION_M:g} m"
+            )
         cumulative_distances.append(cumulative_distances[-1] + segment_length)
 
     total_distance_m = cumulative_distances[-1]
+    if not math.isfinite(total_distance_m):
+        raise ValueError("rx_trajectory total distance must be finite")
+    if velocity_mps <= 0.0:
+        raise ValueError("rx_trajectory.velocity_mps must be greater than zero")
     duration_s = total_distance_m / velocity_mps
+    if not math.isfinite(duration_s):
+        raise ValueError("rx_trajectory duration must be finite")
+    estimated_step_count = 1 if duration_s <= 0.0 else int(math.floor(max((duration_s - 1e-9) / time_step_s, 0.0))) + 2
+    if estimated_step_count < config.MIN_MOBILITY_STEPS:
+        raise ValueError(f"rx_trajectory computed steps must be at least {config.MIN_MOBILITY_STEPS}")
+    if estimated_step_count > max_steps:
+        raise ValueError(
+            f"rx_trajectory computed steps must be at most {max_steps}; "
+            "increase rx_trajectory.max_steps, increase rx_trajectory.time_step_s, or shorten the trajectory"
+        )
+
     times = [0.0]
     next_time = time_step_s
     while next_time < duration_s:
@@ -420,7 +446,6 @@ def sample_rx_trajectory(
         next_time += time_step_s
     if duration_s > 0.0 and (not math.isclose(times[-1], duration_s, rel_tol=0.0, abs_tol=1e-9)):
         times.append(duration_s)
-
     if len(times) < config.MIN_MOBILITY_STEPS:
         raise ValueError(f"rx_trajectory computed steps must be at least {config.MIN_MOBILITY_STEPS}")
     if len(times) > max_steps:
@@ -487,6 +512,7 @@ def parse_mobility_payload(payload: dict) -> dict:
         trajectory.get("max_steps", config.DEFAULT_MOBILITY_MAX_STEPS),
         name="rx_trajectory.max_steps",
         min_value=config.MIN_MOBILITY_STEPS,
+        max_value=config.MAX_MOBILITY_STEPS,
     )
 
     channel = dict(parse_object(payload.get("channel", {}), name="channel"))
