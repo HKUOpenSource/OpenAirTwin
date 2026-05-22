@@ -12,7 +12,7 @@ SCENE_ROOT = Path(os.environ.get("OAT_SCENE_ROOT", str(PROJECT_ROOT / "scene")))
 MESH_ROOT = SCENE_ROOT / "meshes"
 BUNDLE_ROOT = SCENE_ROOT / "cache" / "render_bundles"
 
-HOST = os.environ.get("OAT_HOST", "0.0.0.0")
+HOST = os.environ.get("OAT_HOST", "127.0.0.1")
 PORT = int(os.environ.get("OAT_PORT", "8090"))
 MAX_REQUEST_BODY_BYTES = max(0, int(os.environ.get("OAT_MAX_REQUEST_BODY_BYTES", str(16 * 1024 * 1024))))
 
