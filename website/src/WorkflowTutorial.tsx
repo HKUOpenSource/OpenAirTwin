@@ -6,7 +6,7 @@ type WorkflowTutorialProps = {
 };
 
 const mediaAsset = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
-const PLAYBACK_RATE = 1.5;
+const PLAYBACK_RATE = 2;
 
 function WorkflowTutorial({ modes }: WorkflowTutorialProps) {
   const firstMode = modes[0];
@@ -32,6 +32,7 @@ function WorkflowTutorial({ modes }: WorkflowTutorialProps) {
     }
 
     video.muted = true;
+    video.defaultPlaybackRate = PLAYBACK_RATE;
     video.playbackRate = PLAYBACK_RATE;
 
     if (restart) {
@@ -182,6 +183,7 @@ function WorkflowTutorial({ modes }: WorkflowTutorialProps) {
               onPlay={() => {
                 const video = videoRef.current;
                 if (video) {
+                  video.defaultPlaybackRate = PLAYBACK_RATE;
                   video.playbackRate = PLAYBACK_RATE;
                 }
                 setAutoplayBlocked(false);
