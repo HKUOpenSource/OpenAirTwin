@@ -82,7 +82,7 @@ function App() {
 
         <section className="section" id="quick-start">
           <div className="sectionHead">
-            <h2>Quick Start</h2>
+            <h2>Installation</h2>
           </div>
           <div className="quickGrid">
             {quickStart.map((item, index) => (
@@ -143,7 +143,7 @@ function Footer() {
       <div>
         <h3>Project</h3>
         <a href={mainRepositoryUrl}>Repository</a>
-        <a href={`${mainRepositoryUrl}#quick-start`}>README</a>
+        <a href={`${mainRepositoryUrl}#installation`}>README</a>
         <a href={`${mainRepositoryUrl}/blob/main/LICENSE`}>License</a>
       </div>
       <div>

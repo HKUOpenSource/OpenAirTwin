@@ -498,18 +498,18 @@ export const tutorialModes: TutorialMode[] = [
 
 export const quickStart = [
   {
-    title: "Clone the main repository",
-    body: "Start from the official OpenAirTwin repository, then enter the project folder.",
+    title: "Get OpenAirTwin",
+    body: "Clone the official repository.",
     code: "git clone https://github.com/HKUOpenSource/OpenAirTwin.git\ncd OpenAirTwin",
   },
   {
-    title: "Install the runtime",
-    body: "Run the installer from the project root to create the local environment.",
+    title: "Run the installer",
+    body: "Use the interactive installer.",
     code: "python install.py",
   },
   {
     title: "Start and open",
-    body: "Load the generated environment variables, start the backend, and open the web UI.",
+    body: "Start the backend and open the web UI.",
     code: "set -a; . ./.oat-env; set +a\n./.venv/bin/python -m backend.server\n# http://127.0.0.1:8090",
   },
 ];
