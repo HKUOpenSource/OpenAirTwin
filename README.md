@@ -17,7 +17,7 @@
 </p>
 
 
-OpenAirTwin is an open-source digital twin platform for wireless studies. It combines a Python backend, a static browser frontend,
+OpenAirTwin is an open-source digital twin platform for wireless research. It combines a Python backend, a static browser frontend,
 tile-based scene management, and Sionna RT workflows for link analysis,
 radio-map generation, mobility simulation, DeepMIMO dataset export, and more.
 
