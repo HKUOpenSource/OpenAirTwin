@@ -31,7 +31,7 @@ function App() {
               An open-source digital twin platform for interactive wireless research
             </p>
             <div className="heroActions">
-              <a className="primaryAction" href="#workflow-tutorial">
+              <a className="primaryAction" href="#features">
                 Get Started
                 <ArrowRightIcon />
               </a>
