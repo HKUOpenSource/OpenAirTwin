@@ -48,6 +48,7 @@ export const ui = {
   mobilityOnlyParams: [...document.querySelectorAll(".mobilityOnlyParam")],
   radiomapOnlyParams: [...document.querySelectorAll(".radiomapOnlyParam")],
   deepmimoOnlyParams: [...document.querySelectorAll(".deepmimoOnlyParam")],
+  deepmimoAntennaParams: [...document.querySelectorAll(".deepmimoAntennaParam")],
   livePreviewParams: [...document.querySelectorAll(".livePreviewParam")],
   livePreviewLinkParams: [...document.querySelectorAll(".livePreviewLinkParam")],
   hintText: document.getElementById("hintText"),

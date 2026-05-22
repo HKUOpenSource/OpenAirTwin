@@ -247,13 +247,13 @@ class FrontendRegressionTests(unittest.TestCase):
         source = read_static_js("solver_controls.js")
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("tx_array: antennaArrayPayload(state.antenna.txArray)", source)
+        self.assertIn("solverConfig.tx_array = antennaArrayPayload(state.antenna.txArray)", source)
         self.assertIn("rx_array: antennaArrayPayload(state.antenna.rxArray)", source)
         self.assertIn("...commonSolverConfig(),\n      samples_per_tx", source)
         self.assertIn("samples_per_tx: state.radiomap.solver.samplesPerTx", source)
         self.assertIn('id="txArrayPattern"', html)
         self.assertIn('id="rxArrayPattern"', html)
-        self.assertIn('class="paramField linkOnlyParam" for="rxArrayPattern"', html)
+        self.assertIn('class="paramField linkOnlyParam deepmimoAntennaParam" for="rxArrayPattern"', html)
 
     def test_radiomap_ui_parameters_are_wired(self) -> None:
         source = read_static_js("solver_controls.js")
@@ -684,6 +684,10 @@ class FrontendRegressionTests(unittest.TestCase):
         solver_source = read_static_js("solver_controls.js")
         viewer_source = read_static_js("viewer.js")
         css_source = read_static_css("app.css")
+        deepmimo_payload_source = solver_source.split("function deepMimoPayload()", 1)[1].split(
+            "function renderDeepMimoState()",
+            1,
+        )[0]
 
         self.assertIn('id="tabDeepMimo"', html)
         self.assertIn('id="btnDeepMimoPickTx"', html)
@@ -724,6 +728,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('deepMimoDatasetTray: document.getElementById("deepMimoDatasetTray")', dom_source)
         self.assertIn('deepMimoDatasetToggle: document.getElementById("deepMimoDatasetToggle")', dom_source)
         self.assertIn('deepMimoDatasetList: document.getElementById("deepMimoDatasetList")', dom_source)
+        self.assertIn('deepmimoAntennaParams: [...document.querySelectorAll(".deepmimoAntennaParam")]', dom_source)
         self.assertNotIn("deepMimoDownloadLink", dom_source)
         self.assertNotIn("deepMimoSceneBuffer", dom_source)
         self.assertIn('deepMimoGridSpacing: document.getElementById("deepMimoGridSpacing")', dom_source)
@@ -761,7 +766,18 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('import("/js/viewer.js?v=20260519-mode-isolation")', scene_source)
         self.assertIn('ui.btnDeepMimoPickRoi.classList.toggle("hidden", !isDeepMimo);', scene_source)
         self.assertIn('ui.btnDeepMimoClearRoi.classList.toggle("hidden", !isDeepMimo);', scene_source)
+        self.assertIn('const isDeepMimoAntennaParam = node.classList.contains("deepmimoAntennaParam");', scene_source)
+        self.assertIn('node.classList.toggle("hidden", !(isLinkLike || (isDeepMimo && isDeepMimoAntennaParam)));', scene_source)
         self.assertIn("renderDeepMimoState();", scene_source)
+        self.assertIn("const DEEPMIMO_FIXED_ANTENNA_ARRAY = Object.freeze({", solver_source)
+        self.assertIn("numRows: 1", solver_source)
+        self.assertIn("numCols: 1", solver_source)
+        self.assertIn("verticalSpacing: 0.5", solver_source)
+        self.assertIn("horizontalSpacing: 0.5", solver_source)
+        self.assertIn('pattern: "iso"', solver_source)
+        self.assertIn('polarization: "V"', solver_source)
+        self.assertIn("setAntennaInputsDisabled(refs, fixedForDeepMimo);", solver_source)
+        self.assertIn('if (state.mode === "deepmimo") {\n    return;\n  }', solver_source)
         self.assertIn("function readDeepMimoRoiInputs()", solver_source)
         self.assertIn("function setDeepMimoRoiFromCenter", solver_source)
         self.assertNotIn("z: Math.max(Number(cornerA[2] || 0), Number(cornerB[2] || 0))", solver_source)
@@ -784,6 +800,9 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("Load at least one selected tile before exporting DeepMIMO", solver_source)
         self.assertIn("getViewer().loadedTileIds.size", solver_source)
         self.assertIn("synthetic_array: true", solver_source)
+        self.assertIn("...commonSolverConfig({includeTxArray: false}),", deepmimo_payload_source)
+        self.assertNotIn("tx_array", deepmimo_payload_source)
+        self.assertNotIn("rx_array", deepmimo_payload_source)
         self.assertIn("createDeepMimoJob(payload)", solver_source)
         self.assertIn('state.deepmimo.jobId = null;\n  state.deepmimo.result = null;', solver_source)
         self.assertIn('state.deepmimo.jobId = null;\n    state.deepmimo.status = "failed";', solver_source)
