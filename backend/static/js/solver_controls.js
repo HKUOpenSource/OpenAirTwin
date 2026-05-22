@@ -2,6 +2,14 @@ import {colormapGradient, normalizeColormapName} from "/js/colormaps.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const TERMINAL_DEEPMIMO_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
+const DEEPMIMO_FIXED_ANTENNA_ARRAY = Object.freeze({
+  numRows: 1,
+  numCols: 1,
+  verticalSpacing: 0.5,
+  horizontalSpacing: 0.5,
+  pattern: "iso",
+  polarization: "V",
+});
 
 export function createSolverControlsController(context) {
   const {state, ui, inputs, viewerRef, api} = context;
@@ -72,6 +80,21 @@ function antennaInputs(kind) {
   };
 }
 
+function setAntennaInputsDisabled(refs, disabled) {
+  for (const input of Object.values(refs)) {
+    input.disabled = disabled;
+  }
+}
+
+function writeAntennaArrayInputs(refs, config) {
+  refs.pattern.value = config.pattern;
+  refs.polarization.value = config.polarization;
+  refs.rows.value = String(config.numRows);
+  refs.cols.value = String(config.numCols);
+  refs.verticalSpacing.value = String(config.verticalSpacing);
+  refs.horizontalSpacing.value = String(config.horizontalSpacing);
+}
+
 function populateSelect(select, values, selectedValue) {
   const selected = String(selectedValue);
   const options = [...values];
@@ -105,18 +128,18 @@ function applyAntennaArrayLimits(kind, limits = {}) {
 }
 
 function syncAntennaArrayInputs() {
+  const fixedForDeepMimo = state.mode === "deepmimo";
   for (const [kind, config] of [["tx", state.antenna.txArray], ["rx", state.antenna.rxArray]]) {
     const refs = antennaInputs(kind);
-    refs.pattern.value = config.pattern;
-    refs.polarization.value = config.polarization;
-    refs.rows.value = String(config.numRows);
-    refs.cols.value = String(config.numCols);
-    refs.verticalSpacing.value = String(config.verticalSpacing);
-    refs.horizontalSpacing.value = String(config.horizontalSpacing);
+    writeAntennaArrayInputs(refs, fixedForDeepMimo ? DEEPMIMO_FIXED_ANTENNA_ARRAY : config);
+    setAntennaInputsDisabled(refs, fixedForDeepMimo);
   }
 }
 
 function readAntennaArrayInputs() {
+  if (state.mode === "deepmimo") {
+    return;
+  }
   for (const [kind, target] of [["tx", state.antenna.txArray], ["rx", state.antenna.rxArray]]) {
     const refs = antennaInputs(kind);
     target.pattern = refs.pattern.value;
@@ -150,8 +173,8 @@ function applyRtCapabilities(capabilities) {
   syncAntennaArrayInputs();
 }
 
-function commonSolverConfig() {
-  return {
+function commonSolverConfig({includeTxArray = true} = {}) {
+  const solverConfig = {
     frequency_hz: Number(inputs.cfgFrequency.value) * 1e9,
     max_depth: Number(inputs.cfgMaxDepth.value),
     los: inputs.cfgLos.checked,
@@ -159,8 +182,11 @@ function commonSolverConfig() {
     diffuse_reflection: inputs.cfgDiffuse.checked,
     refraction: inputs.cfgRefraction.checked,
     seed: Number(inputs.cfgSeed.value),
-    tx_array: antennaArrayPayload(state.antenna.txArray),
   };
+  if (includeTxArray) {
+    solverConfig.tx_array = antennaArrayPayload(state.antenna.txArray);
+  }
+  return solverConfig;
 }
 
 function linkSolverConfig() {
@@ -694,7 +720,6 @@ function readDeepMimoInputs() {
     Number(inputs.deepMimoTxZ.value),
   ]);
   readSurfaceClearanceInput("deepmimo");
-  readAntennaArrayInputs();
   readDeepMimoRoiInputs();
   state.deepmimo.rxGrid.spacing = Number(inputs.deepMimoGridSpacing.value);
   state.deepmimo.rxGrid.height = Number(inputs.deepMimoRxHeight.value);
@@ -1558,7 +1583,7 @@ function deepMimoPayload() {
       filter_buildings: state.deepmimo.rxGrid.filterBuildings,
     },
     solver: {
-      ...commonSolverConfig(),
+      ...commonSolverConfig({includeTxArray: false}),
       samples_per_src: state.deepmimo.solver.samplesPerSrc,
       max_num_paths_per_src: state.deepmimo.solver.maxNumPathsPerSrc,
       synthetic_array: true,

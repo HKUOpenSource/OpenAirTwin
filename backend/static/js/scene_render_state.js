@@ -261,7 +261,8 @@ function syncModeUi() {
   ui.radiomapPanel.classList.toggle("hidden", state.mode !== "radiomap");
   ui.deepmimoPanel.classList.toggle("hidden", !isDeepMimo);
   for (const node of ui.linkOnlyParams) {
-    node.classList.toggle("hidden", !isLinkLike);
+    const isDeepMimoAntennaParam = node.classList.contains("deepmimoAntennaParam");
+    node.classList.toggle("hidden", !(isLinkLike || (isDeepMimo && isDeepMimoAntennaParam)));
   }
   for (const node of ui.mobilityOnlyParams) {
     node.classList.toggle("hidden", !isMobility);
