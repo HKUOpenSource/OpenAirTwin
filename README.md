@@ -16,25 +16,10 @@
   <img alt="DeepMIMO export" src="https://img.shields.io/badge/export-DeepMIMO-6f42c1">
 </p>
 
-<p align="center">
-  <a href="#features">Features</a> &bull;
-  <a href="#installation">Installation</a> &bull;
-  <a href="#start-openairtwin">Start OpenAirTwin</a> &bull;
-  <a href="https://zhaolin820.github.io/HKU-Ray-Tracing-Platform/">Tutorial Website</a> &bull;
-  <a href="#troubleshooting">Troubleshooting</a> &bull;
-  <a href="#scene-data">Scene Data</a> &bull;
-  <a href="#configuration">Configuration</a> &bull;
-  <a href="#license">License</a>
-</p>
 
-
-OpenAirTwin is an open-source digital twin platform for wireless studies. It
-runs as a local web app: a Python backend does the scene and ray-tracing work,
-and a browser frontend provides the map and 3D controls.
-
-Use it to load city tiles, place transmitters and receivers, run Sionna RT
-workflows, generate radio maps, simulate mobility, and export DeepMIMO-style
-datasets.
+OpenAirTwin is an open-source digital twin platform for wireless studies. It combines a Python backend, a static browser frontend,
+tile-based scene management, and Sionna RT workflows for link analysis,
+radio-map generation, mobility simulation, DeepMIMO dataset export, and more.
 
 
 ## Features
