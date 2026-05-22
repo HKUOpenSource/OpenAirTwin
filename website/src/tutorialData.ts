@@ -519,41 +519,35 @@ export const featureItems: Array<{
   title: string;
   body: string;
   image: string;
-  bullets: string[];
 }> = [
   {
     modeId: "map",
     title: "Map Selection",
-    body: "Find a location, select Open3DHK tiles, download missing assets, and load a focused city scene.",
+    body: "Automate wireless digital twin scene construction by converting city-scale information across Hong Kong into analysis-ready 3D environments.",
     image: "feature-map-selection.png",
-    bullets: ["Place search and tile focus", "Download and load selected tiles", "Focused scenes for faster analysis"],
   },
   {
     modeId: "link",
     title: "Link Analysis",
-    body: "Place Tx/Rx devices, tune propagation settings, solve paths, and inspect link-level channel output.",
+    body: "Explore propagation paths, received power, and channel taps directly on the 3D city model for fast, visual link-level insight.",
     image: "feature-link-analysis.png",
-    bullets: ["Tx/Rx placement", "Solver and CIR parameters", "Paths, power, and channel taps"],
   },
   {
     modeId: "mobility",
     title: "Mobility",
-    body: "Build receiver routes, add waypoints, run mobility jobs, and review channel changes over time.",
+    body: "Analyze receiver mobility across realistic urban routes and visualize how channel behavior evolves along the trajectory.",
     image: "feature-mobility-analysis.gif",
-    bullets: ["Waypoint route authoring", "Enter-key waypoint shortcut", "Timeline playback for moving receivers"],
   },
   {
     modeId: "radiomap",
     title: "Radio Map",
-    body: "Configure a receiver patch and compute coverage heatmaps with resolution and colorbar controls.",
+    body: "Generate coverage radio maps that make signal strength visible across complex urban environments.",
     image: "feature-radio-map.png",
-    bullets: ["Patch and receiver-plane setup", "Resolution and sample controls", "Heatmap and colorbar output"],
   },
   {
     modeId: "deepmimo",
     title: "DeepMIMO",
-    body: "Draw a receiver ROI, configure the grid, and export structured datasets for wireless ML workflows.",
+    body: "Create DeepMIMO datasets from selected urban regions, connecting wireless digital twins with AI-driven wireless research.",
     image: "feature-deepmimo-export.png",
-    bullets: ["Tx and ROI definition", "Receiver grid controls", "Dataset tray and export status"],
   },
 ];

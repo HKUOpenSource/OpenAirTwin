@@ -57,11 +57,6 @@ function App() {
                   <div className="featureCardBody">
                     <h3>{item.title}</h3>
                     <p>{item.body}</p>
-                    <ul>
-                      {item.bullets.map((bullet) => (
-                        <li key={bullet}>{bullet}</li>
-                      ))}
-                    </ul>
                     <a href="#workflow-tutorial" onClick={() => requestTutorialMode(item.modeId)}>
                       Watch tutorial
                       <ArrowRightIcon />

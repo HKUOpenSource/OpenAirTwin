@@ -32,9 +32,10 @@ body {
   min-width: 320px;
   overflow-x: hidden;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 249, 253, 0.86)),
-    repeating-linear-gradient(90deg, rgba(31, 111, 255, 0.045) 0 1px, transparent 1px 96px),
-    repeating-linear-gradient(0deg, rgba(13, 166, 184, 0.035) 0 1px, transparent 1px 96px);
+    radial-gradient(circle at 88% 6%, rgba(13, 166, 184, 0.1), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 253, 0.9)),
+    repeating-linear-gradient(90deg, rgba(31, 111, 255, 0.035) 0 1px, transparent 1px 110px),
+    repeating-linear-gradient(0deg, rgba(13, 166, 184, 0.03) 0 1px, transparent 1px 110px);
 }
 
 body,
@@ -103,6 +104,12 @@ button {
   white-space: nowrap;
 }
 
+.topNav nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+}
+
 .topNav nav a:hover,
 .githubLink:hover {
   color: var(--accent);
@@ -127,12 +134,12 @@ main {
 }
 
 .hero {
-  min-height: min(690px, calc(100vh - 74px));
+  min-height: min(600px, calc(100vh - 96px));
   display: grid;
-  grid-template-columns: minmax(360px, 0.72fr) minmax(520px, 1.28fr);
+  grid-template-columns: minmax(330px, 0.44fr) minmax(0, 0.56fr);
   align-items: center;
-  gap: clamp(32px, 5vw, 78px);
-  padding: clamp(46px, 6vw, 82px) 0 42px;
+  gap: clamp(26px, 4vw, 54px);
+  padding: clamp(34px, 4.5vw, 58px) 0 34px;
 }
 
 .heroCopy {
@@ -151,7 +158,7 @@ main {
 
 .hero p {
   max-width: 470px;
-  margin: 28px 0 0;
+  margin: 22px 0 0;
   color: #4d5a70;
   font-size: clamp(17px, 1.6vw, 20px);
   line-height: 1.58;
@@ -161,7 +168,7 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  margin-top: 34px;
+  margin-top: 30px;
 }
 
 .primaryAction,
@@ -200,6 +207,7 @@ main {
   background: #111827;
   box-shadow: var(--shadow);
   overflow: hidden;
+  transform: translateY(8px);
 }
 
 .browserTop {
@@ -248,7 +256,7 @@ main {
 }
 
 .section {
-  padding: 38px 0 48px;
+  padding: 34px 0 48px;
   border-top: 1px solid var(--soft-line);
   scroll-margin-top: 92px;
 }
@@ -344,18 +352,25 @@ main {
 .featureGrid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 18px;
+  gap: 20px;
 }
 
 .featureCard {
   display: flex;
   flex-direction: column;
-  min-height: 430px;
+  min-height: 360px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--paper);
   box-shadow: var(--small-shadow);
   overflow: hidden;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.featureCard:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--mode-accent) 34%, var(--line));
+  box-shadow: 0 18px 44px rgba(24, 38, 62, 0.13);
 }
 
 .featureCard img {
@@ -371,28 +386,16 @@ main {
   flex-direction: column;
   flex: 1;
   min-width: 0;
-  padding: 16px;
-}
-
-.featureCard ul {
-  display: grid;
-  gap: 7px;
-  margin: 15px 0 18px;
-  padding-left: 18px;
-  color: #556174;
-  font-size: 13px;
-  line-height: 1.48;
-}
-
-.featureCard li::marker {
-  color: var(--mode-accent);
+  padding: 18px;
 }
 
 .featureCard a {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  align-self: flex-start;
   margin-top: auto;
+  padding-top: 18px;
   color: var(--mode-accent);
   font-size: 13px;
   font-weight: 860;
@@ -457,6 +460,12 @@ main {
 }
 
 @media (max-width: 1120px) {
+  .featureGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
   .hero {
     grid-template-columns: 1fr;
     min-height: 0;
@@ -464,10 +473,6 @@ main {
 
   .heroCopy {
     max-width: 760px;
-  }
-
-  .featureGrid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -480,10 +485,17 @@ main {
   }
 
   .topNav nav {
-    grid-column: 1 / -1;
+    grid-column: 1;
+    grid-row: 2;
     justify-content: flex-start;
     overflow-x: auto;
     padding-bottom: 4px;
+  }
+
+  .githubLink {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
   }
 
   .brand {
@@ -496,8 +508,8 @@ main {
 
   .hero {
     grid-template-columns: 1fr;
-    gap: 32px;
-    padding-top: 42px;
+    gap: 30px;
+    padding-top: 34px;
   }
 
   .quickGrid {
@@ -526,14 +538,34 @@ main {
   .topNav,
   main,
   .footer {
-    max-width: 390px;
-    margin-left: 0;
-    margin-right: 0;
+    width: 100%;
+    max-width: none;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .topNav {
+    gap: 8px 12px;
   }
 
   .githubLink {
     min-height: 34px;
-    padding: 0 12px;
+    padding: 0 11px;
+    font-size: 13px;
+  }
+
+  .topNav nav {
+    gap: 15px;
+    padding-bottom: 0;
+  }
+
+  .topNav nav a {
+    min-height: 28px;
+    font-size: 13px;
+  }
+
+  .brand {
+    width: min(190px, 100%);
   }
 
   .hero h1 {
@@ -566,6 +598,10 @@ main {
   .featureGrid,
   .footer {
     grid-template-columns: 1fr;
+  }
+
+  .featureCard {
+    min-height: 0;
   }
 }
 
@@ -606,60 +642,8 @@ main {
   background: #ffffff;
 }
 
-.workflowIntro {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 22px 24px;
-  border-bottom: 1px solid var(--line);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--mode-accent) 8%, #ffffff), #ffffff 52%),
-    #ffffff;
-}
-
-.workflowIntro h3 {
-  margin: 5px 0 0;
-  color: #172033;
-  font-size: 26px;
-  line-height: 1.12;
-}
-
-.workflowIntro p {
-  max-width: 760px;
-  margin: 8px 0 0;
-  color: #5c687a;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.eyebrow {
-  color: var(--mode-accent);
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.clipStatus {
-  align-self: start;
-  display: grid;
-  gap: 4px;
-  min-width: 190px;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--mode-accent) 22%, #d8deea);
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.clipStatus b {
-  color: #172033;
-  font-size: 15px;
-}
-
-.clipStatus span {
-  color: #667085;
-  font-size: 12px;
-  line-height: 1.35;
+.tabLabelShort {
+  display: none;
 }
 
 .workflowLayout {
@@ -892,12 +876,17 @@ main {
 }
 
 .stepNotes {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   min-width: 0;
   padding: 14px;
   border: 1px solid #dbe2ee;
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 8px 20px rgba(24, 38, 62, 0.06);
+  overflow: hidden;
 }
 
 .stepNotesHead {
@@ -919,50 +908,39 @@ main {
   line-height: 1.2;
 }
 
-.notesGroup,
-.notesWarning {
-  padding: 11px 0;
-  border-bottom: 1px solid #e5eaf2;
+.quickNotes {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
 }
 
-.notesWarning {
-  border-bottom: 0;
-  padding-bottom: 0;
+.quickNote {
+  height: 82px;
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid #e2e8f2;
+  border-radius: 8px;
+  background: #f8fafd;
 }
 
-.notesGroup h5,
-.notesWarning h5 {
+.quickNote h5 {
   margin: 0;
-  color: #172033;
-  font-size: 12px;
+  color: var(--mode-accent);
+  font-size: 11px;
   line-height: 1.25;
   font-weight: 900;
   text-transform: uppercase;
 }
 
-.notesGroup ul {
-  display: grid;
-  gap: 6px;
-  margin: 8px 0 0;
-  padding-left: 18px;
+.quickNote p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 6px 0 0;
+  overflow: hidden;
   color: #566276;
   font-size: 12px;
-  line-height: 1.4;
-}
-
-.notesGroup li::marker {
-  color: var(--mode-accent);
-}
-
-.notesWarning h5 {
-  color: #a34c09;
-}
-
-.notesWarning p {
-  margin: 8px 0 0;
-  color: #563719;
-  font-size: 12px;
-  line-height: 1.48;
+  line-height: 1.38;
 }
 
 @media (max-width: 1120px) {
@@ -973,26 +951,27 @@ main {
   .stepNotes {
     grid-column: 1 / -1;
   }
+
+  .quickNotes {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 860px) {
   .workflowTabs {
     display: flex;
     overflow-x: auto;
+    scroll-snap-type: x proximity;
   }
 
   .workflowTabs button {
-    min-width: 152px;
+    min-width: 142px;
+    scroll-snap-align: start;
   }
 
-  .workflowIntro,
   .videoHeader {
     grid-template-columns: 1fr;
     display: grid;
-  }
-
-  .clipStatus {
-    min-width: 0;
   }
 
   .workflowLayout {
@@ -1008,6 +987,10 @@ main {
   .videoControls {
     justify-content: start;
   }
+
+  .quickNotes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
@@ -1016,7 +999,27 @@ main {
     margin-right: -6px;
   }
 
-  .workflowIntro,
+  .workflowTabs {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .workflowTabs button {
+    min-width: 0;
+    min-height: 54px;
+    padding: 10px 4px;
+    font-size: 12px;
+  }
+
+  .tabLabelFull {
+    display: none;
+  }
+
+  .tabLabelShort {
+    display: inline;
+  }
+
   .videoHeader {
     padding: 16px;
   }
@@ -1033,6 +1036,10 @@ main {
 
   .videoControls button {
     width: 100%;
+  }
+
+  .quickNotes {
+    grid-template-columns: 1fr;
   }
 
   .missingVideo {

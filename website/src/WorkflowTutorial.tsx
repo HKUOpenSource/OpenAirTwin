@@ -127,21 +127,10 @@ function WorkflowTutorial({ modes }: WorkflowTutorialProps) {
             role="tab"
             type="button"
           >
-            {mode.label}
+            <span className="tabLabelFull">{mode.label}</span>
+            <span className="tabLabelShort">{mode.shortLabel}</span>
           </button>
         ))}
-      </div>
-
-      <div className="workflowIntro">
-        <div>
-          <span className="eyebrow">Video-led workflow</span>
-          <h3>{activeMode.label}</h3>
-          <p>{activeMode.summary}</p>
-        </div>
-        <div className="clipStatus">
-          <b>{activeMode.steps.length} steps</b>
-          <span>Static GitHub Pages tutorial, no backend calls</span>
-        </div>
       </div>
 
       <div className="workflowLayout">
@@ -262,33 +251,28 @@ function MissingVideo({ step }: { step: TutorialStep }) {
 }
 
 function StepNotes({ step }: { step: TutorialStep }) {
+  const notes = [
+    { label: "Focus", text: step.summary },
+    { label: "Action", text: step.clicks[0] ?? step.summary },
+    { label: "Result", text: step.success[0] ?? step.summary },
+    { label: "Tip", text: step.warning },
+  ];
+
   return (
-    <aside className="stepNotes">
+    <aside className="stepNotes" aria-label={`${step.title} quick guide`}>
       <div className="stepNotesHead">
-        <span>Step Notes</span>
+        <span>Quick Guide</span>
         <h4>{step.title}</h4>
       </div>
-      <NotesGroup title="Clicks" items={step.clicks} />
-      <NotesGroup title="Parameters" items={step.parameters} />
-      <NotesGroup title="Success" items={step.success} />
-      <section className="notesWarning">
-        <h5>Watch out</h5>
-        <p>{step.warning}</p>
-      </section>
-    </aside>
-  );
-}
-
-function NotesGroup({ title, items }: { title: string; items: string[] }) {
-  return (
-    <section className="notesGroup">
-      <h5>{title}</h5>
-      <ul>
-        {items.map((item) => (
-          <li key={item}>{item}</li>
+      <div className="quickNotes">
+        {notes.map((note) => (
+          <section className="quickNote" key={note.label}>
+            <h5>{note.label}</h5>
+            <p>{note.text}</p>
+          </section>
         ))}
-      </ul>
-    </section>
+      </div>
+    </aside>
   );
 }
 
