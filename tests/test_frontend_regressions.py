@@ -39,7 +39,7 @@ class FrontendRegressionTests(unittest.TestCase):
             "INFRASTRUCTURE": "#50565c",
             "INFRASTRUCTURE_TB": "#50565c",
             "GENERIC": "#8c8981",
-            "TERRAIN_TB": "#8c9586",
+            "TERRAIN_TB": "#8c8981",
             "VEGETATION_TB": "#557b5c",
             "WATERBODY": "#245766",
         }
@@ -79,6 +79,39 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertGreaterEqual(source.count("this.#clampViewAboveGround();"), 6)
         self.assertNotIn("#clampViewAboveGround", orbit_source)
         self.assertNotIn("VIEW_CAMERA_MIN_CLEARANCE_M", orbit_source)
+
+    def test_viewer_uses_tighter_depth_range_and_layer_bias(self) -> None:
+        source = read_static_js("viewer.js")
+
+        self.assertIn("const CAMERA_NEAR_MIN = 0.3;", source)
+        self.assertIn("const CAMERA_NEAR_MAX = 20;", source)
+        self.assertIn("const CAMERA_FAR_MIN = 2500;", source)
+        self.assertIn("const CAMERA_FAR_SCENE_PADDING = 3.5;", source)
+        self.assertIn("const CAMERA_FAR_EXTRA_MARGIN = 500;", source)
+        self.assertNotIn("CAMERA_FAR_MULTIPLIER", source)
+        self.assertIn("this.modelBounds = new THREE.Box3();", source)
+        self.assertIn("this.modelBoundsDirty = true;", source)
+        self.assertIn("#currentModelBounds()", source)
+        self.assertIn("modelBounds.getBoundingSphere(new THREE.Sphere())", source)
+        self.assertIn("this.#markModelBoundsDirty();", source)
+        self.assertIn("const targetNear = THREE.MathUtils.clamp(orbitDistance / 1000", source)
+        self.assertIn("polygonOffsetFactor: 8", source)
+        self.assertGreaterEqual(source.count("polygonOffsetFactor: -2"), 4)
+        self.assertGreaterEqual(source.count("polygonOffsetFactor: -1"), 3)
+
+    def test_viewer_can_render_terrain_as_background_depth_layer(self) -> None:
+        source = read_static_js("viewer.js")
+
+        self.assertIn("TERRAIN_TB: {\n    renderOrder: 0,\n    polygonOffsetFactor: 8,\n    polygonOffsetUnits: 8,\n    depthWrite: false,\n    depthTest: true,", source)
+        self.assertIn("const layer = displayLayerForBundle(bundle);", source)
+        self.assertIn("depthWrite: layer.depthWrite", source)
+        self.assertIn("depthTest: layer.depthTest ?? true", source)
+        self.assertNotIn("depthWrite: transparent ? layer.depthWrite : true", source)
+        self.assertNotIn("readViewerRenderOptions", source)
+        self.assertNotIn("terrainDepthWrite", source)
+        self.assertNotIn("terrainDepthTest", source)
+        self.assertNotIn("terrainOffsetFactor", source)
+        self.assertNotIn("logarithmicDepthBuffer", source)
 
     def test_bundle_progress_totals_are_updated_from_runtime_headers(self) -> None:
         source = read_static_js("viewer.js")
@@ -138,7 +171,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("Open3DHK has no downloadable tile at that point.", source)
         self.assertIn("outside the Open3DHK downloadable coverage", source)
         self.assertIn("Downloadable from Open3DHK", source)
-        self.assertIn("In Scene", html)
+        self.assertIn("Available", html)
         self.assertIn("Downloadable", html)
 
     def test_rt_capabilities_are_loaded_for_antenna_arrays(self) -> None:

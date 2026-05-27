@@ -11,10 +11,11 @@ const DEFAULT_VIEW = {
   target: new THREE.Vector3(72, 37, 10),
 };
 
-const CAMERA_NEAR_MIN = 0.05;
-const CAMERA_NEAR_MAX = 5;
-const CAMERA_FAR_MIN = 20000;
-const CAMERA_FAR_MULTIPLIER = 150;
+const CAMERA_NEAR_MIN = 0.3;
+const CAMERA_NEAR_MAX = 20;
+const CAMERA_FAR_MIN = 2500;
+const CAMERA_FAR_SCENE_PADDING = 3.5;
+const CAMERA_FAR_EXTRA_MARGIN = 500;
 const VIEW_GROUND_Z = 0;
 const VIEW_CAMERA_MIN_CLEARANCE_M = 2.0;
 const VIEW_TARGET_MIN_Z = 0;
@@ -66,9 +67,11 @@ const CATEGORY_MATERIAL_STYLES = {
     saturationVariation: 0.012,
   },
   TERRAIN_TB: {
-    color: "#8c9586",
+    color: "#8c8981",
     roughness: 0.92,
     metalness: 0.0,
+    lightnessVariation: 0.025,
+    saturationVariation: 0.012,
   },
   VEGETATION_TB: {
     color: "#557b5c",
@@ -89,45 +92,52 @@ const CATEGORY_MATERIAL_STYLES = {
 const CATEGORY_DISPLAY_LAYERS = {
   TERRAIN_TB: {
     renderOrder: 0,
-    polygonOffsetFactor: 4,
-    polygonOffsetUnits: 4,
-    depthWrite: true,
+    polygonOffsetFactor: 8,
+    polygonOffsetUnits: 8,
+    depthWrite: false,
+    depthTest: true,
   },
   WATERBODY: {
     renderOrder: 1,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
     depthWrite: false,
+    depthTest: true,
   },
   GENERIC: {
     renderOrder: 2,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
     depthWrite: true,
+    depthTest: true,
   },
   INFRASTRUCTURE: {
     renderOrder: 3,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
     depthWrite: true,
+    depthTest: true,
   },
   INFRASTRUCTURE_TB: {
     renderOrder: 3,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
     depthWrite: true,
+    depthTest: true,
   },
   VEGETATION_TB: {
     renderOrder: 4,
-    polygonOffsetFactor: -0.5,
-    polygonOffsetUnits: -0.5,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
     depthWrite: true,
+    depthTest: true,
   },
   BUILDING: {
     renderOrder: 5,
-    polygonOffsetFactor: -0.5,
-    polygonOffsetUnits: -0.5,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
     depthWrite: true,
+    depthTest: true,
   },
 };
 
@@ -211,6 +221,7 @@ function displayLayerForBundle(bundle) {
     polygonOffsetFactor: 0,
     polygonOffsetUnits: 0,
     depthWrite: true,
+    depthTest: true,
   };
 }
 
@@ -288,6 +299,8 @@ export class Viewer {
     this.pathMaterials = [];
     this.meshMaterials = [];
     this.modelEntries = new Map();
+    this.modelBounds = new THREE.Box3();
+    this.modelBoundsDirty = true;
     this.deepMimoRoi = null;
     this.tileMeshCounts = new Map();
     this.tileBundleCounts = new Map();
@@ -590,10 +603,37 @@ export class Viewer {
     this.performanceStats.visibleTileCount = visibleTiles.size;
   }
 
+  #markModelBoundsDirty() {
+    this.modelBoundsDirty = true;
+  }
+
+  #currentModelBounds() {
+    if (this.modelBoundsDirty) {
+      this.modelBounds.makeEmpty();
+      for (const entry of this.modelEntries.values()) {
+        entry.object.updateWorldMatrix(true, false);
+        this.modelBounds.expandByObject(entry.object);
+      }
+      this.modelBoundsDirty = false;
+    }
+    return this.modelBounds.isEmpty() ? null : this.modelBounds;
+  }
+
   #syncClipPlanes() {
     const orbitDistance = Math.max(this.camera.position.distanceTo(this.controls.target), 1);
-    const nextNear = THREE.MathUtils.clamp(orbitDistance / 5000, CAMERA_NEAR_MIN, CAMERA_NEAR_MAX);
-    const nextFar = Math.max(orbitDistance * CAMERA_FAR_MULTIPLIER, CAMERA_FAR_MIN);
+    const targetNear = THREE.MathUtils.clamp(orbitDistance / 1000, CAMERA_NEAR_MIN, CAMERA_NEAR_MAX);
+    const modelBounds = this.#currentModelBounds();
+    let nextFar = CAMERA_FAR_MIN;
+    if (modelBounds) {
+      const boundsSphere = modelBounds.getBoundingSphere(new THREE.Sphere());
+      nextFar = Math.max(
+        CAMERA_FAR_MIN,
+        this.camera.position.distanceTo(boundsSphere.center)
+          + boundsSphere.radius * CAMERA_FAR_SCENE_PADDING
+          + CAMERA_FAR_EXTRA_MARGIN,
+      );
+    }
+    const nextNear = Math.min(targetNear, Math.max(CAMERA_NEAR_MIN, nextFar / 100));
 
     if (Math.abs(this.camera.near - nextNear) < 1e-6 && Math.abs(this.camera.far - nextFar) < 1e-3) {
       return;
@@ -1532,7 +1572,8 @@ export class Viewer {
       side: THREE.DoubleSide,
       transparent,
       opacity: transparent ? (style.opacity ?? 0.86) : 1.0,
-      depthWrite: transparent ? layer.depthWrite : true,
+      depthWrite: layer.depthWrite,
+      depthTest: layer.depthTest ?? true,
       polygonOffset: layer.polygonOffsetFactor !== 0 || layer.polygonOffsetUnits !== 0,
       polygonOffsetFactor: layer.polygonOffsetFactor,
       polygonOffsetUnits: layer.polygonOffsetUnits,
@@ -1601,6 +1642,7 @@ export class Viewer {
       faceCount: this.#geometryFaceCount(object.geometry),
     };
     this.modelEntries.set(bundle.bundle_id, entry);
+    this.#markModelBoundsDirty();
     this.meshMaterials.push(object.material);
     this.meshesLoaded += bundle.mesh_count;
 
@@ -1623,6 +1665,7 @@ export class Viewer {
     entry.object.geometry?.dispose();
     entry.object.material?.dispose();
     this.modelEntries.delete(bundleId);
+    this.#markModelBoundsDirty();
     this.meshMaterials = this.meshMaterials.filter((material) => material !== entry.object.material);
     this.meshesLoaded -= entry.bundle.mesh_count;
 

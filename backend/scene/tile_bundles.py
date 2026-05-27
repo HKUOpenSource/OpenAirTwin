@@ -27,7 +27,8 @@ _GL_ARRAY_BUFFER = 34962
 _GL_ELEMENT_ARRAY_BUFFER = 34963
 _GL_FLOAT = 5126
 _GL_UNSIGNED_INT = 5125
-_BUNDLE_SOURCE_MANIFEST_VERSION = 1
+_BUNDLE_SOURCE_MANIFEST_VERSION = 2
+_TRIANGLE_DEDUP_QUANTIZATION_M = 1e-5
 
 
 def _safe_path_component(value: object) -> str:
@@ -338,10 +339,8 @@ def _build_tile_bundle(scene_root: Path, bundle: TileBundleRecord, bundle_path: 
     mesh_paths = [Path(scene_root).resolve() / source["path"] for source in source_manifest["sources"]]
     headers = [_read_source_ply_header(path) for path in mesh_paths]
     total_vertices = sum(header.vertex_count for header in headers)
-    total_faces = sum(header.face_count for header in headers)
 
     vertices = np.empty((total_vertices, 3), dtype=np.float32)
-    normal_accum = np.zeros((total_vertices, 3), dtype=np.float64)
     triangle_blocks: list[np.ndarray] = []
 
     vertex_offset = 0
@@ -352,24 +351,27 @@ def _build_tile_bundle(scene_root: Path, bundle: TileBundleRecord, bundle_path: 
 
         shifted_triangles = triangles + vertex_offset
         triangle_blocks.append(shifted_triangles)
-        triangle_vertices = vertices[shifted_triangles]
+
+        vertex_offset = next_offset
+
+    merged_triangles = np.concatenate(triangle_blocks, axis=0) if triangle_blocks else np.empty((0, 3), dtype=np.uint32)
+    merged_triangles = _deduplicate_triangles(vertices, merged_triangles)
+    normal_accum = np.zeros((total_vertices, 3), dtype=np.float64)
+    if merged_triangles.size:
+        triangle_vertices = vertices[merged_triangles]
         triangle_normals = np.cross(
             triangle_vertices[:, 1] - triangle_vertices[:, 0],
             triangle_vertices[:, 2] - triangle_vertices[:, 0],
         )
-        np.add.at(normal_accum, shifted_triangles[:, 0], triangle_normals)
-        np.add.at(normal_accum, shifted_triangles[:, 1], triangle_normals)
-        np.add.at(normal_accum, shifted_triangles[:, 2], triangle_normals)
-
-        vertex_offset = next_offset
+        np.add.at(normal_accum, merged_triangles[:, 0], triangle_normals)
+        np.add.at(normal_accum, merged_triangles[:, 1], triangle_normals)
+        np.add.at(normal_accum, merged_triangles[:, 2], triangle_normals)
 
     normal_lengths = np.linalg.norm(normal_accum, axis=1)
     valid_normals = normal_lengths > 0
     normal_accum[valid_normals] /= normal_lengths[valid_normals, None]
 
-    merged_triangles = np.concatenate(triangle_blocks, axis=0) if triangle_blocks else np.empty((0, 3), dtype=np.uint32)
     normals = normal_accum.astype(np.float32)
-
     total_faces = int(merged_triangles.shape[0])
 
     bundle_path.parent.mkdir(parents=True, exist_ok=True)
@@ -383,6 +385,25 @@ def _build_tile_bundle(scene_root: Path, bundle: TileBundleRecord, bundle_path: 
         temp_path.unlink(missing_ok=True)
         raise
     return total_vertices, total_faces
+
+
+def _deduplicate_triangles(vertices: np.ndarray, triangles: np.ndarray) -> np.ndarray:
+    if triangles.size == 0:
+        return triangles
+
+    triangle_vertices = vertices[triangles]
+    quantized = np.rint(triangle_vertices / _TRIANGLE_DEDUP_QUANTIZATION_M).astype(np.int64)
+    order = np.lexsort(
+        (quantized[:, :, 2], quantized[:, :, 1], quantized[:, :, 0]),
+        axis=1,
+    )
+    canonical = np.take_along_axis(quantized, order[:, :, None], axis=1)
+    keys = np.ascontiguousarray(canonical.reshape(canonical.shape[0], 9))
+    _, unique_indices = np.unique(keys, axis=0, return_index=True)
+    if len(unique_indices) == len(triangles):
+        return triangles
+    unique_indices.sort()
+    return triangles[unique_indices]
 
 
 def _read_source_mesh(path: Path, header: _PlyHeader) -> tuple[np.ndarray, np.ndarray]:
