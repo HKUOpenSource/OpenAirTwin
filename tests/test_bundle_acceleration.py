@@ -18,32 +18,45 @@ from backend import config
 from backend.scene.tile_bundles import (
     TileBundleRecord,
     _build_glb_blob,
+    _read_glb_geometry_counts,
     _read_source_mesh,
     _read_source_ply_header,
     build_tile_bundle_records,
     compressed_tile_bundle_is_fresh,
     compressed_tile_bundle_path,
+    ensure_tile_bundle,
     ensure_compressed_tile_bundle,
 )
 from backend.server import RequestHandler
 
 
 class BundleAccelerationTests(unittest.TestCase):
-    def _write_binary_ply(self, path: Path, indices: tuple[int, int, int]) -> None:
+    def _write_binary_ply(
+        self,
+        path: Path,
+        indices: tuple[int, int, int] | list[tuple[int, int, int]],
+        vertices: list[tuple[float, float, float]] | None = None,
+    ) -> None:
+        vertices = vertices or [
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+        ]
+        faces = [indices] if isinstance(indices[0], int) else indices
         header = (
             "ply\n"
             "format binary_little_endian 1.0\n"
-            "element vertex 3\n"
+            f"element vertex {len(vertices)}\n"
             "property float x\n"
             "property float y\n"
             "property float z\n"
-            "element face 1\n"
+            f"element face {len(faces)}\n"
             "property list uchar int vertex_indices\n"
             "end_header\n"
         ).encode("ascii")
-        vertices = struct.pack("<fffffffff", 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
-        face = struct.pack("<Biii", 3, *indices)
-        path.write_bytes(header + vertices + face)
+        vertex_blob = b"".join(struct.pack("<fff", *vertex) for vertex in vertices)
+        face_blob = b"".join(struct.pack("<Biii", 3, *face) for face in faces)
+        path.write_bytes(header + vertex_blob + face_blob)
 
     def test_bundle_record_sanitizes_path_components(self) -> None:
         mesh = SimpleNamespace(
@@ -96,6 +109,30 @@ class BundleAccelerationTests(unittest.TestCase):
                 with self.subTest(filename=filename):
                     with self.assertRaisesRegex(ValueError, "Face index out of bounds"):
                         _read_source_mesh(path, header)
+
+    def test_tile_bundle_deduplicates_overlapping_render_triangles(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scene_root = Path(tmp_dir)
+            source_path = scene_root / "meshes/T/GENERIC/a.ply"
+            source_path.parent.mkdir(parents=True, exist_ok=True)
+            self._write_binary_ply(source_path, [(0, 1, 2), (2, 1, 0)])
+            bundle = TileBundleRecord(
+                bundle_id="T__GENERIC__itu_concrete",
+                relative_path="cache/render_bundles/T/GENERIC__itu_concrete.glb",
+                tile="T",
+                category="GENERIC",
+                bsdf_id="itu_concrete",
+                mesh_count=1,
+                source_relative_paths=("meshes/T/GENERIC/a.ply",),
+            )
+
+            result = ensure_tile_bundle(scene_root, bundle, force=True, compress=False)
+            glb_counts = _read_glb_geometry_counts(result.bundle_path)
+
+            self.assertEqual(result.vertex_count, 3)
+            self.assertEqual(result.face_count, 1)
+            self.assertEqual(glb_counts.vertex_count, 3)
+            self.assertEqual(glb_counts.face_count, 1)
 
     def test_compressed_bundle_round_trip_and_freshness(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
