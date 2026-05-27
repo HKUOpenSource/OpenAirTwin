@@ -54,6 +54,12 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("hashString(bundle.bundle_id", source)
         self.assertIn("lightnessVariation", source)
         self.assertIn("saturationVariation", source)
+        generic_style = source.split("GENERIC: {", 1)[1].split("TERRAIN_TB:", 1)[0]
+        terrain_style = source.split("TERRAIN_TB: {", 1)[1].split("VEGETATION_TB:", 1)[0]
+        self.assertNotIn("lightnessVariation", generic_style)
+        self.assertNotIn("saturationVariation", generic_style)
+        self.assertNotIn("lightnessVariation", terrain_style)
+        self.assertNotIn("saturationVariation", terrain_style)
         self.assertIn('transparent: true', source)
         self.assertIn('opacity: 0.84', source)
         self.assertIn('Boolean(style.transparent) || bundle.bsdf_id === "itu_wet_ground"', source)
