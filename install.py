@@ -27,7 +27,7 @@ SAMPLE_SCENE_URL = (
     "https://github.com/HKUOpenSource/OpenAirTwin/releases/download/"
     "sample-scene/OAT-Sample-Scene.zip"
 )
-SAMPLE_SCENE_SHA256 = "553cea78df549b8077060d02358b3fb78c3fe5bf90128e285b5ed47b1ddc13b3"
+SAMPLE_SCENE_SHA256 = "0713d27469de105a82d216bdd27b2cb4574ff6ecfab50b10058487e666ee2ab1"
 
 
 @dataclass(frozen=True)

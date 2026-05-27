@@ -63,15 +63,11 @@ const CATEGORY_MATERIAL_STYLES = {
     color: "#8c8981",
     roughness: 0.84,
     metalness: 0.0,
-    lightnessVariation: 0.025,
-    saturationVariation: 0.012,
   },
   TERRAIN_TB: {
     color: "#8c8981",
     roughness: 0.92,
     metalness: 0.0,
-    lightnessVariation: 0.025,
-    saturationVariation: 0.012,
   },
   VEGETATION_TB: {
     color: "#557b5c",
