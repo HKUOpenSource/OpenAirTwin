@@ -837,14 +837,112 @@ function describeInteractionSequence(path) {
   return path.interaction_sequence?.length ? path.interaction_sequence.join(" -> ") : "LOS";
 }
 
-function renderPathDetails(paths, selectedIndex) {
+function pathVariantCount(path) {
+  const count = Number(path.raw_path_count);
+  return Number.isFinite(count) && count > 1 ? Math.round(count) : 0;
+}
+
+const PATH_TYPE_LABELS = {
+  LOS: "Line-of-sight",
+  SPECULAR: "Specular",
+  DIFFUSE: "Diffuse",
+  DIFFRACTION: "Diffraction",
+  REFRACTION: "Refraction",
+  MIXED: "Mixed interactions",
+};
+
+function formatRawPathIndices(path) {
+  const indices = Array.isArray(path.raw_path_indices) ? path.raw_path_indices : [];
+  return indices.length ? indices.map((index) => String(index)).join(", ") : "N/A";
+}
+
+function pathTypeKey(path) {
+  return String(path.type || "PATH").toUpperCase();
+}
+
+function formatPathTypeLabel(path) {
+  return PATH_TYPE_LABELS[pathTypeKey(path)] || pathTypeKey(path);
+}
+
+function pathTypeClass(path) {
+  return pathTypeKey(path).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+function formatPathGainValue(path) {
+  return formatFixed(path.path_gain_db, 2, " dB");
+}
+
+function formatPathDelayValue(path) {
+  return formatFixed(path.delay_ns, 2, " ns");
+}
+
+function formatPathSelectionCount(paths, summary = null) {
+  const displayCount = Number(summary?.display_paths ?? summary?.valid_paths ?? paths.length);
+  const count = Number.isFinite(displayCount) ? Math.max(0, Math.round(displayCount)) : paths.length;
+  return `${count} ${count === 1 ? "path" : "paths"}`;
+}
+
+function formatPathSelectionMeta(paths, summary = null) {
+  const displayCount = Number(summary?.display_paths ?? summary?.valid_paths ?? paths.length);
+  const count = Number.isFinite(displayCount) ? Math.max(0, Math.round(displayCount)) : paths.length;
+  const rawCount = Number(summary?.raw_valid_paths);
+  if (Number.isFinite(rawCount) && rawCount > count) {
+    const solverPaths = Math.round(rawCount);
+    const summaryMerged = Number(summary?.deduplicated_paths);
+    const mergedCount = Number.isFinite(summaryMerged)
+      ? Math.max(0, Math.round(summaryMerged))
+      : Math.max(0, solverPaths - count);
+    const mergedLabel = mergedCount > 0
+      ? ` · ${mergedCount} merged ${mergedCount === 1 ? "variant" : "variants"}`
+      : "";
+    return `${solverPaths} solver ${solverPaths === 1 ? "path" : "paths"}${mergedLabel}`;
+  }
+  return "";
+}
+
+function makePathText(className, text) {
+  const element = document.createElement("span");
+  element.className = className;
+  element.textContent = text;
+  return element;
+}
+
+function makePathMetric(label, value) {
+  const metric = document.createElement("span");
+  metric.className = "pathMetric";
+  metric.append(makePathText("pathMetricLabel", label), makePathText("pathMetricValue", value));
+  return metric;
+}
+
+function hidePathDetails() {
   ui.pathDetailList.innerHTML = "";
+  ui.pathDetailTitle.textContent = "Selected Path";
+  ui.pathDetailSection.classList.add("hidden");
+  ui.pathDetailSection.setAttribute("aria-hidden", "true");
+}
+
+function scrollSelectedPathDetailsIntoView() {
+  requestAnimationFrame(() => {
+    if (!ui.pathDetailSection.classList.contains("hidden")) {
+      ui.pathDetailSection.scrollIntoView({block: "nearest"});
+    }
+  });
+}
+
+function renderPathDetails(paths, selectedIndex) {
+  if (!paths.length) {
+    hidePathDetails();
+    return;
+  }
   if (selectedIndex < 0 || selectedIndex >= paths.length) {
-    ui.pathDetailSection.classList.add("hidden");
+    hidePathDetails();
     return;
   }
 
+  ui.pathDetailList.innerHTML = "";
+  ui.pathDetailTitle.textContent = "Selected Path";
   ui.pathDetailSection.classList.remove("hidden");
+  ui.pathDetailSection.setAttribute("aria-hidden", "false");
   const path = paths[selectedIndex];
   const card = document.createElement("div");
   card.className = "pathDetailCard active";
@@ -856,7 +954,7 @@ function renderPathDetails(paths, selectedIndex) {
   title.textContent = `Path ${selectedIndex + 1}`;
   const typeTag = document.createElement("span");
   typeTag.className = "pathTypeTag";
-  typeTag.textContent = path.type;
+  typeTag.textContent = formatPathTypeLabel(path);
   head.append(title, typeTag);
 
   const grid = document.createElement("div");
@@ -874,6 +972,12 @@ function renderPathDetails(paths, selectedIndex) {
   };
 
   addField("Interaction Chain", describeInteractionSequence(path), true);
+  const variants = pathVariantCount(path);
+  if (variants > 1) {
+    addField("Variants", `${variants} variants`);
+    addField("Raw Paths", formatRawPathIndices(path), true);
+    addField("Representative", String(path.representative_path_index ?? path.path_index ?? "N/A"));
+  }
   addField("Path Gain", formatFixed(path.path_gain_db, 2, " dB"));
   addField("Power (Linear)", formatExp(path.path_gain_linear));
   addField("Array Pairs", String(path.array_pair_count ?? 1));
@@ -901,11 +1005,22 @@ function renderPathDetails(paths, selectedIndex) {
 function clearPathSelection() {
   ui.pathButtons.innerHTML = "";
   ui.pathSelectionCount.textContent = "0 paths";
+  ui.pathSelectionMeta.textContent = "";
+  ui.pathSelectionMeta.classList.add("hidden");
   ui.pathSelectionSection.classList.add("hidden");
   ui.pathSelectionSection.setAttribute("aria-hidden", "true");
 }
 
-function renderPathSelection(paths, selectedIndex, onSelect) {
+function scrollSelectedPathRowIntoView() {
+  requestAnimationFrame(() => {
+    const active = ui.pathButtons.querySelector(".pathRow.active, .pathAllButton.active");
+    if (active) {
+      active.scrollIntoView({block: "nearest"});
+    }
+  });
+}
+
+function renderPathSelection(paths, selectedIndex, onSelect, summary = null) {
   ui.pathButtons.innerHTML = "";
   if (!paths.length) {
     clearPathSelection();
@@ -914,18 +1029,53 @@ function renderPathSelection(paths, selectedIndex, onSelect) {
 
   ui.pathSelectionSection.classList.remove("hidden");
   ui.pathSelectionSection.setAttribute("aria-hidden", "false");
-  ui.pathSelectionCount.textContent = `${paths.length} ${paths.length === 1 ? "path" : "paths"}`;
+  ui.pathSelectionCount.textContent = formatPathSelectionCount(paths, summary);
+  const meta = formatPathSelectionMeta(paths, summary);
+  ui.pathSelectionMeta.textContent = meta;
+  ui.pathSelectionMeta.classList.toggle("hidden", !meta);
 
-  const addButton = (label, index) => {
-    const button = document.createElement("button");
-    button.className = "pbtn" + (selectedIndex === index ? " active" : "");
-    button.textContent = label;
-    button.addEventListener("click", () => onSelect(index));
-    ui.pathButtons.appendChild(button);
-  };
+  const allButton = document.createElement("button");
+  allButton.type = "button";
+  allButton.className = "pathAllButton" + (selectedIndex === -1 ? " active" : "");
+  allButton.setAttribute("aria-pressed", String(selectedIndex === -1));
+  allButton.textContent = "Show all paths";
+  allButton.addEventListener("click", () => onSelect(-1));
+  ui.pathButtons.appendChild(allButton);
 
-  addButton("All", -1);
-  paths.forEach((_, index) => addButton(`Path ${index + 1}`, index));
+  paths.forEach((path, index) => {
+    const variants = pathVariantCount(path);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "pathRow" + (selectedIndex === index ? " active" : "");
+    row.setAttribute("aria-pressed", String(selectedIndex === index));
+    row.setAttribute(
+      "aria-label",
+      `Path ${index + 1}, ${formatPathTypeLabel(path)}, path gain ${formatPathGainValue(path)}, delay ${formatPathDelayValue(path)}`,
+    );
+    row.addEventListener("click", () => onSelect(index));
+
+    const head = document.createElement("span");
+    head.className = "pathRowHead";
+    head.appendChild(makePathText("pathRowName", `Path ${index + 1}`));
+    const badges = document.createElement("span");
+    badges.className = "pathRowBadges";
+    badges.appendChild(makePathText(`pathRowBadge type-${pathTypeClass(path)}`, formatPathTypeLabel(path)));
+    if (variants > 1) {
+      badges.appendChild(makePathText("pathRowBadge pathVariantBadge", `${variants} variants`));
+    }
+    head.appendChild(badges);
+
+    const metrics = document.createElement("span");
+    metrics.className = "pathRowMetrics";
+    metrics.append(
+      makePathMetric("Path gain", formatPathGainValue(path)),
+      makePathMetric("Delay", formatPathDelayValue(path)),
+    );
+
+    row.append(head, metrics);
+    ui.pathButtons.appendChild(row);
+  });
+  scrollSelectedPathRowIntoView();
 }
 
 function svgNode(name, attrs = {}) {
@@ -974,9 +1124,9 @@ function renderTapChart(channel) {
   const scaleY = (value) => top + (1 - ((Math.max(value, displayMin) - displayMin) / (maxPower - displayMin))) * plotHeight;
 
   ui.linkTapChart.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  ui.linkTapChart.setAttribute("aria-label", "Channel tap power chart: x-axis Tap Index, y-axis Power in dB");
+  ui.linkTapChart.setAttribute("aria-label", "Power delay profile chart: x-axis Tap Index, y-axis Power in dB");
   const title = svgNode("title");
-  title.textContent = "Channel tap power chart";
+  title.textContent = "Power delay profile chart";
   const desc = svgNode("desc");
   desc.textContent = "X-axis shows Tap Index. Y-axis shows tap power in dB. Delay is available in each bar tooltip.";
   ui.linkTapChart.append(title, desc);
@@ -1128,8 +1278,7 @@ function renderLinkResult() {
     renderLinkChannel(null);
     if (state.mode !== "mobility") {
       clearPathSelection();
-      ui.pathDetailList.innerHTML = "";
-      ui.pathDetailSection.classList.add("hidden");
+      hidePathDetails();
     }
     if (state.mode === "link" && !result) {
       getViewer().clearPaths();
@@ -1140,7 +1289,7 @@ function renderLinkResult() {
   ui.linkChannelSection.classList.remove("hidden");
   ui.linkChannelSection.setAttribute("aria-hidden", "false");
   ui.resultDockTitle.textContent = "Link Results";
-  ui.resultDockSubtitle.textContent = "Paths / Channel";
+  ui.resultDockSubtitle.textContent = "Path Gains & Taps";
   ui.linkResult.style.display = "block";
   ui.mobilityResult.style.display = "none";
   ui.mobilityTimelineSection.classList.add("hidden");
@@ -1153,8 +1302,7 @@ function renderLinkResult() {
     ui.linkLos.className = "pill no";
     renderLinkChannel(null);
     clearPathSelection();
-    ui.pathDetailList.innerHTML = "";
-    ui.pathDetailSection.classList.add("hidden");
+    hidePathDetails();
     return;
   }
   ui.linkPower.textContent = Number.isFinite(result.summary.received_power_db)
@@ -1175,14 +1323,15 @@ function renderLinkResult() {
     state.link.selectedPath = index;
     getViewer().renderPaths(result.paths, index);
     renderLinkResult();
-  });
+    scrollSelectedPathDetailsIntoView();
+  }, result.summary);
 }
 
 const MOBILITY_METRICS = {
-  received_power_db: {label: "Received Power", unit: "dB"},
+  received_power_db: {label: "Total Path Gain", unit: "dB"},
   valid_paths: {label: "Valid Paths", unit: "paths"},
   max_abs_doppler_hz: {label: "Max Doppler", unit: "Hz"},
-  peak_tap_power_db: {label: "Peak Tap", unit: "dB"},
+  peak_tap_power_db: {label: "Strongest Tap", unit: "dB"},
 };
 
 function renderMobilitySeriesChart(result) {
@@ -1335,8 +1484,7 @@ function renderMobilityResult() {
       ui.linkChannelSection.setAttribute("aria-hidden", "true");
       renderLinkChannel(null);
       clearPathSelection();
-      ui.pathDetailList.innerHTML = "";
-      ui.pathDetailSection.classList.add("hidden");
+      hidePathDetails();
     }
     if (state.mode === "mobility" && !result) {
       getViewer().clearPaths();
@@ -1353,7 +1501,7 @@ function renderMobilityResult() {
   ui.linkChannelSection.classList.remove("hidden");
   ui.linkChannelSection.setAttribute("aria-hidden", "false");
   ui.resultDockTitle.textContent = "Mobility Results";
-  ui.resultDockSubtitle.textContent = "Rx trajectory / Channel";
+  ui.resultDockSubtitle.textContent = "Trajectory & Taps";
   ui.linkResult.style.display = "none";
   ui.mobilityResult.style.display = "block";
   ui.mobilityTimelineSection.classList.remove("hidden");
@@ -1377,8 +1525,7 @@ function renderMobilityResult() {
   const sample = result.samples?.[state.mobility.selectedStep] || result.samples?.[0];
   if (!sample) {
     clearPathSelection();
-    ui.pathDetailList.innerHTML = "";
-    ui.pathDetailSection.classList.add("hidden");
+    hidePathDetails();
     return;
   }
   state.mobility.selectedStep = sample.step_index;
@@ -1399,7 +1546,8 @@ function renderMobilityResult() {
     state.mobility.selectedPath = index;
     getViewer().renderPaths(paths, index);
     renderMobilityResult();
-  });
+    scrollSelectedPathDetailsIntoView();
+  }, sample.summary);
 }
 
 function renderRadiomapResult() {
@@ -1427,7 +1575,7 @@ function renderRadiomapResult() {
   ui.linkTapAnalysisSection.setAttribute("aria-hidden", "true");
   ui.pathSelectionSection.classList.add("hidden");
   ui.pathSelectionSection.setAttribute("aria-hidden", "true");
-  ui.pathDetailSection.classList.add("hidden");
+  hidePathDetails();
   ui.radiomapResolutionSection.classList.remove("hidden");
   ui.radiomapResolutionSection.setAttribute("aria-hidden", "false");
   ui.radiomapResult.style.display = "block";

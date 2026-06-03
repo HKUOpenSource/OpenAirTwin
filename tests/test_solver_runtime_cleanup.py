@@ -129,6 +129,88 @@ class FakeArrayPaths:
         raise AssertionError("channel CIR is not used in this test")
 
 
+class FakeVariantPaths:
+    def __init__(self, max_depth: int) -> None:
+        path_count = 3
+        self.valid = np.ones(path_count, dtype=bool)
+        self.interactions = np.zeros((max_depth, path_count), dtype=np.int32)
+        self.interactions[0, :] = FakeInteractionType.REFRACTION
+        self.interactions[1, :] = FakeInteractionType.SPECULAR
+        self.interactions[2, :] = FakeInteractionType.REFRACTION
+
+        self.vertices = np.zeros((max_depth, path_count, 3), dtype=np.float32)
+        base_vertices = np.asarray(
+            [
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+                [7.0, 8.0, 9.0],
+            ],
+            dtype=np.float32,
+        )
+        for index, delta in enumerate((0.0, 0.01, -0.015)):
+            self.vertices[:3, index, :] = base_vertices + delta
+
+        self.tau = np.asarray([1e-9, 1.005e-9, 1.008e-9], dtype=np.float32)
+        self.theta_t = np.radians(np.asarray([10.0, 10.01, 9.99], dtype=np.float32))
+        self.phi_t = np.radians(np.asarray([20.0, 20.01, 19.99], dtype=np.float32))
+        self.theta_r = np.radians(np.asarray([30.0, 30.01, 29.99], dtype=np.float32))
+        self.phi_r = np.radians(np.asarray([40.0, 40.01, 39.99], dtype=np.float32))
+        self.doppler = np.zeros(path_count, dtype=np.float32)
+        self.a = (
+            np.asarray([1.0, 2.0, 3.0], dtype=np.float32),
+            np.zeros(path_count, dtype=np.float32),
+        )
+
+    def taps(self, **_kwargs):
+        raise AssertionError("channel taps are not used in this test")
+
+    def cir(self, **_kwargs):
+        raise AssertionError("channel CIR is not used in this test")
+
+
+class FakeSeparatedVariantPaths:
+    def __init__(self, max_depth: int) -> None:
+        path_count = 5
+        self.valid = np.ones(path_count, dtype=bool)
+        self.interactions = np.zeros((max_depth, path_count), dtype=np.int32)
+        self.interactions[0, :3] = FakeInteractionType.REFRACTION
+        self.interactions[1, :3] = FakeInteractionType.SPECULAR
+        self.interactions[2, :3] = FakeInteractionType.REFRACTION
+        self.interactions[0, 3:] = FakeInteractionType.DIFFUSE
+
+        self.vertices = np.zeros((max_depth, path_count, 3), dtype=np.float32)
+        base_vertices = np.asarray(
+            [
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+                [7.0, 8.0, 9.0],
+            ],
+            dtype=np.float32,
+        )
+        self.vertices[:3, 0, :] = base_vertices
+        self.vertices[:3, 1, :] = base_vertices + np.asarray([0.06, 0.0, 0.0], dtype=np.float32)
+        self.vertices[:3, 2, :] = base_vertices
+        self.vertices[0, 3, :] = np.asarray([20.0, 21.0, 22.0], dtype=np.float32)
+        self.vertices[0, 4, :] = np.asarray([20.01, 21.01, 22.01], dtype=np.float32)
+
+        self.tau = np.asarray([1e-9, 1e-9, 1.02e-9, 2e-9, 2.005e-9], dtype=np.float32)
+        self.theta_t = np.radians(np.full(path_count, 10.0, dtype=np.float32))
+        self.phi_t = np.radians(np.full(path_count, 20.0, dtype=np.float32))
+        self.theta_r = np.radians(np.full(path_count, 30.0, dtype=np.float32))
+        self.phi_r = np.radians(np.full(path_count, 40.0, dtype=np.float32))
+        self.doppler = np.zeros(path_count, dtype=np.float32)
+        self.a = (
+            np.asarray([1.0, 1.0, 1.0, 1.0, 1.0], dtype=np.float32),
+            np.zeros(path_count, dtype=np.float32),
+        )
+
+    def taps(self, **_kwargs):
+        raise AssertionError("channel taps are not used in this test")
+
+    def cir(self, **_kwargs):
+        raise AssertionError("channel CIR is not used in this test")
+
+
 class FakePathSolver:
     last_kwargs = None
 
@@ -144,6 +226,20 @@ class FakeArrayPathSolver:
         assert "tx_link" in scene.items
         assert "rx_link" in scene.items
         return FakeArrayPaths(max_depth)
+
+
+class FakeVariantPathSolver:
+    def __call__(self, scene, *, max_depth, **_kwargs):
+        assert "tx_link" in scene.items
+        assert "rx_link" in scene.items
+        return FakeVariantPaths(max_depth)
+
+
+class FakeSeparatedVariantPathSolver:
+    def __call__(self, scene, *, max_depth, **_kwargs):
+        assert "tx_link" in scene.items
+        assert "rx_link" in scene.items
+        return FakeSeparatedVariantPaths(max_depth)
 
 
 class FakeMobilityPathSolver:
@@ -284,6 +380,45 @@ class SolverRuntimeCleanupTests(unittest.TestCase):
         self.assertEqual(result["paths"][1]["polyline"][1], [10.0, 20.0, 30.0])
         self.assertAlmostEqual(result["summary"]["received_power_db"], 17.481880270, places=6)
         self.assertAlmostEqual(result["summary"]["strongest_path_db"], 14.771212547, places=6)
+
+    def test_link_solver_groups_strict_path_variants_for_display(self) -> None:
+        runtime = FakeRuntime()
+        result = solve_link(
+            runtime,
+            {"solver": {"max_depth": 3, "samples_per_src": 10}},
+            dependencies=(FakeInteractionType, FakeVariantPathSolver, FakeDevice, FakeDevice),
+        )
+
+        self.assertEqual(result["summary"]["raw_valid_paths"], 3)
+        self.assertEqual(result["summary"]["valid_paths"], 1)
+        self.assertEqual(result["summary"]["display_paths"], 1)
+        self.assertEqual(result["summary"]["deduplicated_paths"], 2)
+        self.assertEqual(result["summary"]["array_pair_paths"], 3)
+        self.assertEqual(len(result["paths"]), 1)
+        path = result["paths"][0]
+        self.assertEqual(path["display_path_index"], 0)
+        self.assertEqual(path["path_index"], 2)
+        self.assertEqual(path["representative_path_index"], 2)
+        self.assertEqual(path["raw_path_indices"], [0, 1, 2])
+        self.assertEqual(path["raw_path_count"], 3)
+        self.assertAlmostEqual(path["path_gain_linear"], 14.0, places=6)
+        self.assertAlmostEqual(path["strongest_pair_power_linear"], 9.0, places=6)
+        self.assertAlmostEqual(path["coefficient_real"], 3.0, places=6)
+        self.assertEqual(path["array_pair_count"], 3)
+
+    def test_link_solver_keeps_non_matching_or_diffuse_variants_separate(self) -> None:
+        runtime = FakeRuntime()
+        result = solve_link(
+            runtime,
+            {"solver": {"max_depth": 3, "samples_per_src": 10}},
+            dependencies=(FakeInteractionType, FakeSeparatedVariantPathSolver, FakeDevice, FakeDevice),
+        )
+
+        self.assertEqual(result["summary"]["raw_valid_paths"], 5)
+        self.assertEqual(result["summary"]["valid_paths"], 5)
+        self.assertEqual(result["summary"]["display_paths"], 5)
+        self.assertEqual(result["summary"]["deduplicated_paths"], 0)
+        self.assertEqual([path["raw_path_count"] for path in result["paths"]], [1, 1, 1, 1, 1])
 
     def test_link_solver_passes_advanced_options_and_summarizes_channel(self) -> None:
         runtime = FakeRuntime()

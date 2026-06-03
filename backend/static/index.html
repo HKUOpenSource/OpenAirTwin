@@ -27,26 +27,28 @@
       >
         <span class="channelAnalysisTitleBlock">
           <span class="sectionTitle" id="resultDockTitle">Link Results</span>
-          <span class="channelAnalysisSubtitle" id="resultDockSubtitle">Paths / Channel</span>
+          <span class="channelAnalysisSubtitle" id="resultDockSubtitle">Path Gains &amp; Taps</span>
         </span>
         <span class="channelAnalysisHeadActions">
           <span id="livePreviewStatus" class="livePreviewStatus hidden" aria-live="polite">Idle</span>
-          <span class="channelAnalysisChevron" aria-hidden="true">⌄</span>
+          <span class="channelAnalysisChevron" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg>
+          </span>
         </span>
       </button>
       <div id="channelAnalysisScroll" class="channelAnalysisScroll" aria-hidden="false">
         <div id="linkResult" class="linkResultSummary">
           <div class="channelStats linkSummaryStats">
-            <div><b>Received Power</b><span id="linkPower">--</span></div>
-            <div><b>Strongest Path</b><span id="linkBest">--</span></div>
-            <div><b>Total Paths</b><span id="linkPaths">--</span></div>
-            <div><b>LoS</b><span id="linkLos" class="pill no">No</span></div>
+            <div><b>Total Path Gain</b><span id="linkPower">--</span></div>
+            <div><b>Strongest Path Gain</b><span id="linkBest">--</span></div>
+            <div><b>Paths</b><span id="linkPaths">--</span></div>
+            <div><b>Line of Sight</b><span id="linkLos" class="pill no">No</span></div>
           </div>
         </div>
         <div id="mobilityResult" class="linkResultSummary">
           <div class="channelStats linkSummaryStats">
             <div><b>Steps</b><span id="mobilitySteps">--</span></div>
-            <div><b>Power Range</b><span id="mobilityPowerRange">--</span></div>
+            <div><b>Path Gain Range</b><span id="mobilityPowerRange">--</span></div>
             <div><b>Duration</b><span id="mobilityDuration">--</span></div>
             <div><b>Max Doppler</b><span id="mobilityMaxDoppler">--</span></div>
           </div>
@@ -87,10 +89,10 @@
               <div class="channelAnalysisMiniTitle" id="mobilityStepLabel">Step --</div>
             </div>
             <select id="mobilityMetric" class="miniSelect" aria-label="Mobility metric">
-              <option value="received_power_db">Power</option>
+              <option value="received_power_db">Path Gain</option>
               <option value="valid_paths">Paths</option>
               <option value="max_abs_doppler_hz">Doppler</option>
-              <option value="peak_tap_power_db">Peak Tap</option>
+              <option value="peak_tap_power_db">Strongest Tap</option>
             </select>
           </div>
           <svg id="mobilitySeriesChart" class="tapChart mobilityChart" viewBox="0 0 420 172" role="img" aria-label="Mobility time series chart"></svg>
@@ -105,31 +107,34 @@
             </select>
           </div>
         </div>
-        <div id="pathDetailSection" class="linkDockSection hidden">
-          <div class="sectionTitle">Path Details</div>
+        <div id="pathSelectionSection" class="linkDockSection hidden" aria-hidden="true">
+          <div class="sectionTitleRow pathSelectionHeader">
+            <div>
+              <div class="sectionTitle">Paths</div>
+              <div class="pathSelectionMeta hidden" id="pathSelectionMeta"></div>
+            </div>
+            <div class="channelAnalysisMiniTitle pathSelectionCount" id="pathSelectionCount">0 paths</div>
+          </div>
+          <div id="pathButtons" class="pathList"></div>
+        </div>
+        <div id="pathDetailSection" class="linkDockSection hidden" aria-hidden="true">
+          <div class="sectionTitle" id="pathDetailTitle">Selected Path</div>
           <div id="pathDetailList" class="pathDetailList"></div>
         </div>
         <div id="linkTapAnalysisSection" class="linkDockSection hidden" aria-hidden="true">
           <div class="sectionTitleRow">
             <div>
-              <div class="sectionTitle">Channel Analysis</div>
-              <div class="channelAnalysisMiniTitle">CIR / Taps</div>
+              <div class="sectionTitle">Power Delay Profile</div>
+              <div class="channelAnalysisMiniTitle">Discrete Channel Taps</div>
             </div>
           </div>
           <div class="channelStats">
-            <div><b>Total</b><span id="linkTapTotalPower">--</span></div>
-            <div><b>Peak</b><span id="linkTapPeak">--</span></div>
-            <div><b>CIR Coefficients</b><span id="linkCirCoeffCount">--</span></div>
-            <div><b>Strongest |a|</b><span id="linkCirStrongest">--</span></div>
+            <div><b>Total Tap Power</b><span id="linkTapTotalPower">--</span></div>
+            <div><b>Strongest Tap</b><span id="linkTapPeak">--</span></div>
+            <div><b>Channel Coefficients</b><span id="linkCirCoeffCount">--</span></div>
+            <div><b>Largest Coefficient |h|</b><span id="linkCirStrongest">--</span></div>
           </div>
-          <svg id="linkTapChart" class="tapChart" viewBox="0 0 420 172" role="img" aria-label="Channel tap power chart: x-axis Tap Index, y-axis Power in dB"></svg>
-        </div>
-        <div id="pathSelectionSection" class="linkDockSection hidden" aria-hidden="true">
-          <div class="sectionTitleRow">
-            <div class="sectionTitle">Paths</div>
-            <div class="channelAnalysisMiniTitle pathSelectionCount" id="pathSelectionCount">0 paths</div>
-          </div>
-          <div id="pathButtons" class="pathButtons"></div>
+          <svg id="linkTapChart" class="tapChart" viewBox="0 0 420 172" role="img" aria-label="Power delay profile chart: x-axis Tap Index, y-axis Power in dB"></svg>
         </div>
       </div>
     </div>
@@ -179,7 +184,12 @@
           aria-label="Collapse search sidebar"
           aria-expanded="true"
         >
-          ‹
+          <span class="sidebarToggleIcon sidebarToggleIconCollapse" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></svg>
+          </span>
+          <span class="sidebarToggleIcon sidebarToggleIconOpen" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
+          </span>
         </button>
         <div class="entrySidebarStack">
           <section class="entryIntro" id="entrySidebar">
@@ -252,7 +262,14 @@
       </div>
     </div>
 
-    <button id="panelToggle" class="hidden" type="button" aria-label="Collapse control sidebar" aria-expanded="true">‹</button>
+    <button id="panelToggle" class="hidden" type="button" aria-label="Collapse control sidebar" aria-expanded="true">
+      <span class="sidebarToggleIcon sidebarToggleIconCollapse" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></svg>
+      </span>
+      <span class="sidebarToggleIcon sidebarToggleIconOpen" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M5 7h14"></path><path d="M5 12h14"></path><path d="M5 17h14"></path></svg>
+      </span>
+    </button>
     <div id="ui">
       <div class="uiHead">
         <div class="uiTitleBlock" aria-label="OpenAirTwin">
@@ -533,7 +550,7 @@
             <summary class="paramGroupSummary">Channel Output</summary>
             <div class="paramGroupBody">
               <div class="paramGrid">
-              <label class="paramCheck computeCheck"><input id="linkComputeTaps" type="checkbox" /><span>Compute Channel Impulse Response (CIR) <span class="infoTip" tabindex="0" aria-label="Compute CIR details">i<span class="tipBubble" role="tooltip">Requests compact CIR summaries after path solving. Default off; enables the right-side Channel Analysis panel.</span></span></span></label>
+              <label class="paramCheck computeCheck"><input id="linkComputeTaps" type="checkbox" /><span>Compute Channel Impulse Response (CIR) <span class="infoTip" tabindex="0" aria-label="Compute CIR details">i<span class="tipBubble" role="tooltip">Requests compact channel-tap summaries after path solving. Default off; enables the right-side Power Delay Profile section.</span></span></span></label>
               <label class="paramField" for="linkTapLMin">
                 <span class="paramLabel">Tap l_min
                   <span class="infoTip" tabindex="0" aria-label="Tap l_min details">i<span class="tipBubble" role="tooltip">First discrete tap index to report. Default 0; keep the range tight for fast channel post-processing.</span></span>
@@ -908,7 +925,9 @@
             <span class="detailSummary"><b>DPR</b><i id="perfSummaryDpr">--</i></span>
             <span class="detailSummary"><b>Load</b><i id="perfSummaryLoaded">--</i></span>
           </span>
-          <span class="performanceDockChevron" aria-hidden="true">⌄</span>
+          <span class="performanceDockChevron" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg>
+          </span>
         </button>
         <div class="performanceDockBody">
           <div class="controlLabel">Performance Mode</div>

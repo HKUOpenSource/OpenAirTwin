@@ -9,6 +9,16 @@ from backend.rt.runtime import log_timing, require_scene_generation
 
 SPEED_OF_LIGHT_M_PER_S = 299_792_458.0
 POWER_POLICY_SUM_OVER_ARRAY_PAIRS = "sum_over_antenna_pairs"
+PATH_VARIANT_MAX_VERTEX_DELTA_M = 0.05
+PATH_VARIANT_MAX_DELAY_DELTA_NS = 0.01
+PATH_VARIANT_MAX_ANGLE_DELTA_DEG = 0.05
+PATH_VARIANT_EXCLUDED_INTERACTIONS = {"DIFFUSE", "DIFFRACTION"}
+PATH_VARIANT_ANGLE_FIELDS = (
+    "departure_zenith_deg",
+    "departure_azimuth_deg",
+    "arrival_zenith_deg",
+    "arrival_azimuth_deg",
+)
 
 
 def _link_dependencies():
@@ -130,6 +140,83 @@ def _pair_index(flat_index: int, pair_shape: tuple[int, ...]) -> tuple[int, ...]
     return tuple(int(index) for index in np.unravel_index(flat_index, pair_shape))
 
 
+def _angle_delta_deg(first: float, second: float) -> float:
+    return abs(((float(first) - float(second) + 180.0) % 360.0) - 180.0)
+
+
+def _path_variant_groupable(path: dict) -> bool:
+    return not any(kind in PATH_VARIANT_EXCLUDED_INTERACTIONS for kind in path["interaction_sequence"])
+
+
+def _path_variant_matches(anchor: dict, candidate: dict) -> bool:
+    if not (_path_variant_groupable(anchor) and _path_variant_groupable(candidate)):
+        return False
+    if anchor["interaction_sequence"] != candidate["interaction_sequence"]:
+        return False
+
+    anchor_polyline = anchor["polyline"]
+    candidate_polyline = candidate["polyline"]
+    if len(anchor_polyline) != len(candidate_polyline):
+        return False
+    for anchor_point, candidate_point in zip(anchor_polyline, candidate_polyline):
+        for anchor_coord, candidate_coord in zip(anchor_point, candidate_point):
+            if abs(float(anchor_coord) - float(candidate_coord)) > PATH_VARIANT_MAX_VERTEX_DELTA_M:
+                return False
+
+    if abs(float(anchor["delay_ns"]) - float(candidate["delay_ns"])) > PATH_VARIANT_MAX_DELAY_DELTA_NS:
+        return False
+
+    for field in PATH_VARIANT_ANGLE_FIELDS:
+        if _angle_delta_deg(anchor[field], candidate[field]) > PATH_VARIANT_MAX_ANGLE_DELTA_DEG:
+            return False
+    return True
+
+
+def _display_path_from_group(group: list[dict], display_path_index: int) -> dict:
+    representative = max(group, key=lambda path: float(path["path_gain_linear"]))
+    path_gain_linear = float(sum(float(path["path_gain_linear"]) for path in group))
+    path_gain_db = float(linear_to_db(np.array([path_gain_linear]))[0])
+    strongest_pair_power_linear = float(max(float(path["strongest_pair_power_linear"]) for path in group))
+    strongest_pair_power_db = float(linear_to_db(np.array([strongest_pair_power_linear]))[0])
+
+    display_path = dict(representative)
+    display_path.update(
+        {
+            "display_path_index": int(display_path_index),
+            "path_index": int(representative["path_index"]),
+            "representative_path_index": int(representative["path_index"]),
+            "raw_path_indices": [int(path["path_index"]) for path in group],
+            "raw_path_count": int(len(group)),
+            "path_gain_db": path_gain_db,
+            "path_gain_linear": path_gain_linear,
+            "array_pair_count": int(sum(int(path["array_pair_count"]) for path in group)),
+            "strongest_pair_power_db": strongest_pair_power_db,
+            "strongest_pair_power_linear": strongest_pair_power_linear,
+        }
+    )
+    return display_path
+
+
+def _group_display_paths(raw_path_records: list[dict]) -> list[dict]:
+    groups: list[dict] = []
+    for path in raw_path_records:
+        matched_group = None
+        if _path_variant_groupable(path):
+            for group in groups:
+                if _path_variant_matches(group["anchor"], path):
+                    matched_group = group
+                    break
+        if matched_group is None:
+            groups.append({"anchor": path, "records": [path]})
+        else:
+            matched_group["records"].append(path)
+
+    return [
+        _display_path_from_group(group["records"], display_index)
+        for display_index, group in enumerate(groups)
+    ]
+
+
 def _set_device_velocity(device, velocity: tuple[float, float, float]) -> None:
     try:
         device.velocity = velocity
@@ -236,17 +323,13 @@ def solve_link(
 
     pair_shape = valid.shape[:-1]
     path_count = valid.shape[-1]
-    path_records = []
-    path_powers_linear: list[float] = []
-    array_pair_paths = 0
+    raw_path_records = []
 
     for path_index in range(path_count):
         valid_pairs = valid[..., path_index].reshape(-1)
         if not np.any(valid_pairs):
             continue
 
-        pair_count = int(np.count_nonzero(valid_pairs))
-        array_pair_paths += pair_count
         pair_powers = (
             a_real[..., path_index].reshape(-1) ** 2
             + a_imag[..., path_index].reshape(-1) ** 2
@@ -254,6 +337,7 @@ def solve_link(
         finite_pairs = valid_pairs & np.isfinite(pair_powers)
         if not np.any(finite_pairs):
             continue
+        pair_count = int(np.count_nonzero(finite_pairs))
         valid_pair_powers = np.where(finite_pairs, pair_powers, -1.0)
         strongest_pair_flat = int(np.argmax(valid_pair_powers))
         strongest_pair_index = _pair_index(strongest_pair_flat, pair_shape)
@@ -327,8 +411,7 @@ def solve_link(
         ):
             continue
 
-        path_powers_linear.append(power_linear)
-        path_records.append(
+        raw_path_records.append(
             {
                 "path_index": path_index,
                 "type": path_type,
@@ -356,7 +439,11 @@ def solve_link(
             }
         )
 
-    if not path_records:
+    display_path_records = _group_display_paths(raw_path_records)
+    path_powers_linear = [float(path["path_gain_linear"]) for path in display_path_records]
+    array_pair_paths = sum(int(path["array_pair_count"]) for path in display_path_records)
+
+    if not display_path_records:
         log_timing(
             "link_total",
             total_started_at,
@@ -368,6 +455,9 @@ def solve_link(
             "ok": True,
             "summary": {
                 "valid_paths": 0,
+                "raw_valid_paths": 0,
+                "display_paths": 0,
+                "deduplicated_paths": 0,
                 "array_pair_paths": 0,
                 "los_paths": 0,
                 "received_power_db": None,
@@ -382,11 +472,11 @@ def solve_link(
     powers_db = linear_to_db(np.asarray(path_powers_linear))
     total_power_db = float(linear_to_db(np.array([np.sum(path_powers_linear)]))[0])
     strongest_path_db = float(np.max(powers_db))
-    los_count = sum(1 for path in path_records if path["type"] == "LOS")
+    los_count = sum(1 for path in display_path_records if path["type"] == "LOS")
     log_timing(
         "link_total",
         total_started_at,
-        valid_paths=len(path_records),
+        valid_paths=len(display_path_records),
         max_depth=params["max_depth"],
         samples=params["samples_per_src"],
     )
@@ -394,13 +484,16 @@ def solve_link(
     result = {
         "ok": True,
         "summary": {
-            "valid_paths": len(path_records),
+            "valid_paths": len(display_path_records),
+            "raw_valid_paths": len(raw_path_records),
+            "display_paths": len(display_path_records),
+            "deduplicated_paths": len(raw_path_records) - len(display_path_records),
             "array_pair_paths": array_pair_paths,
             "los_paths": los_count,
             "received_power_db": total_power_db,
             "strongest_path_db": strongest_path_db,
         },
-        "paths": path_records,
+        "paths": display_path_records,
     }
     if channel is not None:
         result["channel"] = channel
