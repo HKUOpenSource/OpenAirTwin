@@ -742,7 +742,6 @@ function hideEntryScreen() {
 function syncEntrySidebarUi() {
   const collapsed = state.entry.sidebarCollapsed;
   ui.entryScreen.classList.toggle("sidebarCollapsed", collapsed);
-  ui.btnEntrySidebarToggle.textContent = collapsed ? "⌕" : "‹";
   ui.btnEntrySidebarToggle.setAttribute("aria-label", collapsed ? "Open search sidebar" : "Collapse search sidebar");
   ui.btnEntrySidebarToggle.setAttribute("aria-expanded", String(!collapsed));
   if (ui.entrySidebarStack) {
@@ -757,7 +756,6 @@ function syncControlSidebarUi() {
   ui.panel.classList.toggle("panelCollapsed", collapsed);
   ui.panelToggle.classList.toggle("panelCollapsed", collapsed);
   ui.panelToggle.classList.toggle("hidden", !visible);
-  ui.panelToggle.textContent = collapsed ? "☰" : "‹";
   ui.panelToggle.setAttribute("aria-label", collapsed ? "Open control sidebar" : "Collapse control sidebar");
   ui.panelToggle.setAttribute("aria-expanded", String(!collapsed));
   ui.panel.inert = !visible || collapsed;

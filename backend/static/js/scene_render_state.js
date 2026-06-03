@@ -206,7 +206,6 @@ function syncControlSidebarUi() {
   ui.panel.classList.toggle("panelCollapsed", collapsed);
   ui.panelToggle.classList.toggle("panelCollapsed", collapsed);
   ui.panelToggle.classList.toggle("hidden", !visible);
-  ui.panelToggle.textContent = collapsed ? "☰" : "‹";
   ui.panelToggle.setAttribute("aria-label", collapsed ? "Open control sidebar" : "Collapse control sidebar");
   ui.panelToggle.setAttribute("aria-expanded", String(!collapsed));
   ui.panel.inert = !visible || collapsed;

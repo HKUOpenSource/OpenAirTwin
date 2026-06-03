@@ -11,6 +11,7 @@ function formatBytes(bytes, digits = 1) {
 export function createPerformancePanelController(context) {
   const {state, ui, viewerRef} = context;
   const getViewer = () => viewerRef.current;
+  let analysisDockReserveObserver = null;
 
 function performanceCategoryVisible(category) {
   return state.performance.categoryVisibility.get(category) !== false;
@@ -172,6 +173,51 @@ function performanceDockVisible() {
     && ui.loadingScreen.style.display === "none";
 }
 
+  function quickBarBottomPx() {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue("--quick-bar-bottom");
+    const value = Number.parseFloat(raw);
+    return Number.isFinite(value) ? value : 16;
+  }
+
+  function bottomReserveForElement(element, gapPx = 18) {
+    if (!element || element.classList.contains("hidden")) {
+      return 0;
+    }
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return 0;
+    }
+    return Math.ceil(Math.max(0, window.innerHeight - rect.top) + gapPx);
+  }
+
+  function syncAnalysisDockReserve(dockVisible = performanceDockVisible()) {
+    if (!dockVisible) {
+      document.documentElement.style.setProperty("--analysis-dock-bottom-reserve", "18px");
+      return;
+    }
+    const quickBarHeight = ui.sceneQuickBar.getBoundingClientRect().height || 44;
+    const fallbackReserve = Math.ceil(quickBarHeight + quickBarBottomPx() + 24);
+    const reserve = Math.max(
+      96,
+      fallbackReserve,
+      bottomReserveForElement(ui.sceneQuickBar),
+      bottomReserveForElement(ui.deviceDock),
+    );
+    document.documentElement.style.setProperty("--analysis-dock-bottom-reserve", `${reserve}px`);
+  }
+
+function ensureAnalysisDockReserveObserver() {
+  if (analysisDockReserveObserver || typeof ResizeObserver !== "function") {
+    return;
+  }
+  analysisDockReserveObserver = new ResizeObserver(() => {
+    syncAnalysisDockReserve(performanceDockVisible());
+  });
+  analysisDockReserveObserver.observe(ui.sceneQuickBar);
+  analysisDockReserveObserver.observe(ui.performanceDock);
+  analysisDockReserveObserver.observe(ui.deviceDock);
+}
+
 function syncPerformanceUi() {
   const dockVisible = performanceDockVisible();
   ui.sceneQuickBar.classList.toggle("hidden", !dockVisible);
@@ -187,6 +233,9 @@ function syncPerformanceUi() {
   for (const button of ui.perfModeButtons) {
     button.classList.toggle("active", button.dataset.performanceMode === state.performance.mode);
   }
+  ensureAnalysisDockReserveObserver();
+  syncAnalysisDockReserve(dockVisible);
+  requestAnimationFrame(() => syncAnalysisDockReserve(performanceDockVisible()));
   ui.perfLightMaterials.checked = state.performance.lightweightMaterials;
   syncCategoryVisibilityUi();
   syncPerformanceHud();
