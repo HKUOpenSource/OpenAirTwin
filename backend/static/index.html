@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>OpenAirTwin</title>
   <link rel="stylesheet" href="/lib/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/css/app.css?v=20260519-deepmimo-datasets" />
+  <link rel="stylesheet" href="/css/app.css?v=20260604-app-dialog" />
 </head>
 <body>
   <canvas id="view"></canvas>
@@ -173,6 +173,34 @@
         <div id="loadingPhase">Initializing...</div>
         <button class="btn loadingCancelBtn hidden" id="btnLoadingCancel" type="button">Cancel</button>
       </div>
+    </div>
+
+    <div id="appDialog" class="appDialog hidden" aria-hidden="true">
+      <div class="appDialogBackdrop" aria-hidden="true"></div>
+      <section
+        class="appDialogCard"
+        id="appDialogCard"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="appDialogTitle"
+        aria-describedby="appDialogMessage"
+        tabindex="-1"
+      >
+        <button class="appDialogClose" id="appDialogClose" type="button" aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18"></path>
+            <path d="m6 6 12 12"></path>
+          </svg>
+        </button>
+        <div class="appDialogTone" aria-hidden="true"></div>
+        <h2 class="appDialogTitle" id="appDialogTitle">OpenAirTwin</h2>
+        <p class="appDialogMessage" id="appDialogMessage"></p>
+        <pre class="appDialogDetail hidden" id="appDialogDetail"></pre>
+        <div class="appDialogActions">
+          <button class="btn appDialogSecondary hidden" id="appDialogSecondary" type="button">Cancel</button>
+          <button class="btn primary appDialogPrimary" id="appDialogPrimary" type="button">OK</button>
+        </div>
+      </section>
     </div>
 
     <div id="entryScreen" class="hidden">
@@ -965,6 +993,6 @@
 
   <script src="/lib/leaflet/leaflet.js"></script>
   <script src="/lib/proj4/proj4.js"></script>
-  <script type="module" src="/js/app.js?v=20260519-mode-isolation"></script>
+  <script type="module" src="/js/app.js?v=20260604-app-dialog"></script>
 </body>
 </html>

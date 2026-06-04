@@ -1,21 +1,306 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import unittest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+STATIC_JS_ROOT = PROJECT_ROOT / "backend" / "static" / "js"
+STATIC_HTML = PROJECT_ROOT / "backend" / "static" / "index.html"
 
 
 def read_static_js(name: str) -> str:
-    return (PROJECT_ROOT / "backend" / "static" / "js" / name).read_text(encoding="utf-8")
+    return (STATIC_JS_ROOT / name).read_text(encoding="utf-8")
+
+
+def read_frontend_js_modules() -> str:
+    modules: list[str] = []
+    for path in sorted(STATIC_JS_ROOT.rglob("*.js")):
+        if "lib" in path.relative_to(STATIC_JS_ROOT).parts:
+            continue
+        relative = path.relative_to(PROJECT_ROOT).as_posix()
+        modules.append(f"\n/* {relative} */\n{path.read_text(encoding='utf-8')}")
+    return "\n".join(modules)
 
 
 def read_static_css(name: str) -> str:
     return (PROJECT_ROOT / "backend" / "static" / "css" / name).read_text(encoding="utf-8")
 
 
+def read_static_html() -> str:
+    return STATIC_HTML.read_text(encoding="utf-8")
+
+
+def exported_controller_methods(source: str, factory_name: str) -> set[str]:
+    factory_start = source.index(f"export function {factory_name}")
+    body_start = source.index("{", factory_start)
+    body_end = find_matching_brace(source, body_start)
+    body = source[body_start + 1:body_end]
+
+    depth = 0
+    return_object_start = -1
+    index = 0
+    while index < len(body):
+        char = body[index]
+        if char in ("'", '"', "`"):
+            index = skip_js_string(body, index)
+            continue
+        if body.startswith("//", index):
+            newline = body.find("\n", index)
+            index = len(body) if newline == -1 else newline + 1
+            continue
+        if body.startswith("/*", index):
+            end = body.find("*/", index + 2)
+            index = len(body) if end == -1 else end + 2
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+        elif depth == 0 and body.startswith("return", index):
+            before = body[index - 1] if index > 0 else " "
+            after = body[index + len("return")] if index + len("return") < len(body) else " "
+            if not (before.isidentifier() or before == "_") and not (after.isidentifier() or after == "_"):
+                candidate = index + len("return")
+                while candidate < len(body) and body[candidate].isspace():
+                    candidate += 1
+                if candidate < len(body) and body[candidate] == "{":
+                    return_object_start = candidate
+        index += 1
+
+    if return_object_start == -1:
+        raise AssertionError(f"{factory_name} has no top-level return object")
+    return_object_end = find_matching_brace(body, return_object_start)
+    return_object = body[return_object_start + 1:return_object_end]
+    return {
+        match.group(1)
+        for match in re.finditer(r"^\s*([A-Za-z_$][\w$]*)\s*(?::|,)\s*$", return_object, re.MULTILINE)
+    }
+
+
+def find_matching_brace(source: str, open_index: int) -> int:
+    depth = 0
+    index = open_index
+    while index < len(source):
+        char = source[index]
+        if char in ("'", '"', "`"):
+            index = skip_js_string(source, index)
+            continue
+        if source.startswith("//", index):
+            newline = source.find("\n", index)
+            index = len(source) if newline == -1 else newline + 1
+            continue
+        if source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            index = len(source) if end == -1 else end + 2
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    raise AssertionError("No matching brace found")
+
+
+def skip_js_string(source: str, quote_index: int) -> int:
+    quote = source[quote_index]
+    index = quote_index + 1
+    while index < len(source):
+        char = source[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == quote:
+            return index + 1
+        index += 1
+    return len(source)
+
+
 class FrontendRegressionTests(unittest.TestCase):
+    def test_controller_factory_public_facades_remain_stable(self) -> None:
+        solver_methods = exported_controller_methods(
+            read_static_js("solver_controls.js"),
+            "createSolverControlsController",
+        )
+        scene_methods = exported_controller_methods(
+            read_static_js("scene_render_state.js"),
+            "createSceneRenderStateController",
+        )
+
+        self.assertEqual(
+            solver_methods,
+            {
+                "applyRtCapabilities",
+                "commonSolverConfig",
+                "linkSolverConfig",
+                "linkChannelConfig",
+                "syncNumericInputs",
+                "syncViewerMarkers",
+                "syncModeVisuals",
+                "markerRadiusForPickTarget",
+                "readAntennaArrayInputs",
+                "readLinkInputs",
+                "readSurfaceClearanceInput",
+                "readLivePreviewInputs",
+                "readMobilityInputs",
+                "readRadiomapInputs",
+                "invalidateLinkResult",
+                "invalidateRadiomapResult",
+                "invalidateMobilityResult",
+                "invalidateDeepMimoResult",
+                "readDeepMimoInputs",
+                "rerenderRadiomapOverlay",
+                "renderLinkResult",
+                "renderMobilityResult",
+                "renderMobilityTrajectoryPreview",
+                "renderRadiomapResult",
+                "renderDeepMimoState",
+                "renderDeepMimoDatasetTray",
+                "runLinkSolve",
+                "runMobility",
+                "runRadiomap",
+                "runDeepMimo",
+                "setDeepMimoRoiCorner",
+                "startDeepMimoRoiDrag",
+                "updateDeepMimoRoiDrag",
+                "finishDeepMimoRoiDrag",
+                "clearDeepMimoRoi",
+                "addCurrentRxWaypoint",
+                "deleteMobilityWaypoint",
+                "resetMobilityTrajectoryFromRx",
+                "selectMobilityStep",
+                "startMobilityPlayback",
+                "stopMobilityPlayback",
+                "cancelLivePreview",
+                "handleLivePreviewDeviceUpdate",
+                "applyPick",
+            },
+        )
+        self.assertEqual(
+            scene_methods,
+            {
+                "setProgress",
+                "showOverlay",
+                "hideOverlay",
+                "ensureViewer",
+                "syncControlSidebarUi",
+                "syncResultDockUi",
+                "syncModeUi",
+                "renderAll",
+                "tileSelections",
+                "tileDiff",
+                "syncTileListUi",
+                "populateTileList",
+                "setTileSelection",
+                "resetSelectionToLoadedTiles",
+                "setTileChecked",
+                "toggleTileChecked",
+                "enterScene",
+                "loadScene",
+            },
+        )
+
+    def test_dom_refs_get_element_by_id_targets_exist_in_index_html(self) -> None:
+        dom_source = read_static_js("dom_refs.js")
+        html = read_static_html()
+
+        referenced_ids = set(re.findall(r'document\.getElementById\(["\']([^"\']+)["\']\)', dom_source))
+        html_ids = set(re.findall(r'\bid=["\']([^"\']+)["\']', html))
+
+        self.assertTrue(referenced_ids)
+        self.assertFalse(
+            sorted(referenced_ids - html_ids),
+            "dom_refs.js references DOM ids missing from backend/static/index.html",
+        )
+
+    def test_app_dialog_controller_replaces_native_browser_popups(self) -> None:
+        frontend_source = read_frontend_js_modules()
+        app_source = read_static_js("app.js")
+        entry_source = read_static_js("entry_map.js")
+        dialog_source = read_static_js("controllers/app_dialog_controller.js")
+        dom_source = read_static_js("dom_refs.js")
+        html = read_static_html()
+
+        for native_call in ["window.alert(", "window.confirm(", "window.prompt("]:
+            self.assertNotIn(native_call, frontend_source)
+
+        for element_id in [
+            "appDialog",
+            "appDialogCard",
+            "appDialogTitle",
+            "appDialogMessage",
+            "appDialogDetail",
+            "appDialogPrimary",
+            "appDialogSecondary",
+            "appDialogClose",
+        ]:
+            self.assertIn(f'id="{element_id}"', html)
+            self.assertIn(f'document.getElementById("{element_id}")', dom_source)
+
+        self.assertIn("createAppDialogController(context)", app_source)
+        self.assertIn("context.controllers.dialogs = dialogController;", app_source)
+        self.assertIn("dialogController.alert({", app_source)
+        for title in [
+            '"Startup Failed"',
+            '"Enter Scene Failed"',
+            '"Link Solve Failed"',
+            '"Radiomap Failed"',
+            '"Mobility Failed"',
+            '"DeepMIMO Export Failed"',
+        ]:
+            self.assertIn(f"showErrorDialog({title}", app_source)
+
+        self.assertIn("const confirmed = await dialogs().confirm({", entry_source)
+        self.assertIn('title: "Download Tile"', entry_source)
+        self.assertIn('confirmLabel: "Download"', entry_source)
+        self.assertIn("await dialogs().alert({", entry_source)
+        self.assertIn('title: "Tile Download Failed"', entry_source)
+
+        self.assertIn("const queue = [];", dialog_source)
+        self.assertIn("document.addEventListener(\"keydown\", handleGlobalKeydown, true);", dialog_source)
+        self.assertIn("restoreFocus();", dialog_source)
+        self.assertIn('class="appDialogBackdrop"', html)
+
+    def test_viewer_ref_stub_exposes_controller_viewer_contract(self) -> None:
+        source = read_static_js("app_state.js")
+        stub_source = source[
+            source.index("function createViewerStub()"):
+            source.index("export const DEFAULT_PERFORMANCE_MODE")
+        ]
+
+        for property_name in ["__ready", "loadedTileIds", "meshesLoaded", "txMarkerRadius", "rxMarkerRadius"]:
+            self.assertRegex(stub_source, rf"\b{property_name}\s*:")
+        for method_name in [
+            "setTx",
+            "setRx",
+            "renderRadiomap",
+            "renderDeepMimoRoi",
+            "clearDeepMimoRoi",
+            "renderPaths",
+            "clearOverlay",
+            "clearPaths",
+            "clearMobility",
+            "startTxOrbit",
+            "stopTxOrbit",
+            "isTxOrbiting",
+            "clearRadiomap",
+            "clearSurfacePreview",
+            "renderMobilityTrajectory",
+            "focusOnTiles",
+            "getLoadedCategoryStats",
+            "getPerformanceStats",
+            "setCategoryVisible",
+            "setLightweightMaterials",
+            "setPerformanceMode",
+            "syncBundles",
+            "resetView",
+            "pickOnSurface",
+        ]:
+            self.assertRegex(stub_source, rf"\b(?:async\s+)?{method_name}\s*\(")
+
     def test_entry_search_focus_does_not_reset_selection_badge(self) -> None:
         source = read_static_js("entry_map.js")
 
@@ -131,7 +416,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn("const knownTotalBytes", source)
 
     def test_loading_progress_message_avoids_unknown_size_copy(self) -> None:
-        source = read_static_js("scene_render_state.js")
+        source = read_frontend_js_modules()
 
         self.assertIn("function resolvingSizeSummary(event)", source)
         self.assertIn('" · resolving sizes"', source)
@@ -193,30 +478,30 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_rt_scene_selection_is_synced_after_tile_load(self) -> None:
         api_source = read_static_js("api.js")
-        app_source = read_static_js("app.js")
-        scene_source = read_static_js("scene_render_state.js")
+        source = read_frontend_js_modules()
 
         self.assertIn('requestJson("/api/rt/scene-selection")', api_source)
         self.assertIn('requestJson("/api/rt/scene-selection", {', api_source)
-        self.assertIn("getRtSceneSelection,", app_source)
-        self.assertIn("setRtSceneSelection,", app_source)
-        self.assertIn("async function waitForRtSceneSelection(generation, tileIds)", scene_source)
-        self.assertIn("async function syncRtSceneSelection(selectedTileIds)", scene_source)
-        self.assertIn('message: "Load scene..."', scene_source)
-        self.assertIn("const status = await api.setRtSceneSelection(tileIds);", scene_source)
-        self.assertIn("return waitForRtSceneSelection(status.generation, tileIds);", scene_source)
-        self.assertIn("await syncRtSceneSelection(selectedTiles);", scene_source)
-        self.assertIn("state.tileLoadBusy = true;", scene_source)
-        self.assertIn("if (state.tileLoadBusy) {\n    return;\n  }\n  const selectedTileIds", scene_source)
-        self.assertIn("solver().invalidateMobilityResult({clearOverlay: false, clearPaths: false});", scene_source)
-        self.assertIn("rtSceneReadyForSelection(status, tileIds)", scene_source)
+        self.assertIn("getRtSceneSelection,", source)
+        self.assertIn("setRtSceneSelection,", source)
+        self.assertIn("async function waitForRtSceneSelection(generation, tileIds)", source)
+        self.assertIn("async function syncRtSceneSelection(selectedTileIds)", source)
+        self.assertIn('message: "Load scene..."', source)
+        self.assertIn("const status = await api.setRtSceneSelection(tileIds);", source)
+        self.assertIn("return waitForRtSceneSelection(status.generation, tileIds);", source)
+        self.assertIn("await syncRtSceneSelection(selectedTiles);", source)
+        self.assertIn("state.tileLoadBusy = true;", source)
+        self.assertRegex(source, r"if \(state\.tileLoadBusy\) \{\s+return;\s+\}")
+        self.assertRegex(source, r"const selectedTileIds = .*tileSelections\(\);")
+        self.assertIn("solver().invalidateMobilityResult({clearOverlay: false, clearPaths: false});", source)
+        self.assertIn("rtSceneReadyForSelection(status, tileIds)", source)
 
     def test_scene_mode_selector_replaces_low_value_stats(self) -> None:
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
         css_source = read_static_css("app.css")
-        app_source = read_static_js("app.js")
+        app_source = read_frontend_js_modules()
         dom_source = read_static_js("dom_refs.js")
-        scene_source = read_static_js("scene_render_state.js")
+        scene_source = read_frontend_js_modules()
 
         self.assertNotIn('id="stSceneMeshes"', html)
         self.assertNotIn('id="stLoadedMeshes"', html)
@@ -277,26 +562,26 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn(".solverCfg{margin-top:10px;padding:0;border:0;border-radius:0;background:transparent}", css_source)
         self.assertIn(".paramGroupSummary::after", css_source)
         self.assertIn(".paramGroup[open] > .paramGroupBody", css_source)
-        self.assertIn('href="/css/app.css?v=20260519-deepmimo-datasets"', html)
+        self.assertIn('href="/css/app.css?v=20260604-app-dialog"', html)
         self.assertIn("#uiBody{min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:12px;margin-right:-12px;scrollbar-gutter:stable;", css_source)
         self.assertIn("#uiBody::-webkit-scrollbar{width:10px}", css_source)
         self.assertIn("background-clip:content-box", css_source)
-        self.assertIn('src="/js/app.js?v=20260519-mode-isolation"', html)
+        self.assertIn('src="/js/app.js?v=20260604-app-dialog"', html)
 
     def test_antenna_array_payloads_are_sent_to_solvers(self) -> None:
-        source = read_static_js("solver_controls.js")
+        source = read_frontend_js_modules()
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
 
         self.assertIn("solverConfig.tx_array = antennaArrayPayload(state.antenna.txArray)", source)
         self.assertIn("rx_array: antennaArrayPayload(state.antenna.rxArray)", source)
-        self.assertIn("...commonSolverConfig(),\n      samples_per_tx", source)
+        self.assertRegex(source, r"\.\.\.commonSolverConfig\([^)]*\),\n\s+samples_per_tx")
         self.assertIn("samples_per_tx: state.radiomap.solver.samplesPerTx", source)
         self.assertIn('id="txArrayPattern"', html)
         self.assertIn('id="rxArrayPattern"', html)
         self.assertIn('class="paramField linkOnlyParam deepmimoAntennaParam" for="rxArrayPattern"', html)
 
     def test_radiomap_ui_parameters_are_wired(self) -> None:
-        source = read_static_js("solver_controls.js")
+        source = read_frontend_js_modules()
         viewer_source = read_static_js("viewer.js")
         colormap_source = read_static_js("colormaps.js")
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
@@ -327,8 +612,9 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn("function scheduleRadiomapPreview", source)
         self.assertNotIn("function runRadiomapLiveJob", source)
         self.assertIn('throw new Error(job.error || job.message || "Radio map job failed");', source)
-        self.assertIn('state.radiomap.jobId = null;\n  state.radiomap.result = null;', source)
-        self.assertIn('state.radiomap.status = "failed";\n    state.radiomap.result = null;', source)
+        self.assertIn("createRadiomapController", source)
+        self.assertRegex(source, r"state\.radiomap\.jobId = null;\s+state\.radiomap\.result = null;")
+        self.assertRegex(source, r'state\.radiomap\.status = "failed";\s+state\.radiomap\.result = null;')
         self.assertIn('surface.resolution_mode === "cell_size_grid"', source)
         self.assertIn('`${nx} x ${ny} cells (${formatCount(surface.grid_cell_count)})`', source)
         self.assertIn("surface.triangle_count", source)
@@ -347,11 +633,11 @@ class FrontendRegressionTests(unittest.TestCase):
     def test_radiomap_results_live_in_right_side_dock(self) -> None:
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
         css_source = read_static_css("app.css")
-        source = read_static_js("solver_controls.js")
-        app_source = read_static_js("app.js")
+        source = read_frontend_js_modules()
+        app_source = read_frontend_js_modules()
         state_source = read_static_js("app_state.js")
         dom_source = read_static_js("dom_refs.js")
-        scene_source = read_static_js("scene_render_state.js")
+        scene_source = read_frontend_js_modules()
         entry_source = read_static_js("entry_map.js")
         performance_source = read_static_js("performance_panel.js")
 
@@ -423,11 +709,11 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_live_preview_controls_and_schedulers_are_wired(self) -> None:
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
-        app_source = read_static_js("app.js")
+        app_source = read_frontend_js_modules()
         api_source = read_static_js("api.js")
         dom_source = read_static_js("dom_refs.js")
-        scene_source = read_static_js("scene_render_state.js")
-        solver_source = read_static_js("solver_controls.js")
+        scene_source = read_frontend_js_modules()
+        solver_source = read_frontend_js_modules()
         state_source = read_static_js("app_state.js")
         viewer_source = read_static_js("viewer.js")
         css_source = read_static_css("app.css")
@@ -490,7 +776,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn("live.inFlight = true;", solver_source)
         self.assertNotIn("live.pendingPreview = true;", solver_source)
         self.assertNotIn("live.pendingFinal = true;", solver_source)
-        self.assertIn("live.previewController?.abort();\n    live.finalController?.abort();", solver_source)
+        self.assertRegex(solver_source, r"live\.previewController\?\.abort\(\);\s+live\.finalController\?\.abort\(\);")
         self.assertIn('setLivePreviewStatus("link", preview ? "Previewing" : "Finalizing");', solver_source)
         self.assertNotIn('setLivePreviewStatus("radiomap"', solver_source)
         self.assertIn("handleLivePreviewDeviceUpdate(target, phase = \"change\")", solver_source)
@@ -505,11 +791,11 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("surfacePosition: [hit.point.x, hit.point.y, hit.point.z]", viewer_source)
         self.assertIn("surfaceNormal: surfaceNormal ?", viewer_source)
 
-        self.assertIn("solverControls.cancelLivePreview();\n  state.pickTarget = null;", app_source)
+        self.assertIn("devicePicking.clearActiveDevice({render: false});\n  solverControls.cancelLivePreview();", app_source)
         self.assertIn('view.addEventListener("pointerdown", handlePickPointerDown, {capture: true});', app_source)
         self.assertIn("event.currentTarget.setPointerCapture(event.pointerId);", app_source)
-        self.assertIn('document.getElementById("view").releasePointerCapture(event.pointerId);', app_source)
-        self.assertIn('solverControls.handleLivePreviewDeviceUpdate(target, livePhase);', app_source)
+        self.assertIn('document.getElementById("view").releasePointerCapture(pointerId);', app_source)
+        self.assertIn('solver.handleLivePreviewDeviceUpdate(target, livePhase);', app_source)
         self.assertIn('solverControls.handleLivePreviewDeviceUpdate(target, "change");', app_source)
         self.assertIn('[inputs.linkRxX, "link-rx"]', app_source)
         self.assertNotIn('solverControls.handleLivePreviewDeviceUpdate("rm-tx", "change");', app_source)
@@ -517,7 +803,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("solverControls.readSurfaceClearanceInput();", app_source)
 
     def test_path_details_show_array_pair_aggregation(self) -> None:
-        source = read_static_js("solver_controls.js")
+        source = read_frontend_js_modules()
 
         self.assertIn('addField("Array Pairs", String(path.array_pair_count ?? 1));', source)
         self.assertIn('addField("Strongest Pair", formatFixed(path.strongest_pair_power_db, 2, " dB"));', source)
@@ -538,7 +824,7 @@ class FrontendRegressionTests(unittest.TestCase):
     def test_link_results_live_in_right_side_dock(self) -> None:
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
         css_source = read_static_css("app.css")
-        source = read_static_js("solver_controls.js")
+        source = read_frontend_js_modules()
 
         dock_start = html.index('id="linkChannelSection"')
         link_panel_start = html.index('id="linkPanel"')
@@ -600,10 +886,11 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("getViewer().renderPaths(paths, index);", source)
 
     def test_tap_analysis_no_longer_controls_whole_link_result_dock(self) -> None:
-        source = read_static_js("solver_controls.js")
+        source = read_static_js("ui/link_result_view.js")
+        render_channel_start = source.index("function renderLinkChannel")
         render_channel = source[
-            source.index("function renderLinkChannel"):
-            source.index("function renderLinkResult")
+            render_channel_start:
+            source.index("function renderLinkResult", render_channel_start)
         ]
 
         self.assertIn('ui.linkTapAnalysisSection.classList.add("hidden");', render_channel)
@@ -612,7 +899,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn("ui.linkChannelSection.classList.remove", render_channel)
 
     def test_tap_chart_axes_are_labeled_and_not_clipped(self) -> None:
-        source = read_static_js("solver_controls.js")
+        source = read_frontend_js_modules()
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
         css = (PROJECT_ROOT / "backend" / "static" / "css" / "app.css").read_text(encoding="utf-8")
 
@@ -629,9 +916,9 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_mobility_mode_controls_and_api_are_wired(self) -> None:
         api_source = read_static_js("api.js")
-        app_source = read_static_js("app.js")
+        app_source = read_frontend_js_modules()
         state_source = read_static_js("app_state.js")
-        source = read_static_js("solver_controls.js")
+        source = read_frontend_js_modules()
         css_source = read_static_css("app.css")
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
 
@@ -691,16 +978,17 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn("estimate.steps > 50", source)
         self.assertNotIn("estimate.maxSteps > 500", source)
         self.assertNotIn("between 2 and 500", source)
-        self.assertIn("solver: linkSolverConfig()", source)
-        self.assertIn("channel: linkChannelConfig()", source)
+        self.assertIn("solver: linkSolverConfig({state, inputs}),", source)
+        self.assertIn("channel: linkChannelConfig({state}),", source)
         self.assertIn("getViewer().renderPaths(sample?.paths || [], -1);", source)
-        self.assertIn('state.mobility.jobId = null;\n  state.mobility.result = null;', source)
-        self.assertIn('state.mobility.status = "failed";\n    state.mobility.result = null;', source)
+        self.assertIn("createMobilityController", source)
+        self.assertRegex(source, r"state\.mobility\.jobId = null;\s+state\.mobility\.result = null;")
+        self.assertRegex(source, r'state\.mobility\.status = "failed";\s+state\.mobility\.result = null;')
 
     def test_mobility_uses_shared_result_dock_and_viewer_preview(self) -> None:
-        source = read_static_js("solver_controls.js")
+        source = read_frontend_js_modules()
         viewer_source = read_static_js("viewer.js")
-        scene_source = read_static_js("scene_render_state.js")
+        scene_source = read_frontend_js_modules()
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
 
         self.assertIn('id="mobilityResult"', html)
@@ -722,9 +1010,9 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("if (state.mode !== \"mobility\") {\n    getViewer().clearMobility();", source)
 
     def test_mode_specific_device_visuals_are_isolated(self) -> None:
-        app_source = read_static_js("app.js")
-        scene_source = read_static_js("scene_render_state.js")
-        solver_source = read_static_js("solver_controls.js")
+        app_source = read_frontend_js_modules()
+        scene_source = read_frontend_js_modules()
+        solver_source = read_frontend_js_modules()
         viewer_source = read_static_js("viewer.js")
 
         self.assertIn('"mobility-tx": "Mobility Tx"', app_source)
@@ -751,10 +1039,10 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_tx_orbit_showcase_button_is_wired(self) -> None:
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
-        app_source = read_static_js("app.js")
+        app_source = read_frontend_js_modules()
         state_source = read_static_js("app_state.js")
         dom_source = read_static_js("dom_refs.js")
-        scene_source = read_static_js("scene_render_state.js")
+        scene_source = read_frontend_js_modules()
         viewer_source = read_static_js("viewer.js")
 
         action_bar_index = html.index('id="deviceActionBar"')
@@ -772,13 +1060,13 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("stopTxOrbit()", viewer_source)
         self.assertIn("isTxOrbiting()", viewer_source)
         self.assertIn('window.dispatchEvent(new CustomEvent("hku-tx-orbit-change"', viewer_source)
-        self.assertIn("if (state.mode === \"deepmimo\") {\n    return state.deepmimo.txVisual;", app_source)
-        self.assertIn("if (state.mode === \"mobility\") {\n    return state.mobility.txVisual;", app_source)
-        self.assertIn("ui.btnOrbitTx.addEventListener(\"click\", toggleTxOrbit);", app_source)
+        self.assertIn("return state.deepmimo.txVisual;", app_source)
+        self.assertIn("return state.mobility.txVisual;", app_source)
+        self.assertIn("ui.btnOrbitTx.addEventListener(\"click\", () => devicePicking.toggleTxOrbit());", app_source)
         self.assertIn("window.addEventListener(\"hku-tx-orbit-change\"", app_source)
-        self.assertIn("stopTxOrbit();\n    state.mode = \"link\";", app_source)
-        self.assertIn("stopTxOrbit();\n    state.mode = \"mobility\";", app_source)
-        self.assertIn("stopTxOrbit();\n    state.mode = \"radiomap\";", app_source)
+        self.assertIn("devicePicking.stopTxOrbit();\n    state.mode = \"link\";", app_source)
+        self.assertIn("devicePicking.stopTxOrbit();\n    state.mode = \"mobility\";", app_source)
+        self.assertIn("devicePicking.stopTxOrbit();\n    state.mode = \"radiomap\";", app_source)
         self.assertNotIn('id="btnResetView"', html)
         self.assertNotIn('id="btnClearOverlay"', html)
         self.assertNotIn('class="actions"', html)
@@ -791,16 +1079,17 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_deepmimo_roi_export_controls_are_wired(self) -> None:
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
-        app_source = read_static_js("app.js")
+        app_source = read_frontend_js_modules()
         api_source = read_static_js("api.js")
         dom_source = read_static_js("dom_refs.js")
         state_source = read_static_js("app_state.js")
-        scene_source = read_static_js("scene_render_state.js")
-        solver_source = read_static_js("solver_controls.js")
+        scene_source = read_frontend_js_modules()
+        solver_source = read_frontend_js_modules()
         viewer_source = read_static_js("viewer.js")
         css_source = read_static_css("app.css")
-        deepmimo_payload_source = solver_source.split("function deepMimoPayload()", 1)[1].split(
-            "function renderDeepMimoState()",
+        dataset_view_source = read_static_js("ui/deepmimo_dataset_view.js")
+        deepmimo_payload_source = solver_source.split("export function deepMimoPayload(", 1)[1].split(
+            "export function",
             1,
         )[0]
 
@@ -869,9 +1158,9 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('if (state.pickTarget === "deepmimo-roi" || state.deviceControl.activeTarget === "deepmimo-roi")', app_source)
         self.assertIn('state.deepmimo.roi.pickingStep = "a";\n      state.pickTarget = null;', app_source)
         self.assertIn('state.pickTarget = "deepmimo-roi";', app_source)
-        self.assertIn("solverControls.startDeepMimoRoiDrag(position);", app_source)
-        self.assertIn("solverControls.updateDeepMimoRoiDrag(position);", app_source)
-        self.assertIn("solverControls.finishDeepMimoRoiDrag(position);", app_source)
+        self.assertIn("solver.startDeepMimoRoiDrag(position);", app_source)
+        self.assertIn("solver.updateDeepMimoRoiDrag(position);", app_source)
+        self.assertIn("solver.finishDeepMimoRoiDrag(position);", app_source)
         self.assertIn('if (target === "deepmimo-roi")', app_source)
         self.assertIn('const hasPrecisionTarget = nextActiveTarget === "link-tx"', scene_source)
         self.assertIn('|| nextActiveTarget === "mobility-tx"', scene_source)
@@ -899,7 +1188,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("state.deepmimo.roi.visualZ = visualZ;", solver_source)
         self.assertIn("state.deepmimo.roi.cornerB = [Number(position[0]), Number(position[1]), visualZ];", solver_source)
         self.assertIn("state.deepmimo.roi.visualZ = null;", solver_source)
-        self.assertIn("function deepMimoPayload()", solver_source)
+        self.assertIn("function deepMimoPayload(", solver_source)
         self.assertIn("function deepMimoReceiverAxisCount(size, spacing)", solver_source)
         # Frontend mirrors backend receiver_grid_axis_count (inclusive floor +
         # 1, with the same 1e-9 epsilon).
@@ -915,12 +1204,13 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("Load at least one selected tile before exporting DeepMIMO", solver_source)
         self.assertIn("getViewer().loadedTileIds.size", solver_source)
         self.assertIn("synthetic_array: true", solver_source)
-        self.assertIn("...commonSolverConfig({includeTxArray: false}),", deepmimo_payload_source)
+        self.assertIn("includeTxArray: false", deepmimo_payload_source)
         self.assertNotIn("tx_array", deepmimo_payload_source)
         self.assertNotIn("rx_array", deepmimo_payload_source)
+        self.assertIn("createDeepMimoController", solver_source)
         self.assertIn("createDeepMimoJob(payload)", solver_source)
-        self.assertIn('state.deepmimo.jobId = null;\n  state.deepmimo.result = null;', solver_source)
-        self.assertIn('state.deepmimo.jobId = null;\n    state.deepmimo.status = "failed";', solver_source)
+        self.assertRegex(solver_source, r"state\.deepmimo\.jobId = null;\s+state\.deepmimo\.result = null;")
+        self.assertRegex(solver_source, r'state\.deepmimo\.jobId = null;\s+state\.deepmimo\.status = "failed";')
         self.assertNotIn("ui.deepMimoProgress", solver_source)
         self.assertIn("function renderDeepMimoDatasetTray()", solver_source)
         self.assertIn("addDeepMimoDataset(job);", solver_source)
@@ -931,6 +1221,9 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('state.deepmimo.status = "succeeded";', solver_source)
         self.assertIn("state.deepmimo.datasets = [", solver_source)
         self.assertIn("deepMimoDownloadUrl(jobId)", solver_source)
+        self.assertIn('const visible = state.mode === "deepmimo" && hasDatasets;', dataset_view_source)
+        self.assertIn("state.deepmimo.datasetTrayOpen = false;", dataset_view_source)
+        self.assertIn('ui.deepMimoDatasetTray.classList.toggle("hidden", !visible);', dataset_view_source)
         self.assertNotIn("ui.deepMimoDownloadLink", solver_source)
         self.assertIn('title: "Exporting DeepMIMO Dataset"', solver_source)
         self.assertIn("await pollDeepMimo(job.job_id);", solver_source)

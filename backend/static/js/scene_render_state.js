@@ -1,8 +1,6 @@
-import {compareTileIds, toDisplayTileId} from "/js/tile_model.js";
-
-const LOAD_PROGRESS_RENDER_INTERVAL_MS = 250;
-let overlayCancelHandler = null;
-let overlayOwner = null;
+import {createSceneLoaderController} from "/js/controllers/scene_loader_controller.js?v=20260519-mode-isolation";
+import {createLoadingOverlayController} from "/js/ui/loading_overlay_controller.js?v=20260519-mode-isolation";
+import {createTileSelectionView} from "/js/ui/tile_selection_view.js?v=20260519-mode-isolation";
 
 const MODE_META = {
   link: {title: "Link Analysis"},
@@ -96,109 +94,85 @@ export function createSceneRenderStateController(context) {
     return realViewer;
   }
 
+const loadingOverlay = createLoadingOverlayController({
+  state,
+  ui,
+  onShow: () => {
+    syncModeUi();
+    syncPerformanceUi();
+  },
+  onHide: () => {
+    syncModeUi();
+    syncControlSidebarUi();
+    syncPerformanceUi();
+  },
+});
+
 function setProgress(percent, message, indeterminate = false) {
-  const nextMessage = String(message ?? "");
-  if (indeterminate || !Number.isFinite(percent)) {
-    ui.progressBar.classList.add("indeterminate");
-    if (ui.progressBar.style.width !== "38%") {
-      ui.progressBar.style.width = "38%";
-    }
-  } else {
-    const nextWidth = `${Math.max(0, Math.min(100, percent))}%`;
-    ui.progressBar.classList.remove("indeterminate");
-    if (ui.progressBar.style.width !== nextWidth) {
-      ui.progressBar.style.width = nextWidth;
-    }
-  }
-  if (ui.loadingPhase.textContent !== nextMessage) {
-    ui.loadingPhase.textContent = nextMessage;
-  }
+  return loadingOverlay.setProgress(percent, message, indeterminate);
 }
 
-function clearOverlayCancel() {
-  if (overlayCancelHandler && ui.btnLoadingCancel) {
-    ui.btnLoadingCancel.removeEventListener("click", overlayCancelHandler);
-  }
-  overlayCancelHandler = null;
-  if (ui.btnLoadingCancel) {
-    ui.btnLoadingCancel.classList.add("hidden");
-    ui.btnLoadingCancel.disabled = false;
-    ui.btnLoadingCancel.textContent = "Cancel";
-  }
-}
-
-function showOverlay({
-  title = "Working",
-  message = "Loading...",
-  percent = 0,
-  indeterminate = false,
-  cancelLabel = "",
-  onCancel = null,
-  owner = null,
-  force = false,
-} = {}) {
-  // When the overlay is already owned, only the owner (or an explicit
-  // `force: true` escape hatch) may update it. Without this guard an
-  // ownerless caller could clobber an in-flight solver overlay.
-  if (!force && overlayOwner && overlayOwner !== owner) {
-    return false;
-  }
-  overlayOwner = owner || null;
-  state.pickTarget = null;
-  state.deviceControl.activeTarget = null;
-  clearOverlayCancel();
-  ui.loadingTitle.textContent = title;
-  setProgress(percent, message, indeterminate);
-  if (onCancel && ui.btnLoadingCancel) {
-    ui.btnLoadingCancel.textContent = cancelLabel || "Cancel";
-    ui.btnLoadingCancel.classList.remove("hidden");
-    overlayCancelHandler = onCancel;
-    ui.btnLoadingCancel.addEventListener("click", overlayCancelHandler);
-  }
-  ui.loadingScreen.style.display = "flex";
-  syncModeUi();
-  syncPerformanceUi();
-  return true;
+function showOverlay(options = {}) {
+  return loadingOverlay.showOverlay(options);
 }
 
 function hideOverlay(owner = null, force = false) {
-  // Same invariant as showOverlay: ownerless callers must not tear down an
-  // owned overlay unless they pass `force: true`.
-  if (!force && overlayOwner && overlayOwner !== owner) {
-    return false;
-  }
-  overlayOwner = null;
-  clearOverlayCancel();
-  ui.loadingScreen.style.display = "none";
-  ui.loadingTitle.textContent = "Loading Scene";
-  ui.loadingPhase.textContent = "Initializing...";
-  ui.progressBar.classList.remove("indeterminate");
-  ui.progressBar.style.width = "0%";
-  syncModeUi();
-  syncControlSidebarUi();
-  syncPerformanceUi();
-  return true;
+  return loadingOverlay.hideOverlay(owner, force);
 }
-function tileInputFor(tileId) {
-  return ui.tileList.querySelector(`input[value="${tileId}"]`);
+
+const tileSelectionView = createTileSelectionView({
+  state,
+  ui,
+  getViewer,
+  syncEntryOverviewUi,
+});
+
+const sceneLoader = createSceneLoaderController(context, {
+  ensureViewer,
+  getViewer,
+  hideEntryScreen,
+  hideOverlay,
+  renderAll,
+  setProgress,
+  showOverlay,
+  solver,
+  syncControlSidebarUi,
+  syncPerformanceUi,
+  syncTileListUi,
+  syncViewerMarkers,
+  tileSelectionView,
+});
+
+function tileSelections() {
+  return tileSelectionView.tileSelections();
+}
+
+function tileDiff() {
+  return tileSelectionView.tileDiff();
+}
+
+function syncTileListUi() {
+  tileSelectionView.syncTileListUi();
+}
+
+function populateTileList(manifest) {
+  tileSelectionView.populateTileList(manifest);
+}
+
+function setTileSelection(nextTileIds) {
+  tileSelectionView.setTileSelection(nextTileIds);
+}
+
+function resetSelectionToLoadedTiles() {
+  tileSelectionView.resetSelectionToLoadedTiles();
 }
 
 function setTileChecked(tileId, checked) {
-  const input = tileInputFor(tileId);
-  if (!input || input.disabled) {
-    return;
-  }
-  input.checked = checked;
-  syncTileListUi();
+  tileSelectionView.setTileChecked(tileId, checked);
 }
 
 function toggleTileChecked(tileId) {
-  const input = tileInputFor(tileId);
-  if (!input || input.disabled) {
-    return;
-  }
-  input.checked = !input.checked;
-  syncTileListUi();
+  tileSelectionView.toggleTileChecked(tileId);
 }
 function syncControlSidebarUi() {
   const collapsed = state.panelCollapsed;
@@ -355,340 +329,12 @@ function renderAll() {
   renderDeepMimoState();
 }
 
-function tileSelections() {
-  return [...ui.tileList.querySelectorAll('input[type="checkbox"]:checked')].map((node) => node.value);
-}
-
-function tileDiff() {
-  const selected = new Set(tileSelections());
-  const loaded = new Set(getViewer().loadedTileIds);
-  const toAdd = [...selected].filter((tileId) => !loaded.has(tileId));
-  const toRemove = [...loaded].filter((tileId) => !selected.has(tileId));
-  return {selected, loaded, toAdd, toRemove};
-}
-
-function updateTileSummary() {
-  const {selected, loaded, toAdd, toRemove} = tileDiff();
-  const pending = toAdd.length + toRemove.length;
-
-  if (state.tileLoadBusy) {
-    ui.tileSummary.textContent = "Syncing bundle changes...";
-    return;
-  }
-
-  if (!selected.size && !loaded.size) {
-    ui.tileSummary.textContent = "No tiles loaded yet. Choose tiles on the map to enter the 3D scene.";
-    return;
-  }
-
-  if (!pending) {
-    ui.tileSummary.textContent = `${loaded.size} loaded · ${selected.size} selected · 0 pending`;
-    return;
-  }
-
-  const segments = [];
-  if (toAdd.length) {
-    segments.push(`${toAdd.length} to load`);
-  }
-  if (toRemove.length) {
-    segments.push(`${toRemove.length} to unload`);
-  }
-  ui.tileSummary.textContent = `${loaded.size} loaded · ${selected.size} selected · ${pending} pending (${segments.join(" / ")})`;
-}
-
-function syncTileListUi() {
-  const diff = tileDiff();
-  const tileItems = ui.tileList.querySelectorAll(".tileItem");
-  for (const item of tileItems) {
-    const tileId = item.dataset.tileId;
-    const checkbox = item.querySelector('input[type="checkbox"]');
-    const badge = item.querySelector(".tileStatus");
-    const selected = checkbox.checked;
-    const loaded = diff.loaded.has(tileId);
-    const pendingAdd = selected && !loaded;
-    const pendingRemove = !selected && loaded;
-
-    item.classList.toggle("selected", selected);
-    item.classList.toggle("loaded", loaded);
-    item.classList.toggle("pendingAdd", pendingAdd);
-    item.classList.toggle("pendingRemove", pendingRemove);
-
-    if (pendingAdd) {
-      badge.textContent = "Load";
-      badge.className = "tileStatus pendingAdd";
-    } else if (pendingRemove) {
-      badge.textContent = "Unload";
-      badge.className = "tileStatus pendingRemove";
-    } else if (loaded) {
-      badge.textContent = "Loaded";
-      badge.className = "tileStatus loaded";
-    } else if (selected) {
-      badge.textContent = "Ready";
-      badge.className = "tileStatus";
-    } else {
-      badge.textContent = "Idle";
-      badge.className = "tileStatus";
-    }
-  }
-
-  updateTileSummary();
-  const disableControls = state.tileLoadBusy;
-  ui.tileList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-    input.disabled = disableControls;
-  });
-  syncEntryOverviewUi();
-}
-
-function populateTileList(manifest) {
-  ui.tileList.innerHTML = "";
-  const sortedTiles = [...manifest.tiles].sort((left, right) => compareTileIds(left.id, right.id));
-  for (const tile of sortedTiles) {
-    const wrapper = document.createElement("label");
-    wrapper.className = "tileItem";
-    wrapper.dataset.tileId = tile.id;
-
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.value = tile.id;
-    input.checked = false;
-    input.addEventListener("change", () => syncTileListUi());
-
-    const meta = document.createElement("div");
-    meta.className = "tileMeta";
-    const title = document.createElement("b");
-    title.textContent = toDisplayTileId(tile.id);
-    const detail = document.createElement("span");
-    detail.textContent = `${tile.mesh_count.toLocaleString()} meshes - ${tile.bundle_count} bundles`;
-    const row = document.createElement("div");
-    row.className = "tileRow";
-    const badge = document.createElement("span");
-    badge.className = "tileStatus";
-    badge.textContent = "Ready";
-    row.append(title, badge);
-    meta.append(row, detail);
-
-    wrapper.append(input, meta);
-    ui.tileList.appendChild(wrapper);
-  }
-  syncTileListUi();
-}
-
-function setTileSelection(nextTileIds) {
-  const selected = new Set(nextTileIds);
-  ui.tileList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-    input.checked = selected.has(input.value);
-  });
-  syncTileListUi();
-}
-
-function resetSelectionToLoadedTiles() {
-  setTileSelection([...getViewer().loadedTileIds]);
-}
-
-function formatBytes(bytes, digits = 1) {
-  const value = Number(bytes);
-  if (!Number.isFinite(value) || value <= 0) {
-    return "0 MB";
-  }
-  return `${(value / (1024 * 1024)).toFixed(digits)} MB`;
-}
-
-function formatByteRate(bytesPerSecond) {
-  const value = Number(bytesPerSecond);
-  if (!Number.isFinite(value) || value <= 0) {
-    return "-- MB/s";
-  }
-  return `${(value / (1024 * 1024)).toFixed(1)} MB/s`;
-}
-
-function formatDuration(ms) {
-  const value = Number(ms);
-  if (!Number.isFinite(value) || value <= 0) {
-    return "0.0s";
-  }
-  return `${(value / 1000).toFixed(1)}s`;
-}
-
-function bundleDisplayName(bundle) {
-  if (!bundle) {
-    return "bundle";
-  }
-  return `${bundle.tile} / ${bundle.category}`;
-}
-
-function bundleSizeLabel(bundle) {
-  const size = Number(bundle?.compressed_cache_exists ? bundle.compressed_size_bytes : bundle?.size_bytes);
-  return Number.isFinite(size) && size > 0 ? formatBytes(size) : "unknown size";
-}
-
-function loadProgressPercent(event) {
-  const bytePercent = event.totalBytes > 0 && !event.hasUnknownBytes
-    ? Math.min(100, (event.downloadedBytes / event.totalBytes) * 100)
-    : null;
-  const countPercent = event.total > 0 ? (event.completed / event.total) * 100 : 100;
-  if (bytePercent !== null && Number.isFinite(bytePercent)) {
-    return Math.max(countPercent, bytePercent);
-  }
-  return countPercent;
-}
-
-function compressionSummary(event) {
-  const originalTotalBytes = Number(event.originalTotalBytes);
-  const totalBytes = Number(event.totalBytes);
-  if (!event.hasCompressedBundles || !Number.isFinite(originalTotalBytes) || !Number.isFinite(totalBytes)) {
-    return "";
-  }
-  if (originalTotalBytes <= totalBytes) {
-    return "";
-  }
-  return ` (${formatBytes(originalTotalBytes)} raw)`;
-}
-
-function resolvingSizeSummary(event) {
-  return event.hasUnknownBytes ? " · resolving sizes" : "";
-}
-
-function loadProgressMessage(event) {
-  if (event.phase === "idle") {
-    return "Tile bundles already in sync";
-  }
-  if (event.phase === "start") {
-    const totalSize = event.totalBytes > 0
-      ? `${formatBytes(event.totalBytes)} transfer${compressionSummary(event)}${resolvingSizeSummary(event)}`
-      : `resolving sizes`;
-    return `Applying ${event.total} bundle changes · ${event.added || 0} downloads · ${totalSize}`;
-  }
-  if (event.phase === "removing") {
-    return `Removing ${bundleDisplayName(event.bundle)} · ${event.completed}/${event.total}`;
-  }
-
-  const activeBundles = Array.isArray(event.activeBundles) ? event.activeBundles : [];
-  const activeCount = activeBundles.filter((item) => item.phase !== "ready").length;
-  const bundleTotal = event.added || 0;
-  const visibleBundleCount = Math.min(bundleTotal, (event.completedDownloads || 0) + activeCount);
-  const totalSize = event.totalBytes > 0
-    ? `${formatBytes(event.downloadedBytes)} / ${formatBytes(event.totalBytes)}${compressionSummary(event)}${resolvingSizeSummary(event)}`
-    : `${formatBytes(event.downloadedBytes)} downloaded${resolvingSizeSummary(event)}`;
-  const rate = formatByteRate(event.speedBytesPerSec);
-  return `Loading ${visibleBundleCount}/${bundleTotal} bundles · ${totalSize} · ${rate}`;
-}
-
-function createLoadProgressRenderer() {
-  let lastRenderAt = 0;
-  let lastPercent = 0;
-  let lastMessage = "";
-  let pendingEvent = null;
-  let timerId = null;
-
-  const render = (event, force = false) => {
-    pendingEvent = event;
-    const now = window.performance.now();
-    if (!force && now - lastRenderAt < LOAD_PROGRESS_RENDER_INTERVAL_MS) {
-      if (timerId === null) {
-        timerId = window.setTimeout(() => {
-          timerId = null;
-          if (pendingEvent) {
-            render(pendingEvent, true);
-          }
-        }, LOAD_PROGRESS_RENDER_INTERVAL_MS - (now - lastRenderAt));
-      }
-      return;
-    }
-
-    if (timerId !== null) {
-      window.clearTimeout(timerId);
-      timerId = null;
-    }
-    pendingEvent = null;
-
-    const nextPercent = Math.max(lastPercent, loadProgressPercent(event));
-    const nextMessage = loadProgressMessage(event);
-    if (force || nextMessage !== lastMessage || Math.abs(nextPercent - lastPercent) >= 0.05) {
-      setProgress(nextPercent, nextMessage);
-      lastPercent = nextPercent;
-      lastMessage = nextMessage;
-      lastRenderAt = now;
-    }
-  };
-
-  return {
-    update(event) {
-      const force = event.phase === "idle"
-        || event.phase === "start"
-        || event.phase === "removing"
-        || event.force === true;
-      render(event, force);
-    },
-    flush() {
-      if (timerId !== null) {
-        window.clearTimeout(timerId);
-        timerId = null;
-      }
-      if (pendingEvent) {
-        render(pendingEvent, true);
-      }
-    },
-  };
-}
-
-function sameTileIds(left, right) {
-  const leftValues = [...(left || [])].sort(compareTileIds);
-  const rightValues = [...(right || [])].sort(compareTileIds);
-  return leftValues.length === rightValues.length
-    && leftValues.every((value, index) => value === rightValues[index]);
-}
-
-function rtSceneReadyForSelection(status, tileIds) {
-  return status.status === "ready" && sameTileIds(status.active_tile_ids || [], tileIds);
-}
-
 async function waitForRtSceneSelection(generation, tileIds) {
-  while (true) {
-    const status = await api.getRtSceneSelection();
-    if (status.generation === generation && rtSceneReadyForSelection(status, tileIds)) {
-      return status;
-    }
-    if (status.generation === generation && status.status === "failed") {
-      throw new Error(status.message || "Sionna RT scene failed to load");
-    }
-    if (Number(status.generation) > Number(generation)) {
-      if (rtSceneReadyForSelection(status, tileIds)) {
-        return status;
-      }
-      throw new Error("Sionna RT scene selection changed before this load completed");
-    }
-    showOverlay({
-      title: "Loading Scene",
-      message: status.message || "Load scene...",
-      indeterminate: true,
-      force: true,
-    });
-    await new Promise((resolve) => window.setTimeout(resolve, 1200));
-  }
+  return sceneLoader.waitForRtSceneSelection(generation, tileIds);
 }
 
 async function syncRtSceneSelection(selectedTileIds) {
-  const tileIds = [...selectedTileIds].sort(compareTileIds);
-  showOverlay({
-    title: "Loading Scene",
-    message: "Load scene...",
-    indeterminate: true,
-    force: true,
-  });
-  const status = await api.setRtSceneSelection(tileIds);
-  if (status.status === "ready") {
-    if (!rtSceneReadyForSelection(status, tileIds)) {
-      throw new Error("Sionna RT scene selection changed before this load completed");
-    }
-    return status;
-  }
-  if (status.status === "failed") {
-    throw new Error(status.message || "Sionna RT scene failed to load");
-  }
-  if (status.status === "empty") {
-    return status;
-  }
-  return waitForRtSceneSelection(status.generation, tileIds);
+  return sceneLoader.syncRtSceneSelection(selectedTileIds);
 }
 
 async function enterScene() {
@@ -699,75 +345,11 @@ async function enterScene() {
   if (!selectedTileIds.length) {
     return;
   }
-  state.tileLoadBusy = true;
-  syncTileListUi();
-  showOverlay({title: "Preparing 3D Scene", message: "Initializing viewer...", indeterminate: true, force: true});
-  try {
-    await ensureViewer();
-    await loadScene();
-    state.entry.sceneReady = true;
-    state.mode = "link";
-    state.pickTarget = null;
-    ui.panel.style.display = "flex";
-    state.panelCollapsed = false;
-    syncControlSidebarUi();
-    hideEntryScreen();
-    getViewer().focusOnTiles(selectedTileIds);
-    renderAll();
-  } finally {
-    if (state.tileLoadBusy) {
-      state.tileLoadBusy = false;
-      syncTileListUi();
-    }
-  }
+  return sceneLoader.enterScene();
 }
 
 async function loadScene() {
-  if (!state.manifest) {
-    return;
-  }
-  await ensureViewer();
-  const diff = tileDiff();
-  const selectedTiles = diff.selected;
-  const bundles = state.manifest.bundles.filter((bundle) => selectedTiles.has(bundle.tile));
-  state.tileLoadBusy = true;
-  if (diff.toAdd.length || diff.toRemove.length) {
-    solver().invalidateLinkResult({clearOverlay: false, clearPaths: false});
-    solver().invalidateMobilityResult({clearOverlay: false, clearPaths: false});
-    solver().invalidateRadiomapResult({clearOverlay: false});
-    solver().invalidateDeepMimoResult({clearOverlay: false});
-    getViewer().clearOverlay();
-  }
-  syncTileListUi();
-
-  try {
-    if (!diff.toAdd.length && !diff.toRemove.length) {
-      syncTileListUi();
-      showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100, force: true});
-      await new Promise((resolve) => window.setTimeout(resolve, 160));
-    } else {
-      showOverlay({title: "Loading Scene", message: "Syncing tile bundles...", percent: 0, force: true});
-      const loadProgressRenderer = createLoadProgressRenderer();
-
-      try {
-        await getViewer().syncBundles(bundles, (event) => {
-          loadProgressRenderer.update(event);
-        });
-        loadProgressRenderer.flush();
-      } finally {
-        loadProgressRenderer.flush();
-      }
-    }
-
-    await syncRtSceneSelection(selectedTiles);
-    syncViewerMarkers();
-    getViewer().focusOnTiles([...selectedTiles]);
-  } finally {
-    state.tileLoadBusy = false;
-    hideOverlay(null, true);
-    syncTileListUi();
-    syncPerformanceUi();
-  }
+  return sceneLoader.loadScene();
 }
 
   return {

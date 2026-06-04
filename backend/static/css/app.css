@@ -420,6 +420,23 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:Inter,"Segoe UI",syst
 #bar.indeterminate{width:38% !important;animation:overlayIndeterminate 1.1s ease-in-out infinite;transition:none}
 .loadingCancelBtn{width:100%;margin-top:12px;flex:0 0 auto}
 
+.appDialog{position:absolute;inset:0;z-index:1100;display:grid;place-items:center;padding:20px;pointer-events:auto}
+.appDialogBackdrop{position:absolute;inset:0;background:rgba(19,30,48,.42);backdrop-filter:blur(5px)}
+.appDialogCard{position:relative;width:min(430px,calc(100vw - 32px));max-height:calc(100vh - 40px);overflow:auto;border:1px solid rgba(130,140,160,.28);border-radius:14px;background:rgba(255,255,255,.94);box-shadow:0 26px 70px rgba(17,29,48,.28);padding:18px;color:#1f2c42;pointer-events:auto}
+.appDialogCard:focus{outline:none}
+.appDialogTone{width:38px;height:4px;border-radius:999px;background:#1f6fff;margin-bottom:14px}
+.appDialog.error .appDialogTone{background:#e45757}
+.appDialog.warning .appDialogTone{background:#f2b74c}
+.appDialogTitle{max-width:calc(100% - 38px);margin:0;color:#1f2c42;font-size:18px;font-weight:850;line-height:1.24;letter-spacing:0;overflow-wrap:anywhere}
+.appDialogMessage{margin:9px 0 0;color:#44556f;font-size:13px;font-weight:650;line-height:1.45;overflow-wrap:anywhere}
+.appDialogDetail{max-height:190px;margin:12px 0 0;padding:10px;border:1px solid rgba(130,140,160,.22);border-radius:8px;background:#f6f8fc;color:#526276;font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow:auto;overflow-wrap:anywhere}
+.appDialogClose{position:absolute;right:12px;top:12px;width:32px;height:32px;display:inline-grid;place-items:center;border:1px solid rgba(130,140,160,.24);border-radius:999px;background:rgba(255,255,255,.86);color:#61708a;cursor:pointer;transition:background .16s ease,border-color .16s ease,color .16s ease,transform .16s ease}
+.appDialogClose:hover{transform:translateY(-1px);border-color:rgba(31,111,255,.4);background:#fff;color:#1f64e0}
+.appDialogClose svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}
+.appDialogActions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.appDialogActions .btn{flex:0 1 auto;min-width:92px;max-width:100%;min-height:36px}
+.appDialogActions .btn:focus-visible,.appDialogClose:focus-visible{outline:3px solid rgba(31,111,255,.18);outline-offset:2px}
+
 @keyframes overlayIndeterminate{
   0%{transform:translateX(-120%)}
   100%{transform:translateX(320%)}

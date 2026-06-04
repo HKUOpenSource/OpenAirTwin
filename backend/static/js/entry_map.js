@@ -34,6 +34,7 @@ export function createEntryMapController(context) {
   const {createTileDownloadJob, getTileDownloadJob, cancelTileDownloadJob, getManifest} = context.api;
   const getViewer = () => viewerRef.current;
   const scene = () => context.controllers.scene;
+  const dialogs = () => context.controllers.dialogs;
   const performancePanel = () => context.controllers.performance;
 
   function tileSelections() {
@@ -860,7 +861,14 @@ async function downloadEntryMapTile(tileId) {
     return;
   }
   const displayTileId = toDisplayTileId(tileId);
-  if (!window.confirm(`Download tile ${displayTileId} and merge it into the scene XML?`)) {
+  const confirmed = await dialogs().confirm({
+    title: "Download Tile",
+    message: `Download tile ${displayTileId} and merge it into the scene XML?`,
+    confirmLabel: "Download",
+    cancelLabel: "Cancel",
+    variant: "warning",
+  });
+  if (!confirmed) {
     setEntrySearchHint(`Download for ${displayTileId} was not started.`);
     return;
   }
@@ -911,7 +919,11 @@ async function downloadEntryMapTile(tileId) {
       setEntrySearchHint(`Download for ${displayTileId} was cancelled and partial files were removed.`);
     } else {
       setEntrySearchHint(`Could not download ${displayTileId}: ${error.message}`, true);
-      window.alert(`Tile download failed: ${error.message}`);
+      await dialogs().alert({
+        title: "Tile Download Failed",
+        message: `Tile download failed: ${error.message}`,
+        variant: "error",
+      });
     }
   } finally {
     state.entry.downloadingTileIds.delete(tileId);

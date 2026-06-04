@@ -21,6 +21,8 @@ import {
 } from "/js/api.js";
 import {entryMap, PERFORMANCE_MODES, state, viewerRef} from "/js/app_state.js?v=20260519-mode-isolation";
 import {inputs, ui} from "/js/dom_refs.js?v=20260519-mode-isolation";
+import {createAppDialogController} from "/js/controllers/app_dialog_controller.js?v=20260604-app-dialog";
+import {createDevicePickingController} from "/js/controllers/device_picking_controller.js?v=20260519-mode-isolation";
 import {createEntryMapController} from "/js/entry_map.js";
 import {createParamTooltipController} from "/js/param_tooltips.js";
 import {createPerformancePanelController} from "/js/performance_panel.js";
@@ -57,39 +59,37 @@ const context = {
   controllers: {},
 };
 
+const dialogController = createAppDialogController(context);
+context.controllers.dialogs = dialogController;
+
 const performancePanel = createPerformancePanelController(context);
 const entryMapController = createEntryMapController(context);
 const solverControls = createSolverControlsController(context);
 const sceneRenderState = createSceneRenderStateController(context);
 const paramTooltips = createParamTooltipController(context);
+const devicePicking = createDevicePickingController(context);
 
 context.controllers.performance = performancePanel;
 context.controllers.entry = entryMapController;
 context.controllers.solver = solverControls;
 context.controllers.scene = sceneRenderState;
 context.controllers.tooltips = paramTooltips;
+context.controllers.devicePicking = devicePicking;
+
+function errorMessage(error) {
+  return error?.message || String(error || "Unknown error");
+}
+
+function showErrorDialog(title, error) {
+  return dialogController.alert({
+    title,
+    message: errorMessage(error),
+    variant: "error",
+  });
+}
 
 function currentViewer() {
   return viewerRef.current;
-}
-
-const DEVICE_TARGET_LABELS = {
-  "link-tx": "Link Tx",
-  "link-rx": "Link Rx",
-  "mobility-tx": "Mobility Tx",
-  "mobility-rx": "Mobility Rx",
-  "rm-tx": "Radio Map Tx",
-  "deepmimo-tx": "DeepMIMO Tx",
-  "deepmimo-roi": "DeepMIMO ROI",
-};
-
-const PICK_TAP_MAX_MOVE_PX = 6;
-const PICK_TAP_MAX_DURATION_MS = 350;
-
-let pickTapCandidate = null;
-
-function setPickStatus(message = "") {
-  ui.hintText.textContent = message || "Click a surface point or adjust coordinates.";
 }
 
 function setModeMenuOpen(open) {
@@ -109,30 +109,6 @@ function closeDeepMimoDatasetTray() {
   solverControls.renderDeepMimoDatasetTray();
 }
 
-function placementPromptForTarget(target) {
-  if (target === "deepmimo-roi") {
-    return "Drag on the terrain to draw a rectangular DeepMIMO ROI";
-  }
-  if (target === "deepmimo-tx") {
-    return "Click any surface to place DeepMIMO Tx";
-  }
-  return target === "link-rx" || target === "mobility-rx"
-    ? "Click any surface to place Rx"
-    : "Click any surface to place Tx";
-}
-
-function isLinkDeviceTarget(target) {
-  return target === "link-tx" || target === "link-rx";
-}
-
-function isMobilityDeviceTarget(target) {
-  return target === "mobility-tx" || target === "mobility-rx";
-}
-
-function isDeepMimoDeviceTarget(target) {
-  return target === "deepmimo-tx" || target === "deepmimo-roi";
-}
-
 function isEditableKeyboardTarget(target) {
   const tag = target?.tagName?.toLowerCase();
   return Boolean(
@@ -147,114 +123,9 @@ function invalidateMobilityResult() {
   solverControls.invalidateMobilityResult();
 }
 
-function clearPickTapCandidate() {
-  pickTapCandidate = null;
-}
-
-function closeDevicePrecision() {
-  readActiveDeviceInputs();
-  clearPickTapCandidate();
-  state.pickTarget = null;
-  state.deviceControl.activeTarget = null;
-  setPickStatus();
-  sceneRenderState.renderAll();
-}
-
-function openDevicePrecision(target) {
-  if (state.deviceControl.activeTarget === target) {
-    closeDevicePrecision();
-    return;
-  }
-  clearPickTapCandidate();
-  readActiveDeviceInputs();
-  if (isLinkDeviceTarget(target)) {
-    solverControls.readLinkInputs();
-  } else if (isMobilityDeviceTarget(target)) {
-    solverControls.readMobilityInputs();
-  } else if (target === "rm-tx") {
-    solverControls.readRadiomapInputs();
-  } else if (isDeepMimoDeviceTarget(target)) {
-    solverControls.readDeepMimoInputs();
-  }
-  state.deviceControl.activeTarget = target;
-  state.pickTarget = target;
-  setPickStatus(placementPromptForTarget(target));
-  sceneRenderState.renderAll();
-}
-
-function readActiveDeviceInputs() {
-  if (isLinkDeviceTarget(state.deviceControl.activeTarget)) {
-    solverControls.readLinkInputs();
-    return;
-  }
-  if (isMobilityDeviceTarget(state.deviceControl.activeTarget)) {
-    solverControls.readMobilityInputs();
-    return;
-  }
-  if (state.deviceControl.activeTarget === "rm-tx") {
-    solverControls.readRadiomapInputs();
-    return;
-  }
-  if (isDeepMimoDeviceTarget(state.deviceControl.activeTarget)) {
-    solverControls.readDeepMimoInputs();
-  }
-}
-
-function txOrbitCenterForMode() {
-  if (state.mode === "radiomap") {
-    return state.radiomap.txVisual;
-  }
-  if (state.mode === "deepmimo") {
-    return state.deepmimo.txVisual;
-  }
-  if (state.mode === "mobility") {
-    return state.mobility.txVisual;
-  }
-  return state.link.txVisual;
-}
-
-function readTxInputsForCurrentMode() {
-  if (state.mode === "radiomap") {
-    solverControls.readRadiomapInputs();
-    return;
-  }
-  if (state.mode === "deepmimo") {
-    solverControls.readDeepMimoInputs();
-    return;
-  }
-  if (state.mode === "mobility") {
-    solverControls.readMobilityInputs();
-    return;
-  }
-  solverControls.readLinkInputs();
-}
-
-function stopTxOrbit() {
-  currentViewer().stopTxOrbit();
-}
-
-function toggleTxOrbit() {
-  const viewer = currentViewer();
-  if (viewer.isTxOrbiting()) {
-    viewer.stopTxOrbit();
-    sceneRenderState.renderAll();
-    return;
-  }
-  readTxInputsForCurrentMode();
-  clearPickTapCandidate();
-  state.pickTarget = null;
-  state.deviceControl.activeTarget = null;
-  setPickStatus();
-  viewer.startTxOrbit(txOrbitCenterForMode());
-  sceneRenderState.renderAll();
-}
-
 async function runSolveFromDock(button, run) {
-  clearPickTapCandidate();
+  devicePicking.clearActiveDevice({render: false});
   solverControls.cancelLivePreview();
-  state.pickTarget = null;
-  state.deviceControl.activeTarget = null;
-  setPickStatus();
   sceneRenderState.renderAll();
   button.disabled = true;
   button.classList.add("busy");
@@ -269,177 +140,20 @@ async function runSolveFromDock(button, run) {
   }
 }
 
-function pickActiveDeviceAt(clientX, clientY, target, livePhase = "change") {
-  if (!target || state.pickTarget !== target) {
-    return false;
-  }
-  const pick = currentViewer().pickOnSurface(
-    clientX,
-    clientY,
-    solverControls.markerRadiusForPickTarget(target),
-  );
-  solverControls.applyPick(pick);
-  if (pick) {
-    state.deviceControl.activeTarget = target;
-    state.pickTarget = target;
-    setPickStatus(placementPromptForTarget(target));
-    if (target === "deepmimo-roi") {
-      return true;
-    }
-    solverControls.handleLivePreviewDeviceUpdate(target, livePhase);
-    return true;
-  }
-  setPickStatus(placementPromptForTarget(target));
-  return false;
-}
-
-function deepMimoSurfacePositionAt(clientX, clientY) {
-  const pick = currentViewer().pickOnSurface(clientX, clientY, 0);
-  return pick ? (pick.surfacePosition || pick.logicalPosition) : null;
-}
-
-function handlePickPointerDown(event) {
-  if (!state.pickTarget || !event.isPrimary || event.button !== 0 || event.shiftKey) {
-    clearPickTapCandidate();
-    return;
-  }
-  if (state.pickTarget === "deepmimo-roi") {
-    const position = deepMimoSurfacePositionAt(event.clientX, event.clientY);
-    if (!position) {
-      setPickStatus(placementPromptForTarget("deepmimo-roi"));
-      return;
-    }
-    solverControls.startDeepMimoRoiDrag(position);
-    pickTapCandidate = {
-      pointerId: event.pointerId,
-      target: state.pickTarget,
-      startX: event.clientX,
-      startY: event.clientY,
-      startAt: window.performance.now(),
-      canceled: false,
-      dragging: true,
-      roiDrawing: true,
-    };
-    event.preventDefault();
-    event.stopPropagation();
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {}
-    sceneRenderState.renderAll();
-    return;
-  }
-  pickTapCandidate = {
-    pointerId: event.pointerId,
-    target: state.pickTarget,
-    startX: event.clientX,
-    startY: event.clientY,
-    startAt: window.performance.now(),
-    canceled: false,
-    dragging: false,
-  };
-  event.preventDefault();
-  event.stopPropagation();
-  try {
-    event.currentTarget.setPointerCapture(event.pointerId);
-  } catch {}
-}
-
-function handlePickPointerMove(event) {
-  if (!pickTapCandidate || event.pointerId !== pickTapCandidate.pointerId) {
-    return;
-  }
-  if (pickTapCandidate.roiDrawing) {
-    const position = deepMimoSurfacePositionAt(event.clientX, event.clientY);
-    if (position) {
-      solverControls.updateDeepMimoRoiDrag(position);
-      setPickStatus(placementPromptForTarget("deepmimo-roi"));
-      sceneRenderState.renderAll();
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    return;
-  }
-  const dx = event.clientX - pickTapCandidate.startX;
-  const dy = event.clientY - pickTapCandidate.startY;
-  if ((dx * dx) + (dy * dy) > PICK_TAP_MAX_MOVE_PX * PICK_TAP_MAX_MOVE_PX) {
-    pickTapCandidate.canceled = true;
-    pickTapCandidate.dragging = true;
-  }
-  if (pickTapCandidate.dragging) {
-    pickActiveDeviceAt(event.clientX, event.clientY, pickTapCandidate.target, "move");
-    event.preventDefault();
-    event.stopPropagation();
-  }
-}
-
-function handlePickPointerUp(event) {
-  if (!pickTapCandidate || event.pointerId !== pickTapCandidate.pointerId) {
-    return;
-  }
-  const candidate = pickTapCandidate;
-  clearPickTapCandidate();
-  if (candidate.roiDrawing) {
-    const position = deepMimoSurfacePositionAt(event.clientX, event.clientY);
-    if (position) {
-      solverControls.finishDeepMimoRoiDrag(position);
-    }
-    state.deviceControl.activeTarget = "deepmimo-roi";
-    state.pickTarget = "deepmimo-roi";
-    setPickStatus(placementPromptForTarget("deepmimo-roi"));
-    sceneRenderState.renderAll();
-    event.preventDefault();
-    event.stopPropagation();
-    try {
-      document.getElementById("view").releasePointerCapture(event.pointerId);
-    } catch {}
-    return;
-  }
-  const duration = window.performance.now() - candidate.startAt;
-  const dx = event.clientX - candidate.startX;
-  const dy = event.clientY - candidate.startY;
-  const moved = (dx * dx) + (dy * dy) > PICK_TAP_MAX_MOVE_PX * PICK_TAP_MAX_MOVE_PX;
-  if (candidate.dragging) {
-    pickActiveDeviceAt(event.clientX, event.clientY, candidate.target, "end");
-    event.preventDefault();
-    event.stopPropagation();
-    try {
-      document.getElementById("view").releasePointerCapture(event.pointerId);
-    } catch {}
-    return;
-  }
-  if (
-    candidate.canceled
-    || moved
-    || duration > PICK_TAP_MAX_DURATION_MS
-    || state.pickTarget !== candidate.target
-  ) {
-    return;
-  }
-  pickActiveDeviceAt(event.clientX, event.clientY, candidate.target, "end");
-  try {
-    document.getElementById("view").releasePointerCapture(event.pointerId);
-  } catch {}
-}
-
 function attachEvents() {
   paramTooltips.attach();
 
   const handleEnterScene = () => {
-    clearPickTapCandidate();
-    state.pickTarget = null;
-    state.deviceControl.activeTarget = null;
+    devicePicking.clearActiveDevice({render: false, status: false});
     return sceneRenderState.enterScene().catch((error) => {
       sceneRenderState.hideOverlay(null, true);
       state.tileLoadBusy = false;
       sceneRenderState.syncTileListUi();
-      window.alert(error.message);
+      return showErrorDialog("Enter Scene Failed", error);
     });
   };
   const handleReturnToScene = () => {
-    clearPickTapCandidate();
-    state.pickTarget = null;
-    state.deviceControl.activeTarget = null;
-    setPickStatus();
+    devicePicking.clearActiveDevice({render: false});
     sceneRenderState.resetSelectionToLoadedTiles();
     entryMapController.hideEntryScreen();
     sceneRenderState.renderAll();
@@ -489,11 +203,8 @@ function attachEvents() {
   });
   ui.btnEnterScene.addEventListener("click", handleEnterScene);
   ui.btnOpenTileIndex.addEventListener("click", () => {
-    clearPickTapCandidate();
+    devicePicking.clearActiveDevice({render: false});
     solverControls.cancelLivePreview();
-    state.pickTarget = null;
-    state.deviceControl.activeTarget = null;
-    setPickStatus();
     entryMapController.showEntryScreen();
   });
 
@@ -570,12 +281,9 @@ function attachEvents() {
     paramTooltips.hideTooltip();
     solverControls.cancelLivePreview();
     solverControls.stopMobilityPlayback();
-    stopTxOrbit();
+    devicePicking.stopTxOrbit();
     state.mode = "link";
-    clearPickTapCandidate();
-    state.pickTarget = null;
-    state.deviceControl.activeTarget = null;
-    setPickStatus();
+    devicePicking.clearActiveDevice({render: false});
     currentViewer().clearOverlay();
     sceneRenderState.renderAll();
   });
@@ -583,16 +291,13 @@ function attachEvents() {
     closeModeMenu();
     paramTooltips.hideTooltip();
     solverControls.cancelLivePreview();
-    stopTxOrbit();
+    devicePicking.stopTxOrbit();
     state.mode = "mobility";
     if (!state.mobility.tapsDefaulted) {
       state.link.advanced.computeTaps = true;
       state.mobility.tapsDefaulted = true;
     }
-    clearPickTapCandidate();
-    state.pickTarget = null;
-    state.deviceControl.activeTarget = null;
-    setPickStatus();
+    devicePicking.clearActiveDevice({render: false});
     currentViewer().clearOverlay();
     solverControls.renderMobilityTrajectoryPreview();
     sceneRenderState.renderAll();
@@ -602,12 +307,9 @@ function attachEvents() {
     paramTooltips.hideTooltip();
     solverControls.cancelLivePreview();
     solverControls.stopMobilityPlayback();
-    stopTxOrbit();
+    devicePicking.stopTxOrbit();
     state.mode = "radiomap";
-    clearPickTapCandidate();
-    state.pickTarget = null;
-    state.deviceControl.activeTarget = null;
-    setPickStatus();
+    devicePicking.clearActiveDevice({render: false});
     currentViewer().clearOverlay();
     sceneRenderState.renderAll();
   });
@@ -616,12 +318,9 @@ function attachEvents() {
     paramTooltips.hideTooltip();
     solverControls.cancelLivePreview();
     solverControls.stopMobilityPlayback();
-    stopTxOrbit();
+    devicePicking.stopTxOrbit();
     state.mode = "deepmimo";
-    clearPickTapCandidate();
-    state.pickTarget = null;
-    state.deviceControl.activeTarget = null;
-    setPickStatus();
+    devicePicking.clearActiveDevice({render: false});
     currentViewer().clearPaths();
     currentViewer().clearRadiomap();
     currentViewer().clearSurfacePreview();
@@ -630,28 +329,25 @@ function attachEvents() {
 
   ui.btnSolveLink.addEventListener("click", () => runSolveFromDock(ui.btnSolveLink, () => solverControls.runLinkSolve()).catch((error) => {
     sceneRenderState.hideOverlay(null, true);
-    window.alert(error.message);
+    return showErrorDialog("Link Solve Failed", error);
   }));
   ui.btnRunRadiomap.addEventListener("click", () => runSolveFromDock(ui.btnRunRadiomap, () => solverControls.runRadiomap()).catch((error) => {
     sceneRenderState.hideOverlay(null, true);
-    window.alert(error.message);
+    return showErrorDialog("Radiomap Failed", error);
   }));
   ui.btnRunMobility.addEventListener("click", () => runSolveFromDock(ui.btnRunMobility, () => solverControls.runMobility()).catch((error) => {
     sceneRenderState.hideOverlay(null, true);
     solverControls.stopMobilityPlayback();
-    window.alert(error.message);
+    return showErrorDialog("Mobility Failed", error);
   }));
   ui.btnRunDeepMimo.addEventListener("click", () => {
-    clearPickTapCandidate();
+    devicePicking.clearActiveDevice({render: false});
     solverControls.cancelLivePreview();
-    state.pickTarget = null;
-    state.deviceControl.activeTarget = null;
-    setPickStatus();
     ui.btnRunDeepMimo.disabled = true;
     ui.btnRunDeepMimo.classList.add("busy");
     ui.btnRunDeepMimo.setAttribute("aria-busy", "true");
     solverControls.runDeepMimo().catch((error) => {
-      window.alert(error.message);
+      return showErrorDialog("DeepMIMO Export Failed", error);
     }).finally(() => {
       ui.btnRunDeepMimo.disabled = false;
       ui.btnRunDeepMimo.classList.remove("busy");
@@ -659,38 +355,15 @@ function attachEvents() {
       sceneRenderState.renderAll();
     });
   });
-  ui.btnOrbitTx.addEventListener("click", toggleTxOrbit);
-  ui.btnPickLinkTx.addEventListener("click", () => openDevicePrecision("link-tx"));
-  ui.btnPickLinkRx.addEventListener("click", () => openDevicePrecision("link-rx"));
-  ui.btnPickMobilityTx.addEventListener("click", () => openDevicePrecision("mobility-tx"));
-  ui.btnPickMobilityRx.addEventListener("click", () => openDevicePrecision("mobility-rx"));
-  ui.btnPickRmTx.addEventListener("click", () => openDevicePrecision("rm-tx"));
-  ui.btnDeepMimoPickTx.addEventListener("click", () => openDevicePrecision("deepmimo-tx"));
-  ui.btnDeepMimoPickRoi.addEventListener("click", () => {
-    clearPickTapCandidate();
-    if (state.pickTarget === "deepmimo-roi" || state.deviceControl.activeTarget === "deepmimo-roi") {
-      state.deepmimo.roi.pickingStep = "a";
-      state.pickTarget = null;
-      state.deviceControl.activeTarget = null;
-      setPickStatus();
-      sceneRenderState.renderAll();
-      return;
-    }
-    solverControls.readDeepMimoInputs();
-    state.deepmimo.roi.pickingStep = "drag";
-    state.deviceControl.activeTarget = "deepmimo-roi";
-    state.pickTarget = "deepmimo-roi";
-    setPickStatus(placementPromptForTarget("deepmimo-roi"));
-    sceneRenderState.renderAll();
-  });
-  ui.btnDeepMimoClearRoi.addEventListener("click", () => {
-    clearPickTapCandidate();
-    state.pickTarget = null;
-    state.deviceControl.activeTarget = null;
-    setPickStatus();
-    solverControls.clearDeepMimoRoi();
-    sceneRenderState.renderAll();
-  });
+  ui.btnOrbitTx.addEventListener("click", () => devicePicking.toggleTxOrbit());
+  ui.btnPickLinkTx.addEventListener("click", () => devicePicking.openDevicePrecision("link-tx"));
+  ui.btnPickLinkRx.addEventListener("click", () => devicePicking.openDevicePrecision("link-rx"));
+  ui.btnPickMobilityTx.addEventListener("click", () => devicePicking.openDevicePrecision("mobility-tx"));
+  ui.btnPickMobilityRx.addEventListener("click", () => devicePicking.openDevicePrecision("mobility-rx"));
+  ui.btnPickRmTx.addEventListener("click", () => devicePicking.openDevicePrecision("rm-tx"));
+  ui.btnDeepMimoPickTx.addEventListener("click", () => devicePicking.openDevicePrecision("deepmimo-tx"));
+  ui.btnDeepMimoPickRoi.addEventListener("click", () => devicePicking.handleDeepMimoRoiPickToggle());
+  ui.btnDeepMimoClearRoi.addEventListener("click", () => devicePicking.handleDeepMimoClearRoi());
 
   for (const [input, target] of [
     [inputs.linkTxX, "link-tx"], [inputs.linkTxY, "link-tx"], [inputs.linkTxZ, "link-tx"],
@@ -700,9 +373,7 @@ function attachEvents() {
       solverControls.readLinkInputs();
       solverControls.invalidateLinkResult();
       invalidateMobilityResult();
-      if (isLinkDeviceTarget(state.deviceControl.activeTarget)) {
-        setPickStatus(placementPromptForTarget(state.deviceControl.activeTarget));
-      }
+      devicePicking.refreshPickStatus("link");
       solverControls.handleLivePreviewDeviceUpdate(target, "change");
       sceneRenderState.renderAll();
     });
@@ -715,9 +386,7 @@ function attachEvents() {
     input.addEventListener("change", () => {
       solverControls.readMobilityInputs();
       invalidateMobilityResult();
-      if (isMobilityDeviceTarget(state.deviceControl.activeTarget)) {
-        setPickStatus(placementPromptForTarget(state.deviceControl.activeTarget));
-      }
+      devicePicking.refreshPickStatus("mobility");
       sceneRenderState.renderAll();
     });
   }
@@ -824,9 +493,7 @@ function attachEvents() {
     input.addEventListener("change", () => {
       solverControls.readRadiomapInputs();
       solverControls.invalidateRadiomapResult();
-      if (state.deviceControl.activeTarget === "rm-tx") {
-        setPickStatus(placementPromptForTarget(state.deviceControl.activeTarget));
-      }
+      devicePicking.refreshPickStatus("radiomap");
       sceneRenderState.renderAll();
     });
   }
@@ -894,26 +561,15 @@ function attachEvents() {
         solverControls.rerenderRadiomapOverlay();
         solverControls.renderRadiomapResult();
       } catch (error) {
-        window.alert(error.message);
+        showErrorDialog("Radiomap Display Failed", error);
       }
     });
   }
 
-  const view = document.getElementById("view");
-  view.addEventListener("pointerdown", handlePickPointerDown, {capture: true});
-  window.addEventListener("pointermove", handlePickPointerMove, {capture: true});
-  window.addEventListener("pointerup", handlePickPointerUp, {capture: true});
-  window.addEventListener("pointercancel", clearPickTapCandidate);
-  window.addEventListener("blur", clearPickTapCandidate);
-  window.addEventListener("hku-tx-orbit-change", () => {
-    sceneRenderState.renderAll();
-  });
+  devicePicking.attachPointerEvents(document.getElementById("view"));
 
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.deviceControl.activeTarget) {
-      event.preventDefault();
-      clearPickTapCandidate();
-      closeDevicePrecision();
+    if (devicePicking.handleDevicePrecisionEscape(event)) {
       return;
     }
     if (
@@ -976,5 +632,5 @@ async function bootstrap() {
 
 bootstrap().catch((error) => {
   sceneRenderState.hideOverlay(null, true);
-  window.alert(error.message);
+  return showErrorDialog("Startup Failed", error);
 });
