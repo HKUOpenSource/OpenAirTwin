@@ -306,7 +306,7 @@ relevant Python and Playwright suites before submitting a change.
 If OpenAirTwin contributes to your work, cite the version used. For this
 release:
 
-> Wang, Z., Zhao, Z., & Zhou, Z. (2026). OpenAirTwin (Version 1.0.0)
+> Wang, Z., Zhou, Z., & Zhao, Z. (2026). OpenAirTwin (Version 1.0.0)
 > [Computer software]. https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.0.0
 
 Machine-readable citation metadata is available in [`CITATION.cff`](CITATION.cff).
