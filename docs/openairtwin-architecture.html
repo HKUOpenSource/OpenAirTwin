@@ -1,0 +1,1844 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>OpenAirTwin 架构可视化</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;height:calc(100vh - 2rem);margin:0;border:0}</style>
+</head>
+<body>
+<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="OpenAirTwin 架构可视化" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;OpenAirTwin 架构可视化&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(--background) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: light-dark(rgb(255 255 255), rgb(24 24 24));
+  --foreground: light-dark(rgb(26 28 31), rgb(255 255 255));
+  --card: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --card-foreground: var(--foreground);
+  --popover: light-dark(rgb(255 255 255), rgb(45 45 45));
+  --popover-foreground: var(--foreground);
+  --primary: light-dark(rgb(51 156 255), rgb(131 195 255));
+  --primary-foreground: light-dark(rgb(255 255 255), rgb(13 13 13));
+  --secondary: light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: light-dark(
+    rgb(26 28 31 / 49.4%),
+    rgb(255 255 255 / 49.8%)
+  );
+  --accent: light-dark(rgb(229 242 255), rgb(13 39 63));
+  --accent-foreground: var(--primary);
+  --destructive: light-dark(rgb(226 85 7), rgb(255 133 73));
+  --border: light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%));
+  --input: light-dark(
+    rgb(26 28 31 / 11.8%),
+    color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+  );
+  --ring: light-dark(rgb(51 156 255), rgb(131 195 255 / 76%));
+  --font-size-base: 14px;
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: 12.5px;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+  --color-background-primary: var(--background);
+  --color-text-primary: var(--foreground);
+  --color-border-secondary: var(--border);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--viz-font-weight-medium);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive &gt; .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align=&quot;right&quot;]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align=&quot;center&quot;]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: superellipse(1.5);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: superellipse(1.5);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+    [aria-pressed=&quot;true&quot;],
+    [aria-selected=&quot;true&quot;],
+    .is-selected
+  ) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;openairtwin-architecture-map&quot;&gt;
+  &lt;style&gt;
+    #openairtwin-architecture-map {
+      display: grid;
+      gap: 1rem;
+      color: var(--foreground);
+    }
+
+    #openairtwin-architecture-map .arch-toolbar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    #openairtwin-architecture-map .arch-index-state {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    #openairtwin-architecture-map .arch-index-state::before {
+      content: &quot;&quot;;
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 50%;
+      background: var(--viz-series-4);
+    }
+
+    #openairtwin-architecture-map .arch-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 2.4fr) minmax(15rem, 1fr);
+      gap: 1rem;
+      align-items: start;
+    }
+
+    #openairtwin-architecture-map .arch-canvas {
+      position: relative;
+      min-height: 47rem;
+      isolation: isolate;
+    }
+
+    #openairtwin-architecture-map .arch-lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #openairtwin-architecture-map .arch-lines .lane {
+      stroke: var(--border);
+      stroke-width: 1;
+      opacity: 0.55;
+    }
+
+    #openairtwin-architecture-map .arch-lines .boundary {
+      stroke: var(--border);
+      stroke-width: 1;
+      stroke-dasharray: 5 5;
+      opacity: 0.8;
+    }
+
+    #openairtwin-architecture-map .arch-lines .edge {
+      fill: none;
+      stroke-width: 2;
+      opacity: 0.7;
+      transition: opacity 160ms ease, stroke-width 160ms ease;
+    }
+
+    #openairtwin-architecture-map .arch-lines .edge.registry {
+      stroke: var(--viz-series-1);
+    }
+
+    #openairtwin-architecture-map .arch-lines .edge.http {
+      stroke: var(--viz-series-2);
+    }
+
+    #openairtwin-architecture-map .arch-lines .edge.render {
+      stroke: var(--viz-series-3);
+    }
+
+    #openairtwin-architecture-map .arch-lines .edge.capability {
+      stroke: var(--viz-series-4);
+      stroke-dasharray: 7 4;
+    }
+
+    #openairtwin-architecture-map .arch-lines .edge.runtime {
+      stroke: var(--viz-series-5);
+    }
+
+    #openairtwin-architecture-map .arch-lines .edge.is-dim {
+      opacity: 0.07;
+    }
+
+    #openairtwin-architecture-map .arch-lines .edge.is-active {
+      opacity: 1;
+      stroke-width: 3.5;
+    }
+
+    #openairtwin-architecture-map .arch-column-label {
+      position: absolute;
+      top: 0;
+      transform: translateX(-50%);
+      color: var(--muted-foreground);
+      z-index: 2;
+      white-space: nowrap;
+    }
+
+    #openairtwin-architecture-map .arch-node {
+      position: absolute;
+      left: var(--node-x);
+      top: var(--node-y);
+      transform: translate(-50%, -50%);
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.5rem;
+      min-width: 0;
+      max-width: 10.5rem;
+      text-align: left;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    #openairtwin-architecture-map .arch-node &gt; span:last-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    #openairtwin-architecture-map .arch-node.is-dim {
+      opacity: 0.2;
+    }
+
+    #openairtwin-architecture-map .arch-node.is-selected {
+      transform: translate(-50%, -50%) scale(1.04);
+    }
+
+    #openairtwin-architecture-map .arch-dot,
+    #openairtwin-architecture-map .legend-dot {
+      flex: 0 0 auto;
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 50%;
+      background: var(--node-color, var(--viz-series-1));
+    }
+
+    #openairtwin-architecture-map .arch-detail {
+      display: grid;
+      gap: 0.8rem;
+      min-width: 0;
+    }
+
+    #openairtwin-architecture-map .arch-detail-head {
+      display: grid;
+      gap: 0.2rem;
+    }
+
+    #openairtwin-architecture-map .arch-detail-head .viz-badge {
+      justify-self: start;
+    }
+
+    #openairtwin-architecture-map .arch-detail-head h2,
+    #openairtwin-architecture-map .arch-section-head h2 {
+      margin: 0;
+    }
+
+    #openairtwin-architecture-map .arch-detail dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.45rem 0.75rem;
+      min-width: 0;
+      margin: 0;
+    }
+
+    #openairtwin-architecture-map .arch-detail dt {
+      color: var(--muted-foreground);
+    }
+
+    #openairtwin-architecture-map .arch-detail dd {
+      min-width: 0;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    #openairtwin-architecture-map .arch-file-list,
+    #openairtwin-architecture-map .arch-responsibility-list {
+      margin: 0;
+      padding-left: 1.1rem;
+    }
+
+    #openairtwin-architecture-map .arch-file-list li,
+    #openairtwin-architecture-map .arch-responsibility-list li {
+      margin-block: 0.25rem;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    #openairtwin-architecture-map .arch-detail code {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    #openairtwin-architecture-map .arch-flow-line {
+      min-height: 2.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      color: var(--muted-foreground);
+    }
+
+    #openairtwin-architecture-map .arch-flow-line strong {
+      color: var(--foreground);
+      font-weight: 500;
+    }
+
+    #openairtwin-architecture-map .arch-legend {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      color: var(--muted-foreground);
+    }
+
+    #openairtwin-architecture-map .arch-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    #openairtwin-architecture-map .arch-section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    #openairtwin-architecture-map .feature-row.is-active {
+      background: color-mix(in srgb, var(--accent) 72%, transparent);
+    }
+
+    #openairtwin-architecture-map .feature-row.is-dim {
+      opacity: 0.35;
+    }
+
+    #openairtwin-architecture-map .feature-jump {
+      white-space: nowrap;
+    }
+
+    #openairtwin-architecture-map .arch-contract {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #openairtwin-architecture-map .arch-node,
+      #openairtwin-architecture-map .arch-lines .edge {
+        transition: none;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      #openairtwin-architecture-map .arch-layout {
+        grid-template-columns: 1fr;
+      }
+
+      #openairtwin-architecture-map .arch-canvas {
+        min-height: 44rem;
+      }
+    }
+
+    @media (max-width: 620px) {
+      #openairtwin-architecture-map .arch-canvas {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+      }
+
+      #openairtwin-architecture-map .arch-lines,
+      #openairtwin-architecture-map .arch-column-label {
+        display: none;
+      }
+
+      #openairtwin-architecture-map .arch-node {
+        position: static;
+        transform: none;
+        max-width: none;
+        width: 100%;
+      }
+
+      #openairtwin-architecture-map .arch-node.is-selected {
+        transform: none;
+      }
+    }
+
+    @media (max-width: 430px) {
+      #openairtwin-architecture-map .arch-canvas {
+        grid-template-columns: 1fr;
+      }
+
+      #openairtwin-architecture-map .arch-detail dl {
+        grid-template-columns: 1fr;
+      }
+    }
+  &lt;/style&gt;
+
+  &lt;div class=&quot;arch-toolbar&quot;&gt;
+    &lt;div class=&quot;viz-controls&quot;&gt;
+      &lt;label class=&quot;form-label&quot; for=&quot;oatArchitectureView&quot;&gt;架构视图&lt;/label&gt;
+      &lt;select class=&quot;form-select&quot; id=&quot;oatArchitectureView&quot;&gt;
+        &lt;option value=&quot;overview&quot;&gt;系统总览&lt;/option&gt;
+        &lt;option value=&quot;frontend&quot;&gt;前端运行时&lt;/option&gt;
+        &lt;option value=&quot;backend&quot;&gt;后端运行时&lt;/option&gt;
+        &lt;option value=&quot;link&quot;&gt;Link 调用链&lt;/option&gt;
+        &lt;option value=&quot;mobility&quot;&gt;Mobility 调用链&lt;/option&gt;
+        &lt;option value=&quot;radiomap&quot;&gt;Radiomap 调用链&lt;/option&gt;
+        &lt;option value=&quot;deepmimo&quot;&gt;DeepMIMO 调用链&lt;/option&gt;
+      &lt;/select&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;arch-index-state text-small&quot; aria-label=&quot;CodeGraph index summary&quot;&gt;
+      &lt;span&gt;CodeGraph 1.4.1&lt;/span&gt;
+      &lt;span class=&quot;text-muted&quot;&gt;131 files · 2,820 symbols · 8,646 edges&lt;/span&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;div class=&quot;arch-flow-line&quot; id=&quot;oatArchitectureFlow&quot; aria-live=&quot;polite&quot;&gt;&lt;/div&gt;
+
+  &lt;div class=&quot;arch-layout&quot;&gt;
+    &lt;div class=&quot;arch-canvas&quot; id=&quot;oatArchitectureCanvas&quot; role=&quot;group&quot; aria-label=&quot;OpenAirTwin internal architecture graph&quot;&gt;
+      &lt;svg class=&quot;arch-lines&quot; id=&quot;oatArchitectureEdges&quot; viewBox=&quot;0 0 1000 760&quot; preserveAspectRatio=&quot;none&quot; role=&quot;img&quot; aria-label=&quot;Module dependency connections&quot;&gt;
+        &lt;title&gt;OpenAirTwin module dependency graph&lt;/title&gt;
+        &lt;desc&gt;Frontend feature modules connect through feature transports and REST routes to backend feature services, job managers, the ray-tracing runtime, and Viewer rendering layers.&lt;/desc&gt;
+        &lt;line class=&quot;boundary&quot; x1=&quot;555&quot; y1=&quot;15&quot; x2=&quot;555&quot; y2=&quot;745&quot;&gt;&lt;/line&gt;
+        &lt;line class=&quot;lane&quot; x1=&quot;20&quot; y1=&quot;143&quot; x2=&quot;980&quot; y2=&quot;143&quot;&gt;&lt;/line&gt;
+        &lt;line class=&quot;lane&quot; x1=&quot;20&quot; y1=&quot;274&quot; x2=&quot;980&quot; y2=&quot;274&quot;&gt;&lt;/line&gt;
+        &lt;line class=&quot;lane&quot; x1=&quot;20&quot; y1=&quot;405&quot; x2=&quot;980&quot; y2=&quot;405&quot;&gt;&lt;/line&gt;
+        &lt;line class=&quot;lane&quot; x1=&quot;20&quot; y1=&quot;536&quot; x2=&quot;980&quot; y2=&quot;536&quot;&gt;&lt;/line&gt;
+        &lt;g id=&quot;oatArchitectureEdgeLayer&quot;&gt;&lt;/g&gt;
+      &lt;/svg&gt;
+      &lt;span class=&quot;arch-column-label text-small&quot; style=&quot;left: 14%&quot;&gt;Frontend Feature&lt;/span&gt;
+      &lt;span class=&quot;arch-column-label text-small&quot; style=&quot;left: 42%&quot;&gt;Transport / REST&lt;/span&gt;
+      &lt;span class=&quot;arch-column-label text-small&quot; style=&quot;left: 70%&quot;&gt;Backend Feature&lt;/span&gt;
+      &lt;span class=&quot;arch-column-label text-small&quot; style=&quot;left: 89%&quot;&gt;Execution&lt;/span&gt;
+    &lt;/div&gt;
+
+    &lt;aside class=&quot;card arch-detail&quot; id=&quot;oatArchitectureDetail&quot; aria-live=&quot;polite&quot;&gt;
+      &lt;div class=&quot;arch-detail-head&quot;&gt;
+        &lt;span class=&quot;viz-badge&quot; id=&quot;oatArchitectureDetailCategory&quot;&gt;Core&lt;/span&gt;
+        &lt;h2 id=&quot;oatArchitectureDetailTitle&quot;&gt;Feature Core&lt;/h2&gt;
+        &lt;span class=&quot;text-muted&quot; id=&quot;oatArchitectureDetailSummary&quot;&gt;&lt;/span&gt;
+      &lt;/div&gt;
+      &lt;dl&gt;
+        &lt;dt&gt;职责&lt;/dt&gt;
+        &lt;dd&gt;&lt;ul class=&quot;arch-responsibility-list&quot; id=&quot;oatArchitectureResponsibilities&quot;&gt;&lt;/ul&gt;&lt;/dd&gt;
+        &lt;dt&gt;关键文件&lt;/dt&gt;
+        &lt;dd&gt;&lt;ul class=&quot;arch-file-list&quot; id=&quot;oatArchitectureFiles&quot;&gt;&lt;/ul&gt;&lt;/dd&gt;
+        &lt;dt&gt;直接连接&lt;/dt&gt;
+        &lt;dd id=&quot;oatArchitectureConnections&quot;&gt;&lt;/dd&gt;
+      &lt;/dl&gt;
+    &lt;/aside&gt;
+  &lt;/div&gt;
+
+  &lt;div class=&quot;arch-legend text-small&quot; aria-label=&quot;Connection legend&quot;&gt;
+    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-1)&quot;&gt;&lt;/span&gt;注册与生命周期&lt;/span&gt;
+    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-2)&quot;&gt;&lt;/span&gt;HTTP 请求&lt;/span&gt;
+    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-3)&quot;&gt;&lt;/span&gt;渲染与场景&lt;/span&gt;
+    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-4)&quot;&gt;&lt;/span&gt;Feature 能力依赖&lt;/span&gt;
+    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-5)&quot;&gt;&lt;/span&gt;执行与作业&lt;/span&gt;
+  &lt;/div&gt;
+
+  &lt;section class=&quot;arch-contract&quot; aria-labelledby=&quot;oatFeatureContractTitle&quot;&gt;
+    &lt;div class=&quot;arch-section-head&quot;&gt;
+      &lt;h2 id=&quot;oatFeatureContractTitle&quot;&gt;Feature 接口对照&lt;/h2&gt;
+      &lt;span class=&quot;text-muted text-small&quot;&gt;前端目录 → Transport → 后端定义 → Renderer&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;table-responsive&quot;&gt;
+      &lt;table class=&quot;table table-sm&quot;&gt;
+        &lt;thead&gt;
+          &lt;tr&gt;
+            &lt;th&gt;Feature&lt;/th&gt;
+            &lt;th&gt;能力依赖&lt;/th&gt;
+            &lt;th&gt;REST 接口&lt;/th&gt;
+            &lt;th&gt;执行语义&lt;/th&gt;
+            &lt;th&gt;场景输出&lt;/th&gt;
+          &lt;/tr&gt;
+        &lt;/thead&gt;
+        &lt;tbody&gt;
+          &lt;tr class=&quot;feature-row&quot; data-feature-row=&quot;link&quot;&gt;
+            &lt;td&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-ghost feature-jump&quot; data-view=&quot;link&quot;&gt;Link&lt;/button&gt;&lt;/td&gt;
+            &lt;td&gt;提供 &lt;code&gt;link-domain&lt;/code&gt;、&lt;code&gt;path-results&lt;/code&gt;&lt;/td&gt;
+            &lt;td&gt;&lt;code&gt;POST /api/link/solve&lt;/code&gt;&lt;/td&gt;
+            &lt;td&gt;同步 RT 求解&lt;/td&gt;
+            &lt;td&gt;&lt;code&gt;polyline-set&lt;/code&gt;&lt;/td&gt;
+          &lt;/tr&gt;
+          &lt;tr class=&quot;feature-row&quot; data-feature-row=&quot;mobility&quot;&gt;
+            &lt;td&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-ghost feature-jump&quot; data-view=&quot;mobility&quot;&gt;Mobility&lt;/button&gt;&lt;/td&gt;
+            &lt;td&gt;依赖 Link 两项能力&lt;/td&gt;
+            &lt;td&gt;&lt;code&gt;/api/mobility/jobs&lt;/code&gt;&lt;/td&gt;
+            &lt;td&gt;通用队列、轮询、结果&lt;/td&gt;
+            &lt;td&gt;&lt;code&gt;trajectory&lt;/code&gt; + &lt;code&gt;marker-set&lt;/code&gt; + paths&lt;/td&gt;
+          &lt;/tr&gt;
+          &lt;tr class=&quot;feature-row&quot; data-feature-row=&quot;radiomap&quot;&gt;
+            &lt;td&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-ghost feature-jump&quot; data-view=&quot;radiomap&quot;&gt;Radiomap&lt;/button&gt;&lt;/td&gt;
+            &lt;td&gt;共享 Solver、天线设置&lt;/td&gt;
+            &lt;td&gt;&lt;code&gt;/api/radiomap/jobs&lt;/code&gt;&lt;/td&gt;
+            &lt;td&gt;通用队列、轮询、结果&lt;/td&gt;
+            &lt;td&gt;&lt;code&gt;scalar-triangle-mesh&lt;/code&gt;&lt;/td&gt;
+          &lt;/tr&gt;
+          &lt;tr class=&quot;feature-row&quot; data-feature-row=&quot;deepmimo&quot;&gt;
+            &lt;td&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-ghost feature-jump&quot; data-view=&quot;deepmimo&quot;&gt;DeepMIMO&lt;/button&gt;&lt;/td&gt;
+            &lt;td&gt;依赖 &lt;code&gt;link-domain&lt;/code&gt;&lt;/td&gt;
+            &lt;td&gt;&lt;code&gt;/api/deepmimo/jobs&lt;/code&gt;&lt;/td&gt;
+            &lt;td&gt;专用任务、取消、下载 lease&lt;/td&gt;
+            &lt;td&gt;&lt;code&gt;polygon-overlay&lt;/code&gt;&lt;/td&gt;
+          &lt;/tr&gt;
+        &lt;/tbody&gt;
+      &lt;/table&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+
+  &lt;script&gt;
+    (() =&gt; {
+      const root = document.getElementById(&quot;openairtwin-architecture-map&quot;);
+      const canvas = root.querySelector(&quot;#oatArchitectureCanvas&quot;);
+      const edgeLayer = root.querySelector(&quot;#oatArchitectureEdgeLayer&quot;);
+      const viewSelect = root.querySelector(&quot;#oatArchitectureView&quot;);
+      const flowLine = root.querySelector(&quot;#oatArchitectureFlow&quot;);
+
+      const colors = {
+        core: &quot;var(--viz-series-1)&quot;,
+        frontend: &quot;var(--viz-series-3)&quot;,
+        transport: &quot;var(--viz-series-2)&quot;,
+        backend: &quot;var(--viz-series-4)&quot;,
+        execution: &quot;var(--viz-series-5)&quot;,
+      };
+
+      const nodes = [
+        {
+          id: &quot;app-shell&quot;, label: &quot;app.js / UI Shell&quot;, category: &quot;core&quot;, x: 14, y: 10,
+          scopes: [&quot;frontend&quot;],
+          summary: &quot;浏览器启动入口与共享 UI 编排。&quot;,
+          responsibilities: [&quot;启动 Viewer 与共享控制器&quot;, &quot;挂载模板并初始化 Feature Registry&quot;, &quot;只保留共享 UI、场景与性能逻辑&quot;],
+          files: [&quot;backend/static/js/app.js&quot;, &quot;backend/static/index.html&quot;, &quot;backend/static/js/dom_refs.js&quot;],
+        },
+        {
+          id: &quot;feature-core&quot;, label: &quot;Feature Core&quot;, category: &quot;core&quot;, x: 42, y: 10,
+          scopes: [&quot;frontend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
+          summary: &quot;显式注册、状态、设置、Picking 与生命周期中心。&quot;,
+          responsibilities: [&quot;FeatureRegistry：注册、初始化、激活和释放&quot;, &quot;FeatureStore：为各 Feature 创建独立状态&quot;, &quot;SettingsBus / PickingRegistry：共享设置失效与拾取目标路由&quot;],
+          files: [&quot;backend/static/js/core/feature_registry.js&quot;, &quot;backend/static/js/features/feature_catalog.js&quot;, &quot;backend/static/js/app_state.js&quot;],
+        },
+        {
+          id: &quot;viewer-core&quot;, label: &quot;Viewer Core&quot;, category: &quot;frontend&quot;, x: 70, y: 10,
+          scopes: [&quot;frontend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
+          summary: &quot;Three.js 场景运行时以及 Layer、Primitive、Asset 扩展点。&quot;,
+          responsibilities: [&quot;SceneLayerManager 隔离 Feature 图层&quot;, &quot;PrimitiveRenderer 渲染路径、轨迹、热力网格与 ROI&quot;, &quot;AssetManager 加载 GLB/PLY 并管理引用释放&quot;],
+          files: [&quot;backend/static/js/viewer.js&quot;, &quot;backend/static/js/viewer/layer_manager.js&quot;, &quot;backend/static/js/viewer/primitives.js&quot;, &quot;backend/static/js/viewer/asset_manager.js&quot;],
+        },
+        {
+          id: &quot;backend-core&quot;, label: &quot;Backend Core&quot;, category: &quot;core&quot;, x: 89, y: 10,
+          scopes: [&quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
+          summary: &quot;HTTP 基础能力、Feature 路由分发与服务依赖注入。&quot;,
+          responsibilities: [&quot;RouteRegistry 匹配固定路径和路径参数&quot;, &quot;FeatureServiceRegistry 注入 RT Runtime 等资源&quot;, &quot;AppState 保留旧 manager 属性兼容 facade&quot;],
+          files: [&quot;backend/server.py&quot;, &quot;backend/features/core.py&quot;, &quot;backend/features/catalog.py&quot;],
+        },
+        {
+          id: &quot;link-front&quot;, label: &quot;Link Feature&quot;, category: &quot;frontend&quot;, feature: &quot;link&quot;, x: 14, y: 26,
+          scopes: [&quot;frontend&quot;, &quot;link&quot;],
+          summary: &quot;同步链路分析的独立前端模块，并向其他 Feature 提供领域能力。&quot;,
+          responsibilities: [&quot;独立 state / transport / controller / result view / renderer / lifecycle&quot;, &quot;提供 link-domain 与 path-results&quot;, &quot;管理 Tx/Rx Picking、live preview 与路径选择&quot;],
+          files: [&quot;backend/static/js/features/link/index.js&quot;, &quot;backend/static/js/features/link/runtime.js&quot;, &quot;backend/static/js/features/link/transport.js&quot;, &quot;backend/static/js/features/link/renderer.js&quot;],
+        },
+        {
+          id: &quot;link-api&quot;, label: &quot;POST /api/link/solve&quot;, category: &quot;transport&quot;, feature: &quot;link&quot;, x: 42, y: 26,
+          scopes: [&quot;link&quot;],
+          summary: &quot;保留既有同步 REST 协议的 Link transport。&quot;,
+          responsibilities: [&quot;发送完整 Link payload&quot;, &quot;直接等待求解结果&quot;, &quot;由 api.js 兼容 facade 转发&quot;],
+          files: [&quot;backend/static/js/features/link/transport.js&quot;, &quot;backend/static/js/api.js&quot;],
+        },
+        {
+          id: &quot;link-back&quot;, label: &quot;Link Service&quot;, category: &quot;backend&quot;, feature: &quot;link&quot;, x: 70, y: 26,
+          scopes: [&quot;backend&quot;, &quot;link&quot;],
+          summary: &quot;注册 Link 路由并调用同步 RT 求解服务。&quot;,
+          responsibilities: [&quot;BackendFeatureDefinition 声明 rt_runtime 资源&quot;, &quot;读取原有 JSON payload&quot;, &quot;返回原有 Link JSON 响应&quot;],
+          files: [&quot;backend/features/link.py&quot;, &quot;backend/rt/solve_link.py&quot;],
+        },
+        {
+          id: &quot;link-exec&quot;, label: &quot;同步 RT 求解&quot;, category: &quot;execution&quot;, feature: &quot;link&quot;, x: 89, y: 26,
+          scopes: [&quot;backend&quot;, &quot;link&quot;],
+          summary: &quot;在当前请求中执行 Sionna RT Link solve。&quot;,
+          responsibilities: [&quot;验证场景与求解参数&quot;, &quot;执行传播路径计算&quot;, &quot;生成路径、增益、时延与可选 taps&quot;],
+          files: [&quot;backend/rt/solve_link.py&quot;, &quot;backend/rt/runtime.py&quot;],
+        },
+        {
+          id: &quot;mobility-front&quot;, label: &quot;Mobility Feature&quot;, category: &quot;frontend&quot;, feature: &quot;mobility&quot;, x: 14, y: 43,
+          scopes: [&quot;frontend&quot;, &quot;mobility&quot;],
+          summary: &quot;轨迹采样、轮询、时间轴和播放的独立前端模块。&quot;,
+          responsibilities: [&quot;消费 Link 的 link-domain 与 path-results&quot;, &quot;管理轨迹点、时间轴和播放状态&quot;, &quot;渲染轨迹、采样点及每步路径&quot;],
+          files: [&quot;backend/static/js/features/mobility/index.js&quot;, &quot;backend/static/js/features/mobility/runtime.js&quot;, &quot;backend/static/js/features/mobility/transport.js&quot;, &quot;backend/static/js/features/mobility/renderer.js&quot;],
+        },
+        {
+          id: &quot;mobility-api&quot;, label: &quot;/api/mobility/jobs&quot;, category: &quot;transport&quot;, feature: &quot;mobility&quot;, x: 42, y: 43,
+          scopes: [&quot;mobility&quot;],
+          summary: &quot;Mobility 异步创建、状态轮询和结果读取协议。&quot;,
+          responsibilities: [&quot;POST 创建作业&quot;, &quot;GET 轮询状态&quot;, &quot;GET 读取成功结果&quot;],
+          files: [&quot;backend/static/js/features/mobility/transport.js&quot;, &quot;backend/features/inprocess_routes.py&quot;],
+        },
+        {
+          id: &quot;mobility-back&quot;, label: &quot;Mobility Service&quot;, category: &quot;backend&quot;, feature: &quot;mobility&quot;, x: 70, y: 43,
+          scopes: [&quot;backend&quot;, &quot;mobility&quot;],
+          summary: &quot;通过通用 InProcess 路由注册 Mobility 作业 API。&quot;,
+          responsibilities: [&quot;注入 rt_runtime&quot;, &quot;创建 MobilityJobManager&quot;, &quot;记录 scene_generation 保证场景一致性&quot;],
+          files: [&quot;backend/features/mobility.py&quot;, &quot;backend/jobs/mobility_jobs.py&quot;],
+        },
+        {
+          id: &quot;mobility-exec&quot;, label: &quot;InProcess Worker&quot;, category: &quot;execution&quot;, feature: &quot;mobility&quot;, x: 89, y: 43,
+          scopes: [&quot;backend&quot;, &quot;mobility&quot;],
+          summary: &quot;通用单 Worker 队列执行 Mobility 求解。&quot;,
+          responsibilities: [&quot;queued → running → succeeded/failed&quot;, &quot;进度、TTL、容量和结果存储&quot;, &quot;调用 solve_mobility&quot;],
+          files: [&quot;backend/jobs/inprocess_jobs.py&quot;, &quot;backend/jobs/mobility_jobs.py&quot;, &quot;backend/rt/solve_mobility.py&quot;],
+        },
+        {
+          id: &quot;radiomap-front&quot;, label: &quot;Radiomap Feature&quot;, category: &quot;frontend&quot;, feature: &quot;radiomap&quot;, x: 14, y: 60,
+          scopes: [&quot;frontend&quot;, &quot;radiomap&quot;],
+          summary: &quot;无线电地图提交、轮询、色标和热力网格模块。&quot;,
+          responsibilities: [&quot;独立管理 Tx、surface、solver 和 display 状态&quot;, &quot;共享 common-solver 与 Tx 天线设置&quot;, &quot;负责热力图结果与色条失效规则&quot;],
+          files: [&quot;backend/static/js/features/radiomap/index.js&quot;, &quot;backend/static/js/features/radiomap/runtime.js&quot;, &quot;backend/static/js/features/radiomap/transport.js&quot;, &quot;backend/static/js/features/radiomap/renderer.js&quot;],
+        },
+        {
+          id: &quot;radiomap-api&quot;, label: &quot;/api/radiomap/jobs&quot;, category: &quot;transport&quot;, feature: &quot;radiomap&quot;, x: 42, y: 60,
+          scopes: [&quot;radiomap&quot;],
+          summary: &quot;Radiomap 异步创建、状态轮询和结果读取协议。&quot;,
+          responsibilities: [&quot;POST 创建作业&quot;, &quot;GET 轮询状态&quot;, &quot;GET 读取 scalar mesh 数据&quot;],
+          files: [&quot;backend/static/js/features/radiomap/transport.js&quot;, &quot;backend/features/inprocess_routes.py&quot;],
+        },
+        {
+          id: &quot;radiomap-back&quot;, label: &quot;Radiomap Service&quot;, category: &quot;backend&quot;, feature: &quot;radiomap&quot;, x: 70, y: 60,
+          scopes: [&quot;backend&quot;, &quot;radiomap&quot;],
+          summary: &quot;通过通用 InProcess 路由注册 Radiomap 作业 API。&quot;,
+          responsibilities: [&quot;注入 rt_runtime&quot;, &quot;创建 RadiomapJobManager&quot;, &quot;复用统一状态与错误响应&quot;],
+          files: [&quot;backend/features/radiomap.py&quot;, &quot;backend/jobs/radiomap_jobs.py&quot;],
+        },
+        {
+          id: &quot;radiomap-exec&quot;, label: &quot;InProcess Worker&quot;, category: &quot;execution&quot;, feature: &quot;radiomap&quot;, x: 89, y: 60,
+          scopes: [&quot;backend&quot;, &quot;radiomap&quot;],
+          summary: &quot;通用单 Worker 队列执行 Radiomap 求解。&quot;,
+          responsibilities: [&quot;共享队列、TTL 与进度实现&quot;, &quot;验证 scene_generation&quot;, &quot;调用 solve_radiomap&quot;],
+          files: [&quot;backend/jobs/inprocess_jobs.py&quot;, &quot;backend/jobs/radiomap_jobs.py&quot;, &quot;backend/rt/solve_radiomap.py&quot;],
+        },
+        {
+          id: &quot;deepmimo-front&quot;, label: &quot;DeepMIMO Feature&quot;, category: &quot;frontend&quot;, feature: &quot;deepmimo&quot;, x: 14, y: 77,
+          scopes: [&quot;frontend&quot;, &quot;deepmimo&quot;],
+          summary: &quot;ROI、任务取消、数据集列表和下载入口模块。&quot;,
+          responsibilities: [&quot;消费 Link 的 link-domain&quot;, &quot;管理 Tx 与矩形 ROI Picking&quot;, &quot;提交、取消、轮询和记录下载数据集&quot;],
+          files: [&quot;backend/static/js/features/deepmimo/index.js&quot;, &quot;backend/static/js/features/deepmimo/runtime.js&quot;, &quot;backend/static/js/features/deepmimo/transport.js&quot;, &quot;backend/static/js/features/deepmimo/renderer.js&quot;],
+        },
+        {
+          id: &quot;deepmimo-api&quot;, label: &quot;/api/deepmimo/jobs&quot;, category: &quot;transport&quot;, feature: &quot;deepmimo&quot;, x: 42, y: 77,
+          scopes: [&quot;deepmimo&quot;],
+          summary: &quot;DeepMIMO 创建、取消、状态和 ZIP 下载协议。&quot;,
+          responsibilities: [&quot;POST 创建与取消&quot;, &quot;GET 轮询状态&quot;, &quot;GET 下载 archive lease&quot;],
+          files: [&quot;backend/static/js/features/deepmimo/transport.js&quot;, &quot;backend/features/deepmimo.py&quot;],
+        },
+        {
+          id: &quot;deepmimo-back&quot;, label: &quot;DeepMIMO Service&quot;, category: &quot;backend&quot;, feature: &quot;deepmimo&quot;, x: 70, y: 77,
+          scopes: [&quot;backend&quot;, &quot;deepmimo&quot;],
+          summary: &quot;独立注册 DeepMIMO 作业、取消和下载路由。&quot;,
+          responsibilities: [&quot;将活动 tile 写入 payload&quot;, &quot;管理取消语义&quot;, &quot;通过 lease 安全发送 ZIP&quot;],
+          files: [&quot;backend/features/deepmimo.py&quot;, &quot;backend/jobs/deepmimo_jobs.py&quot;],
+        },
+        {
+          id: &quot;deepmimo-exec&quot;, label: &quot;Dedicated Job&quot;, category: &quot;execution&quot;, feature: &quot;deepmimo&quot;, x: 89, y: 77,
+          scopes: [&quot;backend&quot;, &quot;deepmimo&quot;],
+          summary: &quot;专用 DeepMIMO manager 执行 subprocess 与归档生命周期。&quot;,
+          responsibilities: [&quot;启动与监控导出子进程&quot;, &quot;响应取消&quot;, &quot;维护下载 lease 与 archive 清理&quot;],
+          files: [&quot;backend/jobs/deepmimo_jobs.py&quot;, &quot;backend/rt/deepmimo_export_worker.py&quot;],
+        },
+        {
+          id: &quot;rt-scene&quot;, label: &quot;RT Runtime + Scene Core&quot;, shortLabel: &quot;RT / Scene Core&quot;, category: &quot;execution&quot;, x: 62, y: 93,
+          scopes: [&quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
+          summary: &quot;四个分析 Feature 共享的射线追踪运行时和场景代际。&quot;,
+          responsibilities: [&quot;加载当前选定 tile 的 RT 场景&quot;, &quot;维护 scene generation 与运行时锁&quot;, &quot;静态资源、scene 和 tile download 继续属于 Core&quot;],
+          files: [&quot;backend/rt/runtime.py&quot;, &quot;backend/scene/tile_scene_xml.py&quot;, &quot;backend/scene/tile_bundles.py&quot;, &quot;backend/server.py&quot;],
+        },
+        {
+          id: &quot;regression&quot;, label: &quot;Regression Baseline&quot;, category: &quot;core&quot;, x: 88, y: 93,
+          scopes: [&quot;frontend&quot;, &quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
+          summary: &quot;锁定协议、DOM、交互、图层和视觉表现的回归边界。&quot;,
+          responsibilities: [&quot;Python REST 与作业 contract&quot;, &quot;Playwright 四模式行为与视觉快照&quot;, &quot;虚拟 Feature、Layer 与 Asset 能力验证&quot;],
+          files: [&quot;tests/test_feature_architecture.py&quot;, &quot;tests/test_frontend_regressions.py&quot;, &quot;tests/browser/feature_modes.spec.js&quot;],
+        },
+      ];
+
+      const edges = [
+        {from: &quot;app-shell&quot;, to: &quot;feature-core&quot;, type: &quot;registry&quot;, scopes: [&quot;frontend&quot;]},
+        {from: &quot;app-shell&quot;, to: &quot;viewer-core&quot;, type: &quot;render&quot;, scopes: [&quot;frontend&quot;]},
+        {from: &quot;feature-core&quot;, to: &quot;backend-core&quot;, type: &quot;registry&quot;, scopes: [&quot;backend&quot;]},
+        {from: &quot;feature-core&quot;, to: &quot;link-front&quot;, type: &quot;registry&quot;, scopes: [&quot;link&quot;]},
+        {from: &quot;feature-core&quot;, to: &quot;mobility-front&quot;, type: &quot;registry&quot;, scopes: [&quot;mobility&quot;]},
+        {from: &quot;feature-core&quot;, to: &quot;radiomap-front&quot;, type: &quot;registry&quot;, scopes: [&quot;radiomap&quot;]},
+        {from: &quot;feature-core&quot;, to: &quot;deepmimo-front&quot;, type: &quot;registry&quot;, scopes: [&quot;deepmimo&quot;]},
+        {from: &quot;link-front&quot;, to: &quot;link-api&quot;, type: &quot;http&quot;, scopes: [&quot;link&quot;]},
+        {from: &quot;link-api&quot;, to: &quot;link-back&quot;, type: &quot;http&quot;, scopes: [&quot;link&quot;]},
+        {from: &quot;link-back&quot;, to: &quot;link-exec&quot;, type: &quot;runtime&quot;, scopes: [&quot;link&quot;]},
+        {from: &quot;link-front&quot;, to: &quot;viewer-core&quot;, type: &quot;render&quot;, scopes: [&quot;link&quot;]},
+        {from: &quot;mobility-front&quot;, to: &quot;mobility-api&quot;, type: &quot;http&quot;, scopes: [&quot;mobility&quot;]},
+        {from: &quot;mobility-api&quot;, to: &quot;mobility-back&quot;, type: &quot;http&quot;, scopes: [&quot;mobility&quot;]},
+        {from: &quot;mobility-back&quot;, to: &quot;mobility-exec&quot;, type: &quot;runtime&quot;, scopes: [&quot;mobility&quot;]},
+        {from: &quot;mobility-front&quot;, to: &quot;viewer-core&quot;, type: &quot;render&quot;, scopes: [&quot;mobility&quot;]},
+        {from: &quot;radiomap-front&quot;, to: &quot;radiomap-api&quot;, type: &quot;http&quot;, scopes: [&quot;radiomap&quot;]},
+        {from: &quot;radiomap-api&quot;, to: &quot;radiomap-back&quot;, type: &quot;http&quot;, scopes: [&quot;radiomap&quot;]},
+        {from: &quot;radiomap-back&quot;, to: &quot;radiomap-exec&quot;, type: &quot;runtime&quot;, scopes: [&quot;radiomap&quot;]},
+        {from: &quot;radiomap-front&quot;, to: &quot;viewer-core&quot;, type: &quot;render&quot;, scopes: [&quot;radiomap&quot;]},
+        {from: &quot;deepmimo-front&quot;, to: &quot;deepmimo-api&quot;, type: &quot;http&quot;, scopes: [&quot;deepmimo&quot;]},
+        {from: &quot;deepmimo-api&quot;, to: &quot;deepmimo-back&quot;, type: &quot;http&quot;, scopes: [&quot;deepmimo&quot;]},
+        {from: &quot;deepmimo-back&quot;, to: &quot;deepmimo-exec&quot;, type: &quot;runtime&quot;, scopes: [&quot;deepmimo&quot;]},
+        {from: &quot;deepmimo-front&quot;, to: &quot;viewer-core&quot;, type: &quot;render&quot;, scopes: [&quot;deepmimo&quot;]},
+        {from: &quot;link-front&quot;, to: &quot;mobility-front&quot;, type: &quot;capability&quot;, scopes: [&quot;link&quot;, &quot;mobility&quot;]},
+        {from: &quot;link-front&quot;, to: &quot;deepmimo-front&quot;, type: &quot;capability&quot;, scopes: [&quot;link&quot;, &quot;deepmimo&quot;]},
+        {from: &quot;backend-core&quot;, to: &quot;link-back&quot;, type: &quot;registry&quot;, scopes: [&quot;link&quot;, &quot;backend&quot;]},
+        {from: &quot;backend-core&quot;, to: &quot;mobility-back&quot;, type: &quot;registry&quot;, scopes: [&quot;mobility&quot;, &quot;backend&quot;]},
+        {from: &quot;backend-core&quot;, to: &quot;radiomap-back&quot;, type: &quot;registry&quot;, scopes: [&quot;radiomap&quot;, &quot;backend&quot;]},
+        {from: &quot;backend-core&quot;, to: &quot;deepmimo-back&quot;, type: &quot;registry&quot;, scopes: [&quot;deepmimo&quot;, &quot;backend&quot;]},
+        {from: &quot;link-exec&quot;, to: &quot;rt-scene&quot;, type: &quot;runtime&quot;, scopes: [&quot;link&quot;, &quot;backend&quot;]},
+        {from: &quot;mobility-exec&quot;, to: &quot;rt-scene&quot;, type: &quot;runtime&quot;, scopes: [&quot;mobility&quot;, &quot;backend&quot;]},
+        {from: &quot;radiomap-exec&quot;, to: &quot;rt-scene&quot;, type: &quot;runtime&quot;, scopes: [&quot;radiomap&quot;, &quot;backend&quot;]},
+        {from: &quot;deepmimo-exec&quot;, to: &quot;rt-scene&quot;, type: &quot;runtime&quot;, scopes: [&quot;deepmimo&quot;, &quot;backend&quot;]},
+        {from: &quot;viewer-core&quot;, to: &quot;rt-scene&quot;, type: &quot;render&quot;, scopes: [&quot;frontend&quot;, &quot;backend&quot;]},
+        {from: &quot;feature-core&quot;, to: &quot;regression&quot;, type: &quot;registry&quot;, scopes: [&quot;frontend&quot;]},
+        {from: &quot;backend-core&quot;, to: &quot;regression&quot;, type: &quot;registry&quot;, scopes: [&quot;backend&quot;]},
+      ];
+
+      const flowText = {
+        overview: &quot;&lt;strong&gt;主干：&lt;/strong&gt; UI Shell → Feature Registry → Feature Transport → REST Route → Feature Service → RT / Job → Viewer Layer&quot;,
+        frontend: &quot;&lt;strong&gt;前端：&lt;/strong&gt; Catalog 只登记一次；Registry 组装 state、transport、controller、view、renderer 与 lifecycle。&quot;,
+        backend: &quot;&lt;strong&gt;后端：&lt;/strong&gt; server.py → RouteRegistry → FeatureServiceRegistry → 同步服务或作业管理器 → RT Runtime。&quot;,
+        link: &quot;&lt;strong&gt;Link：&lt;/strong&gt; Solve → POST /api/link/solve → LinkService.solve → Sionna RT → polyline-set。&quot;,
+        mobility: &quot;&lt;strong&gt;Mobility：&lt;/strong&gt; 消费 Link 能力 → 创建作业 → 状态轮询 → InProcess Worker → trajectory + markers + paths。&quot;,
+        radiomap: &quot;&lt;strong&gt;Radiomap：&lt;/strong&gt; 创建作业 → 状态轮询 → InProcess Worker → scalar-triangle-mesh + 色条。&quot;,
+        deepmimo: &quot;&lt;strong&gt;DeepMIMO：&lt;/strong&gt; ROI / Tx → 专用作业 → subprocess → 取消或 ZIP lease 下载；ROI 使用 polygon-overlay。&quot;,
+      };
+
+      const preferredNode = {
+        overview: &quot;feature-core&quot;,
+        frontend: &quot;feature-core&quot;,
+        backend: &quot;backend-core&quot;,
+        link: &quot;link-front&quot;,
+        mobility: &quot;mobility-front&quot;,
+        radiomap: &quot;radiomap-front&quot;,
+        deepmimo: &quot;deepmimo-front&quot;,
+      };
+
+      const nodeById = new Map(nodes.map((node) =&gt; [node.id, node]));
+      const buttonById = new Map();
+      const edgeElements = [];
+
+      function curvePath(source, target) {
+        const x1 = source.x * 10;
+        const y1 = source.y * 7.6;
+        const x2 = target.x * 10;
+        const y2 = target.y * 7.6;
+        if (Math.abs(x1 - x2) &lt; 5) {
+          const bend = x1 + (y2 &gt; y1 ? 34 : -34);
+          return `M ${x1} ${y1} C ${bend} ${y1}, ${bend} ${y2}, ${x2} ${y2}`;
+        }
+        const middle = (x1 + x2) / 2;
+        return `M ${x1} ${y1} C ${middle} ${y1}, ${middle} ${y2}, ${x2} ${y2}`;
+      }
+
+      for (const edge of edges) {
+        const path = document.createElementNS(&quot;http://www.w3.org/2000/svg&quot;, &quot;path&quot;);
+        path.setAttribute(&quot;d&quot;, curvePath(nodeById.get(edge.from), nodeById.get(edge.to)));
+        path.setAttribute(&quot;class&quot;, `edge ${edge.type}`);
+        path.dataset.from = edge.from;
+        path.dataset.to = edge.to;
+        edgeLayer.appendChild(path);
+        edgeElements.push({edge, path});
+      }
+
+      for (const node of nodes) {
+        const button = document.createElement(&quot;button&quot;);
+        button.type = &quot;button&quot;;
+        button.className = &quot;btn arch-node&quot;;
+        button.style.setProperty(&quot;--node-x&quot;, `${node.x}%`);
+        button.style.setProperty(&quot;--node-y&quot;, `${node.y}%`);
+        button.style.setProperty(&quot;--node-color&quot;, colors[node.category]);
+        button.dataset.nodeId = node.id;
+        button.setAttribute(&quot;aria-pressed&quot;, &quot;false&quot;);
+        button.setAttribute(&quot;aria-label&quot;, `${node.label}: ${node.summary}`);
+
+        const dot = document.createElement(&quot;span&quot;);
+        dot.className = &quot;arch-dot&quot;;
+        dot.setAttribute(&quot;aria-hidden&quot;, &quot;true&quot;);
+        const label = document.createElement(&quot;span&quot;);
+        label.textContent = node.shortLabel || node.label;
+        button.append(dot, label);
+        button.addEventListener(&quot;click&quot;, () =&gt; selectNode(node.id));
+        canvas.appendChild(button);
+        buttonById.set(node.id, button);
+      }
+
+      function connectionLabels(nodeId) {
+        const related = [];
+        for (const edge of edges) {
+          if (edge.from === nodeId) related.push(`→ ${nodeById.get(edge.to).label}`);
+          if (edge.to === nodeId) related.push(`← ${nodeById.get(edge.from).label}`);
+        }
+        return related;
+      }
+
+      function selectNode(nodeId) {
+        const node = nodeById.get(nodeId);
+        if (!node) return;
+        for (const [id, button] of buttonById.entries()) {
+          const selected = id === nodeId;
+          button.classList.toggle(&quot;is-selected&quot;, selected);
+          button.setAttribute(&quot;aria-pressed&quot;, String(selected));
+        }
+        for (const {edge, path} of edgeElements) {
+          path.classList.toggle(&quot;is-active&quot;, edge.from === nodeId || edge.to === nodeId);
+        }
+        root.querySelector(&quot;#oatArchitectureDetailCategory&quot;).textContent = node.category;
+        root.querySelector(&quot;#oatArchitectureDetailTitle&quot;).textContent = node.label;
+        root.querySelector(&quot;#oatArchitectureDetailSummary&quot;).textContent = node.summary;
+
+        const responsibilityList = root.querySelector(&quot;#oatArchitectureResponsibilities&quot;);
+        responsibilityList.replaceChildren(...node.responsibilities.map((item) =&gt; {
+          const li = document.createElement(&quot;li&quot;);
+          li.textContent = item;
+          return li;
+        }));
+
+        const fileList = root.querySelector(&quot;#oatArchitectureFiles&quot;);
+        fileList.replaceChildren(...node.files.map((file) =&gt; {
+          const li = document.createElement(&quot;li&quot;);
+          const code = document.createElement(&quot;code&quot;);
+          code.textContent = file;
+          li.appendChild(code);
+          return li;
+        }));
+        root.querySelector(&quot;#oatArchitectureConnections&quot;).textContent = connectionLabels(nodeId).join(&quot; · &quot;) || &quot;—&quot;;
+      }
+
+      function setView(view) {
+        const isOverview = view === &quot;overview&quot;;
+        for (const node of nodes) {
+          const relevant = isOverview || node.scopes.includes(view) || node.feature === view;
+          buttonById.get(node.id).classList.toggle(&quot;is-dim&quot;, !relevant);
+        }
+        for (const {edge, path} of edgeElements) {
+          const relevant = isOverview || edge.scopes.includes(view);
+          path.classList.toggle(&quot;is-dim&quot;, !relevant);
+          path.classList.remove(&quot;is-active&quot;);
+        }
+        for (const row of root.querySelectorAll(&quot;[data-feature-row]&quot;)) {
+          const active = row.dataset.featureRow === view;
+          row.classList.toggle(&quot;is-active&quot;, active);
+          row.classList.toggle(&quot;is-dim&quot;, !isOverview &amp;&amp; !active &amp;&amp; ![&quot;frontend&quot;, &quot;backend&quot;].includes(view));
+        }
+        flowLine.innerHTML = flowText[view];
+        selectNode(preferredNode[view]);
+      }
+
+      viewSelect.addEventListener(&quot;change&quot;, () =&gt; setView(viewSelect.value));
+      for (const button of root.querySelectorAll(&quot;.feature-jump&quot;)) {
+        button.addEventListener(&quot;click&quot;, () =&gt; {
+          viewSelect.value = button.dataset.view;
+          setView(button.dataset.view);
+          root.querySelector(&quot;#oatArchitectureCanvas&quot;).scrollIntoView({behavior: &quot;smooth&quot;, block: &quot;start&quot;});
+        });
+      }
+
+      setView(&quot;overview&quot;);
+    })();
+  &lt;/script&gt;
+&lt;/div&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+</body>
+</html>

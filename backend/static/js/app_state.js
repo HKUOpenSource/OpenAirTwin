@@ -1,3 +1,6 @@
+import {FeatureStore} from "/js/core/feature_registry.js";
+import {FEATURE_CATALOG} from "/js/features/feature_catalog.js";
+
 function createViewerStub() {
   return {
     __ready: false,
@@ -65,6 +68,8 @@ export const viewerRef = {
   modulePromise: null,
 };
 
+export const featureStore = new FeatureStore(FEATURE_CATALOG);
+
 export const state = {
   manifest: null,
   rtCapabilities: null,
@@ -99,30 +104,7 @@ export const state = {
       inFlight: false,
     },
   },
-  link: {
-    generation: 0,
-    tx: [72.0, 37.0, 40.0],
-    txVisual: [72.0, 37.0, 40.0],
-    rx: [90.0, 52.0, 1.5],
-    rxVisual: [90.0, 52.0, 1.5],
-    surfaceClearanceM: 1.5,
-    result: null,
-    selectedPath: -1,
-    advanced: {
-      bandwidthMhz: 15.36,
-      samplesPerSrc: 30000,
-      maxNumPathsPerSrc: 1000000,
-      syntheticArray: false,
-      diffraction: false,
-      edgeDiffraction: false,
-      diffractionLitRegion: false,
-      computeTaps: false,
-      tapLMin: 0,
-      tapLMax: 100,
-      tapFftSize: 512,
-      tapSubcarrierSpacingHz: 30000,
-    },
-  },
+  link: featureStore.get("link"),
   livePreview: {
     enabled: false,
     mode: null,
@@ -138,88 +120,9 @@ export const state = {
       lastPreviewStartedAt: 0,
     },
   },
-  radiomap: {
-    generation: 0,
-    tx: [72.0, 37.0, 40.0],
-    txVisual: [72.0, 37.0, 40.0],
-    surfaceClearanceM: 1.5,
-    surface: {
-      size: [160.0, 160.0],
-      heightOffset: 1.5,
-      densityLevel: 2,
-      cellSize: null,
-    },
-    solver: {
-      samplesPerTx: 1000000,
-    },
-    display: {
-      colorMinDb: -140,
-      colorMaxDb: -80,
-      colormap: "jet",
-    },
-    jobId: null,
-    result: null,
-    status: "Idle",
-  },
-  deepmimo: {
-    generation: 0,
-    tx: [72.0, 37.0, 40.0],
-    txVisual: [72.0, 37.0, 40.0],
-    surfaceClearanceM: 1.5,
-    roi: {
-      cornerA: null,
-      cornerB: null,
-      pickingStep: "a",
-      visualZ: null,
-    },
-    rxGrid: {
-      spacing: 2.0,
-      height: 1.5,
-      maxReceivers: 30000,
-      chunkSize: 1024,
-      filterBuildings: true,
-    },
-    solver: {
-      samplesPerSrc: 30000,
-      maxNumPathsPerSrc: 1000000,
-    },
-    export: {
-      scenarioName: "hku_deepmimo_roi",
-    },
-    jobId: null,
-    result: null,
-    status: "Idle",
-    progress: 0,
-    message: "Idle",
-    pendingDataset: null,
-    datasets: [],
-    datasetTrayOpen: false,
-  },
-  mobility: {
-    generation: 0,
-    tx: [72.0, 37.0, 40.0],
-    txVisual: [72.0, 37.0, 40.0],
-    rx: [90.0, 52.0, 1.5],
-    rxVisual: [90.0, 52.0, 1.5],
-    surfaceClearanceM: 1.5,
-    trajectory: {
-      points: [],
-      velocityMps: 1.5,
-      timeStepS: 1.0,
-      maxSteps: 1000,
-    },
-    jobId: null,
-    result: null,
-    status: "Idle",
-    selectedWaypointIndex: -1,
-    selectedStep: 0,
-    selectedPath: -1,
-    metric: "received_power_db",
-    playing: false,
-    playbackSpeed: 1.0,
-    playbackTimer: null,
-    tapsDefaulted: false,
-  },
+  radiomap: featureStore.get("radiomap"),
+  deepmimo: featureStore.get("deepmimo"),
+  mobility: featureStore.get("mobility"),
   antenna: {
     txArray: createDefaultAntennaArray(),
     rxArray: createDefaultAntennaArray(),

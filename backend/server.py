@@ -12,14 +12,12 @@ import threading
 import traceback
 from urllib.parse import parse_qs, unquote, urlparse
 
-from backend import config
-from backend.jobs.deepmimo_jobs import DeepMIMOJobManager, DeepMIMOQueueFull
-from backend.jobs.mobility_jobs import MobilityJobManager, MobilityQueueFull
-from backend.jobs.radiomap_jobs import RadiomapJobManager, RadiomapQueueFull
+from backend import __version__, config
+from backend.features.catalog import BACKEND_FEATURE_CATALOG, FEATURE_ROUTES
+from backend.features.core import FeatureQueueFull, FeatureServiceRegistry, capture_ready_scene_generation
 from backend.jobs.tile_download_jobs import TileDownloadBusy, TileDownloadJobManager
 from backend.rt.common import antenna_array_capabilities
-from backend.rt.runtime import RTRuntime, SceneNotReady, current_scene_generation
-from backend.rt.solve_link import solve_link
+from backend.rt.runtime import RTRuntime, SceneNotReady
 from backend.scene.incremental_tiles import download_stage_and_integrate_tile, normalize_tile_id
 from backend.scene.open3dhk_coverage import is_open3dhk_download_base_url, open3dhk_tile_is_downloadable
 from backend.scene.tile_bundles import (
@@ -106,9 +104,15 @@ class AppState:
             config.DEFAULT_FREQUENCY_HZ,
             self.rt_scene_builder,
         )
-        self.job_manager = RadiomapJobManager(self.rt_runtime)
-        self.mobility_job_manager = MobilityJobManager(self.rt_runtime)
-        self.deepmimo_job_manager = DeepMIMOJobManager()
+        self.feature_services = FeatureServiceRegistry({
+            "config": config,
+            "rt_runtime": self.rt_runtime,
+            "scene_generation": capture_ready_scene_generation,
+        })
+        self.feature_services.register_all(BACKEND_FEATURE_CATALOG)
+        self.job_manager = self.feature_services.get("radiomap").manager
+        self.mobility_job_manager = self.feature_services.get("mobility").manager
+        self.deepmimo_job_manager = self.feature_services.get("deepmimo").manager
         self.tile_download_job_manager = TileDownloadJobManager(self.download_and_integrate_tile)
 
     def reload_scene_catalog(self) -> None:
@@ -149,19 +153,8 @@ class AppState:
         return result
 
 
-def capture_ready_scene_generation(rt_runtime) -> int | None:
-    rt_lock = getattr(rt_runtime, "lock", None)
-    if rt_lock is None:
-        rt_runtime.require_ready()
-        return current_scene_generation(rt_runtime)
-
-    with rt_lock:
-        rt_runtime.require_ready()
-        return current_scene_generation(rt_runtime)
-
-
 class RequestHandler(BaseHTTPRequestHandler):
-    server_version = "OpenAirTwin/3.0"
+    server_version = f"OpenAirTwin/{__version__}"
 
     @property
     def app_state(self) -> AppState:
@@ -497,94 +490,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.serve_bundle(bundle_id)
             return
 
-        if path.startswith("/api/radiomap/jobs/"):
-            suffix = path.removeprefix("/api/radiomap/jobs/")
-            if suffix.endswith("/result"):
-                job_id = suffix.removesuffix("/result")
-                job = self.app_state.job_manager.get_job(job_id)
-                if job is None:
-                    self.send_text("Unknown job id", code=404)
-                    return
-                if job.status != "succeeded" or job.result is None:
-                    self.send_json({"job_id": job_id, "status": job.status, "message": job.message}, code=409)
-                    return
-                self.send_json({"job_id": job_id, "status": job.status, **job.result})
-                return
-
-            job_id = suffix
-            job = self.app_state.job_manager.get_job(job_id)
-            if job is None:
-                self.send_text("Unknown job id", code=404)
-                return
-            payload = job.to_status_dict()
-            if job.status == "failed":
-                payload["error"] = job.error
-            self.send_json(payload)
-            return
-
-        if path.startswith("/api/mobility/jobs/"):
-            suffix = path.removeprefix("/api/mobility/jobs/")
-            if suffix.endswith("/result"):
-                job_id = suffix.removesuffix("/result")
-                job = self.app_state.mobility_job_manager.get_job(job_id)
-                if job is None:
-                    self.send_text("Unknown job id", code=404)
-                    return
-                if job.status != "succeeded" or job.result is None:
-                    self.send_json({"job_id": job_id, "status": job.status, "message": job.message}, code=409)
-                    return
-                self.send_json({"job_id": job_id, "status": job.status, **job.result})
-                return
-
-            job_id = suffix
-            job = self.app_state.mobility_job_manager.get_job(job_id)
-            if job is None:
-                self.send_text("Unknown job id", code=404)
-                return
-            payload = job.to_status_dict()
-            if job.status == "failed":
-                payload["error"] = job.error
-            self.send_json(payload)
-            return
-
-        if path.startswith("/api/deepmimo/jobs/"):
-            suffix = path.removeprefix("/api/deepmimo/jobs/")
-            if suffix.endswith("/download"):
-                job_id = suffix.removesuffix("/download")
-                manager = self.app_state.deepmimo_job_manager
-                lease_factory = getattr(manager, "open_download_file", None)
-                if lease_factory is not None:
-                    lease = lease_factory(job_id)
-                    if lease is None:
-                        self.send_text("DeepMIMO dataset is not ready", code=404)
-                        return
-                    with lease as handle:
-                        self.send_download_handle(
-                            handle,
-                            content_type="application/zip",
-                            filename=f"deepmimo_{job_id}.zip",
-                        )
-                    return
-                archive = manager.get_download_path(job_id)
-                if archive is None:
-                    self.send_text("DeepMIMO dataset is not ready", code=404)
-                    return
-                self.send_download_file(
-                    archive,
-                    content_type="application/zip",
-                    filename=f"deepmimo_{job_id}.zip",
-                )
-                return
-
-            job_id = suffix
-            job = self.app_state.deepmimo_job_manager.get_job(job_id)
-            if job is None:
-                self.send_text("Unknown job id", code=404)
-                return
-            payload = job.to_status_dict()
-            if job.status == "failed":
-                payload["error"] = job.error
-            self.send_json(payload)
+        if FEATURE_ROUTES.dispatch("GET", path, self):
             return
 
         self.send_text("Not Found", code=404)
@@ -599,71 +505,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.send_json(self.app_state.rt_runtime.request_scene_selection(tile_ids))
                 return
 
-            if path == "/api/link/solve":
-                payload = self.read_json_body()
-                result = solve_link(self.app_state.rt_runtime, payload)
-                self.send_json(result)
-                return
-
-            if path == "/api/radiomap/jobs":
-                payload = self.read_json_body()
-                scene_generation = capture_ready_scene_generation(self.app_state.rt_runtime)
-                job = self.app_state.job_manager.create_job(payload, scene_generation=scene_generation)
-                self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
-                return
-
-            if path == "/api/mobility/jobs":
-                payload = self.read_json_body()
-                scene_generation = capture_ready_scene_generation(self.app_state.rt_runtime)
-                job = self.app_state.mobility_job_manager.create_job(payload, scene_generation=scene_generation)
-                self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
-                return
-
-            if path == "/api/deepmimo/jobs":
-                payload = self.read_json_body()
-                rt_lock = getattr(self.app_state.rt_runtime, "lock", None)
-                if rt_lock is None:
-                    self.app_state.rt_runtime.require_ready()
-                    active_tile_ids = tuple(
-                        getattr(self.app_state.rt_runtime, "active_tile_ids", ())
-                        or self.app_state.rt_runtime.status_dict().get("active_tile_ids", ())
-                    )
-                else:
-                    with rt_lock:
-                        self.app_state.rt_runtime.require_ready()
-                        active_tile_ids = tuple(
-                            getattr(self.app_state.rt_runtime, "active_tile_ids", ())
-                        )
-                        if not active_tile_ids and hasattr(self.app_state.rt_runtime, "_status_dict_unlocked"):
-                            active_tile_ids = tuple(
-                                self.app_state.rt_runtime._status_dict_unlocked().get("active_tile_ids", ())
-                            )
-                if not active_tile_ids:
-                    raise SceneNotReady("empty", "No Sionna RT scene is ready; select at least one tile")
-                payload = dict(payload)
-                payload["scene"] = {"tile_ids": list(active_tile_ids)}
-                job = self.app_state.deepmimo_job_manager.create_job(payload)
-                self.send_json({"ok": True, "job_id": job.job_id, "status": job.status})
+            if FEATURE_ROUTES.dispatch("POST", path, self):
                 return
 
             if path.startswith("/api/scene/tile-downloads/") and path.endswith("/cancel"):
                 job_id = path.removeprefix("/api/scene/tile-downloads/").removesuffix("/cancel")
                 job = self.app_state.tile_download_job_manager.cancel_job(job_id)
-                if job is None:
-                    self.send_text("Unknown job id", code=404)
-                    return
-                self.send_json(job.to_status_dict())
-                return
-
-            if path.startswith("/api/deepmimo/jobs/") and path.endswith("/cancel"):
-                job_id = path.removeprefix("/api/deepmimo/jobs/").removesuffix("/cancel")
-                cancel_job = getattr(self.app_state.deepmimo_job_manager, "cancel_job", None)
-                if cancel_job is None:
-                    # cancel_job ships with the rt-solver-correctness work; deployments
-                    # missing it cannot fulfil the request.
-                    self.send_text("DeepMIMO cancellation not supported on this build", code=501)
-                    return
-                job = cancel_job(job_id)
                 if job is None:
                     self.send_text("Unknown job id", code=404)
                     return
@@ -690,25 +537,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 },
                 code=409,
             )
-        except RadiomapQueueFull as exc:
-            self.send_json(
-                {
-                    "ok": False,
-                    "error": str(exc),
-                    "max_pending_jobs": exc.max_pending_jobs,
-                },
-                code=429,
-            )
-        except MobilityQueueFull as exc:
-            self.send_json(
-                {
-                    "ok": False,
-                    "error": str(exc),
-                    "max_pending_jobs": exc.max_pending_jobs,
-                },
-                code=429,
-            )
-        except DeepMIMOQueueFull as exc:
+        except FeatureQueueFull as exc:
             self.send_json(
                 {
                     "ok": False,
@@ -733,7 +562,7 @@ def main() -> None:
     server = ThreadingHTTPServer((config.HOST, config.PORT), RequestHandler)
     server.app_state = app_state  # type: ignore[attr-defined]
 
-    print(f"Serving OpenAirTwin v3.0 on http://{config.HOST}:{config.PORT}")
+    print(f"Serving OpenAirTwin v{__version__} on http://{config.HOST}:{config.PORT}")
     print(f"Scene root: {config.SCENE_ROOT}")
     print(f"Scene source: {config.SCENE_ROOT / COMMON_SCENE_RELATIVE_PATH} + {config.SCENE_ROOT / TILE_SCENE_RELATIVE_DIR}")
     print(f"Mesh root: {config.MESH_ROOT}")

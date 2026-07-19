@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties, type KeyboardEvent } from "react";
 import { WorkflowTutorial } from "./WorkflowTutorial";
 import {
   featureItems,
@@ -9,6 +9,7 @@ import type { ModeId } from "./tutorialData";
 
 const media = (fileName: string) => `${import.meta.env.BASE_URL}media/${fileName}`;
 const mainRepositoryUrl = "https://github.com/HKUOpenSource/OpenAirTwin";
+const architectureUrl = "https://hkuopensource.github.io/OpenAirTwin/architecture/";
 
 function App() {
   const activeMode = tutorialModes[0];
@@ -50,13 +51,37 @@ function App() {
               return (
                 <article className="featureCard" key={item.title} style={{ "--mode-accent": mode.accent } as CSSProperties}>
                   <div className="featureMedia">
-                    <img src={media(item.image)} alt={`${item.title} feature preview`} />
+                    {item.mediaType === "video" ? (
+                      <video
+                        aria-label={`${item.title} feature preview`}
+                        autoPlay={!window.matchMedia("(prefers-reduced-motion: reduce)").matches}
+                        loop
+                        muted
+                        playsInline
+                        preload="metadata"
+                        src={media(item.image)}
+                      />
+                    ) : (
+                      <img
+                        alt={`${item.title} feature preview`}
+                        decoding="async"
+                        loading="lazy"
+                        src={media(item.image)}
+                      />
+                    )}
                     <span>{String(index + 1).padStart(2, "0")}</span>
                   </div>
                   <div className="featureCardBody">
                     <h3>{item.title}</h3>
                     <p>{item.body}</p>
-                    <a href="#workflow-tutorial" onClick={() => requestTutorialMode(item.modeId)}>
+                    <a
+                      href={`?tutorial=${item.modeId}/${mode.steps[0].id}#workflow-tutorial`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        requestTutorialMode(item.modeId);
+                        document.getElementById("workflow-tutorial")?.scrollIntoView();
+                      }}
+                    >
                       Watch tutorial
                       <ArrowRightIcon />
                     </a>
@@ -78,27 +103,7 @@ function App() {
           <div className="sectionHead">
             <h2>Installation</h2>
           </div>
-          <div className="quickGrid">
-            {quickStart.map((item, index) => (
-              <article className="quickStep" key={item.title}>
-                <div className="quickStepRail">
-                  <span className="stepNumber">{index + 1}</span>
-                </div>
-                <div>
-                  <h3>{item.title}</h3>
-                  <p>{item.body}</p>
-                  <div className="codePanel">
-                    <div className="codePanelTop" aria-hidden="true">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                    <pre>{item.code}</pre>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+          <InstallationGuide />
         </section>
       </main>
       <Footer />
@@ -119,131 +124,30 @@ function ArrowRightIcon() {
 }
 
 function HeroTitleMedia() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [videoReady, setVideoReady] = useState(false);
-  const [canvasReady, setCanvasReady] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
-
-  useEffect(() => {
-    if (!videoReady || videoFailed) {
-      return undefined;
-    }
-
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    const context = canvas?.getContext("2d", { willReadFrequently: true });
-
-    if (!canvas || !video || !context) {
-      setVideoFailed(true);
-      return undefined;
-    }
-
-    let animationFrame = 0;
-    let didShowCanvas = false;
-    let stopped = false;
-    let renderedWidth = 0;
-    let renderedHeight = 0;
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    const resizeCanvas = () => {
-      const bounds = canvas.getBoundingClientRect();
-      const scale = Math.min(window.devicePixelRatio || 1, 1.5);
-      const width = Math.max(1, Math.round(bounds.width * scale));
-      const height = Math.max(1, Math.round(bounds.height * scale));
-
-      if (width !== renderedWidth || height !== renderedHeight) {
-        renderedWidth = width;
-        renderedHeight = height;
-        canvas.width = width;
-        canvas.height = height;
-      }
-    };
-
-    const keyFrame = () => {
-      resizeCanvas();
-
-      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || renderedWidth === 0 || renderedHeight === 0) {
-        return;
-      }
-
-      context.clearRect(0, 0, renderedWidth, renderedHeight);
-      context.drawImage(video, 0, 0, renderedWidth, renderedHeight);
-
-      const frame = context.getImageData(0, 0, renderedWidth, renderedHeight);
-      const { data } = frame;
-
-      for (let index = 0; index < data.length; index += 4) {
-        const red = data[index];
-        const green = data[index + 1];
-        const blue = data[index + 2];
-        const alpha = data[index + 3];
-        const luma = red * 0.2126 + green * 0.7152 + blue * 0.0722;
-        const signal = Math.max(luma, red * 0.56, green * 0.66, blue * 0.78);
-        const keyed = Math.min(1, Math.max(0, (signal - 28) / 88));
-        const smoothAlpha = keyed * keyed * (3 - 2 * keyed);
-
-        data[index + 3] = Math.round(alpha * smoothAlpha);
-      }
-
-      context.putImageData(frame, 0, 0);
-
-      if (!didShowCanvas) {
-        didShowCanvas = true;
-        setCanvasReady(true);
-      }
-    };
-
-    const render = () => {
-      if (stopped) {
-        return;
-      }
-
-      keyFrame();
-
-      if (reduceMotion) {
-        video.pause();
-        return;
-      }
-
-      animationFrame = window.requestAnimationFrame(render);
-    };
-
-    const observer = new ResizeObserver(resizeCanvas);
-    observer.observe(canvas);
-
-    void video.play().catch(() => undefined);
-    render();
-
-    return () => {
-      stopped = true;
-      observer.disconnect();
-      window.cancelAnimationFrame(animationFrame);
-    };
-  }, [videoReady, videoFailed]);
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const className = [
     "heroTitleMedia",
-    videoReady && canvasReady && !videoFailed ? "isVideoReady" : "",
+    videoReady && !videoFailed ? "isVideoReady" : "",
     videoFailed ? "isVideoFailed" : "",
   ].filter(Boolean).join(" ");
 
   return (
     <div className={className}>
       <h1 className="srOnly">OpenAirTwin</h1>
-      <canvas aria-hidden="true" className="heroTitleCanvas" ref={canvasRef} />
       <video
         aria-hidden="true"
-        autoPlay
+        autoPlay={!reduceMotion}
         className="heroTitleVideo"
-        loop
+        loop={!reduceMotion}
         muted
         onCanPlay={() => setVideoReady(true)}
         onError={() => setVideoFailed(true)}
         playsInline
-        preload="auto"
-        ref={videoRef}
-        src={media("hero_text.webm")}
+        preload="metadata"
+        src={media("hero_text_alpha_compact.webm")}
       />
       <div aria-hidden={!videoFailed} className="heroTitleFallback">
         OpenAirTwin
@@ -256,7 +160,7 @@ function Header() {
   return (
     <header className="topNav">
       <a className="brand" href="#home" aria-label="OpenAirTwin tutorial home">
-        <BrandLogo decorative />
+        <BrandLogo decorative priority />
       </a>
       <nav aria-label="Tutorial navigation">
         <a href="#features">Features</a>
@@ -280,11 +184,12 @@ function Footer() {
       <div>
         <h3>Project</h3>
         <a href={mainRepositoryUrl}>Repository</a>
-        <a href={`${mainRepositoryUrl}#installation`}>README</a>
-        <a href={`${mainRepositoryUrl}/blob/main/LICENSE`}>License</a>
+        <a href={`${mainRepositoryUrl}#installation-details`}>README</a>
+        <a href={`${mainRepositoryUrl}/blob/master/LICENSE`}>License</a>
       </div>
       <div>
         <h3>Docs</h3>
+        <a href={architectureUrl}>Architecture</a>
         <a href="#features">Features</a>
         <a href="#workflow-tutorial">Tutorial</a>
         <a href="#quick-start">Setup</a>
@@ -292,20 +197,106 @@ function Footer() {
       <div>
         <h3>Community</h3>
         <a href={`${mainRepositoryUrl}/issues`}>Issues</a>
-        <a href={`${mainRepositoryUrl}/discussions`}>Discussions</a>
+        <a href={`${mainRepositoryUrl}/pulls`}>Pull requests</a>
       </div>
     </footer>
   );
 }
 
-function BrandLogo({ decorative = false }: { decorative?: boolean }) {
+function BrandLogo({ decorative = false, priority = false }: { decorative?: boolean; priority?: boolean }) {
   return (
     <img
       className="brandLogo"
       src={media("openairtwin_logo_dark.png")}
       alt={decorative ? "" : "OpenAirTwin"}
+      decoding="async"
+      loading={priority ? "eager" : "lazy"}
     />
   );
+}
+
+type InstallPlatform = "unix" | "windows";
+
+function InstallationGuide() {
+  const [platform, setPlatform] = useState<InstallPlatform>("unix");
+  const platforms: Array<{ id: InstallPlatform; label: string }> = [
+    { id: "unix", label: "macOS / Linux" },
+    { id: "windows", label: "Windows PowerShell" },
+  ];
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const offset = event.key === "ArrowRight" ? 1 : -1;
+    const next = platforms[(index + offset + platforms.length) % platforms.length];
+    setPlatform(next.id);
+    window.requestAnimationFrame(() => document.getElementById(`install-tab-${next.id}`)?.focus());
+  };
+
+  return (
+    <div>
+      <div className="osTabs" role="tablist" aria-label="Installation operating system">
+        {platforms.map((item, index) => (
+          <button
+            aria-controls="installation-steps"
+            aria-selected={platform === item.id}
+            className={platform === item.id ? "active" : ""}
+            id={`install-tab-${item.id}`}
+            key={item.id}
+            onClick={() => setPlatform(item.id)}
+            onKeyDown={(event) => handleKeyDown(event, index)}
+            role="tab"
+            tabIndex={platform === item.id ? 0 : -1}
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div
+        aria-labelledby={`install-tab-${platform}`}
+        className="quickGrid"
+        id="installation-steps"
+        role="tabpanel"
+      >
+        {quickStart.map((item, index) => {
+          const command = item.code[platform];
+          return (
+            <article className="quickStep" key={item.title}>
+              <div className="quickStepRail"><span className="stepNumber">{index + 1}</span></div>
+              <div>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+                <div className="codePanel">
+                  <div className="codePanelTop">
+                    <span aria-hidden="true" className="windowDots"><i></i><i></i><i></i></span>
+                    <CopyButton text={command} />
+                  </div>
+                  <pre><code>{command}</code></pre>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return <button className="copyButton" onClick={copy} type="button">{copied ? "Copied" : "Copy"}</button>;
 }
 
 export { App };

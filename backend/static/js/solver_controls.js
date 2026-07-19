@@ -1,8 +1,4 @@
 import {normalizeColormapName} from "/js/colormaps.js";
-import {createDeepMimoController} from "/js/controllers/deepmimo_controller.js?v=20260519-mode-isolation";
-import {createLinkController} from "/js/controllers/link_controller.js?v=20260519-mode-isolation";
-import {createMobilityController} from "/js/controllers/mobility_controller.js?v=20260519-mode-isolation";
-import {createRadiomapController} from "/js/controllers/radiomap_controller.js?v=20260519-mode-isolation";
 import {
   DEEPMIMO_FIXED_ANTENNA_ARRAY,
   antennaArrayPayload,
@@ -15,18 +11,13 @@ import {
   linkChannelConfig as buildLinkChannelConfig,
   linkSolvePayload as buildLinkSolvePayload,
   linkSolverConfig as buildLinkSolverConfig,
-  mobilityJobPayload as buildMobilityJobPayload,
   radiomapJobPayload as buildRadiomapJobPayload,
   radiomapSurfacePayload as buildRadiomapSurfacePayload,
 } from "/js/solvers/solver_payloads.js?v=20260519-mode-isolation";
-import {createDeepMimoDatasetView} from "/js/ui/deepmimo_dataset_view.js?v=20260519-mode-isolation";
-import {createLinkResultView} from "/js/ui/link_result_view.js?v=20260519-mode-isolation";
-import {createMobilityResultView} from "/js/ui/mobility_result_view.js?v=20260519-mode-isolation";
-import {createRadiomapResultView} from "/js/ui/radiomap_result_view.js?v=20260519-mode-isolation";
 import {formatCount} from "/js/ui/result_formatters.js?v=20260519-mode-isolation";
 
 export function createSolverControlsController(context) {
-  const {state, ui, inputs, viewerRef, api} = context;
+  const {state, ui, inputs, viewerRef} = context;
   const getViewer = () => viewerRef.current;
   const scene = () => context.controllers.scene;
 
@@ -42,107 +33,19 @@ export function createSolverControlsController(context) {
     scene().renderAll();
   }
 
-  const {
-    createDeepMimoJob,
-    createMobilityJob,
-    createRadiomapJob,
-    cancelDeepMimoJob,
-    deepMimoDownloadUrl,
-    getDeepMimoJob,
-    getMobilityJob,
-    getMobilityResult,
-    getRadiomapJob,
-    getRadiomapResult,
-    solveLink,
-  } = api;
+  function featureMethod(method) {
+    for (const definition of context.features.definitions()) {
+      const candidate = context.features.instance(definition.id)?.[method];
+      if (typeof candidate === "function") {
+        return candidate;
+      }
+    }
+    throw new Error(`No feature implements ${method}()`);
+  }
 
-  const linkResultView = createLinkResultView({
-    state,
-    ui,
-    getViewer,
-  });
-  const mobilityResultView = createMobilityResultView({
-    state,
-    ui,
-    getViewer,
-    renderAll,
-    renderLinkChannel,
-    clearPathSelection,
-    hidePathDetails,
-    renderPathDetails,
-    renderPathSelection,
-    scrollSelectedPathDetailsIntoView,
-  });
-  const radiomapResultView = createRadiomapResultView({
-    state,
-    ui,
-    getViewer,
-    radiomapColorRange,
-    syncLivePreviewStatusUi,
-    hidePathDetails,
-  });
-  const deepMimoDatasetView = createDeepMimoDatasetView({
-    state,
-    ui,
-    getViewer,
-    deepMimoRoiBounds,
-    deepMimoReceiverEstimate,
-    deepMimoDownloadUrl,
-  });
-  const linkController = createLinkController({
-    state,
-    ui,
-    getViewer,
-    solveLink,
-    readLinkInputs,
-    readLivePreviewInputs,
-    linkSolvePayload,
-    showOverlay,
-    hideOverlay,
-    renderAll,
-    setLivePreviewStatus,
-    clearLivePreviewStatus,
-  });
-  const radiomapController = createRadiomapController({
-    state,
-    getViewer,
-    createRadiomapJob,
-    getRadiomapJob,
-    getRadiomapResult,
-    readRadiomapInputs,
-    radiomapJobPayload,
-    radiomapColorRange,
-    showOverlay,
-    hideOverlay,
-    renderRadiomapResult,
-  });
-  const mobilityController = createMobilityController({
-    state,
-    getViewer,
-    createMobilityJob,
-    getMobilityJob,
-    getMobilityResult,
-    readMobilityInputs,
-    mobilityEstimate,
-    mobilityJobPayload,
-    showOverlay,
-    hideOverlay,
-    renderMobilityResult,
-    renderMobilityTrajectoryPreview,
-    stopMobilityPlayback,
-  });
-  const deepMimoController = createDeepMimoController({
-    state,
-    getViewer,
-    createDeepMimoJob,
-    cancelDeepMimoJob,
-    getDeepMimoJob,
-    deepMimoPayload,
-    showOverlay,
-    hideOverlay,
-    renderDeepMimoState,
-    addDeepMimoDataset,
-  });
+  function callFeature(method, ...args) {
+    return featureMethod(method)(...args);
+  }
 
 function antennaInputs(kind) {
   return {
@@ -203,7 +106,7 @@ function applyAntennaArrayLimits(kind, limits = {}) {
 }
 
 function syncAntennaArrayInputs() {
-  const fixedForDeepMimo = state.mode === "deepmimo";
+  const fixedForDeepMimo = context.features.get(state.mode)?.sharedControlPolicy?.antenna === "fixed";
   for (const [kind, config] of [["tx", state.antenna.txArray], ["rx", state.antenna.rxArray]]) {
     const refs = antennaInputs(kind);
     writeAntennaArrayInputs(refs, fixedForDeepMimo ? DEEPMIMO_FIXED_ANTENNA_ARRAY : config);
@@ -212,7 +115,7 @@ function syncAntennaArrayInputs() {
 }
 
 function readAntennaArrayInputs() {
-  if (state.mode === "deepmimo") {
+  if (context.features.get(state.mode)?.sharedControlPolicy?.antenna === "fixed") {
     return;
   }
   for (const [kind, target] of [["tx", state.antenna.txArray], ["rx", state.antenna.rxArray]]) {
@@ -352,19 +255,19 @@ function formatCoord(point) {
 }
 
 function invalidateLinkResult({clearPaths = true, clearOverlay = true} = {}) {
-  linkController.invalidateLinkResult({clearPaths, clearOverlay});
+  callFeature("invalidateLinkResult", {clearPaths, clearOverlay});
 }
 
 function invalidateRadiomapResult({clearOverlay = true} = {}) {
-  radiomapController.invalidateRadiomapResult({clearOverlay});
+  callFeature("invalidateRadiomapResult", {clearOverlay});
 }
 
 function invalidateMobilityResult({clearOverlay = true, clearPaths = true} = {}) {
-  mobilityController.invalidateMobilityResult({clearOverlay, clearPaths});
+  callFeature("invalidateMobilityResult", {clearOverlay, clearPaths});
 }
 
 function invalidateDeepMimoResult({clearOverlay = true} = {}) {
-  deepMimoController.invalidateDeepMimoResult({clearOverlay});
+  callFeature("invalidateDeepMimoResult", {clearOverlay});
 }
 
 function normalizeMobilityWaypointSelection() {
@@ -484,13 +387,7 @@ function syncNumericInputs() {
   inputs.mobilityRxX.value = mrx.toFixed(1);
   inputs.mobilityRxY.value = mry.toFixed(1);
   inputs.mobilityRxZ.value = mrz.toFixed(1);
-  const clearanceScope = state.deviceControl.activeTarget === "rm-tx"
-    ? "radiomap"
-    : state.deviceControl.activeTarget === "deepmimo-tx"
-      ? "deepmimo"
-      : state.deviceControl.activeTarget === "mobility-tx" || state.deviceControl.activeTarget === "mobility-rx"
-        ? "mobility"
-      : "link";
+  const clearanceScope = context.picking.get(state.deviceControl.activeTarget)?.scope || "link";
   inputs.linkSurfaceClearance.value = String(surfaceClearanceM(clearanceScope));
   inputs.rmTxX.value = rtx.toFixed(1);
   inputs.rmTxY.value = rty.toFixed(1);
@@ -537,15 +434,7 @@ function setLogicalAndVisual(logicalTarget, visualTarget, logicalValues, visualV
 }
 
 function surfaceClearanceM(scope = "link") {
-  const value = Number(
-    scope === "radiomap"
-      ? state.radiomap.surfaceClearanceM
-      : scope === "deepmimo"
-        ? state.deepmimo.surfaceClearanceM
-        : scope === "mobility"
-          ? state.mobility.surfaceClearanceM
-        : state.link.surfaceClearanceM,
-  );
+  const value = Number(context.features.store.get(scope).surfaceClearanceM);
   if (!Number.isFinite(value)) {
     return 1.5;
   }
@@ -578,69 +467,40 @@ function deepMimoTxPickPosition(pick) {
   return pickPositionWithSurfaceClearance(pick, "deepmimo");
 }
 
-function readSurfaceClearanceInput(scope = state.deviceControl.activeTarget === "rm-tx"
-  ? "radiomap"
-  : state.deviceControl.activeTarget === "deepmimo-tx"
-    ? "deepmimo"
-    : state.deviceControl.activeTarget === "mobility-tx" || state.deviceControl.activeTarget === "mobility-rx"
-      ? "mobility"
-    : "link") {
+function readSurfaceClearanceInput(scope = context.picking.get(state.deviceControl.activeTarget)?.scope || "link") {
   const clearance = Number(inputs.linkSurfaceClearance.value);
   const nextClearance = Number.isFinite(clearance)
     ? Math.max(0, Math.min(50, clearance))
     : 1.5;
-  if (scope === "radiomap") {
-    state.radiomap.surfaceClearanceM = nextClearance;
-  } else if (scope === "deepmimo") {
-    state.deepmimo.surfaceClearanceM = nextClearance;
-  } else if (scope === "mobility") {
-    state.mobility.surfaceClearanceM = nextClearance;
-  } else {
-    state.link.surfaceClearanceM = nextClearance;
-  }
+  context.features.store.get(scope).surfaceClearanceM = nextClearance;
 }
 
 function syncViewerMarkers() {
-  if (state.mode === "radiomap") {
-    getViewer().setTx(state.radiomap.txVisual);
-    getViewer().setRx(null);
-    return;
-  }
-  if (state.mode === "deepmimo") {
-    getViewer().setTx(state.deepmimo.txVisual);
-    getViewer().setRx(null);
-    return;
-  }
-  if (state.mode === "mobility") {
-    getViewer().setTx(state.mobility.txVisual);
-    const sample = state.mobility.result?.samples?.[state.mobility.selectedStep];
-    getViewer().setRx(sample?.rx_position || state.mobility.rxVisual);
-    return;
-  }
-  getViewer().setTx(state.link.txVisual);
-  getViewer().setRx(state.link.rxVisual);
+  const positions = context.features.instance(state.mode)?.markerPositions?.() || {tx: null, rx: null};
+  getViewer().setTx(positions.tx);
+  getViewer().setRx(positions.rx);
 }
 
 function syncModeVisuals() {
-  if (state.mode !== "radiomap") {
-    getViewer().clearRadiomap();
-  }
-  if (state.mode !== "deepmimo") {
-    getViewer().clearDeepMimoRoi();
-  }
-  if (state.mode !== "mobility") {
-    getViewer().clearMobility();
-  }
-  if (state.mode !== "link" && state.mode !== "mobility") {
-    getViewer().clearPaths();
+  const activeLayers = new Set(context.features.get(state.mode)?.renderLayers || []);
+  for (const [layer, clear] of [
+    ["radiomap", () => getViewer().clearRadiomap()],
+    ["roi", () => getViewer().clearDeepMimoRoi()],
+    ["trajectory", () => getViewer().clearMobility()],
+    ["paths", () => getViewer().clearPaths()],
+  ]) {
+    if (!activeLayers.has(layer)) {
+      clear();
+    }
   }
 }
 
 function markerRadiusForPickTarget(target) {
-  if (target === "deepmimo-roi") {
+  const definition = context.picking.get(target);
+  if (definition?.role === "roi") {
     return 0;
   }
-  return target === "link-rx" || target === "mobility-rx"
+  return definition?.role === "rx"
     ? getViewer().rxMarkerRadius
     : getViewer().txMarkerRadius;
 }
@@ -755,7 +615,7 @@ function rerenderRadiomapOverlay() {
 }
 
 function syncLivePreviewStatusUi() {
-  linkResultView.syncLivePreviewStatusUi();
+  callFeature("syncLivePreviewStatusUi");
 }
 
 function setLivePreviewStatus(mode, status) {
@@ -771,51 +631,51 @@ function clearLivePreviewStatus() {
 }
 
 function renderLinkChannel(channel) {
-  linkResultView.renderLinkChannel(channel);
+  callFeature("renderLinkChannel", channel);
 }
 
 function renderLinkResult() {
-  linkResultView.renderLinkResult();
+  callFeature("renderLinkResult");
 }
 
 function clearPathSelection() {
-  linkResultView.clearPathSelection();
+  callFeature("clearPathSelection");
 }
 
 function hidePathDetails() {
-  linkResultView.hidePathDetails();
+  callFeature("hidePathDetails");
 }
 
 function renderPathDetails(paths, selectedIndex) {
-  linkResultView.renderPathDetails(paths, selectedIndex);
+  callFeature("renderPathDetails", paths, selectedIndex);
 }
 
 function renderPathSelection(paths, selectedIndex, onSelect, summary = null) {
-  linkResultView.renderPathSelection(paths, selectedIndex, onSelect, summary);
+  callFeature("renderPathSelection", paths, selectedIndex, onSelect, summary);
 }
 
 function scrollSelectedPathDetailsIntoView() {
-  linkResultView.scrollSelectedPathDetailsIntoView();
+  callFeature("scrollSelectedPathDetailsIntoView");
 }
 
 function stopMobilityPlayback() {
-  mobilityResultView.stopMobilityPlayback();
+  callFeature("stopMobilityPlayback");
 }
 
 function selectMobilityStep(index) {
-  mobilityResultView.selectMobilityStep(index);
+  callFeature("selectMobilityStep", index);
 }
 
 function startMobilityPlayback() {
-  mobilityResultView.startMobilityPlayback();
+  callFeature("startMobilityPlayback");
 }
 
 function renderMobilityResult() {
-  mobilityResultView.renderMobilityResult();
+  callFeature("renderMobilityResult");
 }
 
 function renderRadiomapResult() {
-  radiomapResultView.renderRadiomapResult();
+  callFeature("renderRadiomapResult");
 }
 
 function deepMimoRoiBounds() {
@@ -884,19 +744,26 @@ function deepMimoPayload() {
   readDeepMimoInputs();
   const bounds = deepMimoRoiBounds();
   const receiverEstimate = deepMimoReceiverEstimate(bounds);
-  return buildDeepMimoPayload({state, inputs, bounds, receiverEstimate, formatCount});
+  return buildDeepMimoPayload({
+    state,
+    inputs,
+    bounds,
+    receiverEstimate,
+    formatCount,
+    linkDomain: context.featureServices.linkDomain,
+  });
 }
 
 function renderDeepMimoState() {
-  deepMimoDatasetView.renderDeepMimoState();
+  callFeature("renderDeepMimoState");
 }
 
 function addDeepMimoDataset(job) {
-  deepMimoDatasetView.addDeepMimoDataset(job);
+  callFeature("addDeepMimoDataset", job);
 }
 
 function renderDeepMimoDatasetTray() {
-  deepMimoDatasetView.renderDeepMimoDatasetTray();
+  callFeature("renderDeepMimoDatasetTray");
 }
 
 function setDeepMimoRoiCorner(position) {
@@ -969,18 +836,18 @@ function clearDeepMimoRoi() {
 }
 
 async function cancelDeepMimoExport(jobId) {
-  return deepMimoController.cancelDeepMimoExport(jobId);
+  return callFeature("cancelDeepMimoExport", jobId);
 }
 
 async function runDeepMimo() {
-  return deepMimoController.runDeepMimo();
+  return callFeature("runDeepMimo");
 }
 async function runLinkSolve() {
-  return linkController.runLinkSolve();
+  return callFeature("runLinkSolve");
 }
 
 function cancelLivePreview({clearStatus = true} = {}) {
-  linkController.cancelLivePreview({clearStatus});
+  callFeature("cancelLivePreview", {clearStatus});
 }
 
 function radiomapSurfacePayload() {
@@ -991,12 +858,8 @@ function radiomapJobPayload() {
   return buildRadiomapJobPayload({state, inputs});
 }
 
-function mobilityJobPayload() {
-  return buildMobilityJobPayload({state, inputs});
-}
-
 function handleLivePreviewDeviceUpdate(target, phase = "change") {
-  linkController.handleLivePreviewDeviceUpdate(target, phase);
+  callFeature("handleLivePreviewDeviceUpdate", target, phase);
 }
 
 function resetMobilityTrajectoryFromRx() {
@@ -1022,49 +885,58 @@ function addCurrentRxWaypoint() {
 }
 
 async function runMobility() {
-  return mobilityController.runMobility();
+  return callFeature("runMobility");
 }
 
 async function runRadiomap() {
-  return radiomapController.runRadiomap();
+  return callFeature("runRadiomap");
 }
 
-function applyPick(pick) {
-  if (!pick || !state.pickTarget) {
+function applyPick(pick, targetId = state.pickTarget) {
+  const target = context.picking?.get(targetId);
+  const feature = target ? context.features.instance(target.featureId) : null;
+  if (!pick || !target || typeof feature?.applyPick !== "function") {
     return;
   }
-
-  if (state.pickTarget === "link-tx") {
-    const position = linkPickPosition(pick);
-    setLogicalAndVisual(state.link.tx, state.link.txVisual, position);
-    invalidateLinkResult();
-  } else if (state.pickTarget === "link-rx") {
-    const position = linkPickPosition(pick);
-    setLogicalAndVisual(state.link.rx, state.link.rxVisual, position);
-    invalidateLinkResult();
-  } else if (state.pickTarget === "mobility-tx") {
-    const position = mobilityPickPosition(pick);
-    setLogicalAndVisual(state.mobility.tx, state.mobility.txVisual, position);
-    invalidateMobilityResult();
-  } else if (state.pickTarget === "mobility-rx") {
-    const position = mobilityPickPosition(pick);
-    setLogicalAndVisual(state.mobility.rx, state.mobility.rxVisual, position);
-    invalidateMobilityResult();
-  } else if (state.pickTarget === "rm-tx") {
-    const position = radiomapTxPickPosition(pick);
-    setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, position);
-    invalidateRadiomapResult();
-  } else if (state.pickTarget === "deepmimo-tx") {
-    const position = deepMimoTxPickPosition(pick);
-    setLogicalAndVisual(state.deepmimo.tx, state.deepmimo.txVisual, position);
-    invalidateDeepMimoResult();
-  } else if (state.pickTarget === "deepmimo-roi") {
-    const position = Array.isArray(pick.surfacePosition) ? pick.surfacePosition : pick.logicalPosition;
-    setDeepMimoRoiCorner(position);
-  }
-
+  feature.applyPick(pick, target);
   renderAll();
 }
+
+  context.featureServices.solver = Object.freeze({
+    getViewer,
+    showOverlay,
+    hideOverlay,
+    renderAll,
+    readLinkInputs,
+    readLivePreviewInputs,
+    linkSolvePayload,
+    setLivePreviewStatus,
+    clearLivePreviewStatus,
+    syncLivePreviewStatusUi,
+    renderLinkChannel,
+    clearPathSelection,
+    hidePathDetails,
+    renderPathDetails,
+    renderPathSelection,
+    scrollSelectedPathDetailsIntoView,
+    readMobilityInputs,
+    mobilityEstimate,
+    renderMobilityResult,
+    renderMobilityTrajectoryPreview,
+    stopMobilityPlayback,
+    readRadiomapInputs,
+    radiomapJobPayload,
+    radiomapColorRange,
+    renderRadiomapResult,
+    deepMimoRoiBounds,
+    deepMimoReceiverEstimate,
+    deepMimoPayload,
+    renderDeepMimoState,
+    linkSolverConfig,
+    linkChannelConfig,
+    pickPositionWithSurfaceClearance,
+    setLogicalAndVisual,
+  });
 
   return {
     applyRtCapabilities,

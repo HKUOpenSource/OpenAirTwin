@@ -1,26 +1,17 @@
 import {
-  createDeepMimoJob,
-  createMobilityJob,
-  createRadiomapJob,
   createTileDownloadJob,
-  cancelDeepMimoJob,
   cancelTileDownloadJob,
-  deepMimoDownloadUrl,
   getManifest,
   getOpen3dHkTileCoverage,
-  getDeepMimoJob,
-  getMobilityJob,
-  getMobilityResult,
-  getRadiomapJob,
-  getRadiomapResult,
   getRtCapabilities,
   getRtSceneSelection,
   getTileDownloadJob,
   setRtSceneSelection,
-  solveLink,
 } from "/js/api.js";
-import {entryMap, PERFORMANCE_MODES, state, viewerRef} from "/js/app_state.js?v=20260519-mode-isolation";
+import {entryMap, featureStore, PERFORMANCE_MODES, state, viewerRef} from "/js/app_state.js?v=20260519-mode-isolation";
+import {FeatureRegistry, PickingRegistry, SettingsBus} from "/js/core/feature_registry.js";
 import {inputs, ui} from "/js/dom_refs.js?v=20260519-mode-isolation";
+import {FEATURE_CATALOG} from "/js/features/feature_catalog.js";
 import {createAppDialogController} from "/js/controllers/app_dialog_controller.js?v=20260604-app-dialog";
 import {createDevicePickingController} from "/js/controllers/device_picking_controller.js?v=20260519-mode-isolation";
 import {createEntryMapController} from "/js/entry_map.js";
@@ -29,34 +20,37 @@ import {createPerformancePanelController} from "/js/performance_panel.js";
 import {createSceneRenderStateController} from "/js/scene_render_state.js?v=20260519-mode-isolation";
 import {createSolverControlsController} from "/js/solver_controls.js?v=20260519-mode-isolation";
 
+const settings = new SettingsBus();
+const pickingRegistry = new PickingRegistry();
+const featureRegistry = new FeatureRegistry({
+  definitions: FEATURE_CATALOG,
+  store: featureStore,
+  settings,
+  picking: pickingRegistry,
+});
+
 const context = {
   state,
   entryMap,
   ui,
   inputs,
   viewerRef,
+  features: featureRegistry,
+  settings,
+  picking: pickingRegistry,
+  featureServices: {},
   api: {
-    createDeepMimoJob,
-    createRadiomapJob,
-    createMobilityJob,
     createTileDownloadJob,
-    cancelDeepMimoJob,
     cancelTileDownloadJob,
-    deepMimoDownloadUrl,
-    getDeepMimoJob,
-    getMobilityJob,
-    getMobilityResult,
     getManifest,
     getOpen3dHkTileCoverage,
-    getRadiomapJob,
-    getRadiomapResult,
     getRtCapabilities,
     getRtSceneSelection,
     getTileDownloadJob,
     setRtSceneSelection,
-    solveLink,
   },
   controllers: {},
+  utilities: {},
 };
 
 const dialogController = createAppDialogController(context);
@@ -101,26 +95,10 @@ function closeModeMenu() {
   setModeMenuOpen(false);
 }
 
-function closeDeepMimoDatasetTray() {
-  if (!state.deepmimo.datasetTrayOpen) {
-    return;
+function closeFeatureTransientUi() {
+  for (const definition of featureRegistry.definitions()) {
+    featureRegistry.instance(definition.id)?.closeTransientUi?.();
   }
-  state.deepmimo.datasetTrayOpen = false;
-  solverControls.renderDeepMimoDatasetTray();
-}
-
-function isEditableKeyboardTarget(target) {
-  const tag = target?.tagName?.toLowerCase();
-  return Boolean(
-    target?.isContentEditable
-    || tag === "input"
-    || tag === "textarea"
-    || tag === "select"
-  );
-}
-
-function invalidateMobilityResult() {
-  solverControls.invalidateMobilityResult();
 }
 
 async function runSolveFromDock(button, run) {
@@ -139,6 +117,12 @@ async function runSolveFromDock(button, run) {
     sceneRenderState.renderAll();
   }
 }
+
+Object.assign(context.utilities, {
+  closeModeMenu,
+  runSolveFromDock,
+  showErrorDialog,
+});
 
 function attachEvents() {
   paramTooltips.attach();
@@ -232,18 +216,6 @@ function attachEvents() {
     state.resultDock.expanded = !state.resultDock.expanded;
     sceneRenderState.syncResultDockUi();
   });
-  ui.deepMimoDatasetToggle.addEventListener("click", (event) => {
-    event.stopPropagation();
-    closeModeMenu();
-    if (state.deepmimo.datasets.length === 0) {
-      return;
-    }
-    state.deepmimo.datasetTrayOpen = !state.deepmimo.datasetTrayOpen;
-    solverControls.renderDeepMimoDatasetTray();
-  });
-  ui.deepMimoDatasetTray.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
   ui.btnShowAllCategories.addEventListener("click", () => {
     performancePanel.showAllCategories();
   });
@@ -267,186 +239,28 @@ function attachEvents() {
       return;
     }
     closeModeMenu();
-    closeDeepMimoDatasetTray();
+    closeFeatureTransientUi();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeModeMenu();
-      closeDeepMimoDatasetTray();
+      closeFeatureTransientUi();
     }
   });
 
-  ui.tabLink.addEventListener("click", () => {
-    closeModeMenu();
-    paramTooltips.hideTooltip();
-    solverControls.cancelLivePreview();
-    solverControls.stopMobilityPlayback();
-    devicePicking.stopTxOrbit();
-    state.mode = "link";
-    devicePicking.clearActiveDevice({render: false});
-    currentViewer().clearOverlay();
-    sceneRenderState.renderAll();
-  });
-  ui.tabMobility.addEventListener("click", () => {
-    closeModeMenu();
-    paramTooltips.hideTooltip();
-    solverControls.cancelLivePreview();
-    devicePicking.stopTxOrbit();
-    state.mode = "mobility";
-    if (!state.mobility.tapsDefaulted) {
-      state.link.advanced.computeTaps = true;
-      state.mobility.tapsDefaulted = true;
-    }
-    devicePicking.clearActiveDevice({render: false});
-    currentViewer().clearOverlay();
-    solverControls.renderMobilityTrajectoryPreview();
-    sceneRenderState.renderAll();
-  });
-  ui.tabRadiomap.addEventListener("click", () => {
-    closeModeMenu();
-    paramTooltips.hideTooltip();
-    solverControls.cancelLivePreview();
-    solverControls.stopMobilityPlayback();
-    devicePicking.stopTxOrbit();
-    state.mode = "radiomap";
-    devicePicking.clearActiveDevice({render: false});
-    currentViewer().clearOverlay();
-    sceneRenderState.renderAll();
-  });
-  ui.tabDeepMimo.addEventListener("click", () => {
-    closeModeMenu();
-    paramTooltips.hideTooltip();
-    solverControls.cancelLivePreview();
-    solverControls.stopMobilityPlayback();
-    devicePicking.stopTxOrbit();
-    state.mode = "deepmimo";
-    devicePicking.clearActiveDevice({render: false});
-    currentViewer().clearPaths();
-    currentViewer().clearRadiomap();
-    currentViewer().clearSurfacePreview();
-    sceneRenderState.renderAll();
-  });
-
-  ui.btnSolveLink.addEventListener("click", () => runSolveFromDock(ui.btnSolveLink, () => solverControls.runLinkSolve()).catch((error) => {
-    sceneRenderState.hideOverlay(null, true);
-    return showErrorDialog("Link Solve Failed", error);
-  }));
-  ui.btnRunRadiomap.addEventListener("click", () => runSolveFromDock(ui.btnRunRadiomap, () => solverControls.runRadiomap()).catch((error) => {
-    sceneRenderState.hideOverlay(null, true);
-    return showErrorDialog("Radiomap Failed", error);
-  }));
-  ui.btnRunMobility.addEventListener("click", () => runSolveFromDock(ui.btnRunMobility, () => solverControls.runMobility()).catch((error) => {
-    sceneRenderState.hideOverlay(null, true);
-    solverControls.stopMobilityPlayback();
-    return showErrorDialog("Mobility Failed", error);
-  }));
-  ui.btnRunDeepMimo.addEventListener("click", () => {
-    devicePicking.clearActiveDevice({render: false});
-    solverControls.cancelLivePreview();
-    ui.btnRunDeepMimo.disabled = true;
-    ui.btnRunDeepMimo.classList.add("busy");
-    ui.btnRunDeepMimo.setAttribute("aria-busy", "true");
-    solverControls.runDeepMimo().catch((error) => {
-      return showErrorDialog("DeepMIMO Export Failed", error);
-    }).finally(() => {
-      ui.btnRunDeepMimo.disabled = false;
-      ui.btnRunDeepMimo.classList.remove("busy");
-      ui.btnRunDeepMimo.removeAttribute("aria-busy");
+  for (const definition of featureRegistry.definitions()) {
+    featureRegistry.uiRef(definition.id, definition.ui.tabRef, ui).addEventListener("click", () => {
+      closeModeMenu();
+      paramTooltips.hideTooltip();
+      solverControls.cancelLivePreview();
+      devicePicking.stopTxOrbit();
+      devicePicking.clearActiveDevice({render: false});
+      featureRegistry.activate(definition.id, context);
       sceneRenderState.renderAll();
     });
-  });
+  }
+
   ui.btnOrbitTx.addEventListener("click", () => devicePicking.toggleTxOrbit());
-  ui.btnPickLinkTx.addEventListener("click", () => devicePicking.openDevicePrecision("link-tx"));
-  ui.btnPickLinkRx.addEventListener("click", () => devicePicking.openDevicePrecision("link-rx"));
-  ui.btnPickMobilityTx.addEventListener("click", () => devicePicking.openDevicePrecision("mobility-tx"));
-  ui.btnPickMobilityRx.addEventListener("click", () => devicePicking.openDevicePrecision("mobility-rx"));
-  ui.btnPickRmTx.addEventListener("click", () => devicePicking.openDevicePrecision("rm-tx"));
-  ui.btnDeepMimoPickTx.addEventListener("click", () => devicePicking.openDevicePrecision("deepmimo-tx"));
-  ui.btnDeepMimoPickRoi.addEventListener("click", () => devicePicking.handleDeepMimoRoiPickToggle());
-  ui.btnDeepMimoClearRoi.addEventListener("click", () => devicePicking.handleDeepMimoClearRoi());
-
-  for (const [input, target] of [
-    [inputs.linkTxX, "link-tx"], [inputs.linkTxY, "link-tx"], [inputs.linkTxZ, "link-tx"],
-    [inputs.linkRxX, "link-rx"], [inputs.linkRxY, "link-rx"], [inputs.linkRxZ, "link-rx"],
-  ]) {
-    input.addEventListener("change", () => {
-      solverControls.readLinkInputs();
-      solverControls.invalidateLinkResult();
-      invalidateMobilityResult();
-      devicePicking.refreshPickStatus("link");
-      solverControls.handleLivePreviewDeviceUpdate(target, "change");
-      sceneRenderState.renderAll();
-    });
-  }
-
-  for (const [input, target] of [
-    [inputs.mobilityTxX, "mobility-tx"], [inputs.mobilityTxY, "mobility-tx"], [inputs.mobilityTxZ, "mobility-tx"],
-    [inputs.mobilityRxX, "mobility-rx"], [inputs.mobilityRxY, "mobility-rx"], [inputs.mobilityRxZ, "mobility-rx"],
-  ]) {
-    input.addEventListener("change", () => {
-      solverControls.readMobilityInputs();
-      invalidateMobilityResult();
-      devicePicking.refreshPickStatus("mobility");
-      sceneRenderState.renderAll();
-    });
-  }
-
-  for (const input of [inputs.mobilityVelocity, inputs.mobilityTimeStep, inputs.mobilityMaxSteps]) {
-    input.addEventListener("change", () => {
-      solverControls.readMobilityInputs();
-      invalidateMobilityResult();
-      sceneRenderState.renderAll();
-    });
-  }
-
-  ui.btnMobilityAddRxPoint.addEventListener("click", () => solverControls.addCurrentRxWaypoint());
-  ui.btnMobilityClearPoints.addEventListener("click", () => {
-    solverControls.resetMobilityTrajectoryFromRx();
-    sceneRenderState.renderAll();
-  });
-  ui.mobilityMetric.addEventListener("change", () => {
-    state.mobility.metric = ui.mobilityMetric.value;
-    solverControls.renderMobilityResult();
-  });
-  ui.mobilityStepSlider.addEventListener("input", () => {
-    solverControls.selectMobilityStep(Number(ui.mobilityStepSlider.value));
-  });
-  ui.mobilityPlaybackSpeed.addEventListener("change", () => {
-    state.mobility.playbackSpeed = Number(ui.mobilityPlaybackSpeed.value);
-    if (state.mobility.playing) {
-      solverControls.startMobilityPlayback();
-    }
-  });
-  ui.btnMobilityPlay.addEventListener("click", () => {
-    if (state.mobility.playing) {
-      solverControls.stopMobilityPlayback();
-      solverControls.renderMobilityResult();
-      return;
-    }
-    solverControls.startMobilityPlayback();
-  });
-
-  for (const input of [
-    inputs.linkSamplesPerSrc,
-    inputs.linkMaxNumPaths,
-    inputs.linkBandwidthMhz,
-    inputs.linkSyntheticArray,
-    inputs.linkDiffraction,
-    inputs.linkEdgeDiffraction,
-    inputs.linkDiffractionLitRegion,
-    inputs.linkComputeTaps,
-    inputs.linkTapLMin,
-    inputs.linkTapLMax,
-    inputs.linkTapFftSize,
-  ]) {
-    input.addEventListener("change", () => {
-      solverControls.readLinkInputs();
-      solverControls.invalidateLinkResult();
-      invalidateMobilityResult();
-      solverControls.invalidateDeepMimoResult();
-      sceneRenderState.renderAll();
-    });
-  }
 
   for (const input of [
     inputs.cfgFrequency,
@@ -458,10 +272,7 @@ function attachEvents() {
     inputs.cfgSeed,
   ]) {
     input.addEventListener("change", () => {
-      solverControls.invalidateLinkResult();
-      solverControls.invalidateRadiomapResult();
-      invalidateMobilityResult();
-      solverControls.invalidateDeepMimoResult();
+      settings.publish("common-solver");
       sceneRenderState.renderAll();
     });
   }
@@ -482,113 +293,17 @@ function attachEvents() {
   ]) {
     input.addEventListener("change", () => {
       solverControls.readAntennaArrayInputs();
-      solverControls.invalidateLinkResult();
-      solverControls.invalidateRadiomapResult();
-      invalidateMobilityResult();
+      settings.publish("antenna");
       sceneRenderState.renderAll();
     });
   }
 
-  for (const input of [inputs.rmTxX, inputs.rmTxY, inputs.rmTxZ]) {
-    input.addEventListener("change", () => {
-      solverControls.readRadiomapInputs();
-      solverControls.invalidateRadiomapResult();
-      devicePicking.refreshPickStatus("radiomap");
-      sceneRenderState.renderAll();
-    });
-  }
-
-  for (const input of [
-    inputs.rmSizeX, inputs.rmSizeY, inputs.rmHeightOffset, inputs.rmSamplesPerTx, inputs.rmCellSize, inputs.rmDensityLevel,
-  ]) {
-    input.addEventListener("change", () => {
-      solverControls.readRadiomapInputs();
-      solverControls.invalidateRadiomapResult();
-      sceneRenderState.renderAll();
-    });
-  }
-
-  for (const input of [
-    inputs.deepMimoTxX,
-    inputs.deepMimoTxY,
-    inputs.deepMimoTxZ,
-    inputs.deepMimoScenarioName,
-    inputs.deepMimoRoiCenterX,
-    inputs.deepMimoRoiCenterY,
-    inputs.deepMimoRoiWidth,
-    inputs.deepMimoRoiLength,
-    inputs.deepMimoGridSpacing,
-    inputs.deepMimoRxHeight,
-    inputs.deepMimoMaxReceivers,
-    inputs.deepMimoChunkSize,
-    inputs.deepMimoSamplesPerSrc,
-    inputs.deepMimoMaxPaths,
-    inputs.deepMimoFilterBuildings,
-  ]) {
-    input.addEventListener("change", () => {
-      solverControls.readDeepMimoInputs();
-      solverControls.invalidateDeepMimoResult();
-      solverControls.renderDeepMimoState();
-      sceneRenderState.renderAll();
-    });
-  }
-
-  for (const input of [
-    inputs.livePreviewEnabled,
-    inputs.livePreviewLinkSamples,
-    inputs.livePreviewPathsDelay,
-  ]) {
-    input.addEventListener("change", () => {
-      solverControls.readLivePreviewInputs();
-      if (!state.livePreview.enabled) {
-        solverControls.cancelLivePreview();
-      }
-      sceneRenderState.renderAll();
-    });
-  }
-
-  inputs.linkSurfaceClearance.addEventListener("change", () => {
-    solverControls.readSurfaceClearanceInput();
-    solverControls.invalidateLinkResult();
-    invalidateMobilityResult();
-    sceneRenderState.renderAll();
-  });
-
-  for (const input of [inputs.rmColorMin, inputs.rmColorMax, inputs.rmColormap]) {
-    input.addEventListener("change", () => {
-      try {
-        solverControls.readRadiomapInputs();
-        solverControls.rerenderRadiomapOverlay();
-        solverControls.renderRadiomapResult();
-      } catch (error) {
-        showErrorDialog("Radiomap Display Failed", error);
-      }
-    });
-  }
+  featureRegistry.attachEvents(context);
 
   devicePicking.attachPointerEvents(document.getElementById("view"));
 
   window.addEventListener("keydown", (event) => {
-    if (devicePicking.handleDevicePrecisionEscape(event)) {
-      return;
-    }
-    if (
-      state.mode !== "mobility"
-      || state.entry.visible
-      || ui.loadingScreen.style.display !== "none"
-      || isEditableKeyboardTarget(event.target)
-    ) {
-      return;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      solverControls.addCurrentRxWaypoint();
-      return;
-    }
-    if (event.key === "Delete" && state.mobility.selectedWaypointIndex >= 0) {
-      event.preventDefault();
-      solverControls.deleteMobilityWaypoint(state.mobility.selectedWaypointIndex);
-    }
+    devicePicking.handleDevicePrecisionEscape(event);
   });
 
   window.addEventListener("resize", () => {
@@ -605,6 +320,9 @@ function attachEvents() {
 }
 
 async function bootstrap() {
+  featureRegistry.mountTemplates(document);
+  featureRegistry.initialize(context);
+  featureRegistry.activate(state.mode, context);
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 10, force: true});
   attachEvents();
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading RT capabilities...", percent: 14, force: true});

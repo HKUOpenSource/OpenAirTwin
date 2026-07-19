@@ -6,218 +6,175 @@
   </picture>
 </p>
 
-
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-green"></a>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-blue">
-  <img alt="Sionna RT" src="https://img.shields.io/badge/Sionna-RT-brightgreen">
-  <img alt="Open3Dhk" src="https://img.shields.io/badge/Open3D-HK-red">
+  <img alt="Sionna RT" src="https://img.shields.io/badge/Sionna_RT-2.0.1-brightgreen">
   <img alt="WebGL" src="https://img.shields.io/badge/frontend-WebGL-4b8bbe">
-  <img alt="DeepMIMO export" src="https://img.shields.io/badge/export-DeepMIMO-6f42c1">
+  <a href="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/deploy-pages.yml"><img alt="Tutorial site" src="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/deploy-pages.yml/badge.svg"></a>
 </p>
 
+<p align="center">
+  <a href="https://hkuopensource.github.io/OpenAirTwin/">Tutorial</a> ·
+  <a href="https://hkuopensource.github.io/OpenAirTwin/architecture/">Architecture map</a> ·
+  <a href="docs/development.md">Development guide</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="docs/data-licenses.md">Scene data notice</a> ·
+  <a href="LICENSE">License</a>
+</p>
 
-OpenAirTwin is an open-source digital twin platform for wireless research. It combines a Python backend, a static browser frontend,
-tile-based scene management, and Sionna RT workflows for link analysis,
-radio-map generation, mobility simulation, DeepMIMO dataset export, and more.
+OpenAirTwin is an open-source digital twin platform for interactive wireless
+research. It combines a Python backend, a static browser frontend, tile-based
+city scenes, and Sionna RT workflows for link analysis, mobility simulation,
+radio-map generation, and DeepMIMO dataset export.
 
+<p align="center">
+  <img src="backend/static/assets/openairtwin_showcase.png" alt="OpenAirTwin browser interface" width="100%">
+</p>
+
+> [!IMPORTANT]
+> OpenAirTwin is research software. The server has no authentication and binds
+> to `127.0.0.1` by default. Do not expose it to an untrusted network without an
+> appropriate authenticated reverse proxy and additional hardening.
+
+## Quick Start
+
+### macOS or Linux
+
+```bash
+git clone https://github.com/HKUOpenSource/OpenAirTwin.git
+cd OpenAirTwin
+python3 install.py --with-sample-scene
+set -a; . ./.oat-env; set +a
+./.venv/bin/python -m backend.server
+```
+
+### Windows PowerShell
+
+```powershell
+git clone https://github.com/HKUOpenSource/OpenAirTwin.git
+Set-Location OpenAirTwin
+py -3.11 install.py --with-sample-scene
+. .\.oat-env.ps1
+.\.venv\Scripts\python.exe -m backend.server
+```
+
+The installer creates `.oat-env` on every platform and also creates
+`.oat-env.ps1` on Windows. These files preserve the selected CPU/GPU and local
+runtime configuration.
+
+Open [http://127.0.0.1:8090](http://127.0.0.1:8090), then verify the installation:
+
+1. Load the bundled sample scene from the map/scene controls.
+2. Open **Link** mode.
+3. Place one Tx and one Rx in the 3D scene.
+4. Run the link solver and inspect the rendered propagation paths.
+
+For guided workflows with videos, use the
+[OpenAirTwin tutorial](https://hkuopensource.github.io/OpenAirTwin/).
 
 ## Features
 
-<table>
-  <tr>
-    <td width="20%" align="center" valign="top">
-      <img src="backend/static/assets/feature-map-selection.png" alt="OpenAirTwin map selection and tile download" width="100%">
-      <br>
-      <strong>Map Selection and Scene Download</strong>
-      <br>
-      Select an area on the map, then load or download only the matching city
-      tiles.
-    </td>
-    <td width="20%" align="center" valign="top">
-      <img src="backend/static/assets/feature-link-analysis.png" alt="OpenAirTwin link analysis" width="100%">
-      <br>
-      <strong>Link Analysis</strong>
-      <br>
-      Place Tx and Rx points, run link analysis, and inspect paths, power, and
-      channel taps.
-    </td>
-    <td width="20%" align="center" valign="top">
-      <img src="backend/static/assets/feature-mobility-analysis.gif" alt="OpenAirTwin mobility analysis" width="100%">
-      <br>
-      <strong>Mobility Analysis</strong>
-      <br>
-      Move receivers along a trajectory and evaluate how channel behavior
-      changes over time.
-    </td>
-    <td width="20%" align="center" valign="top">
-      <img src="backend/static/assets/feature-radio-map.png" alt="OpenAirTwin radio map" width="100%">
-      <br>
-      <strong>Radio Map</strong>
-      <br>
-      Generate coverage maps and visualize signal strength on the 3D city
-      model.
-    </td>
-    <td width="20%" align="center" valign="top">
-      <img src="backend/static/assets/feature-deepmimo-export.png" alt="OpenAirTwin DeepMIMO data export" width="100%">
-      <br>
-      <strong>DeepMIMO Data Export</strong>
-      <br>
-      Select a region of interest and export DeepMIMO-compatible wireless ML
-      datasets.
-    </td>
-  </tr>
-</table>
+| Feature | Workflow | Main output |
+| --- | --- | --- |
+| Map and scene management | Select Hong Kong map tiles, download scene data, and load only the required city geometry | Incremental 3D scene |
+| Link analysis | Place Tx/Rx points and configure the shared RT solver | Paths, received power, channel taps, CIR and frequency response |
+| Mobility | Define Rx waypoints, speed and sampling parameters | Trajectory, sample markers and time-varying channel results |
+| Radio map | Configure a receiver patch, resolution and display range | Scalar heatmap over the 3D scene |
+| DeepMIMO export | Draw a receiver ROI and configure the receiver grid | Downloadable DeepMIMO-compatible dataset |
 
-More functions are coming:
-- Integrated Sensing and Communication
-- Beamforming
-- 3D Radio Map
-- ...
 
-## Installation
+## Documentation
 
-### Before You Install
+- [Interactive architecture map](https://hkuopensource.github.io/OpenAirTwin/architecture/):
+  current frontend, transport, backend service, job and renderer relationships;
+  its versioned source is [`docs/openairtwin-architecture.html`](docs/openairtwin-architecture.html).
+- [Development guide](docs/development.md): repository structure, tests,
+  architectural boundaries and the process for adding a Feature.
+- [Changelog](CHANGELOG.md) and [release checklist](docs/release-checklist.md):
+  the v1.0.0 release record and the maintainer publication sequence.
+- [Scene data and third-party terms](docs/data-licenses.md): Open3Dhk/CSDI data
+  responsibilities and bundled sample-scene attribution.
+- [Video tutorial](https://hkuopensource.github.io/OpenAirTwin/): browser-led
+  walkthroughs for the map and all four current analysis Features.
+
+## Installation Details
+
+### Requirements
 
 - Python 3.11 or newer.
 - A modern browser with WebGL support.
 - A GPU-capable environment is recommended for practical Sionna RT workloads.
 - CPU-only machines need LLVM for the Dr.Jit backend.
 
-Sionna RT, Mitsuba, Dr.Jit, CUDA, and GPU driver compatibility are environment
-specific. The installer handles the Python environment and reports system-level
-issues that still need action.
+Sionna RT, Mitsuba, Dr.Jit, CUDA and GPU-driver compatibility are environment
+specific. The installer creates or reuses `.venv/`, installs the pinned packages
+from `requirements.txt`, writes local runtime configuration, and reports
+system-level issues that still need action.
 
-If this is your first time using OpenAirTwin, it is recommended to download the sample scene during installation. Without scene data, the app can open, but ray-tracing workflows need tiles to run.
-
-### Recommended Install
-
-From the repository root, run:
+Run the interactive installer from the repository root:
 
 ```bash
-python install.py
+python3 install.py
 ```
 
-In an interactive terminal, the installer will:
-
-- create or reuse `.venv/`;
-- install the packages from `requirements.txt`;
-- detect NVIDIA GPUs;
-- ask you to choose a GPU when multiple GPUs are available;
-- ask whether to download the sample scene;
-- write local runtime settings to `.oat-env`;
-- run environment diagnostics and print the launch command.
-
+It can detect NVIDIA GPUs, select a GPU when multiple devices are present,
+download the sample scene, run environment diagnostics, and print the matching
+launch command.
 
 ### CPU-only Install
 
-If the machine does not have an NVIDIA GPU, or you want to run without CUDA,
-install LLVM first and then force CPU mode.
+Install LLVM first, then force CPU mode.
 
-On macOS:
+macOS:
 
 ```bash
 brew install llvm
-python install.py --cpu
+python3 install.py --cpu
 ```
 
-On Ubuntu or Debian:
+Ubuntu or Debian:
 
 ```bash
 sudo apt update
 sudo apt install llvm
-python install.py --cpu
+python3 install.py --cpu
 ```
 
-On Windows, install LLVM from the official [LLVM download page](https://releases.llvm.org/download.html), reopen PowerShell, then run:
+Windows users should install LLVM from the official
+[LLVM download page](https://releases.llvm.org/download.html), reopen PowerShell,
+and run:
 
 ```powershell
-python install.py --cpu
+py -3.11 install.py --cpu
 ```
 
-### Non-interactive and Advanced Flags
+### Installer Flags
 
-- `python install.py --with-sample-scene`: download the bundled first-run
-  sample scene.
-- `python install.py --no-sample-scene`: skip the sample-scene prompt.
-- `python install.py --gpu <index-or-uuid>`: pin a specific GPU on multi-GPU
-  machines.
-- `python install.py --cpu`: force CPU mode by setting `CUDA_VISIBLE_DEVICES`
-  to an empty value.
-- `python install.py --yes`: use non-interactive defaults. This skips the
-  sample scene unless combined with `--with-sample-scene`.
+- `--with-sample-scene`: download the bundled `11_SW_7A-D` sample scene.
+- `--no-sample-scene`: skip the sample-scene prompt.
+- `--gpu <index-or-uuid>`: pin a specific GPU.
+- `--cpu`: force CPU mode by clearing `CUDA_VISIBLE_DEVICES`.
+- `--yes`: use non-interactive defaults; combine it with
+  `--with-sample-scene` when the scene is required.
+- `--doctor`: run diagnostics without reinstalling packages.
+- `--recreate-venv`: remove and rebuild `.venv/`.
+- `--dry-run`: print planned installer actions without changing local files.
 
-## Start OpenAirTwin
-
-Use the command printed by the installer, or run the matching command below.
-
-On macOS or Linux:
-
-```bash
-set -a; . ./.oat-env; set +a
-./.venv/bin/python -m backend.server
-```
-
-On Windows PowerShell:
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.server
-```
-
-Open the frontend:
-
-```text
-http://127.0.0.1:8090
-```
-
-## Troubleshooting
-
-Run diagnostics without reinstalling packages:
-
-```bash
-python install.py --doctor
-```
-
-Rebuild the virtual environment from scratch:
-
-```bash
-python install.py --recreate-venv
-```
-
-Inspect the planned installer actions without creating files:
-
-```bash
-python install.py --dry-run
-```
-
-- Missing `nvidia-smi` is not always a failure. CPU mode can run when the
-  Dr.Jit LLVM backend passes the doctor check.
-- If the LLVM backend check fails, install LLVM and rerun the doctor.
-- CUDA warnings usually point to NVIDIA driver, CUDA, `CUDA_VISIBLE_DEVICES`,
-  or Mitsuba CUDA variant compatibility.
-- On Windows, the doctor also checks Dr.Jit/CUDA cache directories that can
-  surface as OptiX or cache write errors.
+Run `python3 install.py --help` for the authoritative option list.
 
 ## Scene Data
 
-OpenAirTwin needs scene data before link analysis, radio maps, mobility
-simulation, or DeepMIMO export can produce useful results.
-
-For first-run testing, the installer can download a sample scene with four
-Open3Dhk tiles: `11_SW_7A`, `11_SW_7B`, `11_SW_7C`, and `11_SW_7D`. In an
-interactive terminal, `python install.py` asks whether to download it. To force
-the download, run:
+Link, Radiomap, Mobility and DeepMIMO workflows require scene data. The sample
+archive contains four Open3Dhk tiles: `11_SW_7A`, `11_SW_7B`, `11_SW_7C` and
+`11_SW_7D`. Install it with:
 
 ```bash
-python install.py --with-sample-scene
+python3 install.py --with-sample-scene
 ```
 
-The sample archive is installed under `scene/` and contains runtime source data
-only: `common/`, `tiles/`, and `meshes/`. Render caches are rebuilt locally when
-needed. See the release archive's `THIRD_PARTY_DATA.md` for the bundled data
-attribution.
-
-OpenAirTwin expects runtime scene assets under `scene/` by default:
+Runtime scene assets use this layout by default:
 
 ```text
 scene/
@@ -228,77 +185,134 @@ scene/
 |-- meshes/
 |   `-- <tile_id>/<category>/*.ply
 `-- cache/
+    `-- render_bundles/
 ```
 
-The per-tile layout is the runtime source of truth. Point the application at a
-different scene root with:
+Use a different scene root with:
 
 ```bash
-OAT_SCENE_ROOT=/path/to/scene python -m backend.server
+OAT_SCENE_ROOT=/path/to/scene python3 -m backend.server
 ```
 
-Build or refresh frontend render bundles with:
+Build or refresh frontend tile bundles with:
 
 ```bash
-python -m backend.tools.build_tile_bundles --help
+python3 -m backend.tools.build_tile_bundles --help
 ```
 
-### Open3Dhk Data Use Notice
-
-OpenAirTwin can use scene data obtained from or derived from Open3Dhk, the
-Common Spatial Data Infrastructure (CSDI), and the Hong Kong Lands Department.
-That data is third-party government spatial data and is not licensed under this
-repository's Apache-2.0 software license.
-
-When browsing, downloading, using, reproducing, redistributing, or publishing
-copies or derivatives of Open3Dhk/CSDI data, users are responsible for complying
-with the applicable official terms. In particular, users should clearly identify
-the Government, CSDI, Lands Department, and/or Open3Dhk as the data source where
-applicable, and acknowledge the relevant intellectual property ownership.
-
-OpenAirTwin provides tooling for working with this data, but does not provide
-any warranty regarding the data's accuracy, completeness, availability,
-timeliness, or suitability for any particular purpose. See the
-[CSDI 3D Visualisation Map API Terms](https://portal.csdi.gov.hk/csdi-webpage/apidoc/3d-visualisation-map-api)
-and the Lands Department's
-[Open Data (Geospatial)](https://www.landsd.gov.hk/en/spatial-data/open-data.html)
-page for the official data terms and download guidance.
+OpenAirTwin's Apache-2.0 license does not cover third-party government spatial
+data. Review [Scene data and third-party terms](docs/data-licenses.md) before
+redistributing scene data or derived products.
 
 ## Configuration
 
 Runtime behavior is configured with `OAT_*` environment variables. Common
-options:
+options include:
 
-- `OAT_HOST` and `OAT_PORT`: backend bind address. By default,
-  OpenAirTwin listens on `127.0.0.1` for local-only access. Set
-  `OAT_HOST=0.0.0.0` only when you intentionally want to expose the unauthenticated
-  API to your local network.
-- `OAT_SCENE_ROOT`: scene asset root.
-- `OAT_GENERATED_ROOT`: generated job and runtime XML output root.
-- `OAT_DEFAULT_FREQUENCY_HZ`: default carrier frequency.
-- `OAT_DEFAULT_MAX_DEPTH`: default ray-tracing path depth.
-- `OAT_DEFAULT_LINK_SAMPLES`: default link solver sample budget.
-- `OAT_DEFAULT_RADIOMAP_SAMPLES`: default radio-map sample budget.
-- `OAT_DEEPMIMO_ENV_PYTHON`: Python executable used by DeepMIMO export jobs.
-- `OAT_MAP_DOWNLOAD_BASE_URL`, `OAT_MAP_DOWNLOAD_FORMAT`, and
-  `OAT_MAP_DOWNLOAD_KEY`: optional tile-download source configuration.
+| Variable | Purpose |
+| --- | --- |
+| `OAT_HOST`, `OAT_PORT` | Backend bind address; defaults to `127.0.0.1:8090` |
+| `OAT_SCENE_ROOT` | Runtime scene root |
+| `OAT_GENERATED_ROOT` | Generated job and runtime XML output root |
+| `OAT_DEFAULT_FREQUENCY_HZ` | Default carrier frequency |
+| `OAT_DEFAULT_MAX_DEPTH` | Default RT path depth |
+| `OAT_DEFAULT_LINK_SAMPLES` | Default Link sample budget |
+| `OAT_DEFAULT_RADIOMAP_SAMPLES` | Default Radiomap sample budget |
+| `OAT_DEEPMIMO_ENV_PYTHON` | Python executable used by DeepMIMO workers |
+| `OAT_MAP_DOWNLOAD_BASE_URL`, `OAT_MAP_DOWNLOAD_FORMAT`, `OAT_MAP_DOWNLOAD_KEY` | Optional tile-download source |
 
-See `backend/config.py` for the complete list of supported environment
-overrides.
+The complete and authoritative list, including validation and queue limits, is
+defined in [`backend/config.py`](backend/config.py). Restart the server after
+changing runtime environment values.
+
+## Development and Testing
+
+Run the Python suite from the repository root:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+Run Playwright feature and visual regressions:
+
+```bash
+cd tests/browser
+npm ci
+npx playwright install chromium
+npm test
+```
+
+Build the tutorial website:
+
+```bash
+cd website
+npm ci
+npm test
+npm run build
+```
+
+See the [development guide](docs/development.md) before changing Feature
+registration, REST contracts, viewer layers or shared settings.
 
 ## Repository Layout
 
 ```text
 .
-|-- backend/              # HTTP server, runtime APIs, static app, scene tools
-|-- tests/                # Unit and regression tests
-|-- website/              # Tutorial website
-|-- install.py            # Cross-platform installer and environment doctor
-|-- requirements.txt      # Python package names
+|-- backend/
+|   |-- features/          # Backend Feature definitions and route catalog
+|   |-- jobs/              # In-process and subprocess job managers
+|   |-- rt/                # Sionna RT solvers and scene runtime
+|   |-- scene/             # Tile scene generation and bundle tooling
+|   `-- static/
+|       `-- js/
+|           |-- core/      # Feature registry, store, settings and picking
+|           |-- features/  # Feature-owned state, transport and renderers
+|           `-- viewer/    # Layer, primitive and asset infrastructure
+|-- docs/                  # Architecture and contributor documentation
+|-- tests/                 # Python unit, contract and regression tests
+|   `-- browser/           # Playwright behavior and visual baselines
+|-- website/               # React/Vite tutorial website
+|-- CHANGELOG.md           # Release history and pending user-visible changes
+|-- CITATION.cff           # Machine-readable software citation metadata
+|-- install.py             # Cross-platform installer and environment doctor
+|-- requirements-test.txt  # Minimal dependencies for automated test jobs
+|-- requirements.txt       # Pinned Python runtime dependencies
 |-- LICENSE
 `-- README.md
 ```
 
+## Troubleshooting
+
+- Run `python3 install.py --doctor` after changing Python, CUDA, drivers or LLVM.
+- Missing `nvidia-smi` is not necessarily a failure; CPU mode can run when the
+  Dr.Jit LLVM backend passes diagnostics.
+- CUDA warnings commonly indicate an NVIDIA driver, CUDA,
+  `CUDA_VISIBLE_DEVICES`, or Mitsuba CUDA variant mismatch.
+- If the browser opens but analysis cannot run, confirm that a scene is loaded
+  and that all four sample tile XML/mesh directories are present.
+- On Windows, start through `.oat-env.ps1` so GPU selection and cache paths are
+  applied to the current PowerShell process.
+
+## Contributing
+
+Issues and pull requests are welcome. Keep existing REST contracts and UI
+behavior backward compatible unless the change explicitly introduces a versioned
+contract. New analysis capabilities should use the frontend and backend Feature
+catalogs instead of adding mode-specific branches to core entry points. Run the
+relevant Python and Playwright suites before submitting a change.
+
+## Citation
+
+If OpenAirTwin contributes to your work, cite the version used. For this
+release:
+
+> Wang, Z., Zhao, Z., & Zhou, Z. (2026). OpenAirTwin (Version 1.0.0)
+> [Computer software]. https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.0.0
+
+Machine-readable citation metadata is available in [`CITATION.cff`](CITATION.cff).
+
 ## License
 
-OpenAirTwin is released under the Apache License 2.0. See `LICENSE` for details.
+OpenAirTwin source code is released under the Apache License 2.0. See
+[`LICENSE`](LICENSE) for details. Scene data and other third-party assets remain
+subject to their respective terms.

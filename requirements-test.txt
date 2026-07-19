@@ -1,0 +1,5 @@
+# Lightweight dependencies required by the CPU-only unit and contract suite.
+# Full runtime and GPU dependencies remain pinned in requirements.txt.
+numpy==2.2.6
+trimesh==4.12.2
+defusedxml==0.7.1

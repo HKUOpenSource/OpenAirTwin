@@ -2,15 +2,8 @@ import {createSceneLoaderController} from "/js/controllers/scene_loader_controll
 import {createLoadingOverlayController} from "/js/ui/loading_overlay_controller.js?v=20260519-mode-isolation";
 import {createTileSelectionView} from "/js/ui/tile_selection_view.js?v=20260519-mode-isolation";
 
-const MODE_META = {
-  link: {title: "Link Analysis"},
-  mobility: {title: "Mobility Analysis"},
-  radiomap: {title: "Radio Map"},
-  deepmimo: {title: "DeepMIMO"},
-};
-
 export function createSceneRenderStateController(context) {
-  const {api, state, ui, viewerRef} = context;
+  const {api, features, picking, state, ui, viewerRef} = context;
   const getViewer = () => viewerRef.current;
   const entry = () => context.controllers.entry;
   const performancePanel = () => context.controllers.performance;
@@ -50,22 +43,6 @@ export function createSceneRenderStateController(context) {
 
   function syncModeVisuals() {
     solver().syncModeVisuals();
-  }
-
-  function renderLinkResult() {
-    solver().renderLinkResult();
-  }
-
-  function renderRadiomapResult() {
-    solver().renderRadiomapResult();
-  }
-
-  function renderDeepMimoState() {
-    solver().renderDeepMimoState();
-  }
-
-  function renderMobilityResult() {
-    solver().renderMobilityResult();
   }
 
   function hideEntryScreen() {
@@ -186,10 +163,11 @@ function syncControlSidebarUi() {
   ui.panel.setAttribute("aria-hidden", String(!visible || collapsed));
 }
 function syncModeUi() {
-  const isLink = state.mode === "link";
-  const isMobility = state.mode === "mobility";
-  const isDeepMimo = state.mode === "deepmimo";
-  const isLinkLike = isLink || isMobility;
+  const definitions = features.definitions();
+  const featureUiRef = (definition, ref) => features.uiRef(definition.id, ref, ui);
+  const activeFeature = features.get(state.mode) || definitions[0];
+  const activeUi = activeFeature.ui || {};
+  const activeTargetIds = new Set(picking.targetsFor(activeFeature.id).map((target) => target.id));
   const sceneControlsVisible = getViewer().__ready
     && !state.entry.visible
     && ui.panel.style.display === "flex"
@@ -199,83 +177,78 @@ function syncModeUi() {
     state.deviceControl.activeTarget = null;
   }
   const activeTarget = state.deviceControl.activeTarget;
-  const activeTargetAllowed = isLink
-    ? activeTarget === "link-tx" || activeTarget === "link-rx"
-    : isMobility
-      ? activeTarget === "mobility-tx" || activeTarget === "mobility-rx"
-    : isDeepMimo
-      ? activeTarget === "deepmimo-tx" || activeTarget === "deepmimo-roi"
-      : activeTarget === "rm-tx";
+  const activeTargetAllowed = activeTargetIds.has(activeTarget);
   if (activeTarget && !activeTargetAllowed) {
     state.deviceControl.activeTarget = null;
     state.pickTarget = null;
   }
   const nextActiveTarget = state.deviceControl.activeTarget;
-  const hasPrecisionTarget = nextActiveTarget === "link-tx"
-    || nextActiveTarget === "link-rx"
-    || nextActiveTarget === "mobility-tx"
-    || nextActiveTarget === "mobility-rx"
-    || nextActiveTarget === "rm-tx"
-    || nextActiveTarget === "deepmimo-tx";
-  const modeMeta = MODE_META[state.mode] || MODE_META.link;
-  const modeButtons = [
-    [ui.tabLink, isLink],
-    [ui.tabMobility, isMobility],
-    [ui.tabRadiomap, state.mode === "radiomap"],
-    [ui.tabDeepMimo, isDeepMimo],
-  ];
-  for (const [button, active] of modeButtons) {
+  const activeTargetMeta = picking.get(nextActiveTarget);
+  const hasPrecisionTarget = Boolean(activeTargetMeta?.precision);
+
+  for (const definition of definitions) {
+    const active = definition.id === activeFeature.id;
+    const button = featureUiRef(definition, definition.ui.tabRef);
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
+    featureUiRef(definition, definition.ui.panelRef).classList.toggle("hidden", !active);
   }
-  ui.modeSelectTitle.textContent = `Mode (${modeMeta.title})`;
-  ui.linkPanel.classList.toggle("hidden", !isLink);
-  ui.mobilityPanel.classList.toggle("hidden", !isMobility);
-  ui.radiomapPanel.classList.toggle("hidden", state.mode !== "radiomap");
-  ui.deepmimoPanel.classList.toggle("hidden", !isDeepMimo);
-  for (const node of ui.linkOnlyParams) {
-    const isDeepMimoAntennaParam = node.classList.contains("deepmimoAntennaParam");
-    node.classList.toggle("hidden", !(isLinkLike || (isDeepMimo && isDeepMimoAntennaParam)));
+  ui.modeSelectTitle.textContent = `Mode (${activeFeature.title})`;
+
+  const parameterGroupRefs = new Set();
+  for (const definition of definitions) {
+    for (const ref of definition.ui.parameterGroups || []) {
+      parameterGroupRefs.add(ref);
+    }
+    for (const filtered of definition.ui.filteredParameterGroups || []) {
+      parameterGroupRefs.add(filtered.ref);
+    }
   }
-  for (const node of ui.mobilityOnlyParams) {
-    node.classList.toggle("hidden", !isMobility);
+  for (const ref of parameterGroupRefs) {
+    for (const node of featureUiRef(activeFeature, ref) || []) {
+      node.classList.add("hidden");
+    }
   }
-  for (const node of ui.radiomapOnlyParams) {
-    node.classList.toggle("hidden", state.mode !== "radiomap");
+  for (const ref of activeUi.parameterGroups || []) {
+    for (const node of featureUiRef(activeFeature, ref) || []) {
+      node.classList.remove("hidden");
+    }
   }
-  for (const node of ui.deepmimoOnlyParams) {
-    node.classList.toggle("hidden", !isDeepMimo);
+  for (const filtered of activeUi.filteredParameterGroups || []) {
+    for (const node of featureUiRef(activeFeature, filtered.ref) || []) {
+      if (node.classList.contains(filtered.className)) {
+        node.classList.remove("hidden");
+      }
+    }
   }
-  for (const node of ui.livePreviewParams) {
-    node.classList.toggle("hidden", !isLink);
-  }
-  for (const node of ui.livePreviewLinkParams) {
-    node.classList.toggle("hidden", !isLink);
-  }
+
   ui.deviceDock.classList.toggle("hidden", !sceneControlsVisible);
   ui.deviceDock.setAttribute("aria-hidden", String(!sceneControlsVisible));
   ui.devicePrecisionPanel.classList.toggle("hidden", !sceneControlsVisible || !hasPrecisionTarget);
   ui.devicePrecisionPanel.setAttribute("aria-hidden", String(!sceneControlsVisible || !hasPrecisionTarget));
-  ui.linkTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "link-tx");
-  ui.linkRxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "link-rx");
-  ui.mobilityTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "mobility-tx");
-  ui.mobilityRxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "mobility-rx");
-  ui.rmTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "rm-tx");
-  ui.deepMimoTxDeviceCard.classList.toggle("hidden", nextActiveTarget !== "deepmimo-tx");
-  ui.linkSurfaceClearanceField.classList.toggle("hidden", !(nextActiveTarget === "link-tx" || nextActiveTarget === "link-rx" || nextActiveTarget === "mobility-tx" || nextActiveTarget === "mobility-rx" || nextActiveTarget === "rm-tx" || nextActiveTarget === "deepmimo-tx"));
-  ui.btnPickLinkTx.classList.toggle("hidden", !isLink);
-  ui.btnPickLinkRx.classList.toggle("hidden", !isLink);
-  ui.btnPickMobilityTx.classList.toggle("hidden", !isMobility);
-  ui.btnPickMobilityRx.classList.toggle("hidden", !isMobility);
-  ui.btnPickRmTx.classList.toggle("hidden", state.mode !== "radiomap");
-  ui.btnDeepMimoPickTx.classList.toggle("hidden", !isDeepMimo);
-  ui.btnDeepMimoPickRoi.classList.toggle("hidden", !isDeepMimo);
-  ui.btnDeepMimoClearRoi.classList.toggle("hidden", !isDeepMimo);
-  ui.btnSolveLink.classList.toggle("hidden", !isLink);
-  ui.btnRunMobility.classList.toggle("hidden", !isMobility);
-  ui.btnRunRadiomap.classList.toggle("hidden", state.mode !== "radiomap");
-  ui.btnRunDeepMimo.classList.toggle("hidden", !isDeepMimo);
-  for (const button of [ui.btnSolveLink, ui.btnRunMobility, ui.btnRunRadiomap]) {
+
+  for (const definition of definitions) {
+    const isActive = definition.id === activeFeature.id;
+    for (const target of picking.targetsFor(definition.id)) {
+      if (target.cardRef) {
+        featureUiRef(definition, target.cardRef).classList.toggle("hidden", nextActiveTarget !== target.id);
+      }
+      if (target.buttonRef) {
+        const button = featureUiRef(definition, target.buttonRef);
+        button.classList.toggle("hidden", !isActive);
+        button.classList.toggle("active", nextActiveTarget === target.id);
+        button.classList.toggle("picking", state.pickTarget === target.id);
+      }
+    }
+    for (const ref of definition.ui.extraActionButtonRefs || []) {
+      featureUiRef(definition, ref).classList.toggle("hidden", !isActive);
+    }
+    featureUiRef(definition, definition.ui.runButtonRef).classList.toggle("hidden", !isActive);
+  }
+  ui.linkSurfaceClearanceField.classList.toggle("hidden", !activeTargetMeta?.clearance);
+
+  for (const definition of definitions.filter((item) => item.ui.disableDuringTileLoad)) {
+    const button = featureUiRef(definition, definition.ui.runButtonRef);
     if (state.tileLoadBusy) {
       button.disabled = true;
     } else if (button.getAttribute("aria-busy") !== "true") {
@@ -287,31 +260,7 @@ function syncModeUi() {
   ui.btnOrbitTx.setAttribute("aria-pressed", String(orbitingTx));
   ui.btnOrbitTx.setAttribute("aria-label", orbitingTx ? "Stop transmitter orbit" : "Orbit around transmitter");
   ui.btnOrbitTx.querySelector(".deviceActionText").textContent = orbitingTx ? "Stop" : "Orbit";
-  ui.btnPickLinkTx.classList.toggle("active", nextActiveTarget === "link-tx");
-  ui.btnPickLinkRx.classList.toggle("active", nextActiveTarget === "link-rx");
-  ui.btnPickMobilityTx.classList.toggle("active", nextActiveTarget === "mobility-tx");
-  ui.btnPickMobilityRx.classList.toggle("active", nextActiveTarget === "mobility-rx");
-  ui.btnPickRmTx.classList.toggle("active", nextActiveTarget === "rm-tx");
-  ui.btnDeepMimoPickTx.classList.toggle("active", nextActiveTarget === "deepmimo-tx");
-  ui.btnDeepMimoPickRoi.classList.toggle("active", nextActiveTarget === "deepmimo-roi");
-  ui.btnPickLinkTx.classList.toggle("picking", state.pickTarget === "link-tx");
-  ui.btnPickLinkRx.classList.toggle("picking", state.pickTarget === "link-rx");
-  ui.btnPickMobilityTx.classList.toggle("picking", state.pickTarget === "mobility-tx");
-  ui.btnPickMobilityRx.classList.toggle("picking", state.pickTarget === "mobility-rx");
-  ui.btnPickRmTx.classList.toggle("picking", state.pickTarget === "rm-tx");
-  ui.btnDeepMimoPickTx.classList.toggle("picking", state.pickTarget === "deepmimo-tx");
-  ui.btnDeepMimoPickRoi.classList.toggle("picking", state.pickTarget === "deepmimo-roi");
-  ui.devicePrecisionTitle.textContent = nextActiveTarget === "link-rx" || nextActiveTarget === "mobility-rx"
-    ? "Rx"
-    : nextActiveTarget === "deepmimo-tx"
-      ? "DM Tx"
-    : nextActiveTarget === "mobility-tx"
-      ? "Tx"
-    : nextActiveTarget === "deepmimo-roi"
-      ? "ROI"
-    : nextActiveTarget === "rm-tx"
-      ? "RM Tx"
-      : "Tx";
+  ui.devicePrecisionTitle.textContent = activeTargetMeta?.precisionTitle || "Tx";
 }
 function renderAll() {
   syncModeUi();
@@ -323,10 +272,7 @@ function renderAll() {
   syncEntryOverviewUi();
   syncPerformanceUi();
   syncResultDockUi();
-  renderLinkResult();
-  renderMobilityResult();
-  renderRadiomapResult();
-  renderDeepMimoState();
+  features.render(context);
 }
 
 async function waitForRtSceneSelection(generation, tileIds) {

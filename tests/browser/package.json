@@ -1,0 +1,13 @@
+{
+  "name": "openairtwin-browser-regression-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:ci": "playwright test --grep-invert snapshots",
+    "test:update": "playwright test --update-snapshots"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
+  }
+}

@@ -5,6 +5,9 @@ import {Line2} from "/lib/Line2.js";
 import {LineGeometry} from "/lib/LineGeometry.js";
 import {LineMaterial} from "/lib/LineMaterial.js";
 import {colorForColormap} from "/js/colormaps.js";
+import {AssetManager} from "/js/viewer/asset_manager.js";
+import {SceneLayerManager} from "/js/viewer/layer_manager.js";
+import {PrimitiveRenderer} from "/js/viewer/primitives.js";
 
 const DEFAULT_VIEW = {
   position: new THREE.Vector3(-120, -180, 150),
@@ -285,12 +288,20 @@ export class Viewer {
     this.controls.addEventListener("end", () => this.#markInteraction());
 
     this.loader = new GLBGeometryLoader();
+    this.assets = new AssetManager();
+    this.primitives = new PrimitiveRenderer();
     this.modelGroup = new THREE.Group();
-    this.pathGroup = new THREE.Group();
     this.overlayGroup = new THREE.Group();
-    this.mobilityGroup = new THREE.Group();
     this.markerGroup = new THREE.Group();
-    this.scene.add(this.modelGroup, this.pathGroup, this.overlayGroup, this.mobilityGroup, this.markerGroup);
+    this.scene.add(this.modelGroup);
+    this.layers = new SceneLayerManager(this.scene);
+    this.pathLayer = this.layers.create("shared", "paths");
+    this.radiomapLayer = this.layers.create("radiomap", "heatmap", {order: 12});
+    this.deepMimoRoiLayer = this.layers.create("deepmimo", "roi", {order: 16});
+    this.mobilityLayer = this.layers.create("mobility", "trajectory");
+    this.pathGroup = this.pathLayer.group;
+    this.mobilityGroup = this.mobilityLayer.group;
+    this.scene.add(this.overlayGroup, this.markerGroup);
 
     this.pathMaterials = [];
     this.meshMaterials = [];
@@ -1317,99 +1328,42 @@ export class Viewer {
   }
 
   clearPaths() {
-    while (this.pathGroup.children.length) {
-      const object = this.pathGroup.children.pop();
-      object.geometry?.dispose();
-      object.material?.dispose();
-    }
+    this.pathLayer.clear();
     this.pathMaterials = [];
   }
 
   clearMobility() {
-    while (this.mobilityGroup.children.length) {
-      const object = this.mobilityGroup.children.pop();
-      object.geometry?.dispose();
-      object.material?.dispose();
-    }
+    this.mobilityLayer.clear();
   }
 
   renderMobilityTrajectory(points = [], samples = [], selectedIndex = -1) {
-    this.clearMobility();
-    if (!Array.isArray(points) || points.length < 1) {
-      return;
-    }
-
-    if (points.length >= 2) {
-      const flat = [];
-      for (const point of points) {
-        flat.push(point[0], point[1], point[2]);
-      }
-      const geometry = new LineGeometry();
-      geometry.setPositions(flat);
-      const material = new LineMaterial({
-        color: new THREE.Color("#1f6fff"),
-        linewidth: 2.6,
-        transparent: true,
-        opacity: 0.78,
-        depthTest: true,
-        depthWrite: false,
-        toneMapped: false,
-      });
-      material.resolution.set(window.innerWidth, window.innerHeight);
-      this.mobilityGroup.add(new Line2(geometry, material));
-    }
-
-    const samplePoints = Array.isArray(samples) && samples.length
-      ? samples.map((sample) => sample.rx_position)
-      : points;
-    samplePoints.forEach((point, index) => {
-      const isSelected = index === selectedIndex;
-      const markerMaterial = new THREE.MeshBasicMaterial({
-        color: isSelected ? "#1eb980" : "#70a7ff",
-        transparent: true,
-        opacity: isSelected ? 0.95 : 0.7,
-        depthWrite: false,
-      });
-      const marker = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 12), markerMaterial);
-      marker.position.set(point[0], point[1], point[2]);
-      marker.scale.setScalar(isSelected ? 1.35 : 1.0);
-      this.mobilityGroup.add(marker);
+    const samplePoints = Array.isArray(samples) && samples.length ? samples.map((sample) => sample.rx_position) : points;
+    return this.primitives.renderTrajectory(this.mobilityLayer, {
+      type: "trajectory",
+      points,
+      markers: samplePoints,
+      selectedIndex,
+      color: "#1f6fff",
+      markerColor: "#70a7ff",
+      selectedColor: "#1eb980",
+      width: 2.6,
+      opacity: 0.78,
+      radius: 0.7,
     });
   }
 
   renderPaths(paths, selectedIndex = -1) {
-    this.clearPaths();
-    if (!paths.length) {
-      return;
-    }
-
-    const powers = paths.map((path) => Number(path.path_gain_db));
-    const {min, max} = normalize(powers);
-
-    paths.forEach((path, index) => {
-      const flat = [];
-      for (const point of path.polyline) {
-        flat.push(point[0], point[1], point[2]);
-      }
-
-      const geometry = new LineGeometry();
-      geometry.setPositions(flat);
-      const t = max > min ? (path.path_gain_db - min) / (max - min) : 1.0;
-      const emphasized = selectedIndex < 0 || index === selectedIndex;
-      const material = new LineMaterial({
-        color: pathColor(t),
-        linewidth: emphasized ? 3.2 : 1.6,
-        transparent: true,
-        opacity: emphasized ? 0.92 : 0.18,
-        depthTest: true,
-        depthWrite: false,
-        toneMapped: false,
-      });
-      material.resolution.set(window.innerWidth, window.innerHeight);
-      const line = new Line2(geometry, material);
-      this.pathGroup.add(line);
-      this.pathMaterials.push(material);
+    const group = this.primitives.renderPolylineSet(this.pathLayer, {
+      type: "polyline-set",
+      items: paths.map((path) => ({points: path.polyline, value: path.path_gain_db})),
+      selectedIndex,
+      selectedWidth: 3.2,
+      dimmedWidth: 1.6,
+      selectedOpacity: 0.92,
+      dimmedOpacity: 0.18,
     });
+    this.pathMaterials = group.children.map((object) => object.material).filter(Boolean);
+    return group;
   }
 
   clearSurfacePreview() {
@@ -1423,25 +1377,12 @@ export class Viewer {
   }
 
   clearRadiomap() {
-    if (!this.radiomapMesh) {
-      return;
-    }
-    this.overlayGroup.remove(this.radiomapMesh);
-    this.radiomapMesh.geometry.dispose();
-    this.radiomapMesh.material.map?.dispose?.();
-    this.radiomapMesh.material.dispose();
+    this.radiomapLayer.clear();
     this.radiomapMesh = null;
   }
 
   clearDeepMimoRoi() {
-    if (!this.deepMimoRoi) {
-      return;
-    }
-    this.overlayGroup.remove(this.deepMimoRoi);
-    for (const object of this.deepMimoRoi.children) {
-      object.geometry?.dispose();
-      object.material?.dispose();
-    }
+    this.deepMimoRoiLayer.clear();
     this.deepMimoRoi = null;
   }
 
@@ -1453,93 +1394,39 @@ export class Viewer {
     const [minX, minY] = bounds.min;
     const [maxX, maxY] = bounds.max;
     const z = Number(visualZ || 0) + 0.18;
-    const group = new THREE.Group();
-
-    const fillGeometry = new THREE.PlaneGeometry(Math.max(maxX - minX, 0.01), Math.max(maxY - minY, 0.01));
-    const fillMaterial = new THREE.MeshBasicMaterial({
-      color: "#35c2a1",
-      transparent: true,
-      opacity: 0.18,
-      side: THREE.DoubleSide,
+    const group = this.primitives.renderPolygonOverlay(this.deepMimoRoiLayer, {
+      type: "polygon-overlay",
+      points: [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]],
+      z,
+      fillColor: "#35c2a1",
+      fillOpacity: 0.18,
+      lineColor: "#14a886",
+      lineWidth: 2.4,
+      lineOpacity: 0.96,
+      lineZOffset: 0.08,
       depthTest: false,
-      depthWrite: false,
-      toneMapped: false,
+      renderOrder: 16,
     });
-    const fill = new THREE.Mesh(fillGeometry, fillMaterial);
-    fill.position.set((minX + maxX) * 0.5, (minY + maxY) * 0.5, z);
-    group.add(fill);
-
-    const lineGeometry = new LineGeometry();
-    lineGeometry.setPositions([
-      minX, minY, z + 0.08,
-      maxX, minY, z + 0.08,
-      maxX, maxY, z + 0.08,
-      minX, maxY, z + 0.08,
-      minX, minY, z + 0.08,
-    ]);
-    const lineMaterial = new LineMaterial({
-      color: new THREE.Color("#14a886"),
-      linewidth: 2.4,
-      transparent: true,
-      opacity: 0.96,
-      depthTest: false,
-      depthWrite: false,
-      toneMapped: false,
-    });
-    lineMaterial.resolution.set(window.innerWidth, window.innerHeight);
-    group.add(new Line2(lineGeometry, lineMaterial));
-    group.renderOrder = 16;
-    this.overlayGroup.add(group);
     this.deepMimoRoi = group;
+    return group;
   }
 
   renderRadiomap(result, colorRange = {minDb: -140, maxDb: -80, colormap: "jet"}) {
     this.clearRadiomap();
     this.clearSurfacePreview();
 
-    const triangleCount = result.values.count;
-    const trianglePositions = result.geometry.triangle_positions;
-    const rawValues = result.values.data;
-    const displayMin = Number(colorRange.minDb);
-    const displayMax = Number(colorRange.maxDb);
-    const displayRange = Math.max(displayMax - displayMin, 1e-6);
-    const colormap = colorRange.colormap || "jet";
-    const colors = new Float32Array(triangleCount * 9);
-    const invalidColor = {r: 112, g: 118, b: 128};
-
-    for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
-      const rawValue = rawValues[triangleIndex];
-      const value = Number(rawValue);
-      const color = rawValue !== null && Number.isFinite(value)
-        ? colorForColormap(colormap, clamp01((value - displayMin) / displayRange))
-        : invalidColor;
-      for (let vertexIndex = 0; vertexIndex < 3; vertexIndex += 1) {
-        const base = triangleIndex * 9 + vertexIndex * 3;
-        colors[base] = color.r / 255;
-        colors[base + 1] = color.g / 255;
-        colors[base + 2] = color.b / 255;
-      }
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(trianglePositions, 3));
-    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-    geometry.computeBoundingSphere();
-    const material = new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      transparent: true,
+    const mesh = this.primitives.renderScalarTriangleMesh(this.radiomapLayer, {
+      type: "scalar-triangle-mesh",
+      positions: result.geometry.triangle_positions,
+      values: result.values.data,
+      min: Number(colorRange.minDb),
+      max: Number(colorRange.maxDb),
+      colormap: colorRange.colormap || "jet",
       opacity: 0.92,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
-      toneMapped: false,
+      renderOrder: 12,
     });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.renderOrder = 12;
-    this.overlayGroup.add(mesh);
     this.radiomapMesh = mesh;
+    return mesh;
   }
 
   async #createBundleObject(bundle, onProgress = () => {}) {

@@ -1,13 +1,14 @@
 {
   "name": "openairtwin-tutorial-website",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/copy-docs.mjs",
     "preview": "vite preview",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "npm run check && node scripts/validate-tutorial.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",

@@ -100,6 +100,23 @@ class InstallerHelperTests(unittest.TestCase):
         self.assertIn("CUDA_VISIBLE_DEVICES=1", text)
         self.assertIn("OAT_DEEPMIMO_ENV_PYTHON=/tmp/project/.venv/bin/python", text)
 
+    def test_powershell_env_file_quotes_values(self) -> None:
+        text = self.installer.format_powershell_env_file(
+            {
+                "CUDA_VISIBLE_DEVICES": "",
+                "OAT_DEEPMIMO_ENV_PYTHON": r"C:\Users\Researcher's Lab\.venv\Scripts\python.exe",
+            }
+        )
+        self.assertIn("$env:CUDA_VISIBLE_DEVICES = ''", text)
+        self.assertIn("Researcher''s Lab", text)
+
+    def test_launch_command_loads_platform_environment(self) -> None:
+        self.assertEqual(
+            self.installer.launch_command("Windows"),
+            ". .\\.oat-env.ps1; .\\.venv\\Scripts\\python.exe -m backend.server",
+        )
+        self.assertIn(". ./.oat-env", self.installer.launch_command("Linux"))
+
     def test_windows_cache_paths_use_user_writable_locations(self) -> None:
         paths = self.installer.windows_cache_paths(
             {
@@ -130,6 +147,7 @@ class InstallerHelperTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
             self.assertFalse((root / ".venv").exists())
             self.assertFalse((root / ".oat-env").exists())
+            self.assertFalse((root / ".oat-env.ps1").exists())
             self.assertFalse((root / "scene").exists())
             self.assertIn("Sample scene download skipped in --yes mode", completed.stdout)
             self.assertIn("Dry run complete", completed.stdout)
@@ -150,6 +168,7 @@ class InstallerHelperTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
             self.assertFalse((root / ".venv").exists())
             self.assertFalse((root / ".oat-env").exists())
+            self.assertFalse((root / ".oat-env.ps1").exists())
             self.assertFalse((root / "scene").exists())
             self.assertIn("Would download sample scene", completed.stdout)
             self.assertIn("Dry run complete", completed.stdout)
@@ -158,6 +177,7 @@ class InstallerHelperTests(unittest.TestCase):
         gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
         self.assertIn("/.venv/", gitignore)
         self.assertIn("/.oat-env", gitignore)
+        self.assertIn("/.oat-env.ps1", gitignore)
         self.assertIn("/.env.local", gitignore)
 
     def test_choose_sample_scene_download_defaults_to_skip_in_yes_mode(self) -> None:
