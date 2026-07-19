@@ -36,7 +36,7 @@ export function isDeepMimoDeviceTarget(target) {
 }
 
 export function createDevicePickingController(context) {
-  const {state, ui, viewerRef} = context;
+  const {features, picking, state, ui, viewerRef} = context;
   let pickTapCandidate = null;
 
   const solverControls = () => context.controllers.solver;
@@ -50,27 +50,21 @@ export function createDevicePickingController(context) {
     ui.hintText.textContent = message || "Click a surface point or adjust coordinates.";
   }
 
+  function targetDefinition(targetId = state.deviceControl.activeTarget) {
+    return picking.get(targetId);
+  }
+
+  function targetPrompt(targetId) {
+    return targetDefinition(targetId)?.prompt || placementPromptForTarget(targetId);
+  }
+
   function clearPickTapCandidate() {
     pickTapCandidate = null;
   }
 
   function readActiveDeviceInputs() {
-    const solver = solverControls();
-    if (isLinkDeviceTarget(state.deviceControl.activeTarget)) {
-      solver.readLinkInputs();
-      return;
-    }
-    if (isMobilityDeviceTarget(state.deviceControl.activeTarget)) {
-      solver.readMobilityInputs();
-      return;
-    }
-    if (state.deviceControl.activeTarget === "rm-tx") {
-      solver.readRadiomapInputs();
-      return;
-    }
-    if (isDeepMimoDeviceTarget(state.deviceControl.activeTarget)) {
-      solver.readDeepMimoInputs();
-    }
+    const target = targetDefinition();
+    features.instance(target?.featureId)?.readInputs?.();
   }
 
   function clearActiveDevice({render = false, status = true} = {}) {
@@ -91,68 +85,37 @@ export function createDevicePickingController(context) {
   }
 
   function openDevicePrecision(target) {
-    const solver = solverControls();
     if (state.deviceControl.activeTarget === target) {
       closeDevicePrecision();
       return;
     }
     clearPickTapCandidate();
     readActiveDeviceInputs();
-    if (isLinkDeviceTarget(target)) {
-      solver.readLinkInputs();
-    } else if (isMobilityDeviceTarget(target)) {
-      solver.readMobilityInputs();
-    } else if (target === "rm-tx") {
-      solver.readRadiomapInputs();
-    } else if (isDeepMimoDeviceTarget(target)) {
-      solver.readDeepMimoInputs();
+    const definition = targetDefinition(target);
+    if (!definition || definition.featureId !== state.mode) {
+      return;
     }
+    features.instance(definition.featureId)?.readInputs?.();
     state.deviceControl.activeTarget = target;
     state.pickTarget = target;
-    setPickStatus(placementPromptForTarget(target));
+    setPickStatus(targetPrompt(target));
     sceneRenderState().renderAll();
   }
 
   function refreshPickStatus(scope = "all") {
     const activeTarget = state.deviceControl.activeTarget;
-    const shouldRefresh = scope === "all"
-      || (scope === "link" && isLinkDeviceTarget(activeTarget))
-      || (scope === "mobility" && isMobilityDeviceTarget(activeTarget))
-      || (scope === "radiomap" && activeTarget === "rm-tx")
-      || (scope === "deepmimo" && isDeepMimoDeviceTarget(activeTarget));
+    const shouldRefresh = scope === "all" || targetDefinition(activeTarget)?.scope === scope;
     if (shouldRefresh && activeTarget) {
-      setPickStatus(placementPromptForTarget(activeTarget));
+      setPickStatus(targetPrompt(activeTarget));
     }
   }
 
   function txOrbitCenterForMode() {
-    if (state.mode === "radiomap") {
-      return state.radiomap.txVisual;
-    }
-    if (state.mode === "deepmimo") {
-      return state.deepmimo.txVisual;
-    }
-    if (state.mode === "mobility") {
-      return state.mobility.txVisual;
-    }
-    return state.link.txVisual;
+    return features.store.get(state.mode).txVisual;
   }
 
   function readTxInputsForCurrentMode() {
-    const solver = solverControls();
-    if (state.mode === "radiomap") {
-      solver.readRadiomapInputs();
-      return;
-    }
-    if (state.mode === "deepmimo") {
-      solver.readDeepMimoInputs();
-      return;
-    }
-    if (state.mode === "mobility") {
-      solver.readMobilityInputs();
-      return;
-    }
-    solver.readLinkInputs();
+    features.instance(state.mode)?.readInputs?.();
   }
 
   function stopTxOrbit() {
@@ -182,39 +145,41 @@ export function createDevicePickingController(context) {
       clientY,
       solver.markerRadiusForPickTarget(target),
     );
-    solver.applyPick(pick);
-    if (pick) {
-      state.deviceControl.activeTarget = target;
-      state.pickTarget = target;
-      setPickStatus(placementPromptForTarget(target));
-      if (target === "deepmimo-roi") {
-        return true;
-      }
-      solver.handleLivePreviewDeviceUpdate(target, livePhase);
+    const definition = targetDefinition(target);
+    if (!pick || typeof features.instance(definition?.featureId)?.applyPick !== "function") {
+      setPickStatus(targetPrompt(target));
+      return false;
+    }
+    solver.applyPick(pick, target);
+    state.deviceControl.activeTarget = target;
+    state.pickTarget = target;
+    setPickStatus(targetPrompt(target));
+    if (definition.pointerAdapter) {
       return true;
     }
-    setPickStatus(placementPromptForTarget(target));
-    return false;
+    solver.handleLivePreviewDeviceUpdate(target, livePhase);
+    return true;
   }
 
-  function deepMimoSurfacePositionAt(clientX, clientY) {
+  function surfacePositionAt(clientX, clientY) {
     const pick = currentViewer().pickOnSurface(clientX, clientY, 0);
     return pick ? (pick.surfacePosition || pick.logicalPosition) : null;
   }
 
   function handlePickPointerDown(event) {
-    const solver = solverControls();
     if (!state.pickTarget || !event.isPrimary || event.button !== 0 || event.shiftKey) {
       clearPickTapCandidate();
       return;
     }
-    if (state.pickTarget === "deepmimo-roi") {
-      const position = deepMimoSurfacePositionAt(event.clientX, event.clientY);
+    const definition = targetDefinition(state.pickTarget);
+    const feature = features.instance(definition?.featureId);
+    if (definition?.pointerAdapter && typeof feature?.startPickDrag === "function") {
+      const position = surfacePositionAt(event.clientX, event.clientY);
       if (!position) {
-        setPickStatus(placementPromptForTarget("deepmimo-roi"));
+        setPickStatus(targetPrompt(state.pickTarget));
         return;
       }
-      solver.startDeepMimoRoiDrag(position);
+      feature.startPickDrag(position, definition);
       pickTapCandidate = {
         pointerId: event.pointerId,
         target: state.pickTarget,
@@ -250,15 +215,16 @@ export function createDevicePickingController(context) {
   }
 
   function handlePickPointerMove(event) {
-    const solver = solverControls();
     if (!pickTapCandidate || event.pointerId !== pickTapCandidate.pointerId) {
       return;
     }
     if (pickTapCandidate.roiDrawing) {
-      const position = deepMimoSurfacePositionAt(event.clientX, event.clientY);
+      const definition = targetDefinition(pickTapCandidate.target);
+      const feature = features.instance(definition?.featureId);
+      const position = surfacePositionAt(event.clientX, event.clientY);
       if (position) {
-        solver.updateDeepMimoRoiDrag(position);
-        setPickStatus(placementPromptForTarget("deepmimo-roi"));
+        feature?.updatePickDrag?.(position, definition);
+        setPickStatus(targetPrompt(pickTapCandidate.target));
         sceneRenderState().renderAll();
       }
       event.preventDefault();
@@ -285,20 +251,21 @@ export function createDevicePickingController(context) {
   }
 
   function handlePickPointerUp(event) {
-    const solver = solverControls();
     if (!pickTapCandidate || event.pointerId !== pickTapCandidate.pointerId) {
       return;
     }
     const candidate = pickTapCandidate;
     clearPickTapCandidate();
     if (candidate.roiDrawing) {
-      const position = deepMimoSurfacePositionAt(event.clientX, event.clientY);
+      const definition = targetDefinition(candidate.target);
+      const feature = features.instance(definition?.featureId);
+      const position = surfacePositionAt(event.clientX, event.clientY);
       if (position) {
-        solver.finishDeepMimoRoiDrag(position);
+        feature?.finishPickDrag?.(position, definition);
       }
-      state.deviceControl.activeTarget = "deepmimo-roi";
-      state.pickTarget = "deepmimo-roi";
-      setPickStatus(placementPromptForTarget("deepmimo-roi"));
+      state.deviceControl.activeTarget = candidate.target;
+      state.pickTarget = candidate.target;
+      setPickStatus(targetPrompt(candidate.target));
       sceneRenderState().renderAll();
       event.preventDefault();
       event.stopPropagation();
@@ -328,29 +295,42 @@ export function createDevicePickingController(context) {
     releaseViewPointerCapture(event.pointerId);
   }
 
-  function handleDeepMimoRoiPickToggle() {
-    const solver = solverControls();
+  function togglePickingTarget(targetId) {
+    const definition = targetDefinition(targetId);
+    const feature = features.instance(definition?.featureId);
+    if (!definition || !feature) {
+      return;
+    }
     clearPickTapCandidate();
-    if (state.pickTarget === "deepmimo-roi" || state.deviceControl.activeTarget === "deepmimo-roi") {
-      state.deepmimo.roi.pickingStep = "a";
+    if (state.pickTarget === targetId || state.deviceControl.activeTarget === targetId) {
+      feature.cancelPicking?.(definition);
       state.pickTarget = null;
       state.deviceControl.activeTarget = null;
       setPickStatus();
       sceneRenderState().renderAll();
       return;
     }
-    solver.readDeepMimoInputs();
-    state.deepmimo.roi.pickingStep = "drag";
-    state.deviceControl.activeTarget = "deepmimo-roi";
-    state.pickTarget = "deepmimo-roi";
-    setPickStatus(placementPromptForTarget("deepmimo-roi"));
+    feature.readInputs?.();
+    feature.beginPicking?.(definition);
+    state.deviceControl.activeTarget = targetId;
+    state.pickTarget = targetId;
+    setPickStatus(targetPrompt(targetId));
     sceneRenderState().renderAll();
   }
 
-  function handleDeepMimoClearRoi() {
+  function clearPickingTarget(targetId) {
+    const definition = targetDefinition(targetId);
     clearActiveDevice({status: true});
-    solverControls().clearDeepMimoRoi();
+    features.instance(definition?.featureId)?.clearPicking?.(definition);
     sceneRenderState().renderAll();
+  }
+
+  function handleDeepMimoRoiPickToggle() {
+    togglePickingTarget("deepmimo-roi");
+  }
+
+  function handleDeepMimoClearRoi() {
+    clearPickingTarget("deepmimo-roi");
   }
 
   function handleDevicePrecisionEscape(event) {
@@ -373,6 +353,11 @@ export function createDevicePickingController(context) {
       sceneRenderState().renderAll();
     });
   }
+
+  context.featureServices.picking = Object.freeze({
+    toggleTarget: togglePickingTarget,
+    clearTarget: clearPickingTarget,
+  });
 
   return {
     attachPointerEvents,

@@ -301,11 +301,10 @@ main {
   aspect-ratio: 2510 / 720;
   margin: 0 auto;
   display: grid;
-  isolation: isolate;
   place-items: center;
 }
 
-.heroTitleCanvas {
+.heroTitleVideo {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -313,6 +312,8 @@ main {
   width: 100%;
   height: 100%;
   opacity: 0;
+  object-fit: contain;
+  pointer-events: none;
   filter:
     brightness(1.12)
     contrast(1.06)
@@ -321,19 +322,10 @@ main {
   transition: opacity 320ms ease;
 }
 
-.heroTitleVideo {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.heroTitleMedia.isVideoReady .heroTitleCanvas {
+.heroTitleMedia.isVideoReady .heroTitleVideo {
   opacity: 1;
 }
 
-.heroTitleMedia.isVideoFailed .heroTitleCanvas,
 .heroTitleMedia.isVideoFailed .heroTitleVideo {
   display: none;
 }
@@ -342,7 +334,7 @@ main {
   position: relative;
   z-index: 3;
   grid-area: 1 / 1;
-  opacity: 0;
+  opacity: 1;
   color: #ffffff;
   font-size: clamp(58px, 7vw, 96px);
   line-height: 1.02;
@@ -357,9 +349,13 @@ main {
   opacity: 1;
 }
 
+.heroTitleMedia.isVideoReady .heroTitleFallback {
+  opacity: 0;
+}
+
 .hero p {
   max-width: 760px;
-  margin: clamp(-20px, -1.5vw, -8px) auto 0;
+  margin: clamp(14px, 1.5vw, 22px) auto 0;
   color: #d3dbea;
   font-size: clamp(18px, 1.6vw, 23px);
   line-height: 1.6;
@@ -501,7 +497,8 @@ main {
   background: #080c13;
 }
 
-.featureMedia img {
+.featureMedia img,
+.featureMedia video {
   display: block;
   width: 100%;
   aspect-ratio: 1.55 / 1;
@@ -585,6 +582,34 @@ main {
   gap: 20px;
 }
 
+.osTabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.osTabs button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.osTabs button.active {
+  border-color: rgba(63, 124, 255, 0.48);
+  background: rgba(63, 124, 255, 0.16);
+  color: #ffffff;
+}
+
 .quickStep {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -643,25 +668,49 @@ main {
   height: 31px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  justify-content: space-between;
+  gap: 12px;
   padding: 0 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
 }
 
-.codePanelTop span {
+.windowDots {
+  display: inline-flex;
+  gap: 7px;
+}
+
+.windowDots i {
   width: 8px;
   height: 8px;
+  display: block;
   border-radius: 999px;
   background: #ff665f;
 }
 
-.codePanelTop span:nth-child(2) {
+.windowDots i:nth-child(2) {
   background: #ffbd2d;
 }
 
-.codePanelTop span:nth-child(3) {
+.windowDots i:nth-child(3) {
   background: #28c840;
+}
+
+.copyButton {
+  min-height: 25px;
+  padding: 0 9px;
+  border: 1px solid rgba(154, 190, 255, 0.22);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #cbd8ea;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.copyButton:hover {
+  border-color: rgba(154, 190, 255, 0.42);
+  color: #ffffff;
 }
 
 .quickStep pre {
@@ -772,7 +821,7 @@ main {
 
 .workflowLayout {
   display: grid;
-  grid-template-columns: 186px minmax(560px, 1fr) 278px;
+  grid-template-columns: 190px minmax(0, 1fr);
   gap: 14px;
   padding: 14px;
   background:
@@ -782,6 +831,8 @@ main {
 
 .tutorialSteps {
   position: relative;
+  grid-column: 1;
+  grid-row: 1 / span 2;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -857,6 +908,8 @@ main {
 }
 
 .videoWorkspace {
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
   border: 1px solid rgba(190, 213, 246, 0.17);
   border-radius: 8px;
@@ -897,12 +950,9 @@ main {
 .videoHeader p {
   margin: 7px 0 0;
   max-width: 100%;
-  overflow: hidden;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.48;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .videoControls {
@@ -927,6 +977,35 @@ main {
 .videoControls button:hover {
   border-color: rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.08);
+}
+
+.videoControls button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.playbackRate {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px 0 10px;
+  border: 1px solid rgba(190, 213, 246, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.playbackRate span {
+  color: #b9c5d5;
+  font-size: 11px;
+}
+
+.playbackRate select {
+  border: 0;
+  background: #111722;
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
 }
 
 .videoControls button.primary {
@@ -955,6 +1034,15 @@ main {
 .videoFrame video.isUnavailable {
   opacity: 0.24;
   filter: grayscale(0.35);
+}
+
+.playbackStatus {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(190, 213, 246, 0.12);
+  color: #9faabd;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .playbackPrompt {
@@ -1029,6 +1117,8 @@ main {
 }
 
 .stepNotes {
+  grid-column: 2;
+  grid-row: 2;
   align-self: stretch;
   display: flex;
   flex-direction: column;
@@ -1039,7 +1129,6 @@ main {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
-  overflow: hidden;
 }
 
 .stepNotesHead {
@@ -1061,15 +1150,21 @@ main {
   line-height: 1.2;
 }
 
+.stepNotesHead p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .quickNotes {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   min-height: 0;
 }
 
 .quickNote {
-  height: 86px;
-  overflow: hidden;
   padding: 10px;
   border: 1px solid rgba(190, 213, 246, 0.14);
   border-radius: 8px;
@@ -1088,14 +1183,30 @@ main {
 }
 
 .quickNote p {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   margin: 6px 0 0;
-  overflow: hidden;
   color: #b7c1d0;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.quickNote ol {
+  margin: 7px 0 0;
+  padding-left: 19px;
+  color: #b7c1d0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.quickNote li + li {
+  margin-top: 4px;
+}
+
+.warningNote {
+  border-color: rgba(255, 186, 78, 0.22);
+}
+
+.warningNote h5 {
+  color: #ffc878;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1125,14 +1236,6 @@ main {
 
   .workflowLayout {
     grid-template-columns: 178px minmax(0, 1fr);
-  }
-
-  .stepNotes {
-    grid-column: 1 / -1;
-  }
-
-  .quickNotes {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -1202,7 +1305,14 @@ main {
     padding: 12px;
   }
 
+  .videoWorkspace {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
   .tutorialSteps {
+    grid-column: 1;
+    grid-row: 2;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1213,6 +1323,11 @@ main {
 
   .videoControls {
     justify-content: start;
+  }
+
+  .stepNotes {
+    grid-column: 1;
+    grid-row: 3;
   }
 
   .quickNotes {
@@ -1324,25 +1439,24 @@ main {
   }
 
   .workflowTabs {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    overflow: visible;
+    display: flex;
+    overflow-x: auto;
     padding: 6px;
   }
 
   .workflowTabs button {
-    min-width: 0;
+    min-width: 132px;
     min-height: 48px;
     padding: 9px 4px;
     font-size: 12px;
   }
 
   .tabLabelFull {
-    display: none;
+    display: inline;
   }
 
   .tabLabelShort {
-    display: inline;
+    display: none;
   }
 
   .tutorialSteps {
@@ -1359,12 +1473,17 @@ main {
 
   .videoControls {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
   }
 
-  .videoControls button {
+  .videoControls button,
+  .playbackRate {
     width: 100%;
+  }
+
+  .playbackRate {
+    justify-content: space-between;
   }
 
   .quickNotes {

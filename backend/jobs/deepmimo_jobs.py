@@ -14,6 +14,7 @@ import time
 from uuid import uuid4
 
 from backend import config
+from backend.features.core import FeatureQueueFull
 from backend.rt.deepmimo_payload import parse_deepmimo_payload
 
 
@@ -66,10 +67,9 @@ class DeepMIMOJob:
         }
 
 
-class DeepMIMOQueueFull(RuntimeError):
+class DeepMIMOQueueFull(FeatureQueueFull):
     def __init__(self, max_pending_jobs: int) -> None:
-        super().__init__("DeepMIMO export job queue is full; try again later")
-        self.max_pending_jobs = max_pending_jobs
+        super().__init__("DeepMIMO export job queue is full; try again later", max_pending_jobs)
 
 
 class DeepMIMOJobManager:

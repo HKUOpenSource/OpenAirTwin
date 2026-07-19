@@ -15,6 +15,8 @@ from uuid import uuid4
 
 import numpy as np
 
+from backend import __version__
+
 
 TRIANGLE_FACE_DTYPE = np.dtype([("count", "u1"), ("indices", "<i4", (3,))])
 VERTEX_DTYPE = np.dtype("<f4")
@@ -564,7 +566,7 @@ def _build_glb_blob(
     max_index = int(triangles.max()) if index_count else 0
 
     gltf = {
-        "asset": {"version": "2.0", "generator": "HKU-RT v3.0"},
+        "asset": {"version": "2.0", "generator": f"OpenAirTwin v{__version__}"},
         "scene": 0,
         "scenes": [{"nodes": [0]}],
         "nodes": [{"mesh": 0, "name": bundle.bundle_id}],

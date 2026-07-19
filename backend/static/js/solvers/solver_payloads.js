@@ -85,7 +85,7 @@ export function radiomapJobPayload({state, inputs} = {}) {
   };
 }
 
-export function mobilityJobPayload({state, inputs} = {}) {
+export function mobilityJobPayload({state, inputs, linkDomain = null} = {}) {
   return {
     tx: {position: state.mobility.tx, orientation: [0, 0, 0]},
     rx_trajectory: {
@@ -94,8 +94,8 @@ export function mobilityJobPayload({state, inputs} = {}) {
       time_step_s: state.mobility.trajectory.timeStepS,
       max_steps: state.mobility.trajectory.maxSteps,
     },
-    solver: linkSolverConfig({state, inputs}),
-    channel: linkChannelConfig({state}),
+    solver: linkDomain?.solverConfig?.() || linkSolverConfig({state, inputs}),
+    channel: linkDomain?.channelConfig?.() || linkChannelConfig({state}),
   };
 }
 
@@ -127,7 +127,7 @@ export function deepMimoReceiverEstimate(bounds, rxGrid) {
   return Math.max(0, nx) * Math.max(0, ny);
 }
 
-export function deepMimoPayload({state, inputs, bounds, receiverEstimate, formatCount = String} = {}) {
+export function deepMimoPayload({state, inputs, bounds, receiverEstimate, formatCount = String, linkDomain = null} = {}) {
   if (!bounds) {
     throw new Error("Select a rectangular DeepMIMO ROI with two terrain clicks first");
   }
@@ -139,6 +139,11 @@ export function deepMimoPayload({state, inputs, bounds, receiverEstimate, format
       `DeepMIMO ROI creates ${formatCount(receiverEstimate)} receiver candidates; increase spacing or Max Rx`,
     );
   }
+  const propagation = linkDomain?.propagationConfig?.() || {
+    diffraction: state.link.advanced.diffraction,
+    edge_diffraction: state.link.advanced.edgeDiffraction,
+    diffraction_lit_region: state.link.advanced.diffractionLitRegion,
+  };
   return {
     tx: {position: state.deepmimo.tx, orientation: [0, 0, 0]},
     roi: bounds,
@@ -154,9 +159,7 @@ export function deepMimoPayload({state, inputs, bounds, receiverEstimate, format
       samples_per_src: state.deepmimo.solver.samplesPerSrc,
       max_num_paths_per_src: state.deepmimo.solver.maxNumPathsPerSrc,
       synthetic_array: true,
-      diffraction: state.link.advanced.diffraction,
-      edge_diffraction: state.link.advanced.edgeDiffraction,
-      diffraction_lit_region: state.link.advanced.diffractionLitRegion,
+      ...propagation,
     },
     export: {
       scenario_name: state.deepmimo.export.scenarioName,

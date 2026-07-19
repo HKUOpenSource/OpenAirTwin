@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use OpenAirTwin in your work, please cite the software version you used."
+type: software
+title: "OpenAirTwin"
+abstract: "An open-source digital twin platform for interactive wireless research."
+authors:
+  - family-names: "Wang"
+    given-names: "Zhaolin"
+  - family-names: "Zhou"
+    given-names: "Zihao"
+  - family-names: "Zhao"
+    given-names: "Zongyao"
+version: 1.0.0
+date-released: 2026-07-19
+license: Apache-2.0
+repository-code: "https://github.com/HKUOpenSource/OpenAirTwin"
+url: "https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.0.0"
+keywords:
+  - "digital twin"
+  - "wireless communication"
+  - "ray tracing"
+  - "radio propagation"
+  - "Sionna RT"
+  - "DeepMIMO"

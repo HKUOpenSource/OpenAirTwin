@@ -1,7 +1,11 @@
 OpenAirTwin tutorial video assets
 =================================
 
-Place compressed MP4 operation clips in the mode folders below. Keep each clip well under GitHub's 100MB single-file limit so the site can be pushed and deployed through GitHub Pages without Git LFS.
+Place compressed MP4 operation clips and matching WebVTT caption files in the mode folders below. Keep each clip well under GitHub's 100MB single-file limit so the site can be pushed and deployed through GitHub Pages without Git LFS.
+
+Keep every MP4/VTT filename stem identical. The tutorial player loads only the
+active clip's metadata, starts paused at 1x speed, and shows the full written
+workflow below the player.
 
 Recording guidelines:
 - 10-30 seconds per clip.

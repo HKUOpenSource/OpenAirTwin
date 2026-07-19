@@ -8,6 +8,7 @@ export type VideoSource = {
 
 export type VideoAsset = {
   sources: VideoSource[];
+  captionSrc: string;
   expectedPath: string;
   durationHint: string;
 };
@@ -39,6 +40,7 @@ const video = (mode: ModeId, fileName: string, durationHint = "10-30 seconds"): 
     sources: [
       { src: `media/tutorial/${mode}/${stem}.mp4`, type: "video/mp4", label: "MP4" },
     ],
+    captionSrc: `media/tutorial/${mode}/${stem}.vtt`,
     expectedPath: `website/public/media/tutorial/${mode}/${stem}.mp4`,
     durationHint,
   };
@@ -496,21 +498,39 @@ export const tutorialModes: TutorialMode[] = [
   },
 ];
 
-export const quickStart = [
+export type QuickStartStep = {
+  title: string;
+  body: string;
+  code: {
+    unix: string;
+    windows: string;
+  };
+};
+
+export const quickStart: QuickStartStep[] = [
   {
     title: "Get OpenAirTwin",
     body: "Clone the official repository.",
-    code: "git clone https://github.com/HKUOpenSource/OpenAirTwin.git\ncd OpenAirTwin",
+    code: {
+      unix: "git clone https://github.com/HKUOpenSource/OpenAirTwin.git\ncd OpenAirTwin",
+      windows: "git clone https://github.com/HKUOpenSource/OpenAirTwin.git\ncd OpenAirTwin",
+    },
   },
   {
-    title: "Run the installer",
-    body: "Use the interactive installer.",
-    code: "python install.py",
+    title: "Install with the sample scene",
+    body: "Create the local environment and download the bundled tutorial scene.",
+    code: {
+      unix: "python3 install.py --with-sample-scene",
+      windows: "py -3.11 install.py --with-sample-scene",
+    },
   },
   {
     title: "Start and open",
     body: "Start the backend and open the web UI.",
-    code: "set -a; . ./.oat-env; set +a\n./.venv/bin/python -m backend.server\n# http://127.0.0.1:8090",
+    code: {
+      unix: "set -a; . ./.oat-env; set +a\n./.venv/bin/python -m backend.server\n# http://127.0.0.1:8090",
+      windows: ". .\\.oat-env.ps1\n.\\.venv\\Scripts\\python.exe -m backend.server\n# http://127.0.0.1:8090",
+    },
   },
 ];
 
@@ -519,6 +539,7 @@ export const featureItems: Array<{
   title: string;
   body: string;
   image: string;
+  mediaType?: "image" | "video";
 }> = [
   {
     modeId: "map",
@@ -536,7 +557,8 @@ export const featureItems: Array<{
     modeId: "mobility",
     title: "Mobility",
     body: "Analyze receiver mobility across realistic urban routes and visualize how channel behavior evolves along the trajectory.",
-    image: "feature-mobility-analysis.gif",
+    image: "feature-mobility-analysis.mp4",
+    mediaType: "video",
   },
   {
     modeId: "radiomap",
