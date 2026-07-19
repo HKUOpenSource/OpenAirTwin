@@ -12,7 +12,6 @@
   <img alt="Sionna RT" src="https://img.shields.io/badge/Sionna_RT-2.0.1-brightgreen">
   <img alt="WebGL" src="https://img.shields.io/badge/frontend-WebGL-4b8bbe">
   <a href="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/deploy-pages.yml"><img alt="Tutorial site" src="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/deploy-pages.yml/badge.svg"></a>
 </p>
 
 <p align="center">
