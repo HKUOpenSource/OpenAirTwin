@@ -5,18 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
-<title>OpenAirTwin 架构可视化</title>
+<title>OpenAirTwin Architecture Map</title>
 <style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;height:calc(100vh - 2rem);margin:0;border:0}</style>
 </head>
 <body>
-<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="OpenAirTwin 架构可视化" srcdoc="&lt;!doctype html&gt;
+<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="OpenAirTwin Architecture Map" srcdoc="&lt;!doctype html&gt;
 &lt;html lang=&quot;en&quot;&gt;
 &lt;head&gt;
 &lt;meta charset=&quot;utf-8&quot;&gt;
 &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
 &lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
 &lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
-&lt;title&gt;OpenAirTwin 架构可视化&lt;/title&gt;
+&lt;title&gt;OpenAirTwin Architecture Map&lt;/title&gt;
 &lt;style&gt;:root {
   color-scheme: light dark;
   background-color: var(--background) !important;
@@ -1129,15 +1129,15 @@ html&gt;body{padding:0}&lt;/style&gt;
 
   &lt;div class=&quot;arch-toolbar&quot;&gt;
     &lt;div class=&quot;viz-controls&quot;&gt;
-      &lt;label class=&quot;form-label&quot; for=&quot;oatArchitectureView&quot;&gt;架构视图&lt;/label&gt;
+      &lt;label class=&quot;form-label&quot; for=&quot;oatArchitectureView&quot;&gt;Architecture view&lt;/label&gt;
       &lt;select class=&quot;form-select&quot; id=&quot;oatArchitectureView&quot;&gt;
-        &lt;option value=&quot;overview&quot;&gt;系统总览&lt;/option&gt;
-        &lt;option value=&quot;frontend&quot;&gt;前端运行时&lt;/option&gt;
-        &lt;option value=&quot;backend&quot;&gt;后端运行时&lt;/option&gt;
-        &lt;option value=&quot;link&quot;&gt;Link 调用链&lt;/option&gt;
-        &lt;option value=&quot;mobility&quot;&gt;Mobility 调用链&lt;/option&gt;
-        &lt;option value=&quot;radiomap&quot;&gt;Radiomap 调用链&lt;/option&gt;
-        &lt;option value=&quot;deepmimo&quot;&gt;DeepMIMO 调用链&lt;/option&gt;
+        &lt;option value=&quot;overview&quot;&gt;System overview&lt;/option&gt;
+        &lt;option value=&quot;frontend&quot;&gt;Frontend runtime&lt;/option&gt;
+        &lt;option value=&quot;backend&quot;&gt;Backend runtime&lt;/option&gt;
+        &lt;option value=&quot;link&quot;&gt;Link call flow&lt;/option&gt;
+        &lt;option value=&quot;mobility&quot;&gt;Mobility call flow&lt;/option&gt;
+        &lt;option value=&quot;radiomap&quot;&gt;Radiomap call flow&lt;/option&gt;
+        &lt;option value=&quot;deepmimo&quot;&gt;DeepMIMO call flow&lt;/option&gt;
       &lt;/select&gt;
     &lt;/div&gt;
     &lt;div class=&quot;arch-index-state text-small&quot; aria-label=&quot;CodeGraph index summary&quot;&gt;
@@ -1173,67 +1173,67 @@ html&gt;body{padding:0}&lt;/style&gt;
         &lt;span class=&quot;text-muted&quot; id=&quot;oatArchitectureDetailSummary&quot;&gt;&lt;/span&gt;
       &lt;/div&gt;
       &lt;dl&gt;
-        &lt;dt&gt;职责&lt;/dt&gt;
+        &lt;dt&gt;Responsibilities&lt;/dt&gt;
         &lt;dd&gt;&lt;ul class=&quot;arch-responsibility-list&quot; id=&quot;oatArchitectureResponsibilities&quot;&gt;&lt;/ul&gt;&lt;/dd&gt;
-        &lt;dt&gt;关键文件&lt;/dt&gt;
+        &lt;dt&gt;Key files&lt;/dt&gt;
         &lt;dd&gt;&lt;ul class=&quot;arch-file-list&quot; id=&quot;oatArchitectureFiles&quot;&gt;&lt;/ul&gt;&lt;/dd&gt;
-        &lt;dt&gt;直接连接&lt;/dt&gt;
+        &lt;dt&gt;Direct connections&lt;/dt&gt;
         &lt;dd id=&quot;oatArchitectureConnections&quot;&gt;&lt;/dd&gt;
       &lt;/dl&gt;
     &lt;/aside&gt;
   &lt;/div&gt;
 
   &lt;div class=&quot;arch-legend text-small&quot; aria-label=&quot;Connection legend&quot;&gt;
-    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-1)&quot;&gt;&lt;/span&gt;注册与生命周期&lt;/span&gt;
-    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-2)&quot;&gt;&lt;/span&gt;HTTP 请求&lt;/span&gt;
-    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-3)&quot;&gt;&lt;/span&gt;渲染与场景&lt;/span&gt;
-    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-4)&quot;&gt;&lt;/span&gt;Feature 能力依赖&lt;/span&gt;
-    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-5)&quot;&gt;&lt;/span&gt;执行与作业&lt;/span&gt;
+    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-1)&quot;&gt;&lt;/span&gt;Registration &amp;amp; lifecycle&lt;/span&gt;
+    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-2)&quot;&gt;&lt;/span&gt;HTTP requests&lt;/span&gt;
+    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-3)&quot;&gt;&lt;/span&gt;Rendering &amp;amp; scene&lt;/span&gt;
+    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-4)&quot;&gt;&lt;/span&gt;Feature capability dependencies&lt;/span&gt;
+    &lt;span class=&quot;arch-legend-item&quot;&gt;&lt;span class=&quot;legend-dot&quot; style=&quot;--node-color: var(--viz-series-5)&quot;&gt;&lt;/span&gt;Execution &amp;amp; jobs&lt;/span&gt;
   &lt;/div&gt;
 
   &lt;section class=&quot;arch-contract&quot; aria-labelledby=&quot;oatFeatureContractTitle&quot;&gt;
     &lt;div class=&quot;arch-section-head&quot;&gt;
-      &lt;h2 id=&quot;oatFeatureContractTitle&quot;&gt;Feature 接口对照&lt;/h2&gt;
-      &lt;span class=&quot;text-muted text-small&quot;&gt;前端目录 → Transport → 后端定义 → Renderer&lt;/span&gt;
+      &lt;h2 id=&quot;oatFeatureContractTitle&quot;&gt;Feature interface matrix&lt;/h2&gt;
+      &lt;span class=&quot;text-muted text-small&quot;&gt;Frontend directory → Transport → Backend definition → Renderer&lt;/span&gt;
     &lt;/div&gt;
     &lt;div class=&quot;table-responsive&quot;&gt;
       &lt;table class=&quot;table table-sm&quot;&gt;
         &lt;thead&gt;
           &lt;tr&gt;
             &lt;th&gt;Feature&lt;/th&gt;
-            &lt;th&gt;能力依赖&lt;/th&gt;
-            &lt;th&gt;REST 接口&lt;/th&gt;
-            &lt;th&gt;执行语义&lt;/th&gt;
-            &lt;th&gt;场景输出&lt;/th&gt;
+            &lt;th&gt;Capability dependencies&lt;/th&gt;
+            &lt;th&gt;REST endpoint&lt;/th&gt;
+            &lt;th&gt;Execution semantics&lt;/th&gt;
+            &lt;th&gt;Scene output&lt;/th&gt;
           &lt;/tr&gt;
         &lt;/thead&gt;
         &lt;tbody&gt;
           &lt;tr class=&quot;feature-row&quot; data-feature-row=&quot;link&quot;&gt;
             &lt;td&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-ghost feature-jump&quot; data-view=&quot;link&quot;&gt;Link&lt;/button&gt;&lt;/td&gt;
-            &lt;td&gt;提供 &lt;code&gt;link-domain&lt;/code&gt;、&lt;code&gt;path-results&lt;/code&gt;&lt;/td&gt;
+            &lt;td&gt;Provides &lt;code&gt;link-domain&lt;/code&gt; and &lt;code&gt;path-results&lt;/code&gt;&lt;/td&gt;
             &lt;td&gt;&lt;code&gt;POST /api/link/solve&lt;/code&gt;&lt;/td&gt;
-            &lt;td&gt;同步 RT 求解&lt;/td&gt;
+            &lt;td&gt;Synchronous RT solve&lt;/td&gt;
             &lt;td&gt;&lt;code&gt;polyline-set&lt;/code&gt;&lt;/td&gt;
           &lt;/tr&gt;
           &lt;tr class=&quot;feature-row&quot; data-feature-row=&quot;mobility&quot;&gt;
             &lt;td&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-ghost feature-jump&quot; data-view=&quot;mobility&quot;&gt;Mobility&lt;/button&gt;&lt;/td&gt;
-            &lt;td&gt;依赖 Link 两项能力&lt;/td&gt;
+            &lt;td&gt;Depends on both Link capabilities&lt;/td&gt;
             &lt;td&gt;&lt;code&gt;/api/mobility/jobs&lt;/code&gt;&lt;/td&gt;
-            &lt;td&gt;通用队列、轮询、结果&lt;/td&gt;
+            &lt;td&gt;Shared queue, polling, and results&lt;/td&gt;
             &lt;td&gt;&lt;code&gt;trajectory&lt;/code&gt; + &lt;code&gt;marker-set&lt;/code&gt; + paths&lt;/td&gt;
           &lt;/tr&gt;
           &lt;tr class=&quot;feature-row&quot; data-feature-row=&quot;radiomap&quot;&gt;
             &lt;td&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-ghost feature-jump&quot; data-view=&quot;radiomap&quot;&gt;Radiomap&lt;/button&gt;&lt;/td&gt;
-            &lt;td&gt;共享 Solver、天线设置&lt;/td&gt;
+            &lt;td&gt;Shares solver and antenna settings&lt;/td&gt;
             &lt;td&gt;&lt;code&gt;/api/radiomap/jobs&lt;/code&gt;&lt;/td&gt;
-            &lt;td&gt;通用队列、轮询、结果&lt;/td&gt;
+            &lt;td&gt;Shared queue, polling, and results&lt;/td&gt;
             &lt;td&gt;&lt;code&gt;scalar-triangle-mesh&lt;/code&gt;&lt;/td&gt;
           &lt;/tr&gt;
           &lt;tr class=&quot;feature-row&quot; data-feature-row=&quot;deepmimo&quot;&gt;
             &lt;td&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-ghost feature-jump&quot; data-view=&quot;deepmimo&quot;&gt;DeepMIMO&lt;/button&gt;&lt;/td&gt;
-            &lt;td&gt;依赖 &lt;code&gt;link-domain&lt;/code&gt;&lt;/td&gt;
+            &lt;td&gt;Depends on &lt;code&gt;link-domain&lt;/code&gt;&lt;/td&gt;
             &lt;td&gt;&lt;code&gt;/api/deepmimo/jobs&lt;/code&gt;&lt;/td&gt;
-            &lt;td&gt;专用任务、取消、下载 lease&lt;/td&gt;
+            &lt;td&gt;Dedicated job, cancellation, and download lease&lt;/td&gt;
             &lt;td&gt;&lt;code&gt;polygon-overlay&lt;/code&gt;&lt;/td&gt;
           &lt;/tr&gt;
         &lt;/tbody&gt;
@@ -1261,155 +1261,155 @@ html&gt;body{padding:0}&lt;/style&gt;
         {
           id: &quot;app-shell&quot;, label: &quot;app.js / UI Shell&quot;, category: &quot;core&quot;, x: 14, y: 10,
           scopes: [&quot;frontend&quot;],
-          summary: &quot;浏览器启动入口与共享 UI 编排。&quot;,
-          responsibilities: [&quot;启动 Viewer 与共享控制器&quot;, &quot;挂载模板并初始化 Feature Registry&quot;, &quot;只保留共享 UI、场景与性能逻辑&quot;],
+          summary: &quot;Browser startup entry point and shared UI orchestration.&quot;,
+          responsibilities: [&quot;Starts the Viewer and shared controllers&quot;, &quot;Mounts templates and initializes the Feature Registry&quot;, &quot;Retains only shared UI, scene, and performance logic&quot;],
           files: [&quot;backend/static/js/app.js&quot;, &quot;backend/static/index.html&quot;, &quot;backend/static/js/dom_refs.js&quot;],
         },
         {
           id: &quot;feature-core&quot;, label: &quot;Feature Core&quot;, category: &quot;core&quot;, x: 42, y: 10,
           scopes: [&quot;frontend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
-          summary: &quot;显式注册、状态、设置、Picking 与生命周期中心。&quot;,
-          responsibilities: [&quot;FeatureRegistry：注册、初始化、激活和释放&quot;, &quot;FeatureStore：为各 Feature 创建独立状态&quot;, &quot;SettingsBus / PickingRegistry：共享设置失效与拾取目标路由&quot;],
+          summary: &quot;Central hub for explicit registration, state, settings, picking, and lifecycles.&quot;,
+          responsibilities: [&quot;FeatureRegistry: registers, initializes, activates, and disposes Features&quot;, &quot;FeatureStore: creates isolated state for each Feature&quot;, &quot;SettingsBus / PickingRegistry: routes shared-setting invalidation and picking targets&quot;],
           files: [&quot;backend/static/js/core/feature_registry.js&quot;, &quot;backend/static/js/features/feature_catalog.js&quot;, &quot;backend/static/js/app_state.js&quot;],
         },
         {
           id: &quot;viewer-core&quot;, label: &quot;Viewer Core&quot;, category: &quot;frontend&quot;, x: 70, y: 10,
           scopes: [&quot;frontend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
-          summary: &quot;Three.js 场景运行时以及 Layer、Primitive、Asset 扩展点。&quot;,
-          responsibilities: [&quot;SceneLayerManager 隔离 Feature 图层&quot;, &quot;PrimitiveRenderer 渲染路径、轨迹、热力网格与 ROI&quot;, &quot;AssetManager 加载 GLB/PLY 并管理引用释放&quot;],
+          summary: &quot;Three.js scene runtime with Layer, Primitive, and Asset extension points.&quot;,
+          responsibilities: [&quot;SceneLayerManager isolates Feature layers&quot;, &quot;PrimitiveRenderer draws paths, trajectories, heatmap meshes, and ROIs&quot;, &quot;AssetManager loads GLB/PLY assets and manages reference release&quot;],
           files: [&quot;backend/static/js/viewer.js&quot;, &quot;backend/static/js/viewer/layer_manager.js&quot;, &quot;backend/static/js/viewer/primitives.js&quot;, &quot;backend/static/js/viewer/asset_manager.js&quot;],
         },
         {
           id: &quot;backend-core&quot;, label: &quot;Backend Core&quot;, category: &quot;core&quot;, x: 89, y: 10,
           scopes: [&quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
-          summary: &quot;HTTP 基础能力、Feature 路由分发与服务依赖注入。&quot;,
-          responsibilities: [&quot;RouteRegistry 匹配固定路径和路径参数&quot;, &quot;FeatureServiceRegistry 注入 RT Runtime 等资源&quot;, &quot;AppState 保留旧 manager 属性兼容 facade&quot;],
+          summary: &quot;Core HTTP handling, Feature route dispatch, and service dependency injection.&quot;,
+          responsibilities: [&quot;RouteRegistry matches static routes and path parameters&quot;, &quot;FeatureServiceRegistry injects resources such as the RT Runtime&quot;, &quot;AppState keeps legacy manager properties as compatibility facades&quot;],
           files: [&quot;backend/server.py&quot;, &quot;backend/features/core.py&quot;, &quot;backend/features/catalog.py&quot;],
         },
         {
           id: &quot;link-front&quot;, label: &quot;Link Feature&quot;, category: &quot;frontend&quot;, feature: &quot;link&quot;, x: 14, y: 26,
           scopes: [&quot;frontend&quot;, &quot;link&quot;],
-          summary: &quot;同步链路分析的独立前端模块，并向其他 Feature 提供领域能力。&quot;,
-          responsibilities: [&quot;独立 state / transport / controller / result view / renderer / lifecycle&quot;, &quot;提供 link-domain 与 path-results&quot;, &quot;管理 Tx/Rx Picking、live preview 与路径选择&quot;],
+          summary: &quot;Standalone frontend module for synchronous link analysis that exposes domain capabilities to other Features.&quot;,
+          responsibilities: [&quot;Owns its state / transport / controller / result view / renderer / lifecycle&quot;, &quot;Provides link-domain and path-results&quot;, &quot;Manages Tx/Rx picking, live preview, and path selection&quot;],
           files: [&quot;backend/static/js/features/link/index.js&quot;, &quot;backend/static/js/features/link/runtime.js&quot;, &quot;backend/static/js/features/link/transport.js&quot;, &quot;backend/static/js/features/link/renderer.js&quot;],
         },
         {
           id: &quot;link-api&quot;, label: &quot;POST /api/link/solve&quot;, category: &quot;transport&quot;, feature: &quot;link&quot;, x: 42, y: 26,
           scopes: [&quot;link&quot;],
-          summary: &quot;保留既有同步 REST 协议的 Link transport。&quot;,
-          responsibilities: [&quot;发送完整 Link payload&quot;, &quot;直接等待求解结果&quot;, &quot;由 api.js 兼容 facade 转发&quot;],
+          summary: &quot;Link transport that preserves the existing synchronous REST contract.&quot;,
+          responsibilities: [&quot;Sends the complete Link payload&quot;, &quot;Waits directly for the solve result&quot;, &quot;Is forwarded by the api.js compatibility facade&quot;],
           files: [&quot;backend/static/js/features/link/transport.js&quot;, &quot;backend/static/js/api.js&quot;],
         },
         {
           id: &quot;link-back&quot;, label: &quot;Link Service&quot;, category: &quot;backend&quot;, feature: &quot;link&quot;, x: 70, y: 26,
           scopes: [&quot;backend&quot;, &quot;link&quot;],
-          summary: &quot;注册 Link 路由并调用同步 RT 求解服务。&quot;,
-          responsibilities: [&quot;BackendFeatureDefinition 声明 rt_runtime 资源&quot;, &quot;读取原有 JSON payload&quot;, &quot;返回原有 Link JSON 响应&quot;],
+          summary: &quot;Registers the Link route and calls the synchronous RT solve service.&quot;,
+          responsibilities: [&quot;BackendFeatureDefinition declares the rt_runtime dependency&quot;, &quot;Reads the original JSON payload&quot;, &quot;Returns the original Link JSON response&quot;],
           files: [&quot;backend/features/link.py&quot;, &quot;backend/rt/solve_link.py&quot;],
         },
         {
-          id: &quot;link-exec&quot;, label: &quot;同步 RT 求解&quot;, category: &quot;execution&quot;, feature: &quot;link&quot;, x: 89, y: 26,
+          id: &quot;link-exec&quot;, label: &quot;Sync RT Solve&quot;, category: &quot;execution&quot;, feature: &quot;link&quot;, x: 89, y: 26,
           scopes: [&quot;backend&quot;, &quot;link&quot;],
-          summary: &quot;在当前请求中执行 Sionna RT Link solve。&quot;,
-          responsibilities: [&quot;验证场景与求解参数&quot;, &quot;执行传播路径计算&quot;, &quot;生成路径、增益、时延与可选 taps&quot;],
+          summary: &quot;Executes the Sionna RT Link solve within the current request.&quot;,
+          responsibilities: [&quot;Validates the scene and solve parameters&quot;, &quot;Computes propagation paths&quot;, &quot;Produces paths, gains, delays, and optional taps&quot;],
           files: [&quot;backend/rt/solve_link.py&quot;, &quot;backend/rt/runtime.py&quot;],
         },
         {
           id: &quot;mobility-front&quot;, label: &quot;Mobility Feature&quot;, category: &quot;frontend&quot;, feature: &quot;mobility&quot;, x: 14, y: 43,
           scopes: [&quot;frontend&quot;, &quot;mobility&quot;],
-          summary: &quot;轨迹采样、轮询、时间轴和播放的独立前端模块。&quot;,
-          responsibilities: [&quot;消费 Link 的 link-domain 与 path-results&quot;, &quot;管理轨迹点、时间轴和播放状态&quot;, &quot;渲染轨迹、采样点及每步路径&quot;],
+          summary: &quot;Standalone frontend module for trajectory sampling, polling, timeline control, and playback.&quot;,
+          responsibilities: [&quot;Consumes Link's link-domain and path-results capabilities&quot;, &quot;Manages trajectory points, the timeline, and playback state&quot;, &quot;Renders the trajectory, sample markers, and per-step paths&quot;],
           files: [&quot;backend/static/js/features/mobility/index.js&quot;, &quot;backend/static/js/features/mobility/runtime.js&quot;, &quot;backend/static/js/features/mobility/transport.js&quot;, &quot;backend/static/js/features/mobility/renderer.js&quot;],
         },
         {
           id: &quot;mobility-api&quot;, label: &quot;/api/mobility/jobs&quot;, category: &quot;transport&quot;, feature: &quot;mobility&quot;, x: 42, y: 43,
           scopes: [&quot;mobility&quot;],
-          summary: &quot;Mobility 异步创建、状态轮询和结果读取协议。&quot;,
-          responsibilities: [&quot;POST 创建作业&quot;, &quot;GET 轮询状态&quot;, &quot;GET 读取成功结果&quot;],
+          summary: &quot;Asynchronous Mobility job creation, status polling, and result retrieval contract.&quot;,
+          responsibilities: [&quot;POST creates a job&quot;, &quot;GET polls job status&quot;, &quot;GET retrieves the successful result&quot;],
           files: [&quot;backend/static/js/features/mobility/transport.js&quot;, &quot;backend/features/inprocess_routes.py&quot;],
         },
         {
           id: &quot;mobility-back&quot;, label: &quot;Mobility Service&quot;, category: &quot;backend&quot;, feature: &quot;mobility&quot;, x: 70, y: 43,
           scopes: [&quot;backend&quot;, &quot;mobility&quot;],
-          summary: &quot;通过通用 InProcess 路由注册 Mobility 作业 API。&quot;,
-          responsibilities: [&quot;注入 rt_runtime&quot;, &quot;创建 MobilityJobManager&quot;, &quot;记录 scene_generation 保证场景一致性&quot;],
+          summary: &quot;Registers Mobility job APIs through the shared InProcess routes.&quot;,
+          responsibilities: [&quot;Injects rt_runtime&quot;, &quot;Creates MobilityJobManager&quot;, &quot;Records scene_generation to preserve scene consistency&quot;],
           files: [&quot;backend/features/mobility.py&quot;, &quot;backend/jobs/mobility_jobs.py&quot;],
         },
         {
           id: &quot;mobility-exec&quot;, label: &quot;InProcess Worker&quot;, category: &quot;execution&quot;, feature: &quot;mobility&quot;, x: 89, y: 43,
           scopes: [&quot;backend&quot;, &quot;mobility&quot;],
-          summary: &quot;通用单 Worker 队列执行 Mobility 求解。&quot;,
-          responsibilities: [&quot;queued → running → succeeded/failed&quot;, &quot;进度、TTL、容量和结果存储&quot;, &quot;调用 solve_mobility&quot;],
+          summary: &quot;Shared single-worker queue that executes Mobility solves.&quot;,
+          responsibilities: [&quot;queued → running → succeeded/failed&quot;, &quot;Tracks progress, TTL, capacity, and result storage&quot;, &quot;Calls solve_mobility&quot;],
           files: [&quot;backend/jobs/inprocess_jobs.py&quot;, &quot;backend/jobs/mobility_jobs.py&quot;, &quot;backend/rt/solve_mobility.py&quot;],
         },
         {
           id: &quot;radiomap-front&quot;, label: &quot;Radiomap Feature&quot;, category: &quot;frontend&quot;, feature: &quot;radiomap&quot;, x: 14, y: 60,
           scopes: [&quot;frontend&quot;, &quot;radiomap&quot;],
-          summary: &quot;无线电地图提交、轮询、色标和热力网格模块。&quot;,
-          responsibilities: [&quot;独立管理 Tx、surface、solver 和 display 状态&quot;, &quot;共享 common-solver 与 Tx 天线设置&quot;, &quot;负责热力图结果与色条失效规则&quot;],
+          summary: &quot;Radio-map submission, polling, color-scale, and heatmap-mesh module.&quot;,
+          responsibilities: [&quot;Independently manages Tx, surface, solver, and display state&quot;, &quot;Shares common-solver and Tx antenna settings&quot;, &quot;Owns invalidation rules for heatmap results and the color scale&quot;],
           files: [&quot;backend/static/js/features/radiomap/index.js&quot;, &quot;backend/static/js/features/radiomap/runtime.js&quot;, &quot;backend/static/js/features/radiomap/transport.js&quot;, &quot;backend/static/js/features/radiomap/renderer.js&quot;],
         },
         {
           id: &quot;radiomap-api&quot;, label: &quot;/api/radiomap/jobs&quot;, category: &quot;transport&quot;, feature: &quot;radiomap&quot;, x: 42, y: 60,
           scopes: [&quot;radiomap&quot;],
-          summary: &quot;Radiomap 异步创建、状态轮询和结果读取协议。&quot;,
-          responsibilities: [&quot;POST 创建作业&quot;, &quot;GET 轮询状态&quot;, &quot;GET 读取 scalar mesh 数据&quot;],
+          summary: &quot;Asynchronous Radiomap job creation, status polling, and result retrieval contract.&quot;,
+          responsibilities: [&quot;POST creates a job&quot;, &quot;GET polls job status&quot;, &quot;GET retrieves scalar-mesh data&quot;],
           files: [&quot;backend/static/js/features/radiomap/transport.js&quot;, &quot;backend/features/inprocess_routes.py&quot;],
         },
         {
           id: &quot;radiomap-back&quot;, label: &quot;Radiomap Service&quot;, category: &quot;backend&quot;, feature: &quot;radiomap&quot;, x: 70, y: 60,
           scopes: [&quot;backend&quot;, &quot;radiomap&quot;],
-          summary: &quot;通过通用 InProcess 路由注册 Radiomap 作业 API。&quot;,
-          responsibilities: [&quot;注入 rt_runtime&quot;, &quot;创建 RadiomapJobManager&quot;, &quot;复用统一状态与错误响应&quot;],
+          summary: &quot;Registers Radiomap job APIs through the shared InProcess routes.&quot;,
+          responsibilities: [&quot;Injects rt_runtime&quot;, &quot;Creates RadiomapJobManager&quot;, &quot;Reuses standardized status and error responses&quot;],
           files: [&quot;backend/features/radiomap.py&quot;, &quot;backend/jobs/radiomap_jobs.py&quot;],
         },
         {
           id: &quot;radiomap-exec&quot;, label: &quot;InProcess Worker&quot;, category: &quot;execution&quot;, feature: &quot;radiomap&quot;, x: 89, y: 60,
           scopes: [&quot;backend&quot;, &quot;radiomap&quot;],
-          summary: &quot;通用单 Worker 队列执行 Radiomap 求解。&quot;,
-          responsibilities: [&quot;共享队列、TTL 与进度实现&quot;, &quot;验证 scene_generation&quot;, &quot;调用 solve_radiomap&quot;],
+          summary: &quot;Shared single-worker queue that executes Radiomap solves.&quot;,
+          responsibilities: [&quot;Shares the queue, TTL, and progress implementation&quot;, &quot;Validates scene_generation&quot;, &quot;Calls solve_radiomap&quot;],
           files: [&quot;backend/jobs/inprocess_jobs.py&quot;, &quot;backend/jobs/radiomap_jobs.py&quot;, &quot;backend/rt/solve_radiomap.py&quot;],
         },
         {
           id: &quot;deepmimo-front&quot;, label: &quot;DeepMIMO Feature&quot;, category: &quot;frontend&quot;, feature: &quot;deepmimo&quot;, x: 14, y: 77,
           scopes: [&quot;frontend&quot;, &quot;deepmimo&quot;],
-          summary: &quot;ROI、任务取消、数据集列表和下载入口模块。&quot;,
-          responsibilities: [&quot;消费 Link 的 link-domain&quot;, &quot;管理 Tx 与矩形 ROI Picking&quot;, &quot;提交、取消、轮询和记录下载数据集&quot;],
+          summary: &quot;Module for ROI selection, job cancellation, dataset listing, and download access.&quot;,
+          responsibilities: [&quot;Consumes Link's link-domain capability&quot;, &quot;Manages Tx and rectangular ROI picking&quot;, &quot;Submits, cancels, polls, and records downloadable datasets&quot;],
           files: [&quot;backend/static/js/features/deepmimo/index.js&quot;, &quot;backend/static/js/features/deepmimo/runtime.js&quot;, &quot;backend/static/js/features/deepmimo/transport.js&quot;, &quot;backend/static/js/features/deepmimo/renderer.js&quot;],
         },
         {
           id: &quot;deepmimo-api&quot;, label: &quot;/api/deepmimo/jobs&quot;, category: &quot;transport&quot;, feature: &quot;deepmimo&quot;, x: 42, y: 77,
           scopes: [&quot;deepmimo&quot;],
-          summary: &quot;DeepMIMO 创建、取消、状态和 ZIP 下载协议。&quot;,
-          responsibilities: [&quot;POST 创建与取消&quot;, &quot;GET 轮询状态&quot;, &quot;GET 下载 archive lease&quot;],
+          summary: &quot;DeepMIMO creation, cancellation, status, and ZIP download contract.&quot;,
+          responsibilities: [&quot;POST creates and cancels jobs&quot;, &quot;GET polls job status&quot;, &quot;GET downloads an archive lease&quot;],
           files: [&quot;backend/static/js/features/deepmimo/transport.js&quot;, &quot;backend/features/deepmimo.py&quot;],
         },
         {
           id: &quot;deepmimo-back&quot;, label: &quot;DeepMIMO Service&quot;, category: &quot;backend&quot;, feature: &quot;deepmimo&quot;, x: 70, y: 77,
           scopes: [&quot;backend&quot;, &quot;deepmimo&quot;],
-          summary: &quot;独立注册 DeepMIMO 作业、取消和下载路由。&quot;,
-          responsibilities: [&quot;将活动 tile 写入 payload&quot;, &quot;管理取消语义&quot;, &quot;通过 lease 安全发送 ZIP&quot;],
+          summary: &quot;Independently registers DeepMIMO job, cancellation, and download routes.&quot;,
+          responsibilities: [&quot;Adds active tiles to the payload&quot;, &quot;Manages cancellation semantics&quot;, &quot;Serves ZIP files safely through leases&quot;],
           files: [&quot;backend/features/deepmimo.py&quot;, &quot;backend/jobs/deepmimo_jobs.py&quot;],
         },
         {
           id: &quot;deepmimo-exec&quot;, label: &quot;Dedicated Job&quot;, category: &quot;execution&quot;, feature: &quot;deepmimo&quot;, x: 89, y: 77,
           scopes: [&quot;backend&quot;, &quot;deepmimo&quot;],
-          summary: &quot;专用 DeepMIMO manager 执行 subprocess 与归档生命周期。&quot;,
-          responsibilities: [&quot;启动与监控导出子进程&quot;, &quot;响应取消&quot;, &quot;维护下载 lease 与 archive 清理&quot;],
+          summary: &quot;Dedicated DeepMIMO manager for subprocess and archive lifecycles.&quot;,
+          responsibilities: [&quot;Starts and monitors the export subprocess&quot;, &quot;Responds to cancellation&quot;, &quot;Maintains download leases and archive cleanup&quot;],
           files: [&quot;backend/jobs/deepmimo_jobs.py&quot;, &quot;backend/rt/deepmimo_export_worker.py&quot;],
         },
         {
           id: &quot;rt-scene&quot;, label: &quot;RT Runtime + Scene Core&quot;, shortLabel: &quot;RT / Scene Core&quot;, category: &quot;execution&quot;, x: 62, y: 93,
           scopes: [&quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
-          summary: &quot;四个分析 Feature 共享的射线追踪运行时和场景代际。&quot;,
-          responsibilities: [&quot;加载当前选定 tile 的 RT 场景&quot;, &quot;维护 scene generation 与运行时锁&quot;, &quot;静态资源、scene 和 tile download 继续属于 Core&quot;],
+          summary: &quot;Ray-tracing runtime and scene generation shared by all four analysis Features.&quot;,
+          responsibilities: [&quot;Loads the RT scene for the currently selected tiles&quot;, &quot;Maintains scene generation and the runtime lock&quot;, &quot;Keeps static assets, scene endpoints, and tile downloads in Core&quot;],
           files: [&quot;backend/rt/runtime.py&quot;, &quot;backend/scene/tile_scene_xml.py&quot;, &quot;backend/scene/tile_bundles.py&quot;, &quot;backend/server.py&quot;],
         },
         {
           id: &quot;regression&quot;, label: &quot;Regression Baseline&quot;, category: &quot;core&quot;, x: 88, y: 93,
           scopes: [&quot;frontend&quot;, &quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
-          summary: &quot;锁定协议、DOM、交互、图层和视觉表现的回归边界。&quot;,
-          responsibilities: [&quot;Python REST 与作业 contract&quot;, &quot;Playwright 四模式行为与视觉快照&quot;, &quot;虚拟 Feature、Layer 与 Asset 能力验证&quot;],
+          summary: &quot;Regression boundary for protocols, DOM structure, interactions, layers, and visual output.&quot;,
+          responsibilities: [&quot;Python REST and job contracts&quot;, &quot;Playwright behavior and visual snapshots for all four modes&quot;, &quot;Dummy Feature, Layer, and Asset capability validation&quot;],
           files: [&quot;tests/test_feature_architecture.py&quot;, &quot;tests/test_frontend_regressions.py&quot;, &quot;tests/browser/feature_modes.spec.js&quot;],
         },
       ];
@@ -1454,13 +1454,13 @@ html&gt;body{padding:0}&lt;/style&gt;
       ];
 
       const flowText = {
-        overview: &quot;&lt;strong&gt;主干：&lt;/strong&gt; UI Shell → Feature Registry → Feature Transport → REST Route → Feature Service → RT / Job → Viewer Layer&quot;,
-        frontend: &quot;&lt;strong&gt;前端：&lt;/strong&gt; Catalog 只登记一次；Registry 组装 state、transport、controller、view、renderer 与 lifecycle。&quot;,
-        backend: &quot;&lt;strong&gt;后端：&lt;/strong&gt; server.py → RouteRegistry → FeatureServiceRegistry → 同步服务或作业管理器 → RT Runtime。&quot;,
-        link: &quot;&lt;strong&gt;Link：&lt;/strong&gt; Solve → POST /api/link/solve → LinkService.solve → Sionna RT → polyline-set。&quot;,
-        mobility: &quot;&lt;strong&gt;Mobility：&lt;/strong&gt; 消费 Link 能力 → 创建作业 → 状态轮询 → InProcess Worker → trajectory + markers + paths。&quot;,
-        radiomap: &quot;&lt;strong&gt;Radiomap：&lt;/strong&gt; 创建作业 → 状态轮询 → InProcess Worker → scalar-triangle-mesh + 色条。&quot;,
-        deepmimo: &quot;&lt;strong&gt;DeepMIMO：&lt;/strong&gt; ROI / Tx → 专用作业 → subprocess → 取消或 ZIP lease 下载；ROI 使用 polygon-overlay。&quot;,
+        overview: &quot;&lt;strong&gt;Main path:&lt;/strong&gt; UI Shell → Feature Registry → Feature Transport → REST Route → Feature Service → RT / Job → Viewer Layer&quot;,
+        frontend: &quot;&lt;strong&gt;Frontend:&lt;/strong&gt; The Catalog registers each Feature once; the Registry assembles its state, transport, controller, view, renderer, and lifecycle.&quot;,
+        backend: &quot;&lt;strong&gt;Backend:&lt;/strong&gt; server.py → RouteRegistry → FeatureServiceRegistry → synchronous service or job manager → RT Runtime.&quot;,
+        link: &quot;&lt;strong&gt;Link:&lt;/strong&gt; Solve → POST /api/link/solve → LinkService.solve → Sionna RT → polyline-set.&quot;,
+        mobility: &quot;&lt;strong&gt;Mobility:&lt;/strong&gt; Consume Link capabilities → create job → poll status → InProcess Worker → trajectory + markers + paths.&quot;,
+        radiomap: &quot;&lt;strong&gt;Radiomap:&lt;/strong&gt; Create job → poll status → InProcess Worker → scalar-triangle-mesh + color scale.&quot;,
+        deepmimo: &quot;&lt;strong&gt;DeepMIMO:&lt;/strong&gt; ROI / Tx → dedicated job → subprocess → cancellation or ZIP lease download; the ROI uses polygon-overlay.&quot;,
       };
 
       const preferredNode = {
