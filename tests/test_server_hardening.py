@@ -20,7 +20,7 @@ from backend.jobs.mobility_jobs import MobilityQueueFull
 from backend.jobs.radiomap_jobs import RadiomapQueueFull
 from backend.jobs.tile_download_jobs import TileDownloadBusy
 from backend.rt.runtime import SceneNotReady
-from backend.server import AppState, RequestHandler, resolve_under
+from backend.server import AppState, RequestHandler, main, resolve_under
 
 
 class QueueFullJobManager:
@@ -205,8 +205,10 @@ class ServerHardeningTests(unittest.TestCase):
             config.GENERATED_ROOT = root / "generated"
             config.INCREMENTAL_TILE_ROOT = config.GENERATED_ROOT / "incremental_tiles"
             config.INCREMENTAL_TILE_STAGE_ROOT = scene_root / "cache" / "incremental_tile_stage"
+            manager = SimpleNamespace(shutdown=lambda: None)
             try:
-                app_state = AppState()
+                with patch("backend.features.deepmimo.DeepMIMOJobManager", return_value=manager):
+                    app_state = AppState()
             finally:
                 for name, value in previous.items():
                     setattr(config, name, value)
@@ -217,6 +219,84 @@ class ServerHardeningTests(unittest.TestCase):
             self.assertEqual(manifest["mesh_count"], 0)
             self.assertEqual(manifest["tiles"], [])
             self.assertEqual(manifest["bundles"], [])
+            app_state.close()
+
+    def test_app_state_close_shuts_down_deepmimo_once(self) -> None:
+        class Manager:
+            def __init__(self) -> None:
+                self.shutdown_calls = 0
+
+            def shutdown(self) -> None:
+                self.shutdown_calls += 1
+
+        manager = Manager()
+        app_state = AppState.__new__(AppState)
+        app_state._closed = False
+        app_state.deepmimo_job_manager = manager
+
+        app_state.close()
+        app_state.close()
+
+        self.assertEqual(manager.shutdown_calls, 1)
+
+    def test_main_closes_server_and_app_state_after_interrupt(self) -> None:
+        class FakeServer:
+            def __init__(self) -> None:
+                self.app_state = None
+                self.closed = False
+
+            def serve_forever(self) -> None:
+                raise KeyboardInterrupt
+
+            def server_close(self) -> None:
+                self.closed = True
+
+        app_state = SimpleNamespace(close_calls=0)
+        app_state.close = lambda: setattr(app_state, "close_calls", app_state.close_calls + 1)
+        server = FakeServer()
+
+        with (
+            patch("backend.server.AppState", return_value=app_state),
+            patch("backend.server.ThreadingHTTPServer", return_value=server),
+        ):
+            main()
+
+        self.assertIs(server.app_state, app_state)
+        self.assertTrue(server.closed)
+        self.assertEqual(app_state.close_calls, 1)
+
+    def test_main_closes_app_state_when_server_creation_fails(self) -> None:
+        app_state = SimpleNamespace(close_calls=0)
+        app_state.close = lambda: setattr(app_state, "close_calls", app_state.close_calls + 1)
+
+        with (
+            patch("backend.server.AppState", return_value=app_state),
+            patch("backend.server.ThreadingHTTPServer", side_effect=OSError("bind failed")),
+        ):
+            with self.assertRaisesRegex(OSError, "bind failed"):
+                main()
+
+        self.assertEqual(app_state.close_calls, 1)
+
+    def test_main_closes_app_state_when_server_close_fails(self) -> None:
+        class FakeServer:
+            def serve_forever(self) -> None:
+                return
+
+            def server_close(self) -> None:
+                raise OSError("close failed")
+
+        app_state = SimpleNamespace(close_calls=0)
+        app_state.close = lambda: setattr(app_state, "close_calls", app_state.close_calls + 1)
+
+        with (
+            patch("backend.server.AppState", return_value=app_state),
+            patch("backend.server.ThreadingHTTPServer", return_value=FakeServer()),
+        ):
+            with self.assertRaisesRegex(OSError, "close failed"):
+                main()
+
+        self.assertEqual(app_state.close_calls, 1)
 
     def test_static_endpoint_rejects_encoded_traversal_to_prefix_sibling(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
