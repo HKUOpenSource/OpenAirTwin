@@ -5,6 +5,11 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- Added a CPU-only CI smoke gate that loads a real Sionna RT scene and exercises
+  Link, Radio Map and DeepMIMO export workflows with the pinned runtime stack.
+
 ### Fixed
 
 - Restored persisted DeepMIMO jobs across server restarts, enforced TTL and
