@@ -112,6 +112,21 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 The Python suite covers configuration, server hardening, route contracts, scene
 generation, solver validation, runtime cleanup and job lifecycles.
 
+### Real runtime smoke suite
+
+The lightweight suite skips tests that require Sionna RT, Mitsuba, Dr.Jit and
+DeepMIMO. Install the full pinned runtime and opt in to the CPU smoke suite:
+
+```bash
+python3 -m pip install --requirement requirements.txt
+OAT_RUN_REAL_RUNTIME_TESTS=1 python3 -m unittest discover -s tests -p 'test_real_runtime.py' -v
+```
+
+These tests use Sionna's bundled floor mesh and temporary directories to run a
+real link solve with channel taps, a two-cell radio map and a one-receiver
+DeepMIMO export. They do not require the sample scene or an NVIDIA GPU, but the
+Dr.Jit LLVM backend must be available.
+
 ### Browser and visual regression suite
 
 ```bash
@@ -137,10 +152,11 @@ The production build also copies the interactive architecture document to
 `dist/architecture/index.html`, which becomes the GitHub Pages
 `/OpenAirTwin/architecture/` route.
 
-GitHub Actions runs the Python, tutorial and deterministic browser contract
-suites for every pull request and every push to `master`. The macOS visual
-snapshots remain a local review gate because raster output is platform-specific;
-run the full browser suite before publishing a UI change.
+GitHub Actions runs the lightweight Python suite, the full CPU runtime smoke
+suite, tutorial checks and deterministic browser contracts for every pull
+request and every push to `master`. The macOS visual snapshots remain a local
+review gate because raster output is platform-specific; run the full browser
+suite before publishing a UI change.
 
 ## Configuration Changes
 
