@@ -92,6 +92,7 @@ def parse_single_byte_range(value: str | None, size: int) -> tuple[int, int] | N
 
 class AppState:
     def __init__(self) -> None:
+        self._closed = False
         self.reload_lock = threading.Lock()
         ensure_scene_layout(config.SCENE_ROOT)
         self.manifest: SceneManifest = load_scene_manifest(config.SCENE_ROOT)
@@ -114,6 +115,12 @@ class AppState:
         self.mobility_job_manager = self.feature_services.get("mobility").manager
         self.deepmimo_job_manager = self.feature_services.get("deepmimo").manager
         self.tile_download_job_manager = TileDownloadJobManager(self.download_and_integrate_tile)
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self.deepmimo_job_manager.shutdown()
+        self._closed = True
 
     def reload_scene_catalog(self) -> None:
         with self.reload_lock:
@@ -559,14 +566,24 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     app_state = AppState()
-    server = ThreadingHTTPServer((config.HOST, config.PORT), RequestHandler)
-    server.app_state = app_state  # type: ignore[attr-defined]
+    server = None
+    try:
+        server = ThreadingHTTPServer((config.HOST, config.PORT), RequestHandler)
+        server.app_state = app_state  # type: ignore[attr-defined]
 
-    print(f"Serving OpenAirTwin v{__version__} on http://{config.HOST}:{config.PORT}")
-    print(f"Scene root: {config.SCENE_ROOT}")
-    print(f"Scene source: {config.SCENE_ROOT / COMMON_SCENE_RELATIVE_PATH} + {config.SCENE_ROOT / TILE_SCENE_RELATIVE_DIR}")
-    print(f"Mesh root: {config.MESH_ROOT}")
-    server.serve_forever()
+        print(f"Serving OpenAirTwin v{__version__} on http://{config.HOST}:{config.PORT}")
+        print(f"Scene root: {config.SCENE_ROOT}")
+        print(f"Scene source: {config.SCENE_ROOT / COMMON_SCENE_RELATIVE_PATH} + {config.SCENE_ROOT / TILE_SCENE_RELATIVE_DIR}")
+        print(f"Mesh root: {config.MESH_ROOT}")
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            if server is not None:
+                server.server_close()
+        finally:
+            app_state.close()
 
 
 if __name__ == "__main__":

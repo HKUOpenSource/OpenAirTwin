@@ -3,8 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
+import re
 import signal
 import shutil
 import subprocess
@@ -21,6 +23,10 @@ from backend.rt.deepmimo_payload import parse_deepmimo_payload
 _TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
 _ACTIVE_STATUSES = frozenset({"queued", "running", "cancelling"})
 _REAPER_INTERVAL_SECONDS = 5.0
+_PROCESS_TERMINATE_TIMEOUT_SECONDS = 5.0
+_PROCESS_KILL_TIMEOUT_SECONDS = 5.0
+_JOB_DIRECTORY_PATTERN = re.compile(r"^dm_[0-9a-f]{12}$")
+_JOB_METADATA_FILENAME = "job.json"
 
 
 def _utc_now() -> str:
@@ -29,15 +35,61 @@ def _utc_now() -> str:
 
 def _read_json(path: Path) -> dict | None:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _write_json(path: Path, payload: dict) -> None:
     temp_path = path.with_name(f"{path.name}.{uuid4().hex}.tmp")
     temp_path.write_text(json.dumps(payload, allow_nan=False, indent=2), encoding="utf-8")
     temp_path.replace(path)
+
+
+def _timestamp(value: object, fallback: float) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    return parsed if math.isfinite(parsed) and parsed >= 0.0 else fallback
+
+
+def _utc_from_epoch(epoch: float) -> str:
+    return datetime.fromtimestamp(epoch, timezone.utc).isoformat()
+
+
+def _request_process_stop(process: subprocess.Popen, *, force: bool = False) -> None:
+    try:
+        if process.poll() is not None:
+            return
+    except (AttributeError, OSError):
+        return
+
+    group_signal = getattr(signal, "SIGKILL", signal.SIGTERM) if force else signal.SIGTERM
+    try:
+        os.killpg(os.getpgid(process.pid), group_signal)
+        return
+    except (AttributeError, ProcessLookupError, PermissionError, OSError):
+        pass
+
+    operation = process.kill if force else process.terminate
+    try:
+        operation()
+    except (AttributeError, ProcessLookupError, PermissionError, OSError):
+        pass
+
+
+def _wait_for_process(process: subprocess.Popen, timeout: float) -> int | None:
+    try:
+        return process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return None
+    except (AttributeError, ProcessLookupError, OSError):
+        try:
+            return process.poll()
+        except (AttributeError, OSError):
+            return None
 
 
 @dataclass
@@ -92,6 +144,9 @@ class DeepMIMOJobManager:
         self._lock = Lock()
         self.job_root.mkdir(parents=True, exist_ok=True)
         self._stop_event = threading.Event()
+        with self._lock:
+            self._restore_jobs_locked()
+            self._refresh_locked()
         self._reaper = threading.Thread(target=self._reaper_loop, daemon=True, name="DeepMIMOReaper")
         self._reaper.start()
 
@@ -106,16 +161,30 @@ class DeepMIMOJobManager:
             job_id = f"dm_{uuid4().hex[:12]}"
             job_dir = self.job_root / job_id
             job_dir.mkdir(parents=True, exist_ok=False)
-            (job_dir / "payload.json").write_text(json.dumps(parsed, allow_nan=False, indent=2), encoding="utf-8")
-            job = DeepMIMOJob(
-                job_id=job_id,
-                status="queued",
-                progress=0.0,
-                message="Queued",
-                job_dir=job_dir,
-            )
-            self._jobs[job_id] = job
             try:
+                created_at_epoch = time.time()
+                created_at = _utc_from_epoch(created_at_epoch)
+                _write_json(
+                    job_dir / _JOB_METADATA_FILENAME,
+                    {
+                        "job_id": job_id,
+                        "created_at": created_at,
+                        "created_at_epoch": created_at_epoch,
+                    },
+                )
+                _write_json(job_dir / "payload.json", parsed)
+                job = DeepMIMOJob(
+                    job_id=job_id,
+                    status="queued",
+                    progress=0.0,
+                    message="Queued",
+                    job_dir=job_dir,
+                    created_at=created_at,
+                    updated_at=created_at,
+                    created_at_epoch=created_at_epoch,
+                    updated_at_epoch=created_at_epoch,
+                )
+                self._jobs[job_id] = job
                 self._start_job_locked(job)
             except Exception:
                 self._jobs.pop(job_id, None)
@@ -164,13 +233,7 @@ class DeepMIMOJobManager:
                     self._finalize_exited_process_locked(job, return_code, cancelled=False)
                     return job
                 else:
-                    try:
-                        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                    except (AttributeError, ProcessLookupError, PermissionError, OSError):
-                        try:
-                            process.terminate()
-                        except (ProcessLookupError, OSError):
-                            pass
+                    _request_process_stop(process)
                     job.status = "cancelling"
                     job.message = "Cancelling DeepMIMO export"
                     job.updated_at = _utc_now()
@@ -201,18 +264,76 @@ class DeepMIMOJobManager:
             and reaper is not threading.current_thread()
         ):
             reaper.join(timeout=_REAPER_INTERVAL_SECONDS)
+
+        active_processes: list[tuple[DeepMIMOJob, subprocess.Popen]] = []
         with self._lock:
             for job in list(self._jobs.values()):
                 process = job.process
-                if process is None or process.poll() is not None:
+                if process is None:
+                    continue
+                return_code = process.poll()
+                if return_code is not None:
+                    try:
+                        self._finalize_exited_process_locked(
+                            job,
+                            return_code,
+                            cancelled=job.status in {"queued", "running", "cancelling"},
+                        )
+                    except (OSError, TypeError, ValueError):
+                        # Cleanup must continue even when terminal progress cannot be persisted.
+                        job.process = None
+                        if job.status not in _TERMINAL_STATUSES:
+                            job.status = "cancelled"
+                            job.progress = 1.0
+                            job.message = "Cancelled during server shutdown"
+                    continue
+                job.status = "cancelling"
+                job.message = "Stopping DeepMIMO export during server shutdown"
+                job.updated_at = _utc_now()
+                job.updated_at_epoch = time.time()
+                active_processes.append((job, process))
+                try:
+                    self._write_job_progress_locked(job)
+                except (OSError, TypeError, ValueError):
+                    # A full or read-only job volume must not prevent process termination.
+                    pass
+
+        for _job, process in active_processes:
+            _request_process_stop(process)
+
+        process_results: list[tuple[DeepMIMOJob, subprocess.Popen, int | None]] = []
+        for job, process in active_processes:
+            return_code = _wait_for_process(process, _PROCESS_TERMINATE_TIMEOUT_SECONDS)
+            if return_code is None:
+                _request_process_stop(process, force=True)
+                return_code = _wait_for_process(process, _PROCESS_KILL_TIMEOUT_SECONDS)
+            process_results.append((job, process, return_code))
+
+        with self._lock:
+            for job, process, return_code in process_results:
+                if job.process is not process:
+                    continue
+                if return_code is None:
+                    job.status = "failed"
+                    job.progress = 1.0
+                    job.message = "DeepMIMO worker did not stop during server shutdown"
+                    job.error = job.message
+                    job.updated_at = _utc_now()
+                    job.updated_at_epoch = time.time()
+                    try:
+                        self._write_job_progress_locked(job)
+                    except (OSError, TypeError, ValueError):
+                        pass
                     continue
                 try:
-                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                except (AttributeError, ProcessLookupError, PermissionError, OSError):
-                    try:
-                        process.terminate()
-                    except (ProcessLookupError, OSError):
-                        pass
+                    self._finalize_exited_process_locked(job, return_code, cancelled=True)
+                except (OSError, TypeError, ValueError):
+                    # The worker is already reaped; preserve the in-memory terminal state.
+                    job.process = None
+                    if job.status not in _TERMINAL_STATUSES:
+                        job.status = "cancelled"
+                        job.progress = 1.0
+                        job.message = "Cancelled during server shutdown"
 
     def _reaper_loop(self) -> None:
         while not self._stop_event.wait(_REAPER_INTERVAL_SECONDS):
@@ -254,6 +375,66 @@ class DeepMIMOJobManager:
         job.message = "Worker started"
         job.updated_at = _utc_now()
         job.updated_at_epoch = time.time()
+
+    def _restore_jobs_locked(self) -> None:
+        for job_dir in sorted(self.job_root.iterdir()):
+            if (
+                not _JOB_DIRECTORY_PATTERN.fullmatch(job_dir.name)
+                or job_dir.is_symlink()
+                or not job_dir.is_dir()
+            ):
+                continue
+            progress_path = job_dir / "progress.json"
+            progress = _read_json(progress_path)
+            if progress is None:
+                continue
+            status = str(progress.get("status", "")).strip()
+            if status not in _ACTIVE_STATUSES and status not in _TERMINAL_STATUSES:
+                continue
+
+            try:
+                fallback_epoch = progress_path.stat().st_mtime
+            except OSError:
+                continue
+            metadata = _read_json(job_dir / _JOB_METADATA_FILENAME) or {}
+            created_at_epoch = _timestamp(metadata.get("created_at_epoch"), fallback_epoch)
+            updated_at_epoch = _timestamp(progress.get("updated_at_epoch"), fallback_epoch)
+            created_at = str(metadata.get("created_at") or _utc_from_epoch(created_at_epoch))
+            updated_at = str(progress.get("updated_at") or _utc_from_epoch(updated_at_epoch))
+            progress_value = progress.get("progress", 0.0)
+            try:
+                job_progress = float(progress_value)
+            except (TypeError, ValueError):
+                job_progress = 0.0
+            if not math.isfinite(job_progress):
+                job_progress = 0.0
+            job_progress = max(0.0, min(1.0, job_progress))
+
+            result = progress.get("result")
+            if result is None and status == "succeeded":
+                result = _read_json(job_dir / "result.json")
+            job = DeepMIMOJob(
+                job_id=job_dir.name,
+                status=status,
+                progress=job_progress,
+                message=str(progress.get("message", status.title())),
+                job_dir=job_dir,
+                created_at=created_at,
+                updated_at=updated_at,
+                created_at_epoch=created_at_epoch,
+                updated_at_epoch=updated_at_epoch,
+                result=result if isinstance(result, dict) else None,
+                error=str(progress["error"]) if progress.get("error") is not None else None,
+            )
+            if status in _ACTIVE_STATUSES:
+                job.status = "failed"
+                job.progress = 1.0
+                job.message = "DeepMIMO job interrupted by server restart"
+                job.error = job.message
+                job.updated_at = _utc_now()
+                job.updated_at_epoch = time.time()
+                self._write_job_progress_locked(job)
+            self._jobs[job.job_id] = job
 
     def _write_job_progress_locked(self, job: DeepMIMOJob) -> None:
         payload = {

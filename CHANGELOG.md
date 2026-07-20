@@ -5,6 +5,12 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Restored persisted DeepMIMO jobs across server restarts, enforced TTL and
+  storage limits for historical job directories, and hardened server shutdown
+  so active DeepMIMO workers are terminated and reaped.
+
 ## [1.0.0] - 2026-07-19
 
 ### Added
