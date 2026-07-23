@@ -663,6 +663,33 @@ test("Radar result dock visual snapshots stay stable", async ({page}) => {
     animations: "disabled",
     caret: "hide",
   });
+
+  await page.evaluate(async () => {
+    const {state, viewerRef} = await import("/js/app_state.js?v=20260723-radar-shared-groups");
+    const target = {
+      id: "target-3",
+      asset_id: "dji-mavic-3-cine",
+      position: [96, 44, 30],
+      orientation: [0, 0, Math.PI / 2],
+      velocity: [0, 12, 0],
+      rcs_m2: 0.025,
+    };
+    state.radar.targets.push(target);
+    state.radar.nextTargetNumber = 4;
+    state.radar.selectedTargetId = target.id;
+    const viewer = viewerRef.current;
+    viewer.controls.target.set(...target.position);
+    viewer.camera.position.set(target.position[0] - 28, target.position[1] - 36, target.position[2] + 22);
+    viewer.camera.lookAt(viewer.controls.target);
+    viewer.controls.update();
+  });
+  await activateMode(page, "link");
+  await activateMode(page, "radar");
+  const targetLabel = page.locator('.radarTargetLabel[data-target-id="target-3"]');
+  await expect(targetLabel).toBeVisible();
+  await expect(targetLabel.locator("strong")).toHaveText("Target 3");
+  await expect(targetLabel.locator("small")).toHaveText("12.0 m/s · RCS 0.025 m²");
+  await expect(targetLabel).toHaveScreenshot("radar-target-label.png", {maxDiffPixels: 10});
 });
 
 test("Radar target workflow, monostatic payload and result selections stay linked", async ({page}) => {
@@ -1114,7 +1141,6 @@ test("Radar target workflow, monostatic payload and result selections stay linke
   expect(nearLabelMetrics.height).toBeLessThanOrEqual(42);
   expect(nearLabelMetrics.scale).toBe(1);
   expect(nearLabelMetrics.rightOffset).toBeGreaterThanOrEqual(11);
-  await expect(targetLabel).toHaveScreenshot("radar-target-label.png", {maxDiffPixels: 10});
 
   await page.evaluate(async () => {
     const {state, viewerRef} = await import("/js/app_state.js?v=20260723-radar-shared-groups");
@@ -1515,8 +1541,10 @@ test("Radar jobs cancel, invalidate stale work and expose retryable failures", a
   await expect(page.locator("#loadingPhase")).toHaveText("Tracing");
   await expect.poll(() => page.locator("#bar").evaluate((node) => node.style.width)).toBe("40%");
   await expect(page.locator("#radarJobProgress")).toHaveJSProperty("value", 0.4);
-  await page.locator("#radarBandwidth").fill("64");
-  await page.locator("#radarBandwidth").press("Tab");
+  await page.locator("#radarBandwidth").evaluate((input) => {
+    input.value = "64";
+    input.dispatchEvent(new Event("change", {bubbles: true}));
+  });
   await expect.poll(() => cancelled.length).toBe(1);
   await expect(page.locator("#radarJobStatus")).toHaveText("IDLE");
   await expect(page.locator("#radarJobBar")).toBeHidden();
