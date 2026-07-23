@@ -90,9 +90,18 @@ function formatDelay(delaySeconds) {
   return `${ns.toFixed(Math.abs(ns) >= 10 ? 1 : 2)} ns`;
 }
 
-export function createLinkResultView({state, ui, getViewer}) {
+export function createLinkResultView({
+  state,
+  ui,
+  getViewer,
+  featureId = "link",
+  resultTitle = "Link Results",
+  renderWhenInactive = true,
+}) {
+  const featureState = () => state[featureId];
+
   function livePreviewStatusAppliesToCurrentMode() {
-    return state.livePreview.mode === "link" && state.mode === "link";
+    return state.livePreview.mode === featureId && state.mode === featureId;
   }
 
   function syncLivePreviewStatusUi() {
@@ -427,12 +436,16 @@ export function createLinkResultView({state, ui, getViewer}) {
   }
 
   function renderLinkResult() {
-    const result = state.link.result;
-    const liveActive = state.mode === "link"
-      && state.livePreview.mode === "link"
+    if (!renderWhenInactive && state.mode !== featureId) {
+      return;
+    }
+    const current = featureState();
+    const result = current.result;
+    const liveActive = state.mode === featureId
+      && state.livePreview.mode === featureId
       && state.livePreview.status !== "Idle";
     syncLivePreviewStatusUi();
-    if ((!result && !liveActive) || state.mode !== "link") {
+    if ((!result && !liveActive) || state.mode !== featureId) {
       if (state.mode !== "mobility") {
         ui.linkChannelSection.classList.add("hidden");
         ui.linkChannelSection.setAttribute("aria-hidden", "true");
@@ -446,7 +459,7 @@ export function createLinkResultView({state, ui, getViewer}) {
         clearPathSelection();
         hidePathDetails();
       }
-      if (state.mode === "link" && !result) {
+      if (state.mode === featureId && !result) {
         getViewer().clearPaths();
       }
       return;
@@ -454,7 +467,7 @@ export function createLinkResultView({state, ui, getViewer}) {
 
     ui.linkChannelSection.classList.remove("hidden");
     ui.linkChannelSection.setAttribute("aria-hidden", "false");
-    ui.resultDockTitle.textContent = "Link Results";
+    ui.resultDockTitle.textContent = resultTitle;
     ui.resultDockSubtitle.textContent = "Path Gains & Taps";
     ui.linkResult.style.display = "block";
     ui.mobilityResult.style.display = "none";
@@ -482,11 +495,11 @@ export function createLinkResultView({state, ui, getViewer}) {
     ui.linkLos.textContent = hasLos ? "Yes" : "No";
     ui.linkLos.className = `pill ${hasLos ? "yes" : "no"}`;
     renderLinkChannel(result.channel);
-    getViewer().renderPaths(result.paths, state.link.selectedPath);
+    getViewer().renderPaths(result.paths, current.selectedPath);
 
-    renderPathDetails(result.paths, state.link.selectedPath);
-    renderPathSelection(result.paths, state.link.selectedPath, (index) => {
-      state.link.selectedPath = index;
+    renderPathDetails(result.paths, current.selectedPath);
+    renderPathSelection(result.paths, current.selectedPath, (index) => {
+      current.selectedPath = index;
       getViewer().renderPaths(result.paths, index);
       renderLinkResult();
       scrollSelectedPathDetailsIntoView();

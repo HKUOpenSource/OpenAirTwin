@@ -1,6 +1,8 @@
 export const DEVICE_TARGET_LABELS = Object.freeze({
   "link-tx": "Link Tx",
   "link-rx": "Link Rx",
+  "radar-tx": "Radar Tx",
+  "radar-rx": "Radar Rx",
   "mobility-tx": "Mobility Tx",
   "mobility-rx": "Mobility Rx",
   "rm-tx": "Radio Map Tx",

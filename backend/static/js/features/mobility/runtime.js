@@ -11,6 +11,12 @@ export function createMobilityFeature(context) {
   const scene = () => context.controllers.scene;
   const picking = () => context.controllers.devicePicking;
 
+  function runRequirementMessage() {
+    return Array.isArray(state.mobility.tx)
+      ? ""
+      : "Place Mobility Tx before running mobility.";
+  }
+
   function attachEvents() {
     ui.btnRunMobility.addEventListener("click", () => context.utilities.runSolveFromDock(
       ui.btnRunMobility,
@@ -85,7 +91,7 @@ export function createMobilityFeature(context) {
     attachEvents,
     applyPick(pick, target) {
       const position = shared.pickPositionWithSurfaceClearance(pick, target.scope);
-      shared.setLogicalAndVisual(state.mobility[target.role], state.mobility[`${target.role}Visual`], position);
+      shared.setLogicalAndVisual(state.mobility, target.role, position);
       controller.invalidateMobilityResult();
     },
     markerPositions() {
@@ -95,6 +101,7 @@ export function createMobilityFeature(context) {
     readInputs() {
       solver().readMobilityInputs();
     },
+    runRequirementMessage,
     activate() {
       if (!state.mobility.tapsDefaulted) {
         context.featureServices.linkDomain.enableChannelTaps();
@@ -110,6 +117,10 @@ export function createMobilityFeature(context) {
       controller.invalidateMobilityResult();
     },
     render() {
+      const rxReady = Array.isArray(state.mobility.rx);
+      ui.btnMobilityAddRxPoint.disabled = !rxReady;
+      if (rxReady) ui.btnMobilityAddRxPoint.removeAttribute("title");
+      else ui.btnMobilityAddRxPoint.title = "Place Mobility Rx before adding a waypoint.";
       resultView.renderMobilityResult();
     },
   };

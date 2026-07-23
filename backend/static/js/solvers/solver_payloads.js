@@ -1,5 +1,16 @@
 import {antennaArrayPayload} from "/js/solvers/antenna_config.js?v=20260519-mode-isolation";
 
+function requireDevicePosition(position, message) {
+  if (
+    !Array.isArray(position)
+    || position.length !== 3
+    || !position.map(Number).every(Number.isFinite)
+  ) {
+    throw new Error(message);
+  }
+  return position.map(Number);
+}
+
 export function commonSolverConfig({state, inputs, includeTxArray = true} = {}) {
   const solverConfig = {
     frequency_hz: Number(inputs.cfgFrequency.value) * 1e9,
@@ -44,16 +55,90 @@ export function linkChannelConfig({state} = {}) {
 export function linkSolvePayload({state, inputs, preview = false} = {}) {
   const solver = linkSolverConfig({state, inputs});
   const channel = linkChannelConfig({state});
+  const txPosition = requireDevicePosition(state.link.tx, "Place Link Tx before solving the link.");
+  const rxPosition = requireDevicePosition(state.link.rx, "Place Link Rx before solving the link.");
   if (preview) {
     solver.samples_per_src = Math.max(1, Math.floor(Number(state.livePreview.link.previewSamplesPerSrc)));
     solver.max_num_paths_per_src = Math.min(Number(solver.max_num_paths_per_src), 10000);
     channel.compute_taps = false;
   }
   return {
-    tx: {position: state.link.tx, orientation: [0, 0, 0]},
-    rx: {position: state.link.rx, orientation: [0, 0, 0]},
+    tx: {position: txPosition, orientation: [0, 0, 0]},
+    rx: {position: rxPosition, orientation: [0, 0, 0]},
     solver,
     channel,
+  };
+}
+
+export function radarSolverConfig({state, inputs} = {}) {
+  const radar = state.radar;
+  const solver = radar.solver;
+  const arrayPayload = (array) => ({
+    num_rows: Number(array.numRows),
+    num_cols: Number(array.numCols),
+    vertical_spacing: Number(array.verticalSpacing),
+    horizontal_spacing: Number(array.horizontalSpacing),
+    pattern: array.pattern,
+    polarization: array.polarization,
+  });
+  return {
+    max_depth: Number(solver.maxDepth),
+    samples_per_src: Number(solver.samplesPerSrc),
+    max_num_paths_per_src: Number(solver.maxNumPathsPerSrc),
+    synthetic_array: Boolean(solver.syntheticArray),
+    los: Boolean(solver.los),
+    specular_reflection: Boolean(solver.specularReflection),
+    diffuse_reflection: Boolean(solver.diffuseReflection),
+    refraction: Boolean(solver.refraction),
+    diffraction: Boolean(solver.diffraction),
+    edge_diffraction: Boolean(solver.edgeDiffraction),
+    diffraction_lit_region: Boolean(solver.diffractionLitRegion),
+    seed: Number(solver.seed),
+    tx_array: arrayPayload(solver.txArray),
+    rx_array: arrayPayload(solver.rxArray),
+  };
+}
+
+export function radarSolvePayload({state, inputs} = {}) {
+  const radar = state.radar;
+  const solver = radarSolverConfig({state, inputs});
+  const tx = {position: [...radar.tx], orientation: [0, 0, 0], velocity: [0, 0, 0]};
+  const rxPosition = radar.mode === "monostatic" ? [...radar.tx] : [...radar.rx];
+  return {
+    schema_version: 1,
+    mode: radar.mode,
+    tx,
+    rx: {position: rxPosition, orientation: [0, 0, 0], velocity: [0, 0, 0]},
+    targets: radar.targets.map((target) => ({
+      id: target.id,
+      asset_id: target.asset_id,
+      position: [...target.position],
+      orientation: [...target.orientation],
+      velocity: [...target.velocity],
+      rcs_m2: Number(target.rcs_m2),
+    })),
+    waveform: {
+      carrier_frequency_hz: Number(radar.waveform.carrierFrequencyGhz) * 1e9,
+      bandwidth_hz: Number(radar.waveform.bandwidthMhz) * 1e6,
+      num_subcarriers: Number(radar.waveform.numSubcarriers),
+      num_symbols: Number(radar.waveform.numSymbols),
+    },
+    solver,
+    signal: {
+      tx_power_dbm: Number(radar.signal.txPowerDbm),
+      noise_figure_db: Number(radar.signal.noiseFigureDb),
+      system_loss_db: Number(radar.signal.systemLossDb),
+      noise_temperature_k: Number(radar.signal.noiseTemperatureK),
+      direct_path_cancellation: Boolean(radar.signal.directPathCancellation),
+    },
+    cfar: {
+      enabled: Boolean(radar.cfar.enabled),
+      guard_cells_range: Number(radar.cfar.guardRange),
+      guard_cells_doppler: Number(radar.cfar.guardDoppler),
+      training_cells_range: Number(radar.cfar.trainingRange),
+      training_cells_doppler: Number(radar.cfar.trainingDoppler),
+      false_alarm_probability: Number(radar.cfar.falseAlarmProbability),
+    },
   };
 }
 
@@ -74,8 +159,12 @@ export function radiomapSurfacePayload({state} = {}) {
 }
 
 export function radiomapJobPayload({state, inputs} = {}) {
+  const txPosition = requireDevicePosition(
+    state.radiomap.tx,
+    "Place Radio Map Tx before running the radio map.",
+  );
   return {
-    tx: {position: state.radiomap.tx, orientation: [0, 0, 0]},
+    tx: {position: txPosition, orientation: [0, 0, 0]},
     metric: "path_gain",
     surface: radiomapSurfacePayload({state}),
     solver: {
@@ -86,8 +175,12 @@ export function radiomapJobPayload({state, inputs} = {}) {
 }
 
 export function mobilityJobPayload({state, inputs, linkDomain = null} = {}) {
+  const txPosition = requireDevicePosition(
+    state.mobility.tx,
+    "Place Mobility Tx before running mobility.",
+  );
   return {
-    tx: {position: state.mobility.tx, orientation: [0, 0, 0]},
+    tx: {position: txPosition, orientation: [0, 0, 0]},
     rx_trajectory: {
       points: state.mobility.trajectory.points,
       velocity_mps: state.mobility.trajectory.velocityMps,
@@ -128,6 +221,10 @@ export function deepMimoReceiverEstimate(bounds, rxGrid) {
 }
 
 export function deepMimoPayload({state, inputs, bounds, receiverEstimate, formatCount = String, linkDomain = null} = {}) {
+  const txPosition = requireDevicePosition(
+    state.deepmimo.tx,
+    "Place DeepMIMO Tx before exporting data.",
+  );
   if (!bounds) {
     throw new Error("Select a rectangular DeepMIMO ROI with two terrain clicks first");
   }
@@ -145,7 +242,7 @@ export function deepMimoPayload({state, inputs, bounds, receiverEstimate, format
     diffraction_lit_region: state.link.advanced.diffractionLitRegion,
   };
   return {
-    tx: {position: state.deepmimo.tx, orientation: [0, 0, 0]},
+    tx: {position: txPosition, orientation: [0, 0, 0]},
     roi: bounds,
     rx_grid: {
       spacing: state.deepmimo.rxGrid.spacing,

@@ -254,6 +254,7 @@ export function createSceneLoaderController(context, {
     state.tileLoadBusy = true;
     if (diff.toAdd.length || diff.toRemove.length) {
       solver().invalidateLinkResult({clearOverlay: false, clearPaths: false});
+      solver().invalidateRadarResult({clearOverlay: false, clearPaths: false});
       solver().invalidateMobilityResult({clearOverlay: false, clearPaths: false});
       solver().invalidateRadiomapResult({clearOverlay: false});
       solver().invalidateDeepMimoResult({clearOverlay: false});

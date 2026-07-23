@@ -6,6 +6,15 @@ export function createLinkFeature(context) {
   const scene = () => context.controllers.scene;
   const picking = () => context.controllers.devicePicking;
 
+  function runRequirementMessage() {
+    const txReady = Array.isArray(state.link.tx);
+    const rxReady = Array.isArray(state.link.rx);
+    if (!txReady && !rxReady) return "Place Link Tx and Rx before solving the link.";
+    if (!txReady) return "Place Link Tx before solving the link.";
+    if (!rxReady) return "Place Link Rx before solving the link.";
+    return "";
+  }
+
   function attachEvents() {
     ui.btnSolveLink.addEventListener("click", () => context.utilities.runSolveFromDock(
       ui.btnSolveLink,
@@ -22,6 +31,9 @@ export function createLinkFeature(context) {
       [inputs.linkRxX, "link-rx"], [inputs.linkRxY, "link-rx"], [inputs.linkRxZ, "link-rx"],
     ]) {
       input.addEventListener("change", () => {
+        if (state.mode === "radar") {
+          return;
+        }
         solver().readLinkInputs();
         settings.publish("link-device");
         picking().refreshPickStatus("link");
@@ -37,6 +49,9 @@ export function createLinkFeature(context) {
       inputs.linkTapLMax, inputs.linkTapFftSize,
     ]) {
       input.addEventListener("change", () => {
+        if (state.mode === "radar") {
+          return;
+        }
         solver().readLinkInputs();
         settings.publish("link-channel");
         scene().renderAll();
@@ -45,6 +60,9 @@ export function createLinkFeature(context) {
 
     for (const input of [inputs.livePreviewEnabled, inputs.livePreviewLinkSamples, inputs.livePreviewPathsDelay]) {
       input.addEventListener("change", () => {
+        if (state.mode === "radar") {
+          return;
+        }
         solver().readLivePreviewInputs();
         if (!state.livePreview.enabled) {
           controller.cancelLivePreview();
@@ -54,6 +72,9 @@ export function createLinkFeature(context) {
     }
 
     inputs.linkSurfaceClearance.addEventListener("change", () => {
+      if (state.mode === "radar") {
+        return;
+      }
       const scope = context.picking.get(state.deviceControl.activeTarget)?.scope || "link";
       solver().readSurfaceClearanceInput(scope);
       settings.publish("surface-clearance");
@@ -65,7 +86,7 @@ export function createLinkFeature(context) {
     attachEvents,
     applyPick(pick, target) {
       const position = shared.pickPositionWithSurfaceClearance(pick, target.scope);
-      shared.setLogicalAndVisual(state.link[target.role], state.link[`${target.role}Visual`], position);
+      shared.setLogicalAndVisual(state.link, target.role, position);
       controller.invalidateLinkResult();
     },
     markerPositions() {
@@ -74,6 +95,7 @@ export function createLinkFeature(context) {
     readInputs() {
       solver().readLinkInputs();
     },
+    runRequirementMessage,
     activate() {
       context.viewerRef.current.clearOverlay();
     },

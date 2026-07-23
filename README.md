@@ -69,6 +69,10 @@ Open [http://127.0.0.1:8090](http://127.0.0.1:8090), then verify the installatio
 2. Open **Link** mode.
 3. Place one Tx and one Rx in the 3D scene.
 4. Run the link solver and inspect the rendered propagation paths.
+5. Open **Radar Sensing**, place its Tx and Rx, add a drone target from the 3D
+   model picker, and run the asynchronous Radar solver.
+6. Confirm that progress reaches completion and inspect the Range–Doppler,
+   range-profile, detection and propagation-path results.
 
 For guided workflows with videos, use the
 [OpenAirTwin tutorial](https://hkuopensource.github.io/OpenAirTwin/).
@@ -79,6 +83,7 @@ For guided workflows with videos, use the
 | --- | --- | --- |
 | Map and scene management | Select Hong Kong map tiles, download scene data, and load only the required city geometry | Incremental 3D scene |
 | Link analysis | Place Tx/Rx points and configure the shared RT solver | Paths, received power, channel taps, CIR and frequency response |
+| Radar sensing | Place monostatic or bistatic Radar Tx/Rx, add moving drone targets, and configure OFDM, CA-CFAR and propagation parameters | Range–Doppler and range-profile plots, detections, target truth and classified propagation paths |
 | Mobility | Define Rx waypoints, speed and sampling parameters | Trajectory, sample markers and time-varying channel results |
 | Radio map | Configure a receiver patch, resolution and display range | Scalar heatmap over the 3D scene |
 | DeepMIMO export | Draw a receiver ROI and configure the receiver grid | Downloadable DeepMIMO-compatible dataset |
@@ -94,9 +99,10 @@ For guided workflows with videos, use the
 - [Changelog](CHANGELOG.md) and [release checklist](docs/release-checklist.md):
   the v1.0.0 release record and the maintainer publication sequence.
 - [Scene data and third-party terms](docs/data-licenses.md): Open3Dhk/CSDI data
-  responsibilities and bundled sample-scene attribution.
+  responsibilities, bundled sample-scene attribution and Radar drone-model
+  licensing.
 - [Video tutorial](https://hkuopensource.github.io/OpenAirTwin/): browser-led
-  walkthroughs for the map and all four current analysis Features.
+  walkthroughs for the map and all five current analysis Features.
 
 ## Installation Details
 
@@ -165,7 +171,7 @@ Run `python3 install.py --help` for the authoritative option list.
 
 ## Scene Data
 
-Link, Radiomap, Mobility and DeepMIMO workflows require scene data. The sample
+Link, Radar Sensing, Radiomap, Mobility and DeepMIMO workflows require scene data. The sample
 archive contains four Open3Dhk tiles: `11_SW_7A`, `11_SW_7B`, `11_SW_7C` and
 `11_SW_7D`. Install it with:
 

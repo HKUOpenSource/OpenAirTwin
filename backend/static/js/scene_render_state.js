@@ -58,7 +58,7 @@ export function createSceneRenderStateController(context) {
       return getViewer();
     }
     if (!viewerRef.modulePromise) {
-      viewerRef.modulePromise = import("/js/viewer.js?v=20260519-mode-isolation");
+      viewerRef.modulePromise = import("/js/viewer.js?v=20260722-radar-screen-labels");
     }
     const {Viewer} = await viewerRef.modulePromise;
     const realViewer = new Viewer(document.getElementById("view"));
@@ -247,15 +247,24 @@ function syncModeUi() {
   }
   ui.linkSurfaceClearanceField.classList.toggle("hidden", !activeTargetMeta?.clearance);
 
-  for (const definition of definitions.filter((item) => item.ui.disableDuringTileLoad)) {
+  for (const definition of definitions) {
     const button = featureUiRef(definition, definition.ui.runButtonRef);
-    if (state.tileLoadBusy) {
-      button.disabled = true;
-    } else if (button.getAttribute("aria-busy") !== "true") {
-      button.disabled = false;
-    }
+    const requirement = features.instance(definition.id)?.runRequirementMessage?.() || "";
+    const busy = button.getAttribute("aria-busy") === "true";
+    const tileBlocked = Boolean(definition.ui.disableDuringTileLoad && state.tileLoadBusy);
+    button.disabled = busy || tileBlocked || Boolean(requirement);
+    if (requirement) button.title = requirement;
+    else button.removeAttribute("title");
+  }
+  const activeTx = features.instance(activeFeature.id)?.markerPositions?.().tx;
+  const txReady = Array.isArray(activeTx) && activeTx.length === 3;
+  if (!txReady && getViewer().isTxOrbiting()) {
+    getViewer().stopTxOrbit();
   }
   const orbitingTx = getViewer().isTxOrbiting();
+  ui.btnOrbitTx.disabled = !txReady;
+  if (txReady) ui.btnOrbitTx.removeAttribute("title");
+  else ui.btnOrbitTx.title = "Place Tx before orbiting.";
   ui.btnOrbitTx.classList.toggle("active", orbitingTx);
   ui.btnOrbitTx.setAttribute("aria-pressed", String(orbitingTx));
   ui.btnOrbitTx.setAttribute("aria-label", orbitingTx ? "Stop transmitter orbit" : "Orbit around transmitter");

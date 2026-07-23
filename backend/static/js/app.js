@@ -8,17 +8,17 @@ import {
   getTileDownloadJob,
   setRtSceneSelection,
 } from "/js/api.js";
-import {entryMap, featureStore, PERFORMANCE_MODES, state, viewerRef} from "/js/app_state.js?v=20260519-mode-isolation";
+import {entryMap, featureStore, PERFORMANCE_MODES, state, viewerRef} from "/js/app_state.js?v=20260723-radar-shared-groups";
 import {FeatureRegistry, PickingRegistry, SettingsBus} from "/js/core/feature_registry.js";
 import {inputs, ui} from "/js/dom_refs.js?v=20260519-mode-isolation";
-import {FEATURE_CATALOG} from "/js/features/feature_catalog.js";
+import {FEATURE_CATALOG} from "/js/features/feature_catalog.js?v=20260723-radar-shared-groups";
 import {createAppDialogController} from "/js/controllers/app_dialog_controller.js?v=20260604-app-dialog";
 import {createDevicePickingController} from "/js/controllers/device_picking_controller.js?v=20260519-mode-isolation";
 import {createEntryMapController} from "/js/entry_map.js";
 import {createParamTooltipController} from "/js/param_tooltips.js";
 import {createPerformancePanelController} from "/js/performance_panel.js";
-import {createSceneRenderStateController} from "/js/scene_render_state.js?v=20260519-mode-isolation";
-import {createSolverControlsController} from "/js/solver_controls.js?v=20260519-mode-isolation";
+import {createSceneRenderStateController} from "/js/scene_render_state.js?v=20260723-empty-devices";
+import {createSolverControlsController} from "/js/solver_controls.js?v=20260723-empty-devices";
 
 const settings = new SettingsBus();
 const pickingRegistry = new PickingRegistry();

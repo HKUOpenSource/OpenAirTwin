@@ -27,6 +27,7 @@ The current production catalog order is:
 2. Mobility
 3. Radiomap
 4. DeepMIMO
+5. Radar Sensing
 
 ## Main Extension Points
 
@@ -60,9 +61,17 @@ backend/features/catalog.py
 ```
 
 Core static files, scene endpoints and tile downloads are server capabilities,
-not analysis Features. Link remains synchronous; Radiomap and Mobility use the
-shared in-process job infrastructure; DeepMIMO retains its dedicated subprocess
-and download lifecycle.
+not analysis Features. Link remains synchronous. Mobility and Radiomap use the
+shared in-process job infrastructure, Radar Sensing owns a bounded in-memory
+`RadarJobManager`, and DeepMIMO retains its dedicated subprocess and download
+lifecycle.
+
+Radar Sensing exposes four asynchronous routes under `/api/radar/jobs` for
+creation, status polling, result retrieval and cancellation. Its service runs
+the independent Radar propagation solver followed by OFDM sensing processing.
+The frontend owns Radar-specific target, path and detection Viewer Layers and
+loads the four CC BY 4.0 drone assets through the shared Asset Manager. Radar
+results remain in memory and have no download route or generated result files.
 
 ## Adding a Feature
 

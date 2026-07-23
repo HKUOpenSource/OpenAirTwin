@@ -361,6 +361,7 @@ export class Viewer {
       speed: TX_ORBIT_SPEED_RAD_PER_SEC,
     };
     this.lastFrameTime = performance.now();
+    this.frameListeners = new Set();
 
     this.txMarkerRadius = 1.6;
     this.rxMarkerRadius = 1.2;
@@ -565,6 +566,16 @@ export class Viewer {
     }
     this.#syncRendererPixelRatio(time);
     this.#syncClipPlanes();
+    this.camera.updateMatrixWorld();
+    const frame = {viewer: this, camera: this.camera, canvas: this.canvas, time, deltaSeconds};
+    for (const listener of [...this.frameListeners]) {
+      try {
+        listener(frame);
+      } catch (error) {
+        this.frameListeners.delete(listener);
+        console.error("Viewer frame subscriber disabled after an error", error);
+      }
+    }
     this.renderer.render(this.scene, this.camera);
     this.#updatePerformanceStats(time, deltaSeconds);
   }
@@ -1000,6 +1011,19 @@ export class Viewer {
 
   isTxOrbiting() {
     return this.txOrbit.active;
+  }
+
+  subscribeFrame(listener) {
+    if (typeof listener !== "function") {
+      throw new TypeError("Viewer frame listener must be a function");
+    }
+    this.frameListeners.add(listener);
+    let subscribed = true;
+    return () => {
+      if (!subscribed) return false;
+      subscribed = false;
+      return this.frameListeners.delete(listener);
+    };
   }
 
   focusOnTiles(tileIds = [...this.loadedTileIds], {padding = 1.35, minDistance = 120} = {}) {

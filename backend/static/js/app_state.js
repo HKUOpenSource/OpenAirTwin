@@ -1,5 +1,5 @@
 import {FeatureStore} from "/js/core/feature_registry.js";
-import {FEATURE_CATALOG} from "/js/features/feature_catalog.js";
+import {FEATURE_CATALOG} from "/js/features/feature_catalog.js?v=20260723-radar-shared-groups";
 
 function createViewerStub() {
   return {
@@ -20,6 +20,7 @@ function createViewerStub() {
     startTxOrbit() { return false; },
     stopTxOrbit() {},
     isTxOrbiting() { return false; },
+    subscribeFrame() { return () => false; },
     clearRadiomap() {},
     clearSurfacePreview() {},
     renderMobilityTrajectory() {},
@@ -105,11 +106,22 @@ export const state = {
     },
   },
   link: featureStore.get("link"),
+  radar: featureStore.get("radar"),
   livePreview: {
     enabled: false,
     mode: null,
     status: "Idle",
     link: {
+      previewSamplesPerSrc: 1000,
+      pathsDelayS: 0.8,
+      generation: 0,
+      previewTimer: null,
+      finalTimer: null,
+      previewController: null,
+      finalController: null,
+      lastPreviewStartedAt: 0,
+    },
+    radar: {
       previewSamplesPerSrc: 1000,
       pathsDelayS: 0.8,
       generation: 0,

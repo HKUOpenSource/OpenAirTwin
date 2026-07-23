@@ -1,8 +1,8 @@
 import {defineFeature} from "/js/core/feature_registry.js";
 import {createDeepMimoController} from "/js/controllers/deepmimo_controller.js?v=20260519-mode-isolation";
-import {createDeepMimoFeature} from "/js/features/deepmimo/runtime.js";
+import {createDeepMimoFeature} from "/js/features/deepmimo/runtime.js?v=20260723-empty-devices";
 import {createDeepMimoRenderer} from "/js/features/deepmimo/renderer.js";
-import {createDeepMimoState} from "/js/features/deepmimo/state.js";
+import {createDeepMimoState} from "/js/features/deepmimo/state.js?v=20260723-empty-devices";
 import {createDeepMimoTransport} from "/js/features/deepmimo/transport.js";
 import {createDeepMimoDatasetView} from "/js/ui/deepmimo_dataset_view.js?v=20260519-mode-isolation";
 

@@ -6,6 +6,12 @@ export function createDeepMimoFeature(context) {
   const scene = () => context.controllers.scene;
   const picking = () => context.controllers.devicePicking;
 
+  function runRequirementMessage() {
+    return Array.isArray(state.deepmimo.tx)
+      ? ""
+      : "Place DeepMIMO Tx before exporting data.";
+  }
+
   function attachEvents() {
     ui.deepMimoDatasetToggle.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -58,7 +64,7 @@ export function createDeepMimoFeature(context) {
         return;
       }
       const position = shared.pickPositionWithSurfaceClearance(pick, target.scope);
-      shared.setLogicalAndVisual(state.deepmimo.tx, state.deepmimo.txVisual, position);
+      shared.setLogicalAndVisual(state.deepmimo, "tx", position);
       controller.invalidateDeepMimoResult();
     },
     beginPicking() {
@@ -85,6 +91,7 @@ export function createDeepMimoFeature(context) {
     readInputs() {
       solver().readDeepMimoInputs();
     },
+    runRequirementMessage,
     closeTransientUi() {
       if (!state.deepmimo.datasetTrayOpen) {
         return;

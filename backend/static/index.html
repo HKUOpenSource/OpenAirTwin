@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>OpenAirTwin</title>
   <link rel="stylesheet" href="/lib/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/css/app.css?v=20260604-app-dialog" />
+  <link rel="stylesheet" href="/css/app.css?v=20260723-radar-shared-groups" />
 </head>
 <body>
   <canvas id="view"></canvas>
@@ -515,37 +515,10 @@
             </div>
           </details>
 
-          <details class="paramGroup">
-            <summary class="paramGroupSummary">Propagation</summary>
-            <div class="paramGroupBody">
-              <div class="paramCheckGrid">
-              <label class="paramCheck"><input id="cfgLos" type="checkbox" checked /><span>LoS <span class="infoTip" tabindex="0" aria-label="Line of sight details">i<span class="tipBubble" role="tooltip">Direct transmitter-to-receiver paths. Default on; low extra cost and important as a reference component.</span></span></span></label>
-              <label class="paramCheck"><input id="cfgSpecular" type="checkbox" checked /><span>Specular <span class="infoTip" tabindex="0" aria-label="Specular reflection details">i<span class="tipBubble" role="tooltip">Mirror-like reflections from surfaces. Default on; cost grows with max depth and samples per source.</span></span></span></label>
-              <label class="paramCheck"><input id="cfgDiffuse" type="checkbox" /><span>Diffuse <span class="infoTip" tabindex="0" aria-label="Diffuse reflection details">i<span class="tipBubble" role="tooltip">Scattered reflection energy from rough surfaces. Default off; can add variance and solver time.</span></span></span></label>
-              <label class="paramCheck"><input id="cfgRefraction" type="checkbox" checked /><span>Refraction <span class="infoTip" tabindex="0" aria-label="Refraction details">i<span class="tipBubble" role="tooltip">Transmission through materials. Default on; useful around glass and indoor boundaries.</span></span></span></label>
-              <label class="paramCheck linkOnlyParam"><input id="linkDiffraction" type="checkbox" /><span>Diffraction <span class="infoTip" tabindex="0" aria-label="Diffraction details">i<span class="tipBubble" role="tooltip">Bending around wedges and edges. Default off; improves NLoS modeling but increases PathSolver work.</span></span></span></label>
-              <label class="paramCheck linkOnlyParam"><input id="linkEdgeDiffraction" type="checkbox" /><span>Edge Diffraction <span class="infoTip" tabindex="0" aria-label="Edge diffraction details">i<span class="tipBubble" role="tooltip">Explicit edge interaction search for diffracted paths. Default off; enable only when edge effects matter.</span></span></span></label>
-              <label class="paramCheck linkOnlyParam wide"><input id="linkDiffractionLitRegion" type="checkbox" /><span>Diffraction Lit Region <span class="infoTip" tabindex="0" aria-label="Diffraction lit region details">i<span class="tipBubble" role="tooltip">Includes lit-region diffraction contributions. Default off; can add paths near shadow boundaries.</span></span></span></label>
-              </div>
-            </div>
-          </details>
-
-          <details class="paramGroup">
-            <summary class="paramGroupSummary">Solver Budget</summary>
+          <details class="paramGroup propagationSolverGroup">
+            <summary class="paramGroupSummary" tabindex="0">Propagation Solver</summary>
             <div class="paramGroupBody">
               <div class="paramGrid">
-              <label class="paramField" for="cfgMaxDepth">
-                <span class="paramLabel">Max Depth
-                  <span class="infoTip" tabindex="0" aria-label="Max depth details">i<span class="tipBubble" role="tooltip">Maximum interaction depth for paths. Default 4; each extra depth can multiply search cost.</span></span>
-                </span>
-                <select id="cfgMaxDepth">
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4" selected>4</option>
-                  <option value="5">5</option>
-                  <option value="6">6</option>
-                </select>
-              </label>
               <label class="paramField linkOnlyParam" for="linkSamplesPerSrc">
                 <span class="paramLabel">Samples / Source
                   <span class="infoTip" tabindex="0" aria-label="Samples per source details">i<span class="tipBubble" role="tooltip">Monte Carlo rays per transmitter. Default 30000; higher values reduce noise but scale runtime directly.</span></span>
@@ -564,6 +537,18 @@
                 </span>
                 <input id="linkMaxNumPaths" type="number" step="1000" min="1" max="1000000" value="1000000" />
               </label>
+              <label class="paramField" for="cfgMaxDepth">
+                <span class="paramLabel">Max Depth
+                  <span class="infoTip" tabindex="0" aria-label="Max depth details">i<span class="tipBubble" role="tooltip">Maximum interaction depth for paths. Default 4; each extra depth can multiply search cost.</span></span>
+                </span>
+                <select id="cfgMaxDepth">
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4" selected>4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
+                </select>
+              </label>
               <label class="paramField" for="cfgSeed">
                 <span class="paramLabel">Seed
                   <span class="infoTip" tabindex="0" aria-label="Seed details">i<span class="tipBubble" role="tooltip">Random seed for repeatable sampling. Default 42; change it to test solver variance.</span></span>
@@ -571,6 +556,15 @@
                 <input id="cfgSeed" type="number" step="1" min="0" value="42" />
               </label>
               <label class="paramCheck linkOnlyParam syntheticCheck"><input id="linkSyntheticArray" type="checkbox" /><span>Synthetic Array <span class="infoTip" tabindex="0" aria-label="Synthetic array details">i<span class="tipBubble" role="tooltip">Uses a synthetic antenna array approximation. Default off; can reduce geometric work for array studies.</span></span></span></label>
+              </div>
+              <div class="paramCheckGrid">
+              <label class="paramCheck"><input id="cfgLos" type="checkbox" checked /><span>LoS <span class="infoTip" tabindex="0" aria-label="Line of sight details">i<span class="tipBubble" role="tooltip">Direct transmitter-to-receiver paths. Default on; low extra cost and important as a reference component.</span></span></span></label>
+              <label class="paramCheck"><input id="cfgSpecular" type="checkbox" checked /><span>Specular <span class="infoTip" tabindex="0" aria-label="Specular reflection details">i<span class="tipBubble" role="tooltip">Mirror-like reflections from surfaces. Default on; cost grows with max depth and samples per source.</span></span></span></label>
+              <label class="paramCheck"><input id="cfgDiffuse" type="checkbox" /><span>Diffuse <span class="infoTip" tabindex="0" aria-label="Diffuse reflection details">i<span class="tipBubble" role="tooltip">Scattered reflection energy from rough surfaces. Default off; can add variance and solver time.</span></span></span></label>
+              <label class="paramCheck"><input id="cfgRefraction" type="checkbox" checked /><span>Refraction <span class="infoTip" tabindex="0" aria-label="Refraction details">i<span class="tipBubble" role="tooltip">Transmission through materials. Default on; useful around glass and indoor boundaries.</span></span></span></label>
+              <label class="paramCheck linkOnlyParam"><input id="linkDiffraction" type="checkbox" /><span>Diffraction <span class="infoTip" tabindex="0" aria-label="Diffraction details">i<span class="tipBubble" role="tooltip">Bending around wedges and edges. Default off; improves NLoS modeling but increases PathSolver work.</span></span></span></label>
+              <label class="paramCheck linkOnlyParam"><input id="linkEdgeDiffraction" type="checkbox" /><span>Edge Diffraction <span class="infoTip" tabindex="0" aria-label="Edge diffraction details">i<span class="tipBubble" role="tooltip">Explicit edge interaction search for diffracted paths. Default off; enable only when edge effects matter.</span></span></span></label>
+              <label class="paramCheck linkOnlyParam wide"><input id="linkDiffractionLitRegion" type="checkbox" /><span>Diffraction Lit Region <span class="infoTip" tabindex="0" aria-label="Diffraction lit region details">i<span class="tipBubble" role="tooltip">Includes lit-region diffraction contributions. Default off; can add paths near shadow boundaries.</span></span></span></label>
               </div>
             </div>
           </details>
@@ -800,46 +794,47 @@
         <div class="deviceCoordPanels">
           <section id="linkTxDeviceCard" class="deviceCoordPanel">
             <div class="deviceCoordGrid">
-              <label>X <span class="unitInput"><input id="linkTxX" type="number" step="1.0" value="72.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Y <span class="unitInput"><input id="linkTxY" type="number" step="1.0" value="37.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Z <span class="unitInput"><input id="linkTxZ" type="number" step="1.0" value="40.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>X <span class="unitInput"><input id="linkTxX" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Y <span class="unitInput"><input id="linkTxY" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Z <span class="unitInput"><input id="linkTxZ" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
             </div>
           </section>
           <section id="linkRxDeviceCard" class="deviceCoordPanel hidden">
             <div class="deviceCoordGrid">
-              <label>X <span class="unitInput"><input id="linkRxX" type="number" step="1.0" value="90.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Y <span class="unitInput"><input id="linkRxY" type="number" step="1.0" value="52.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Z <span class="unitInput"><input id="linkRxZ" type="number" step="1.0" value="1.5" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>X <span class="unitInput"><input id="linkRxX" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Y <span class="unitInput"><input id="linkRxY" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Z <span class="unitInput"><input id="linkRxZ" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
             </div>
           </section>
           <section id="mobilityTxDeviceCard" class="deviceCoordPanel hidden">
             <div class="deviceCoordGrid">
-              <label>X <span class="unitInput"><input id="mobilityTxX" type="number" step="1.0" value="72.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Y <span class="unitInput"><input id="mobilityTxY" type="number" step="1.0" value="37.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Z <span class="unitInput"><input id="mobilityTxZ" type="number" step="1.0" value="40.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>X <span class="unitInput"><input id="mobilityTxX" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Y <span class="unitInput"><input id="mobilityTxY" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Z <span class="unitInput"><input id="mobilityTxZ" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
             </div>
           </section>
           <section id="mobilityRxDeviceCard" class="deviceCoordPanel hidden">
             <div class="deviceCoordGrid">
-              <label>X <span class="unitInput"><input id="mobilityRxX" type="number" step="1.0" value="90.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Y <span class="unitInput"><input id="mobilityRxY" type="number" step="1.0" value="52.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Z <span class="unitInput"><input id="mobilityRxZ" type="number" step="1.0" value="1.5" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>X <span class="unitInput"><input id="mobilityRxX" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Y <span class="unitInput"><input id="mobilityRxY" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Z <span class="unitInput"><input id="mobilityRxZ" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
             </div>
           </section>
           <section id="rmTxDeviceCard" class="deviceCoordPanel hidden">
             <div class="deviceCoordGrid">
-              <label>X <span class="unitInput"><input id="rmTxX" type="number" step="1.0" value="72.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Y <span class="unitInput"><input id="rmTxY" type="number" step="1.0" value="37.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Z <span class="unitInput"><input id="rmTxZ" type="number" step="1.0" value="40.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>X <span class="unitInput"><input id="rmTxX" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Y <span class="unitInput"><input id="rmTxY" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Z <span class="unitInput"><input id="rmTxZ" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
             </div>
           </section>
           <section id="deepMimoTxDeviceCard" class="deviceCoordPanel hidden">
             <div class="deviceCoordGrid">
-              <label>X <span class="unitInput"><input id="deepMimoTxX" type="number" step="1.0" value="72.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Y <span class="unitInput"><input id="deepMimoTxY" type="number" step="1.0" value="37.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
-              <label>Z <span class="unitInput"><input id="deepMimoTxZ" type="number" step="1.0" value="40.0" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>X <span class="unitInput"><input id="deepMimoTxX" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Y <span class="unitInput"><input id="deepMimoTxY" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
+              <label>Z <span class="unitInput"><input id="deepMimoTxZ" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
             </div>
           </section>
+          <template id="featureDeviceCardAnchor"></template>
           <label id="linkSurfaceClearanceField" class="deviceClearanceField hidden" for="linkSurfaceClearance">
             <span>Clearance
               <span class="infoTip" tabindex="0" aria-label="Surface clearance details">i<span class="tipBubble" role="tooltip">Distance from the picked surface for the active mode device. Applies to the next click or drag placement only.</span></span>
@@ -997,6 +992,6 @@
 
   <script src="/lib/leaflet/leaflet.js"></script>
   <script src="/lib/proj4/proj4.js"></script>
-  <script type="module" src="/js/app.js?v=20260604-app-dialog"></script>
+  <script type="module" src="/js/app.js?v=20260723-radar-shared-groups"></script>
 </body>
 </html>

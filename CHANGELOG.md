@@ -7,6 +7,14 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ### Added
 
+- Added a complete Radar Sensing workflow with monostatic and bistatic Tx/Rx,
+  a four-model 3D drone target picker, editable target motion and orientation,
+  OFDM waveform controls, CA-CFAR detection and a dedicated propagation solver.
+- Added bounded asynchronous Radar jobs with progress, cancellation, stale-scene
+  protection and in-memory results, exposed through `/api/radar/jobs`.
+- Added Radar-specific Range–Doppler, range-profile, detection, target-truth and
+  classified-path views with isolated Viewer Layers and no data-export route.
+
 - Added a CPU-only CI smoke gate that loads a real Sionna RT scene and exercises
   Link, Radio Map and DeepMIMO export workflows with the pinned runtime stack.
 

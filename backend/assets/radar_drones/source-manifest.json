@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "coordinate_convention": {
+    "units": "metres",
+    "up_axis": "+Z",
+    "forward_axis": "+X",
+    "left_axis": "+Y",
+    "handedness": "right",
+    "origin": "axis_aligned_bounding_box_center",
+    "rotation_order": "intrinsic XYZ radians"
+  },
+  "limits": {
+    "visual_max_bytes": 20971520,
+    "radar_max_bytes": 2097152,
+    "radar_max_faces": 25000,
+    "alignment_tolerance_m": 0.005
+  },
+  "release_gate": {
+    "status": "approved",
+    "reason": "The Sketchfab source listings identify all four models as CC BY 4.0, and OpenAirTwin preserves attribution, source links, and derivative transformation records."
+  },
+  "assets": [
+    {
+      "id": "dji-air-2s",
+      "display_name": "DJI Air 2S",
+      "source_archive": "DJI Air 2S.zip",
+      "source_archive_sha256": "01a0c24f98938a9313de822eccb58a9170024fa9545d3cd2abe09d8a874fd309",
+      "duplicate_archives": [],
+      "source_member": "source/dji_air_2s-2.glb",
+      "source_glb_sha256": "cd61f2f4b9797f005f58b17ffc34a7787e375516f46b92389d6dec8a75bc4d61",
+      "source_unit_scale_m": 1.0,
+      "source_up_axis": "+Y",
+      "source_forward_axis": "-Z",
+      "default_effective_rcs_m2": 0.01,
+      "author": {
+        "name": "aurumjuda747",
+        "profile_url": "https://sketchfab.com/aurumjuda747"
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "name": "Creative Commons Attribution 4.0 International",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://sketchfab.com/3d-models/dji-air-2s-e310c02928bd42e3ba13d1160feb091a",
+        "attribution": "DJI Air 2S by aurumjuda747, licensed under CC BY 4.0.",
+        "evidence": "Recorded on the Sketchfab source listing dated 2023-02-18.",
+        "redistribution_allowed": true,
+        "derivatives_allowed": true
+      }
+    },
+    {
+      "id": "dji-mavic-3-cine",
+      "display_name": "DJI Mavic 3 Cine",
+      "source_archive": "Mavic 3 Cine 3D Model.zip",
+      "source_archive_sha256": "1bff351621d67f9b941e120be15bd68bd4d12f5e1f04970536a0baca4e924da3",
+      "duplicate_archives": [],
+      "source_member": "source/wm260_glb_0909.glb",
+      "source_glb_sha256": "716811fa18bc5b5b756b01a7216a3f3552dc9f91f80e63fa4431bb87c772b6c7",
+      "source_unit_scale_m": 0.01,
+      "source_up_axis": "+Y",
+      "source_forward_axis": "-Z",
+      "default_effective_rcs_m2": 0.01,
+      "author": {
+        "name": "aurumjuda747",
+        "profile_url": "https://sketchfab.com/aurumjuda747"
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "name": "Creative Commons Attribution 4.0 International",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://sketchfab.com/3d-models/mavic-3-cine-60d4a042a6eb4a1e944b1af2d4e9368b",
+        "attribution": "DJI Mavic 3 Cine by aurumjuda747, licensed under CC BY 4.0.",
+        "evidence": "Recorded on the Sketchfab source listing dated 2023-02-14.",
+        "redistribution_allowed": true,
+        "derivatives_allowed": true
+      }
+    },
+    {
+      "id": "dji-mini-3",
+      "display_name": "DJI Mini 3",
+      "source_archive": "DJI Mini 3.zip",
+      "source_archive_sha256": "e5f72d6515647a210690c4a1543bd96f0710dfea60467be86268a5f718956365",
+      "duplicate_archives": [],
+      "source_member": "source/92552ca9-3c1c-499a-b41d-2d52198b718c.glb",
+      "source_glb_sha256": "fc239f2d776d491f7c944f2a2ecaef83422ab87eb01ac82c3a4edb79036630d9",
+      "source_unit_scale_m": 0.1,
+      "source_up_axis": "+Y",
+      "source_forward_axis": "-Z",
+      "default_effective_rcs_m2": 0.01,
+      "author": {
+        "name": "aurumjuda747",
+        "profile_url": "https://sketchfab.com/aurumjuda747"
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "name": "Creative Commons Attribution 4.0 International",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://sketchfab.com/3d-models/dji-mini-3-350fcf878fb9484580dce8c5ae2aa4c1",
+        "attribution": "DJI Mini 3 by aurumjuda747, licensed under CC BY 4.0.",
+        "evidence": "Recorded on the Sketchfab source listing dated 2023-02-17.",
+        "redistribution_allowed": true,
+        "derivatives_allowed": true
+      }
+    },
+    {
+      "id": "dji-mini-3-pro",
+      "display_name": "DJI Mini 3 Pro",
+      "source_archive": "DJI Mini 3 Pro.zip",
+      "source_archive_sha256": "151256b95dc8aa05a86ec44c42a69324144060fc059995769f6bf706106b8f20",
+      "duplicate_archives": [
+        "dji-mini-3-pro.zip"
+      ],
+      "source_member": "source/c46229a5-d423-4230-ab42-c4d4bd59d2f6.glb",
+      "source_glb_sha256": "fb0155fb6edc674e13c9c95f39aa8a5c02854bc9209655f6f4ae205264486bee",
+      "source_unit_scale_m": 1.0,
+      "source_up_axis": "+Y",
+      "source_forward_axis": "-Z",
+      "default_effective_rcs_m2": 0.01,
+      "author": {
+        "name": "aurumjuda747",
+        "profile_url": "https://sketchfab.com/aurumjuda747"
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "name": "Creative Commons Attribution 4.0 International",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://sketchfab.com/3d-models/dji-mini-3-pro-274f2ad2731e42b793b784c9f8453677",
+        "attribution": "DJI Mini 3 Pro by aurumjuda747, licensed under CC BY 4.0.",
+        "evidence": "Recorded on the Sketchfab source listing dated 2023-02-17.",
+        "redistribution_allowed": true,
+        "derivatives_allowed": true
+      }
+    }
+  ]
+}

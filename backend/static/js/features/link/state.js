@@ -1,10 +1,10 @@
 export function createLinkState() {
   return {
     generation: 0,
-    tx: [72.0, 37.0, 40.0],
-    txVisual: [72.0, 37.0, 40.0],
-    rx: [90.0, 52.0, 1.5],
-    rxVisual: [90.0, 52.0, 1.5],
+    tx: null,
+    txVisual: null,
+    rx: null,
+    rxVisual: null,
     surfaceClearanceM: 1.5,
     result: null,
     selectedPath: -1,
