@@ -531,7 +531,6 @@ test("feature transports, polling, controls and scene layers remain isolated", a
     detectionOverflowY: "visible",
     pathOverflowY: "visible",
   });
-  await expect(page.locator("#linkChannelSection")).toHaveScreenshot("radar-result-dock.png", {animations: "disabled", caret: "hide"});
   expect(await page.evaluate(async () => {
     const {state} = await import("/js/app_state.js?v=20260723-radar-shared-groups");
     return {
@@ -628,6 +627,44 @@ test("feature transports, polling, controls and scene layers remain isolated", a
   expect(submitted.radar.waveform.carrier_frequency_hz).toBeGreaterThan(0);
 });
 
+test("Radar result dock visual snapshots stay stable", async ({page}) => {
+  let submittedRadar = null;
+  await page.route("**/assets/radar/drones/manifest.json", (route) => route.fulfill({
+    json: {schema_version: 1, assets: []},
+  }));
+  await page.route("**/api/radar/jobs", async (route) => {
+    submittedRadar = route.request().postDataJSON();
+    await route.fulfill({
+      status: 202,
+      json: {ok: true, job_id: "radar-snapshot", status: "queued", scene_generation: 7},
+    });
+  });
+  await page.route("**/api/radar/jobs/radar-snapshot/result", (route) => route.fulfill({
+    json: radarResult(submittedRadar),
+  }));
+  await page.route("**/api/radar/jobs/radar-snapshot", (route) => route.fulfill({
+    json: {
+      job_id: "radar-snapshot",
+      status: "succeeded",
+      progress: 1,
+      message: "Ready",
+      scene_generation: 7,
+    },
+  }));
+
+  await openDeterministicApp(page);
+  await enableRealViewer(page);
+  await configureRadarFixture(page);
+  await activateMode(page, "radar");
+  await page.locator("#btnSolveRadar").click();
+  await expect(page.locator("#resultDockTitle")).toHaveText("Radar Sensing Results");
+  await expect(page.locator("#radarDetectionList .radarResultRow")).toHaveCount(2);
+  await expect(page.locator("#linkChannelSection")).toHaveScreenshot("radar-result-dock.png", {
+    animations: "disabled",
+    caret: "hide",
+  });
+});
+
 test("Radar target workflow, monostatic payload and result selections stay linked", async ({page}) => {
   test.setTimeout(90_000);
   let submittedRadar = null;
@@ -688,6 +725,10 @@ test("Radar target workflow, monostatic payload and result selections stay linke
   await expect(page.locator("#radarTargetsGroup")).toHaveAttribute("open", "");
   await expect(page.locator("#radarAssetSelect")).toHaveCount(0);
   await expect(page.locator("#radarAssetPicker")).toHaveAttribute("data-state", "ready", {timeout: 15_000});
+  await expect(page.locator("#btnAddRadarTarget")).toBeEnabled();
+  await expect.poll(() => page.locator("#btnAddRadarTarget").evaluate(
+    (button) => getComputedStyle(button).boxShadow,
+  )).toBe("rgba(31, 111, 255, 0.14) 0px 2px 5px 0px");
   const assetPickerStyles = await page.evaluate(() => {
     const picker = getComputedStyle(document.getElementById("radarAssetPicker"));
     const viewport = getComputedStyle(document.querySelector(".radarAssetPreviewViewport"));
@@ -715,7 +756,7 @@ test("Radar target workflow, monostatic payload and result selections stay linke
     viewportColor: "rgb(244, 246, 248)",
     navColor: "rgb(255, 255, 255)",
     countColor: "rgb(238, 241, 244)",
-    addButtonShadow: "rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+    addButtonShadow: "rgba(31, 111, 255, 0.14) 0px 2px 5px 0px",
   });
   await expect(page.locator("#radarAssetPickerHint")).toBeHidden();
   const targetActionLayout = await page.evaluate(() => {
