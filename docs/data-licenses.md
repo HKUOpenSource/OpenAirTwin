@@ -43,6 +43,27 @@ Review the official sources before use or redistribution:
 - [CSDI 3D Visualisation Map API Terms](https://portal.csdi.gov.hk/csdi-webpage/apidoc/3d-visualisation-map-api)
 - [Lands Department Open Data (Geospatial)](https://www.landsd.gov.hk/en/spatial-data/open-data.html)
 
+## Radar Drone Models
+
+The Radar Sensing asset pipeline records four normalized drone models. These
+files are third-party data and are not covered by OpenAirTwin's Apache-2.0
+software license:
+
+- DJI Air 2S, DJI Mavic 3 Cine, DJI Mini 3 and DJI Mini 3 Pro, attributed to
+  [aurumjuda747](https://sketchfab.com/aurumjuda747), from their respective
+  [Air 2S](https://sketchfab.com/3d-models/dji-air-2s-e310c02928bd42e3ba13d1160feb091a),
+  [Mavic 3 Cine](https://sketchfab.com/3d-models/mavic-3-cine-60d4a042a6eb4a1e944b1af2d4e9368b),
+  [Mini 3](https://sketchfab.com/3d-models/dji-mini-3-350fcf878fb9484580dce8c5ae2aa4c1) and
+  [Mini 3 Pro](https://sketchfab.com/3d-models/dji-mini-3-pro-274f2ad2731e42b793b784c9f8453677)
+  listings.
+
+The supplied files and source listings identify these models as
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The generated
+manifest retains the source archive and GLB hashes, attribution, transformation
+matrix, and derivative-file hashes. OpenAirTwin redistributes normalized visual
+GLB files and simplified Radar PLY derivatives under the same attribution terms,
+and the asset release gate records that approval.
+
 ## User Responsibilities
 
 Before distributing a scene, generated mesh, screenshot, dataset or derivative:

@@ -14,7 +14,12 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from backend import __version__, config
 from backend.features.catalog import BACKEND_FEATURE_CATALOG, FEATURE_ROUTES
-from backend.features.core import FeatureQueueFull, FeatureServiceRegistry, capture_ready_scene_generation
+from backend.features.core import (
+    FeatureQueueFull,
+    FeatureServiceRegistry,
+    RequestBodyTooLarge,
+    capture_ready_scene_generation,
+)
 from backend.jobs.tile_download_jobs import TileDownloadBusy, TileDownloadJobManager
 from backend.rt.common import antenna_array_capabilities
 from backend.rt.runtime import RTRuntime, SceneNotReady
@@ -44,10 +49,6 @@ def resolve_under(root: Path, relative_path: str | Path) -> Path | None:
 
 
 class InvalidRangeHeader(ValueError):
-    pass
-
-
-class RequestBodyTooLarge(ValueError):
     pass
 
 
@@ -114,13 +115,19 @@ class AppState:
         self.job_manager = self.feature_services.get("radiomap").manager
         self.mobility_job_manager = self.feature_services.get("mobility").manager
         self.deepmimo_job_manager = self.feature_services.get("deepmimo").manager
+        self.radar_job_manager = self.feature_services.get("radar").manager
         self.tile_download_job_manager = TileDownloadJobManager(self.download_and_integrate_tile)
 
     def close(self) -> None:
         if self._closed:
             return
-        self.deepmimo_job_manager.shutdown()
-        self._closed = True
+        try:
+            self.radar_job_manager.shutdown()
+        finally:
+            try:
+                self.deepmimo_job_manager.shutdown()
+            finally:
+                self._closed = True
 
     def reload_scene_catalog(self) -> None:
         with self.reload_lock:
@@ -440,6 +447,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.serve_static_file("index.html")
             return
 
+        if path in ("/radar-demo", "/radar-demo.html"):
+            self.serve_static_file("radar-demo.html")
+            return
+
         if path.startswith("/assets/"):
             self.serve_static_file(path.removeprefix("/"))
             return
@@ -457,6 +468,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_json(
                 {
                     "ok": True,
+                    "version": __version__,
+                    "radar_build_id": config.RADAR_BUILD_ID,
+                    "radar_contract_version": 1,
                     "scene_source_mode": "per_tile",
                     "scene_root": str(config.SCENE_ROOT),
                     "common_scene_xml": str(config.SCENE_ROOT / COMMON_SCENE_RELATIVE_PATH),

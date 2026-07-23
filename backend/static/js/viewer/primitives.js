@@ -91,8 +91,8 @@ export class PrimitiveRenderer {
       const t = range.max > range.min && Number.isFinite(value) ? (value - range.min) / (range.max - range.min) : 1;
       layer.add(lineObject(item.points || [], {
         color: item.color || pathColor(t),
-        width: emphasized ? (primitive.selectedWidth || 3.2) : (primitive.dimmedWidth || 1.6),
-        opacity: emphasized ? (primitive.selectedOpacity ?? 0.92) : (primitive.dimmedOpacity ?? 0.18),
+        width: emphasized ? (item.width || primitive.selectedWidth || 3.2) : (primitive.dimmedWidth || 1.6),
+        opacity: emphasized ? (item.opacity ?? primitive.selectedOpacity ?? 0.92) : (primitive.dimmedOpacity ?? 0.18),
         depthTest: primitive.depthTest !== false,
       }));
     });

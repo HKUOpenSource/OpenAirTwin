@@ -1138,6 +1138,7 @@ html&gt;body{padding:0}&lt;/style&gt;
         &lt;option value=&quot;mobility&quot;&gt;Mobility call flow&lt;/option&gt;
         &lt;option value=&quot;radiomap&quot;&gt;Radiomap call flow&lt;/option&gt;
         &lt;option value=&quot;deepmimo&quot;&gt;DeepMIMO call flow&lt;/option&gt;
+        &lt;option value=&quot;radar&quot;&gt;Radar Sensing call flow&lt;/option&gt;
       &lt;/select&gt;
     &lt;/div&gt;
     &lt;div class=&quot;arch-index-state text-small&quot; aria-label=&quot;CodeGraph index summary&quot;&gt;
@@ -1236,6 +1237,13 @@ html&gt;body{padding:0}&lt;/style&gt;
             &lt;td&gt;Dedicated job, cancellation, and download lease&lt;/td&gt;
             &lt;td&gt;&lt;code&gt;polygon-overlay&lt;/code&gt;&lt;/td&gt;
           &lt;/tr&gt;
+          &lt;tr class=&quot;feature-row&quot; data-feature-row=&quot;radar&quot;&gt;
+            &lt;td&gt;&lt;button type=&quot;button&quot; class=&quot;btn btn-ghost feature-jump&quot; data-view=&quot;radar&quot;&gt;Radar Sensing&lt;/button&gt;&lt;/td&gt;
+            &lt;td&gt;Uses Radar targets, assets and dedicated sensing processing&lt;/td&gt;
+            &lt;td&gt;&lt;code&gt;/api/radar/jobs&lt;/code&gt;&lt;/td&gt;
+            &lt;td&gt;Bounded in-memory job, polling, result and cancellation&lt;/td&gt;
+            &lt;td&gt;target, path and detection layers&lt;/td&gt;
+          &lt;/tr&gt;
         &lt;/tbody&gt;
       &lt;/table&gt;
     &lt;/div&gt;
@@ -1267,149 +1275,177 @@ html&gt;body{padding:0}&lt;/style&gt;
         },
         {
           id: &quot;feature-core&quot;, label: &quot;Feature Core&quot;, category: &quot;core&quot;, x: 42, y: 10,
-          scopes: [&quot;frontend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
+          scopes: [&quot;frontend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;, &quot;radar&quot;],
           summary: &quot;Central hub for explicit registration, state, settings, picking, and lifecycles.&quot;,
           responsibilities: [&quot;FeatureRegistry: registers, initializes, activates, and disposes Features&quot;, &quot;FeatureStore: creates isolated state for each Feature&quot;, &quot;SettingsBus / PickingRegistry: routes shared-setting invalidation and picking targets&quot;],
           files: [&quot;backend/static/js/core/feature_registry.js&quot;, &quot;backend/static/js/features/feature_catalog.js&quot;, &quot;backend/static/js/app_state.js&quot;],
         },
         {
           id: &quot;viewer-core&quot;, label: &quot;Viewer Core&quot;, category: &quot;frontend&quot;, x: 70, y: 10,
-          scopes: [&quot;frontend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
+          scopes: [&quot;frontend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;, &quot;radar&quot;],
           summary: &quot;Three.js scene runtime with Layer, Primitive, and Asset extension points.&quot;,
           responsibilities: [&quot;SceneLayerManager isolates Feature layers&quot;, &quot;PrimitiveRenderer draws paths, trajectories, heatmap meshes, and ROIs&quot;, &quot;AssetManager loads GLB/PLY assets and manages reference release&quot;],
           files: [&quot;backend/static/js/viewer.js&quot;, &quot;backend/static/js/viewer/layer_manager.js&quot;, &quot;backend/static/js/viewer/primitives.js&quot;, &quot;backend/static/js/viewer/asset_manager.js&quot;],
         },
         {
           id: &quot;backend-core&quot;, label: &quot;Backend Core&quot;, category: &quot;core&quot;, x: 89, y: 10,
-          scopes: [&quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
+          scopes: [&quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;, &quot;radar&quot;],
           summary: &quot;Core HTTP handling, Feature route dispatch, and service dependency injection.&quot;,
           responsibilities: [&quot;RouteRegistry matches static routes and path parameters&quot;, &quot;FeatureServiceRegistry injects resources such as the RT Runtime&quot;, &quot;AppState keeps legacy manager properties as compatibility facades&quot;],
           files: [&quot;backend/server.py&quot;, &quot;backend/features/core.py&quot;, &quot;backend/features/catalog.py&quot;],
         },
         {
-          id: &quot;link-front&quot;, label: &quot;Link Feature&quot;, category: &quot;frontend&quot;, feature: &quot;link&quot;, x: 14, y: 26,
+          id: &quot;link-front&quot;, label: &quot;Link Feature&quot;, category: &quot;frontend&quot;, feature: &quot;link&quot;, x: 14, y: 22,
           scopes: [&quot;frontend&quot;, &quot;link&quot;],
           summary: &quot;Standalone frontend module for synchronous link analysis that exposes domain capabilities to other Features.&quot;,
           responsibilities: [&quot;Owns its state / transport / controller / result view / renderer / lifecycle&quot;, &quot;Provides link-domain and path-results&quot;, &quot;Manages Tx/Rx picking, live preview, and path selection&quot;],
           files: [&quot;backend/static/js/features/link/index.js&quot;, &quot;backend/static/js/features/link/runtime.js&quot;, &quot;backend/static/js/features/link/transport.js&quot;, &quot;backend/static/js/features/link/renderer.js&quot;],
         },
         {
-          id: &quot;link-api&quot;, label: &quot;POST /api/link/solve&quot;, category: &quot;transport&quot;, feature: &quot;link&quot;, x: 42, y: 26,
+          id: &quot;link-api&quot;, label: &quot;POST /api/link/solve&quot;, category: &quot;transport&quot;, feature: &quot;link&quot;, x: 42, y: 22,
           scopes: [&quot;link&quot;],
           summary: &quot;Link transport that preserves the existing synchronous REST contract.&quot;,
           responsibilities: [&quot;Sends the complete Link payload&quot;, &quot;Waits directly for the solve result&quot;, &quot;Is forwarded by the api.js compatibility facade&quot;],
           files: [&quot;backend/static/js/features/link/transport.js&quot;, &quot;backend/static/js/api.js&quot;],
         },
         {
-          id: &quot;link-back&quot;, label: &quot;Link Service&quot;, category: &quot;backend&quot;, feature: &quot;link&quot;, x: 70, y: 26,
+          id: &quot;link-back&quot;, label: &quot;Link Service&quot;, category: &quot;backend&quot;, feature: &quot;link&quot;, x: 70, y: 22,
           scopes: [&quot;backend&quot;, &quot;link&quot;],
           summary: &quot;Registers the Link route and calls the synchronous RT solve service.&quot;,
           responsibilities: [&quot;BackendFeatureDefinition declares the rt_runtime dependency&quot;, &quot;Reads the original JSON payload&quot;, &quot;Returns the original Link JSON response&quot;],
           files: [&quot;backend/features/link.py&quot;, &quot;backend/rt/solve_link.py&quot;],
         },
         {
-          id: &quot;link-exec&quot;, label: &quot;Sync RT Solve&quot;, category: &quot;execution&quot;, feature: &quot;link&quot;, x: 89, y: 26,
+          id: &quot;link-exec&quot;, label: &quot;Sync RT Solve&quot;, category: &quot;execution&quot;, feature: &quot;link&quot;, x: 89, y: 22,
           scopes: [&quot;backend&quot;, &quot;link&quot;],
           summary: &quot;Executes the Sionna RT Link solve within the current request.&quot;,
           responsibilities: [&quot;Validates the scene and solve parameters&quot;, &quot;Computes propagation paths&quot;, &quot;Produces paths, gains, delays, and optional taps&quot;],
           files: [&quot;backend/rt/solve_link.py&quot;, &quot;backend/rt/runtime.py&quot;],
         },
         {
-          id: &quot;mobility-front&quot;, label: &quot;Mobility Feature&quot;, category: &quot;frontend&quot;, feature: &quot;mobility&quot;, x: 14, y: 43,
+          id: &quot;mobility-front&quot;, label: &quot;Mobility Feature&quot;, category: &quot;frontend&quot;, feature: &quot;mobility&quot;, x: 14, y: 37,
           scopes: [&quot;frontend&quot;, &quot;mobility&quot;],
           summary: &quot;Standalone frontend module for trajectory sampling, polling, timeline control, and playback.&quot;,
           responsibilities: [&quot;Consumes Link's link-domain and path-results capabilities&quot;, &quot;Manages trajectory points, the timeline, and playback state&quot;, &quot;Renders the trajectory, sample markers, and per-step paths&quot;],
           files: [&quot;backend/static/js/features/mobility/index.js&quot;, &quot;backend/static/js/features/mobility/runtime.js&quot;, &quot;backend/static/js/features/mobility/transport.js&quot;, &quot;backend/static/js/features/mobility/renderer.js&quot;],
         },
         {
-          id: &quot;mobility-api&quot;, label: &quot;/api/mobility/jobs&quot;, category: &quot;transport&quot;, feature: &quot;mobility&quot;, x: 42, y: 43,
+          id: &quot;mobility-api&quot;, label: &quot;/api/mobility/jobs&quot;, category: &quot;transport&quot;, feature: &quot;mobility&quot;, x: 42, y: 37,
           scopes: [&quot;mobility&quot;],
           summary: &quot;Asynchronous Mobility job creation, status polling, and result retrieval contract.&quot;,
           responsibilities: [&quot;POST creates a job&quot;, &quot;GET polls job status&quot;, &quot;GET retrieves the successful result&quot;],
           files: [&quot;backend/static/js/features/mobility/transport.js&quot;, &quot;backend/features/inprocess_routes.py&quot;],
         },
         {
-          id: &quot;mobility-back&quot;, label: &quot;Mobility Service&quot;, category: &quot;backend&quot;, feature: &quot;mobility&quot;, x: 70, y: 43,
+          id: &quot;mobility-back&quot;, label: &quot;Mobility Service&quot;, category: &quot;backend&quot;, feature: &quot;mobility&quot;, x: 70, y: 37,
           scopes: [&quot;backend&quot;, &quot;mobility&quot;],
           summary: &quot;Registers Mobility job APIs through the shared InProcess routes.&quot;,
           responsibilities: [&quot;Injects rt_runtime&quot;, &quot;Creates MobilityJobManager&quot;, &quot;Records scene_generation to preserve scene consistency&quot;],
           files: [&quot;backend/features/mobility.py&quot;, &quot;backend/jobs/mobility_jobs.py&quot;],
         },
         {
-          id: &quot;mobility-exec&quot;, label: &quot;InProcess Worker&quot;, category: &quot;execution&quot;, feature: &quot;mobility&quot;, x: 89, y: 43,
+          id: &quot;mobility-exec&quot;, label: &quot;InProcess Worker&quot;, category: &quot;execution&quot;, feature: &quot;mobility&quot;, x: 89, y: 37,
           scopes: [&quot;backend&quot;, &quot;mobility&quot;],
           summary: &quot;Shared single-worker queue that executes Mobility solves.&quot;,
           responsibilities: [&quot;queued → running → succeeded/failed&quot;, &quot;Tracks progress, TTL, capacity, and result storage&quot;, &quot;Calls solve_mobility&quot;],
           files: [&quot;backend/jobs/inprocess_jobs.py&quot;, &quot;backend/jobs/mobility_jobs.py&quot;, &quot;backend/rt/solve_mobility.py&quot;],
         },
         {
-          id: &quot;radiomap-front&quot;, label: &quot;Radiomap Feature&quot;, category: &quot;frontend&quot;, feature: &quot;radiomap&quot;, x: 14, y: 60,
+          id: &quot;radiomap-front&quot;, label: &quot;Radiomap Feature&quot;, category: &quot;frontend&quot;, feature: &quot;radiomap&quot;, x: 14, y: 52,
           scopes: [&quot;frontend&quot;, &quot;radiomap&quot;],
           summary: &quot;Radio-map submission, polling, color-scale, and heatmap-mesh module.&quot;,
           responsibilities: [&quot;Independently manages Tx, surface, solver, and display state&quot;, &quot;Shares common-solver and Tx antenna settings&quot;, &quot;Owns invalidation rules for heatmap results and the color scale&quot;],
           files: [&quot;backend/static/js/features/radiomap/index.js&quot;, &quot;backend/static/js/features/radiomap/runtime.js&quot;, &quot;backend/static/js/features/radiomap/transport.js&quot;, &quot;backend/static/js/features/radiomap/renderer.js&quot;],
         },
         {
-          id: &quot;radiomap-api&quot;, label: &quot;/api/radiomap/jobs&quot;, category: &quot;transport&quot;, feature: &quot;radiomap&quot;, x: 42, y: 60,
+          id: &quot;radiomap-api&quot;, label: &quot;/api/radiomap/jobs&quot;, category: &quot;transport&quot;, feature: &quot;radiomap&quot;, x: 42, y: 52,
           scopes: [&quot;radiomap&quot;],
           summary: &quot;Asynchronous Radiomap job creation, status polling, and result retrieval contract.&quot;,
           responsibilities: [&quot;POST creates a job&quot;, &quot;GET polls job status&quot;, &quot;GET retrieves scalar-mesh data&quot;],
           files: [&quot;backend/static/js/features/radiomap/transport.js&quot;, &quot;backend/features/inprocess_routes.py&quot;],
         },
         {
-          id: &quot;radiomap-back&quot;, label: &quot;Radiomap Service&quot;, category: &quot;backend&quot;, feature: &quot;radiomap&quot;, x: 70, y: 60,
+          id: &quot;radiomap-back&quot;, label: &quot;Radiomap Service&quot;, category: &quot;backend&quot;, feature: &quot;radiomap&quot;, x: 70, y: 52,
           scopes: [&quot;backend&quot;, &quot;radiomap&quot;],
           summary: &quot;Registers Radiomap job APIs through the shared InProcess routes.&quot;,
           responsibilities: [&quot;Injects rt_runtime&quot;, &quot;Creates RadiomapJobManager&quot;, &quot;Reuses standardized status and error responses&quot;],
           files: [&quot;backend/features/radiomap.py&quot;, &quot;backend/jobs/radiomap_jobs.py&quot;],
         },
         {
-          id: &quot;radiomap-exec&quot;, label: &quot;InProcess Worker&quot;, category: &quot;execution&quot;, feature: &quot;radiomap&quot;, x: 89, y: 60,
+          id: &quot;radiomap-exec&quot;, label: &quot;InProcess Worker&quot;, category: &quot;execution&quot;, feature: &quot;radiomap&quot;, x: 89, y: 52,
           scopes: [&quot;backend&quot;, &quot;radiomap&quot;],
           summary: &quot;Shared single-worker queue that executes Radiomap solves.&quot;,
           responsibilities: [&quot;Shares the queue, TTL, and progress implementation&quot;, &quot;Validates scene_generation&quot;, &quot;Calls solve_radiomap&quot;],
           files: [&quot;backend/jobs/inprocess_jobs.py&quot;, &quot;backend/jobs/radiomap_jobs.py&quot;, &quot;backend/rt/solve_radiomap.py&quot;],
         },
         {
-          id: &quot;deepmimo-front&quot;, label: &quot;DeepMIMO Feature&quot;, category: &quot;frontend&quot;, feature: &quot;deepmimo&quot;, x: 14, y: 77,
+          id: &quot;deepmimo-front&quot;, label: &quot;DeepMIMO Feature&quot;, category: &quot;frontend&quot;, feature: &quot;deepmimo&quot;, x: 14, y: 67,
           scopes: [&quot;frontend&quot;, &quot;deepmimo&quot;],
           summary: &quot;Module for ROI selection, job cancellation, dataset listing, and download access.&quot;,
           responsibilities: [&quot;Consumes Link's link-domain capability&quot;, &quot;Manages Tx and rectangular ROI picking&quot;, &quot;Submits, cancels, polls, and records downloadable datasets&quot;],
           files: [&quot;backend/static/js/features/deepmimo/index.js&quot;, &quot;backend/static/js/features/deepmimo/runtime.js&quot;, &quot;backend/static/js/features/deepmimo/transport.js&quot;, &quot;backend/static/js/features/deepmimo/renderer.js&quot;],
         },
         {
-          id: &quot;deepmimo-api&quot;, label: &quot;/api/deepmimo/jobs&quot;, category: &quot;transport&quot;, feature: &quot;deepmimo&quot;, x: 42, y: 77,
+          id: &quot;deepmimo-api&quot;, label: &quot;/api/deepmimo/jobs&quot;, category: &quot;transport&quot;, feature: &quot;deepmimo&quot;, x: 42, y: 67,
           scopes: [&quot;deepmimo&quot;],
           summary: &quot;DeepMIMO creation, cancellation, status, and ZIP download contract.&quot;,
           responsibilities: [&quot;POST creates and cancels jobs&quot;, &quot;GET polls job status&quot;, &quot;GET downloads an archive lease&quot;],
           files: [&quot;backend/static/js/features/deepmimo/transport.js&quot;, &quot;backend/features/deepmimo.py&quot;],
         },
         {
-          id: &quot;deepmimo-back&quot;, label: &quot;DeepMIMO Service&quot;, category: &quot;backend&quot;, feature: &quot;deepmimo&quot;, x: 70, y: 77,
+          id: &quot;deepmimo-back&quot;, label: &quot;DeepMIMO Service&quot;, category: &quot;backend&quot;, feature: &quot;deepmimo&quot;, x: 70, y: 67,
           scopes: [&quot;backend&quot;, &quot;deepmimo&quot;],
           summary: &quot;Independently registers DeepMIMO job, cancellation, and download routes.&quot;,
           responsibilities: [&quot;Adds active tiles to the payload&quot;, &quot;Manages cancellation semantics&quot;, &quot;Serves ZIP files safely through leases&quot;],
           files: [&quot;backend/features/deepmimo.py&quot;, &quot;backend/jobs/deepmimo_jobs.py&quot;],
         },
         {
-          id: &quot;deepmimo-exec&quot;, label: &quot;Dedicated Job&quot;, category: &quot;execution&quot;, feature: &quot;deepmimo&quot;, x: 89, y: 77,
+          id: &quot;deepmimo-exec&quot;, label: &quot;Dedicated Job&quot;, category: &quot;execution&quot;, feature: &quot;deepmimo&quot;, x: 89, y: 67,
           scopes: [&quot;backend&quot;, &quot;deepmimo&quot;],
           summary: &quot;Dedicated DeepMIMO manager for subprocess and archive lifecycles.&quot;,
           responsibilities: [&quot;Starts and monitors the export subprocess&quot;, &quot;Responds to cancellation&quot;, &quot;Maintains download leases and archive cleanup&quot;],
           files: [&quot;backend/jobs/deepmimo_jobs.py&quot;, &quot;backend/rt/deepmimo_export_worker.py&quot;],
         },
         {
-          id: &quot;rt-scene&quot;, label: &quot;RT Runtime + Scene Core&quot;, shortLabel: &quot;RT / Scene Core&quot;, category: &quot;execution&quot;, x: 62, y: 93,
-          scopes: [&quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
-          summary: &quot;Ray-tracing runtime and scene generation shared by all four analysis Features.&quot;,
+          id: &quot;radar-front&quot;, label: &quot;Radar Sensing Feature&quot;, shortLabel: &quot;Radar Feature&quot;, category: &quot;frontend&quot;, feature: &quot;radar&quot;, x: 14, y: 82,
+          scopes: [&quot;frontend&quot;, &quot;radar&quot;],
+          summary: &quot;Standalone Radar target editing, job control, sensing results, and scene rendering module.&quot;,
+          responsibilities: [&quot;Owns Radar platform, waveform, detection, solver, and target state&quot;, &quot;Submits, polls, cancels, and invalidates Radar jobs&quot;, &quot;Renders isolated target, path, and detection layers&quot;],
+          files: [&quot;backend/static/js/features/radar/index.js&quot;, &quot;backend/static/js/features/radar/controller.js&quot;, &quot;backend/static/js/features/radar/transport.js&quot;, &quot;backend/static/js/features/radar/renderer.js&quot;],
+        },
+        {
+          id: &quot;radar-api&quot;, label: &quot;/api/radar/jobs&quot;, category: &quot;transport&quot;, feature: &quot;radar&quot;, x: 42, y: 82,
+          scopes: [&quot;radar&quot;],
+          summary: &quot;Bounded asynchronous Radar creation, status, result, and cancellation contract.&quot;,
+          responsibilities: [&quot;POST creates or cancels jobs&quot;, &quot;GET polls immutable job status&quot;, &quot;GET returns an in-memory successful result&quot;],
+          files: [&quot;backend/static/js/features/radar/transport.js&quot;, &quot;backend/features/radar.py&quot;],
+        },
+        {
+          id: &quot;radar-back&quot;, label: &quot;Radar Service&quot;, category: &quot;backend&quot;, feature: &quot;radar&quot;, x: 70, y: 82,
+          scopes: [&quot;backend&quot;, &quot;radar&quot;],
+          summary: &quot;Registers Radar job routes and owns the Radar service lifecycle.&quot;,
+          responsibilities: [&quot;Injects rt_runtime&quot;, &quot;Creates RadarJobManager&quot;, &quot;Validates frozen payload, scene generation, and result contracts&quot;],
+          files: [&quot;backend/features/radar.py&quot;, &quot;backend/jobs/radar_jobs.py&quot;, &quot;backend/rt/radar_payload.py&quot;],
+        },
+        {
+          id: &quot;radar-exec&quot;, label: &quot;Radar Job + Processing&quot;, shortLabel: &quot;Radar Worker&quot;, category: &quot;execution&quot;, feature: &quot;radar&quot;, x: 89, y: 82,
+          scopes: [&quot;backend&quot;, &quot;radar&quot;],
+          summary: &quot;Single-worker Radar lifecycle with independent propagation and OFDM sensing processing.&quot;,
+          responsibilities: [&quot;Tracks queued, running, terminal, progress, cancellation, TTL, and capacity state&quot;, &quot;Calls solve_radar_propagation&quot;, &quot;Produces bounded in-memory sensing results without downloadable artifacts&quot;],
+          files: [&quot;backend/jobs/radar_jobs.py&quot;, &quot;backend/rt/solve_radar.py&quot;, &quot;backend/rt/process_radar.py&quot;],
+        },
+        {
+          id: &quot;rt-scene&quot;, label: &quot;RT Runtime + Scene Core&quot;, shortLabel: &quot;RT / Scene Core&quot;, category: &quot;execution&quot;, x: 62, y: 95,
+          scopes: [&quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;, &quot;radar&quot;],
+          summary: &quot;Ray-tracing runtime and scene generation shared by all five analysis Features.&quot;,
           responsibilities: [&quot;Loads the RT scene for the currently selected tiles&quot;, &quot;Maintains scene generation and the runtime lock&quot;, &quot;Keeps static assets, scene endpoints, and tile downloads in Core&quot;],
           files: [&quot;backend/rt/runtime.py&quot;, &quot;backend/scene/tile_scene_xml.py&quot;, &quot;backend/scene/tile_bundles.py&quot;, &quot;backend/server.py&quot;],
         },
         {
-          id: &quot;regression&quot;, label: &quot;Regression Baseline&quot;, category: &quot;core&quot;, x: 88, y: 93,
-          scopes: [&quot;frontend&quot;, &quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;],
+          id: &quot;regression&quot;, label: &quot;Regression Baseline&quot;, category: &quot;core&quot;, x: 88, y: 95,
+          scopes: [&quot;frontend&quot;, &quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;, &quot;radar&quot;],
           summary: &quot;Regression boundary for protocols, DOM structure, interactions, layers, and visual output.&quot;,
-          responsibilities: [&quot;Python REST and job contracts&quot;, &quot;Playwright behavior and visual snapshots for all four modes&quot;, &quot;Dummy Feature, Layer, and Asset capability validation&quot;],
+          responsibilities: [&quot;Python REST and job contracts&quot;, &quot;Playwright behavior and visual snapshots for all five modes&quot;, &quot;Dummy Feature, Layer, and Asset capability validation&quot;],
           files: [&quot;tests/test_feature_architecture.py&quot;, &quot;tests/test_frontend_regressions.py&quot;, &quot;tests/browser/feature_modes.spec.js&quot;],
         },
       ];
@@ -1422,6 +1458,7 @@ html&gt;body{padding:0}&lt;/style&gt;
         {from: &quot;feature-core&quot;, to: &quot;mobility-front&quot;, type: &quot;registry&quot;, scopes: [&quot;mobility&quot;]},
         {from: &quot;feature-core&quot;, to: &quot;radiomap-front&quot;, type: &quot;registry&quot;, scopes: [&quot;radiomap&quot;]},
         {from: &quot;feature-core&quot;, to: &quot;deepmimo-front&quot;, type: &quot;registry&quot;, scopes: [&quot;deepmimo&quot;]},
+        {from: &quot;feature-core&quot;, to: &quot;radar-front&quot;, type: &quot;registry&quot;, scopes: [&quot;radar&quot;]},
         {from: &quot;link-front&quot;, to: &quot;link-api&quot;, type: &quot;http&quot;, scopes: [&quot;link&quot;]},
         {from: &quot;link-api&quot;, to: &quot;link-back&quot;, type: &quot;http&quot;, scopes: [&quot;link&quot;]},
         {from: &quot;link-back&quot;, to: &quot;link-exec&quot;, type: &quot;runtime&quot;, scopes: [&quot;link&quot;]},
@@ -1438,16 +1475,22 @@ html&gt;body{padding:0}&lt;/style&gt;
         {from: &quot;deepmimo-api&quot;, to: &quot;deepmimo-back&quot;, type: &quot;http&quot;, scopes: [&quot;deepmimo&quot;]},
         {from: &quot;deepmimo-back&quot;, to: &quot;deepmimo-exec&quot;, type: &quot;runtime&quot;, scopes: [&quot;deepmimo&quot;]},
         {from: &quot;deepmimo-front&quot;, to: &quot;viewer-core&quot;, type: &quot;render&quot;, scopes: [&quot;deepmimo&quot;]},
+        {from: &quot;radar-front&quot;, to: &quot;radar-api&quot;, type: &quot;http&quot;, scopes: [&quot;radar&quot;]},
+        {from: &quot;radar-api&quot;, to: &quot;radar-back&quot;, type: &quot;http&quot;, scopes: [&quot;radar&quot;]},
+        {from: &quot;radar-back&quot;, to: &quot;radar-exec&quot;, type: &quot;runtime&quot;, scopes: [&quot;radar&quot;]},
+        {from: &quot;radar-front&quot;, to: &quot;viewer-core&quot;, type: &quot;render&quot;, scopes: [&quot;radar&quot;]},
         {from: &quot;link-front&quot;, to: &quot;mobility-front&quot;, type: &quot;capability&quot;, scopes: [&quot;link&quot;, &quot;mobility&quot;]},
         {from: &quot;link-front&quot;, to: &quot;deepmimo-front&quot;, type: &quot;capability&quot;, scopes: [&quot;link&quot;, &quot;deepmimo&quot;]},
         {from: &quot;backend-core&quot;, to: &quot;link-back&quot;, type: &quot;registry&quot;, scopes: [&quot;link&quot;, &quot;backend&quot;]},
         {from: &quot;backend-core&quot;, to: &quot;mobility-back&quot;, type: &quot;registry&quot;, scopes: [&quot;mobility&quot;, &quot;backend&quot;]},
         {from: &quot;backend-core&quot;, to: &quot;radiomap-back&quot;, type: &quot;registry&quot;, scopes: [&quot;radiomap&quot;, &quot;backend&quot;]},
         {from: &quot;backend-core&quot;, to: &quot;deepmimo-back&quot;, type: &quot;registry&quot;, scopes: [&quot;deepmimo&quot;, &quot;backend&quot;]},
+        {from: &quot;backend-core&quot;, to: &quot;radar-back&quot;, type: &quot;registry&quot;, scopes: [&quot;radar&quot;, &quot;backend&quot;]},
         {from: &quot;link-exec&quot;, to: &quot;rt-scene&quot;, type: &quot;runtime&quot;, scopes: [&quot;link&quot;, &quot;backend&quot;]},
         {from: &quot;mobility-exec&quot;, to: &quot;rt-scene&quot;, type: &quot;runtime&quot;, scopes: [&quot;mobility&quot;, &quot;backend&quot;]},
         {from: &quot;radiomap-exec&quot;, to: &quot;rt-scene&quot;, type: &quot;runtime&quot;, scopes: [&quot;radiomap&quot;, &quot;backend&quot;]},
         {from: &quot;deepmimo-exec&quot;, to: &quot;rt-scene&quot;, type: &quot;runtime&quot;, scopes: [&quot;deepmimo&quot;, &quot;backend&quot;]},
+        {from: &quot;radar-exec&quot;, to: &quot;rt-scene&quot;, type: &quot;runtime&quot;, scopes: [&quot;radar&quot;, &quot;backend&quot;]},
         {from: &quot;viewer-core&quot;, to: &quot;rt-scene&quot;, type: &quot;render&quot;, scopes: [&quot;frontend&quot;, &quot;backend&quot;]},
         {from: &quot;feature-core&quot;, to: &quot;regression&quot;, type: &quot;registry&quot;, scopes: [&quot;frontend&quot;]},
         {from: &quot;backend-core&quot;, to: &quot;regression&quot;, type: &quot;registry&quot;, scopes: [&quot;backend&quot;]},
@@ -1461,6 +1504,7 @@ html&gt;body{padding:0}&lt;/style&gt;
         mobility: &quot;&lt;strong&gt;Mobility:&lt;/strong&gt; Consume Link capabilities → create job → poll status → InProcess Worker → trajectory + markers + paths.&quot;,
         radiomap: &quot;&lt;strong&gt;Radiomap:&lt;/strong&gt; Create job → poll status → InProcess Worker → scalar-triangle-mesh + color scale.&quot;,
         deepmimo: &quot;&lt;strong&gt;DeepMIMO:&lt;/strong&gt; ROI / Tx → dedicated job → subprocess → cancellation or ZIP lease download; the ROI uses polygon-overlay.&quot;,
+        radar: &quot;&lt;strong&gt;Radar Sensing:&lt;/strong&gt; Configure Tx/Rx and drone targets → create job → poll progress → independent propagation + OFDM processing → bounded results and isolated Viewer Layers.&quot;,
       };
 
       const preferredNode = {
@@ -1471,6 +1515,7 @@ html&gt;body{padding:0}&lt;/style&gt;
         mobility: &quot;mobility-front&quot;,
         radiomap: &quot;radiomap-front&quot;,
         deepmimo: &quot;deepmimo-front&quot;,
+        radar: &quot;radar-front&quot;,
       };
 
       const nodeById = new Map(nodes.map((node) =&gt; [node.id, node]));

@@ -94,7 +94,12 @@ export function createLinkController({
 
   function livePreviewEnabledForTarget(target) {
     readLivePreviewInputs();
-    if (!state.livePreview.enabled || ui.loadingScreen.style.display !== "none") {
+    if (
+      !state.livePreview.enabled
+      || ui.loadingScreen.style.display !== "none"
+      || !Array.isArray(state.link.tx)
+      || !Array.isArray(state.link.rx)
+    ) {
       return false;
     }
     return (target === "link-tx" || target === "link-rx") && state.mode === "link";

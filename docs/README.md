@@ -12,7 +12,7 @@ runtime and tutorial website.
 - [`release-checklist.md`](release-checklist.md) defines the local and GitHub
   checks required before publishing a tag.
 - [`data-licenses.md`](data-licenses.md) records scene-data responsibilities and
-  third-party attribution requirements.
+  third-party scene and Radar drone-model attribution requirements.
 - [`../CHANGELOG.md`](../CHANGELOG.md) records the v1.0.0 release and future
   unreleased changes.
 

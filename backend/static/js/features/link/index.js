@@ -1,8 +1,8 @@
 import {defineFeature} from "/js/core/feature_registry.js";
-import {createLinkController} from "/js/controllers/link_controller.js?v=20260519-mode-isolation";
-import {createLinkFeature} from "/js/features/link/runtime.js";
+import {createLinkController} from "/js/controllers/link_controller.js?v=20260723-empty-devices";
+import {createLinkFeature} from "/js/features/link/runtime.js?v=20260723-empty-devices";
 import {createLinkRenderer} from "/js/features/link/renderer.js";
-import {createLinkState} from "/js/features/link/state.js";
+import {createLinkState} from "/js/features/link/state.js?v=20260723-empty-devices";
 import {createLinkTransport} from "/js/features/link/transport.js";
 import {createLinkResultView} from "/js/ui/link_result_view.js?v=20260519-mode-isolation";
 

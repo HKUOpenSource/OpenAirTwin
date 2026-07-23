@@ -148,6 +148,7 @@ class FrontendRegressionTests(unittest.TestCase):
                 "readMobilityInputs",
                 "readRadiomapInputs",
                 "invalidateLinkResult",
+                "invalidateRadarResult",
                 "invalidateRadiomapResult",
                 "invalidateMobilityResult",
                 "invalidateDeepMimoResult",
@@ -287,6 +288,7 @@ class FrontendRegressionTests(unittest.TestCase):
             "startTxOrbit",
             "stopTxOrbit",
             "isTxOrbiting",
+            "subscribeFrame",
             "clearRadiomap",
             "clearSurfacePreview",
             "renderMobilityTrajectory",
@@ -548,8 +550,25 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('<details class="paramGroup" open>', html)
         self.assertIn('<summary class="paramGroupSummary">Physical Layer</summary>', html)
         self.assertIn('<summary class="paramGroupSummary">Antenna Arrays</summary>', html)
-        self.assertIn('<summary class="paramGroupSummary">Propagation</summary>', html)
-        self.assertIn('<summary class="paramGroupSummary">Solver Budget</summary>', html)
+        self.assertNotIn('<summary class="paramGroupSummary">Propagation</summary>', html)
+        self.assertNotIn('<summary class="paramGroupSummary">Solver Budget</summary>', html)
+        self.assertEqual(
+            html.count('<summary class="paramGroupSummary" tabindex="0">Propagation Solver</summary>'),
+            1,
+        )
+        self.assertIn('<details class="paramGroup propagationSolverGroup">', html)
+        propagation_solver = html.split(
+            '<details class="paramGroup propagationSolverGroup">',
+            1,
+        )[1].split("</details>", 1)[0]
+        self.assertLess(
+            propagation_solver.index('id="linkSamplesPerSrc"'),
+            propagation_solver.index('id="cfgLos"'),
+        )
+        self.assertLess(
+            propagation_solver.index('id="cfgSeed"'),
+            propagation_solver.index('id="cfgLos"'),
+        )
         self.assertIn('<details class="paramGroup linkOnlyParam">', html)
         self.assertIn('<details class="paramGroup radiomapOnlyParam hidden">', html)
         self.assertIn('<details class="paramGroup deepmimoOnlyParam hidden">', html)
@@ -564,11 +583,197 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn(".solverCfg{margin-top:10px;padding:0;border:0;border-radius:0;background:transparent}", css_source)
         self.assertIn(".paramGroupSummary::after", css_source)
         self.assertIn(".paramGroup[open] > .paramGroupBody", css_source)
-        self.assertIn('href="/css/app.css?v=20260604-app-dialog"', html)
+        self.assertIn('href="/css/app.css?v=20260723-radar-shared-groups"', html)
+        self.assertIn(
+            ".propagationSolverGroup .paramGrid + .paramCheckGrid{margin-top:12px}",
+            css_source,
+        )
         self.assertIn("#uiBody{min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:12px;margin-right:-12px;scrollbar-gutter:stable;", css_source)
         self.assertIn("#uiBody::-webkit-scrollbar{width:10px}", css_source)
         self.assertIn("background-clip:content-box", css_source)
-        self.assertIn('src="/js/app.js?v=20260604-app-dialog"', html)
+        self.assertIn('src="/js/app.js?v=20260723-radar-shared-groups"', html)
+
+    def test_radar_derived_metric_labels_use_consistent_two_line_titles(self) -> None:
+        radar_source = read_static_js("features/radar/index.js")
+        self.assertIn("<span>Range<br/>Resolution</span>", radar_source)
+        self.assertIn("<span>Doppler<br/>Resolution</span>", radar_source)
+        self.assertIn("<span>Velocity<br/>Resolution</span>", radar_source)
+
+    def test_radar_checkboxes_use_the_shared_card_geometry(self) -> None:
+        radar_source = read_static_js("features/radar/index.js")
+        css_source = read_static_css("app.css")
+        radar_check_css = css_source.split(".radarCheck{", 1)[1].split("}", 1)[0]
+        radar_input_css = css_source.split(".radarCheck>input{", 1)[1].split("}", 1)[0]
+
+        self.assertEqual(radar_source.count('class="radarCheck"'), 8)
+        self.assertIn('id="radarDirectPathCancellation" type="checkbox"', radar_source)
+        self.assertIn('id="radarCfarEnabled" type="checkbox"', radar_source)
+        for declaration in (
+            "width:100%",
+            "min-height:34px",
+            "align-items:center",
+            "padding:7px 8px",
+            "border:1px solid rgba(130,140,160,.18)",
+            "border-radius:8px",
+            "background:#fff",
+            "font-size:12px",
+        ):
+            self.assertIn(declaration, radar_check_css)
+        self.assertIn("width:14px", radar_input_css)
+        self.assertIn("height:14px", radar_input_css)
+        self.assertIn("margin:0", radar_input_css)
+        self.assertIn(".radarCheck + .radarFieldGrid{margin-top:12px}", css_source)
+
+    def test_radar_groups_start_collapsed_and_share_the_standard_chevron(self) -> None:
+        radar_source = read_static_js("features/radar/index.js")
+        css_source = read_static_css("app.css")
+        self.assertEqual(radar_source.count('class="paramGroup radarGroup"'), 5)
+        self.assertEqual(radar_source.count('class="paramGroupSummary"'), 5)
+        self.assertEqual(radar_source.count('class="paramGroupBody radarGroupBody"'), 5)
+        self.assertNotIn('class="paramGroup radarGroup" open', radar_source)
+        self.assertIn('<summary class="paramGroupSummary">OFDM Waveform</summary>', radar_source)
+        self.assertNotIn("OFDM Waveform &amp; Signal", radar_source)
+        self.assertNotIn(".radarGroup>summary", css_source)
+        self.assertNotIn(".radarGroup:not([open])", css_source)
+        shared_chevron = css_source.split(".paramGroupSummary::after{", 1)[1].split("}", 1)[0]
+        self.assertNotIn('content:"⌄"', shared_chevron)
+
+    def test_radar_asset_picker_uses_neutral_flat_styling(self) -> None:
+        css_source = read_static_css("app.css")
+        picker_css = css_source.split(".radarAssetPicker{", 1)[1].split("}", 1)[0]
+        viewport_css = css_source.split(".radarAssetPreviewViewport{", 1)[1].split("}", 1)[0]
+        nav_css = css_source.split(".radarAssetNav{", 1)[1].split("}", 1)[0]
+        count_css = css_source.split(".radarAssetPreviewCount{", 1)[1].split("}", 1)[0]
+        add_button_css = css_source.split(".radarAssetAddButton{", 1)[1].split("}", 1)[0]
+
+        self.assertIn("padding:0", picker_css)
+        self.assertIn("border:0", picker_css)
+        self.assertIn("background:transparent", picker_css)
+        self.assertIn("box-shadow:none", picker_css)
+        self.assertNotIn("gradient", picker_css)
+        self.assertIn("background:#f4f6f8", viewport_css)
+        self.assertNotIn("gradient", viewport_css)
+        self.assertIn("background:#fff", nav_css)
+        self.assertIn("box-shadow:0 2px 6px rgba(36,55,82,.08)", nav_css)
+        self.assertIn("background:#eef1f4", count_css)
+        self.assertIn("box-shadow:0 2px 5px rgba(31,111,255,.14)", add_button_css)
+        self.assertIn(
+            '.radarAssetPicker[data-state="ready"] .radarAssetPickerHint{display:none}',
+            css_source,
+        )
+        self.assertIn(
+            '.radarAssetPicker[data-state="ready"] #btnAddRadarTarget[title]~.radarAssetPickerHint{display:block}',
+            css_source,
+        )
+
+    def test_radar_starts_without_devices_or_targets(self) -> None:
+        state_source = read_static_js("features/radar/state.js")
+        controls_source = read_static_js("features/radar/controls.js")
+        panel_source = read_static_js("features/radar/index.js")
+        runtime_source = read_static_js("features/radar/runtime.js")
+
+        self.assertIn("tx: null", state_source)
+        self.assertIn("txVisual: null", state_source)
+        self.assertIn("rx: null", state_source)
+        self.assertIn("rxVisual: null", state_source)
+        self.assertIn("targets: []", state_source)
+        self.assertIn("nextTargetNumber: 1", state_source)
+        self.assertIn("selectedTargetId: null", state_source)
+        self.assertNotIn("DEFAULT_TARGETS", state_source)
+        self.assertIn('<span id="radarTargetCount" class="radarSummaryBadge">0 / 16</span>', panel_source)
+        self.assertIn("const INITIAL_SPEED_MIN_MPS = 5", controls_source)
+        self.assertIn("const INITIAL_SPEED_MAX_MPS = 15", controls_source)
+        self.assertIn("const INITIAL_DIRECTION_MIN_DEG = -180", controls_source)
+        self.assertIn("const INITIAL_DIRECTION_MAX_DEG = 180", controls_source)
+        self.assertIn("const INITIAL_CLIMB_MIN_DEG = -10", controls_source)
+        self.assertIn("const INITIAL_CLIMB_MAX_DEG = 10", controls_source)
+        self.assertIn("const motion = randomInitialMotion();", controls_source)
+        self.assertIn("velocity: motion.velocity", controls_source)
+        self.assertIn('return "Place Radar Tx and Rx before running sensing."', controls_source)
+        self.assertIn("!controls.devicesReady()", runtime_source)
+        self.assertIn("context.ui.btnOrbitTx.disabled = !Array.isArray(radar.txVisual)", runtime_source)
+
+    def test_other_modes_start_without_devices(self) -> None:
+        html = read_static_html()
+        solver_source = read_static_js("solver_controls.js")
+        payload_source = read_static_js("solvers/solver_payloads.js")
+        scene_source = read_static_js("scene_render_state.js")
+        state_files = {
+            "link": read_static_js("features/link/state.js"),
+            "mobility": read_static_js("features/mobility/state.js"),
+            "radiomap": read_static_js("features/radiomap/state.js"),
+            "deepmimo": read_static_js("features/deepmimo/state.js"),
+        }
+
+        for mode, source in state_files.items():
+            self.assertIn("tx: null", source, mode)
+            self.assertIn("txVisual: null", source, mode)
+            self.assertNotIn("tx: [72.0, 37.0, 40.0]", source, mode)
+        for mode in ("link", "mobility"):
+            self.assertIn("rx: null", state_files[mode], mode)
+            self.assertIn("rxVisual: null", state_files[mode], mode)
+
+        for input_id in (
+            "linkTxX", "linkTxY", "linkTxZ", "linkRxX", "linkRxY", "linkRxZ",
+            "mobilityTxX", "mobilityTxY", "mobilityTxZ",
+            "mobilityRxX", "mobilityRxY", "mobilityRxZ",
+            "rmTxX", "rmTxY", "rmTxZ",
+            "deepMimoTxX", "deepMimoTxY", "deepMimoTxZ",
+        ):
+            self.assertRegex(
+                html,
+                rf'id="{input_id}"[^>]*placeholder="—"',
+                input_id,
+            )
+
+        self.assertIn("function readDeviceVector(inputRefs)", solver_source)
+        self.assertIn("function syncDeviceVectorInputs(inputRefs, values, targetId)", solver_source)
+        self.assertIn('setLogicalAndVisual(state.link, "tx"', solver_source)
+        self.assertRegex(solver_source, r'setLogicalAndVisual\(\s*state\.mobility,\s*"rx"')
+        self.assertIn('setLogicalAndVisual(state.radiomap, "tx"', solver_source)
+        self.assertIn("const requirement = features.instance(definition.id)?.runRequirementMessage?.() || \"\";", scene_source)
+        self.assertIn("ui.btnOrbitTx.disabled = !txReady;", scene_source)
+        self.assertIn("Place Link Tx before solving the link.", payload_source)
+        self.assertIn("Place Radio Map Tx before running the radio map.", payload_source)
+        self.assertIn("Place Mobility Tx before running mobility.", payload_source)
+        self.assertIn("Place DeepMIMO Tx before exporting data.", payload_source)
+
+    def test_radar_target_actions_are_full_width_and_stateful(self) -> None:
+        radar_source = read_static_js("features/radar/index.js")
+        controls_source = read_static_js("features/radar/controls.js")
+        css_source = read_static_css("app.css")
+        action_layout_css = css_source.split(".radarEditorActions{", 1)[1].split("}", 1)[0]
+        action_button_css = css_source.split(".radarEditorActions .miniBtn{", 1)[1].split("}", 1)[0]
+        picking_css = css_source.split(
+            ".radarEditorActions #btnPickRadarTarget.picking{",
+            1,
+        )[1].split("}", 1)[0]
+
+        self.assertIn("display:grid", action_layout_css)
+        self.assertIn("grid-template-columns:repeat(3,minmax(0,1fr))", action_layout_css)
+        self.assertIn("width:100%", action_layout_css)
+        self.assertIn("min-height:36px", action_button_css)
+        self.assertIn("justify-content:center", action_button_css)
+        self.assertIn("background:#1f6fff", picking_css)
+        self.assertIn("color:#fff", picking_css)
+        self.assertIn(
+            '.radarEditorActions #btnPickRadarTarget.picking::after{content:"Picking in 3D"',
+            css_source,
+        )
+        self.assertIn(
+            ".radarEditorActions .miniBtn.danger{border-color:rgba(210,79,79,.34);background:#fff7f7",
+            css_source,
+        )
+        add_button_position = radar_source.index('id="btnAddRadarTarget"')
+        actions_position = radar_source.index('class="radarEditorActions"')
+        target_list_position = radar_source.index('id="radarTargetList"')
+        self.assertLess(add_button_position, actions_position)
+        self.assertLess(actions_position, target_list_position)
+        self.assertIn('role="group" aria-label="Selected target actions"', radar_source)
+        self.assertIn(
+            "No targets added. Choose a drone model above, then select Add Target.",
+            controls_source,
+        )
 
     def test_antenna_array_payloads_are_sent_to_solvers(self) -> None:
         source = read_frontend_js_modules()
@@ -788,7 +993,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("context.features.store.get(scope).surfaceClearanceM", solver_source)
         self.assertIn("const position = shared.pickPositionWithSurfaceClearance(pick, target.scope);", solver_source)
         self.assertIn("applyPick(pick, target)", solver_source)
-        self.assertIn("setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, position);", solver_source)
+        self.assertIn('setLogicalAndVisual(state.radiomap, "tx", position);', solver_source)
         self.assertIn("surfacePosition: [hit.point.x, hit.point.y, hit.point.z]", viewer_source)
         self.assertIn("surfaceNormal: surfaceNormal ?", viewer_source)
 
@@ -947,10 +1152,10 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("state.link.advanced.computeTaps = true;", app_source)
         self.assertIn("createMobilityJob", app_source)
         self.assertIn("export function createMobilityState()", state_source)
-        self.assertIn("tx: [72.0, 37.0, 40.0]", state_source)
-        self.assertIn("rx: [90.0, 52.0, 1.5]", state_source)
-        self.assertIn("txVisual: [72.0, 37.0, 40.0]", state_source)
-        self.assertIn("rxVisual: [90.0, 52.0, 1.5]", state_source)
+        self.assertIn("tx: null", state_source)
+        self.assertIn("rx: null", state_source)
+        self.assertIn("txVisual: null", state_source)
+        self.assertIn("rxVisual: null", state_source)
         self.assertIn("surfaceClearanceM: 1.5", state_source)
         self.assertIn("points: [],", state_source)
         self.assertIn("selectedWaypointIndex: -1", state_source)
@@ -971,12 +1176,12 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("solver().deleteMobilityWaypoint(state.mobility.selectedWaypointIndex);", app_source)
         self.assertIn("isEditableKeyboardTarget(event.target)", app_source)
         self.assertIn("rx_trajectory: {", source)
-        self.assertIn("tx: {position: state.mobility.tx, orientation: [0, 0, 0]}", source)
+        self.assertIn("tx: {position: txPosition, orientation: [0, 0, 0]}", source)
         self.assertIn("points: state.mobility.trajectory.points", source)
         self.assertIn("max_steps: state.mobility.trajectory.maxSteps", source)
         self.assertIn("const point = [...state.mobility.rx];", source)
         self.assertIn('applyMethod: "applyMobilityPick"', source)
-        self.assertIn("shared.setLogicalAndVisual(state.mobility[target.role]", source)
+        self.assertIn("shared.setLogicalAndVisual(state.mobility, target.role, position)", source)
         self.assertIn("${estimate.steps} / ${estimate.maxSteps} steps", source)
         self.assertNotIn("estimate.steps > 50", source)
         self.assertNotIn("estimate.maxSteps > 500", source)
@@ -1147,15 +1352,15 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('btnDeepMimoPickRoi: document.getElementById("btnDeepMimoPickRoi")', dom_source)
         self.assertIn('btnDeepMimoClearRoi: document.getElementById("btnDeepMimoClearRoi")', dom_source)
         self.assertIn("export function createDeepMimoState()", state_source)
-        self.assertIn("tx: [72.0, 37.0, 40.0]", state_source)
+        self.assertIn("tx: null", state_source)
         self.assertIn("maxReceivers: 30000", state_source)
         self.assertIn("visualZ: null", state_source)
         self.assertIn("datasets: []", state_source)
         self.assertIn("datasetTrayOpen: false", state_source)
-        self.assertIn('/js/app_state.js?v=20260519-mode-isolation', app_source)
+        self.assertIn('/js/app_state.js?v=20260723-radar-shared-groups', app_source)
         self.assertIn('/js/dom_refs.js?v=20260519-mode-isolation', app_source)
-        self.assertIn('/js/solver_controls.js?v=20260519-mode-isolation', app_source)
-        self.assertIn('/js/scene_render_state.js?v=20260519-mode-isolation', app_source)
+        self.assertIn('/js/solver_controls.js?v=20260723-empty-devices', app_source)
+        self.assertIn('/js/scene_render_state.js?v=20260723-empty-devices', app_source)
         self.assertIn('ui.deepMimoDatasetToggle.addEventListener("click"', app_source)
         self.assertIn("featureRegistry.instance(definition.id)?.closeTransientUi?.();", app_source)
         self.assertIn("featureRegistry.activate(definition.id, context);", app_source)
@@ -1172,7 +1377,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("const activeTargetMeta = picking.get(nextActiveTarget);", scene_source)
         self.assertIn("const hasPrecisionTarget = Boolean(activeTargetMeta?.precision);", scene_source)
         self.assertIn('!sceneControlsVisible || !hasPrecisionTarget', scene_source)
-        self.assertIn('import("/js/viewer.js?v=20260519-mode-isolation")', scene_source)
+        self.assertIn('import("/js/viewer.js?v=20260722-radar-screen-labels")', scene_source)
         self.assertIn("for (const target of picking.targetsFor(definition.id))", scene_source)
         self.assertIn("for (const ref of definition.ui.extraActionButtonRefs || [])", scene_source)
         self.assertIn("for (const filtered of activeUi.filteredParameterGroups || [])", scene_source)
@@ -1200,8 +1405,8 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("const nx = deepMimoReceiverAxisCount(bounds.size[0], spacing);", solver_source)
         self.assertNotIn("Math.ceil(Number(size) / spacing + 0.5)", solver_source)
         self.assertIn('ui.deepMimoRxCandidates.value = bounds && Number.isFinite(estimate)', solver_source)
-        self.assertIn("tx: {position: state.deepmimo.tx, orientation: [0, 0, 0]}", solver_source)
-        self.assertIn("setLogicalAndVisual(state.deepmimo.tx, state.deepmimo.txVisual", solver_source)
+        self.assertIn("tx: {position: txPosition, orientation: [0, 0, 0]}", solver_source)
+        self.assertIn('setLogicalAndVisual(state.deepmimo, "tx"', solver_source)
         self.assertNotIn("buffer_m", solver_source)
         self.assertNotIn("crop_to_roi", solver_source)
         self.assertNotIn("ui.deepMimoJobStatus", solver_source)

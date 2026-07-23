@@ -1,10 +1,10 @@
 import {defineFeature} from "/js/core/feature_registry.js";
 import {createMobilityController} from "/js/controllers/mobility_controller.js?v=20260519-mode-isolation";
-import {createMobilityFeature} from "/js/features/mobility/runtime.js";
+import {createMobilityFeature} from "/js/features/mobility/runtime.js?v=20260723-empty-devices";
 import {createMobilityRenderer} from "/js/features/mobility/renderer.js";
-import {createMobilityState} from "/js/features/mobility/state.js";
+import {createMobilityState} from "/js/features/mobility/state.js?v=20260723-empty-devices";
 import {createMobilityTransport} from "/js/features/mobility/transport.js";
-import {mobilityJobPayload} from "/js/solvers/solver_payloads.js?v=20260519-mode-isolation";
+import {mobilityJobPayload} from "/js/solvers/solver_payloads.js?v=20260723-empty-devices";
 import {createMobilityResultView} from "/js/ui/mobility_result_view.js?v=20260519-mode-isolation";
 
 function createResultView(context) {

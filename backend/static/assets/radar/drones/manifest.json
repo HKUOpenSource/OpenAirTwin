@@ -1,0 +1,504 @@
+{
+  "assets": [
+    {
+      "author": {
+        "name": "aurumjuda747",
+        "profile_url": "https://sketchfab.com/aurumjuda747"
+      },
+      "default_effective_rcs_m2": 0.01,
+      "display_name": "DJI Air 2S",
+      "id": "dji-air-2s",
+      "license": {
+        "attribution": "DJI Air 2S by aurumjuda747, licensed under CC BY 4.0.",
+        "derivatives_allowed": true,
+        "evidence": "Recorded on the Sketchfab source listing dated 2023-02-18.",
+        "name": "Creative Commons Attribution 4.0 International",
+        "redistribution_allowed": true,
+        "source_url": "https://sketchfab.com/3d-models/dji-air-2s-e310c02928bd42e3ba13d1160feb091a",
+        "spdx": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      "normalization": {
+        "forward_axis": "+X",
+        "left_axis": "+Y",
+        "matrix_source_to_normalized": [
+          0.0,
+          -1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          -1.0,
+          0.0,
+          0.0,
+          0.0,
+          -0.003499211408,
+          0.0,
+          0.024401199944,
+          1.0
+        ],
+        "origin": "axis_aligned_bounding_box_center",
+        "units": "metres",
+        "up_axis": "+Z"
+      },
+      "radar": {
+        "bounds_m": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.292282486,
+            0.273209088,
+            0.066658817
+          ],
+          "min": [
+            -0.292282486,
+            -0.273209088,
+            -0.066658817
+          ],
+          "size": [
+            0.584564972,
+            0.546418176,
+            0.133317635
+          ]
+        },
+        "face_count": 24989,
+        "format": "ply",
+        "has_vertex_normals": true,
+        "path": "dji-air-2s/radar.ply",
+        "sha256": "99141f8965151cd8997b28833b80fcd01e541eeae168a38d4dff3be6879318f0",
+        "size_bytes": 599378,
+        "url": "/assets/radar/drones/dji-air-2s/radar.ply",
+        "vertex_count": 11427
+      },
+      "source": {
+        "excluded_duplicate_archives": [],
+        "source_archive": "DJI Air 2S.zip",
+        "source_archive_sha256": "01a0c24f98938a9313de822eccb58a9170024fa9545d3cd2abe09d8a874fd309",
+        "source_forward_axis": "-Z",
+        "source_glb_sha256": "cd61f2f4b9797f005f58b17ffc34a7787e375516f46b92389d6dec8a75bc4d61",
+        "source_member": "source/dji_air_2s-2.glb",
+        "source_unit_scale_m": 1.0,
+        "source_up_axis": "+Y"
+      },
+      "visual": {
+        "bounds_m": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.292282486,
+            0.273209088,
+            0.066658817
+          ],
+          "min": [
+            -0.292282486,
+            -0.273209088,
+            -0.066658817
+          ],
+          "size": [
+            0.584564972,
+            0.546418176,
+            0.133317635
+          ]
+        },
+        "face_count": 142400,
+        "format": "glb",
+        "path": "dji-air-2s/visual.glb",
+        "sha256": "1de1fbb8891c4674fa314d730a2aea55e3095ff50072dfd1a6e1fb44512a5389",
+        "size_bytes": 15680192,
+        "textured": true,
+        "url": "/assets/radar/drones/dji-air-2s/visual.glb",
+        "vertex_count": 102245
+      }
+    },
+    {
+      "author": {
+        "name": "aurumjuda747",
+        "profile_url": "https://sketchfab.com/aurumjuda747"
+      },
+      "default_effective_rcs_m2": 0.01,
+      "display_name": "DJI Mavic 3 Cine",
+      "id": "dji-mavic-3-cine",
+      "license": {
+        "attribution": "DJI Mavic 3 Cine by aurumjuda747, licensed under CC BY 4.0.",
+        "derivatives_allowed": true,
+        "evidence": "Recorded on the Sketchfab source listing dated 2023-02-14.",
+        "name": "Creative Commons Attribution 4.0 International",
+        "redistribution_allowed": true,
+        "source_url": "https://sketchfab.com/3d-models/mavic-3-cine-60d4a042a6eb4a1e944b1af2d4e9368b",
+        "spdx": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      "normalization": {
+        "forward_axis": "+X",
+        "left_axis": "+Y",
+        "matrix_source_to_normalized": [
+          0.0,
+          -0.01,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.01,
+          0.0,
+          -0.01,
+          0.0,
+          0.0,
+          0.0,
+          0.008001324982,
+          3.842901e-06,
+          -0.008896384239,
+          1.0
+        ],
+        "origin": "axis_aligned_bounding_box_center",
+        "units": "metres",
+        "up_axis": "+Z"
+      },
+      "radar": {
+        "bounds_m": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.219205927,
+            0.218183706,
+            0.053723716
+          ],
+          "min": [
+            -0.219205927,
+            -0.218183706,
+            -0.053723716
+          ],
+          "size": [
+            0.438411853,
+            0.436367412,
+            0.107447431
+          ]
+        },
+        "face_count": 24985,
+        "format": "ply",
+        "has_vertex_normals": true,
+        "path": "dji-mavic-3-cine/radar.ply",
+        "sha256": "159664686aee0969cc3a0f7b6ef14ab7b4c047c747e6450c34a261cae4db4022",
+        "size_bytes": 601510,
+        "url": "/assets/radar/drones/dji-mavic-3-cine/radar.ply",
+        "vertex_count": 11518
+      },
+      "source": {
+        "excluded_duplicate_archives": [],
+        "source_archive": "Mavic 3 Cine 3D Model.zip",
+        "source_archive_sha256": "1bff351621d67f9b941e120be15bd68bd4d12f5e1f04970536a0baca4e924da3",
+        "source_forward_axis": "-Z",
+        "source_glb_sha256": "716811fa18bc5b5b756b01a7216a3f3552dc9f91f80e63fa4431bb87c772b6c7",
+        "source_member": "source/wm260_glb_0909.glb",
+        "source_unit_scale_m": 0.01,
+        "source_up_axis": "+Y"
+      },
+      "visual": {
+        "bounds_m": {
+          "center": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.219205927,
+            0.218183706,
+            0.053723716
+          ],
+          "min": [
+            -0.219205927,
+            -0.218183706,
+            -0.053723716
+          ],
+          "size": [
+            0.438411853,
+            0.436367412,
+            0.107447431
+          ]
+        },
+        "face_count": 127011,
+        "format": "glb",
+        "path": "dji-mavic-3-cine/visual.glb",
+        "sha256": "5e5b8f5cb0eff4a36c6fe27350e90248114bc21cbbb793874e2626e87f36574f",
+        "size_bytes": 14334988,
+        "textured": true,
+        "url": "/assets/radar/drones/dji-mavic-3-cine/visual.glb",
+        "vertex_count": 110092
+      }
+    },
+    {
+      "author": {
+        "name": "aurumjuda747",
+        "profile_url": "https://sketchfab.com/aurumjuda747"
+      },
+      "default_effective_rcs_m2": 0.01,
+      "display_name": "DJI Mini 3",
+      "id": "dji-mini-3",
+      "license": {
+        "attribution": "DJI Mini 3 by aurumjuda747, licensed under CC BY 4.0.",
+        "derivatives_allowed": true,
+        "evidence": "Recorded on the Sketchfab source listing dated 2023-02-17.",
+        "name": "Creative Commons Attribution 4.0 International",
+        "redistribution_allowed": true,
+        "source_url": "https://sketchfab.com/3d-models/dji-mini-3-350fcf878fb9484580dce8c5ae2aa4c1",
+        "spdx": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      "normalization": {
+        "forward_axis": "+X",
+        "left_axis": "+Y",
+        "matrix_source_to_normalized": [
+          0.0,
+          -0.1,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.1,
+          0.0,
+          -0.1,
+          0.0,
+          0.0,
+          0.0,
+          -0.054996593546,
+          -8.33e-10,
+          0.001417931666,
+          1.0
+        ],
+        "origin": "axis_aligned_bounding_box_center",
+        "units": "metres",
+        "up_axis": "+Z"
+      },
+      "radar": {
+        "bounds_m": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.13917352,
+            0.146194462,
+            0.047684935
+          ],
+          "min": [
+            -0.13917352,
+            -0.146194462,
+            -0.047684935
+          ],
+          "size": [
+            0.278347041,
+            0.292388924,
+            0.09536987
+          ]
+        },
+        "face_count": 25000,
+        "format": "ply",
+        "has_vertex_normals": true,
+        "path": "dji-mini-3/radar.ply",
+        "sha256": "a723ec04b30b0303a6253a7cd93f46092db0d9d52274f3ddb6fa9ccf0a798420",
+        "size_bytes": 594025,
+        "url": "/assets/radar/drones/dji-mini-3/radar.ply",
+        "vertex_count": 11198
+      },
+      "source": {
+        "excluded_duplicate_archives": [],
+        "source_archive": "DJI Mini 3.zip",
+        "source_archive_sha256": "e5f72d6515647a210690c4a1543bd96f0710dfea60467be86268a5f718956365",
+        "source_forward_axis": "-Z",
+        "source_glb_sha256": "fc239f2d776d491f7c944f2a2ecaef83422ab87eb01ac82c3a4edb79036630d9",
+        "source_member": "source/92552ca9-3c1c-499a-b41d-2d52198b718c.glb",
+        "source_unit_scale_m": 0.1,
+        "source_up_axis": "+Y"
+      },
+      "visual": {
+        "bounds_m": {
+          "center": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.13917352,
+            0.146194462,
+            0.047684935
+          ],
+          "min": [
+            -0.13917352,
+            -0.146194462,
+            -0.047684935
+          ],
+          "size": [
+            0.278347041,
+            0.292388924,
+            0.09536987
+          ]
+        },
+        "face_count": 203823,
+        "format": "glb",
+        "path": "dji-mini-3/visual.glb",
+        "sha256": "9ac29a546d3cb0e94d776021a83d14edadd239e3743ae18edf7f97b7724a0c55",
+        "size_bytes": 9207980,
+        "textured": true,
+        "url": "/assets/radar/drones/dji-mini-3/visual.glb",
+        "vertex_count": 141458
+      }
+    },
+    {
+      "author": {
+        "name": "aurumjuda747",
+        "profile_url": "https://sketchfab.com/aurumjuda747"
+      },
+      "default_effective_rcs_m2": 0.01,
+      "display_name": "DJI Mini 3 Pro",
+      "id": "dji-mini-3-pro",
+      "license": {
+        "attribution": "DJI Mini 3 Pro by aurumjuda747, licensed under CC BY 4.0.",
+        "derivatives_allowed": true,
+        "evidence": "Recorded on the Sketchfab source listing dated 2023-02-17.",
+        "name": "Creative Commons Attribution 4.0 International",
+        "redistribution_allowed": true,
+        "source_url": "https://sketchfab.com/3d-models/dji-mini-3-pro-274f2ad2731e42b793b784c9f8453677",
+        "spdx": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      "normalization": {
+        "forward_axis": "+X",
+        "left_axis": "+Y",
+        "matrix_source_to_normalized": [
+          0.0,
+          -1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          -1.0,
+          0.0,
+          0.0,
+          0.0,
+          -0.030802120974,
+          -0.000449974257,
+          -0.034370601028,
+          1.0
+        ],
+        "origin": "axis_aligned_bounding_box_center",
+        "units": "metres",
+        "up_axis": "+Z"
+      },
+      "radar": {
+        "bounds_m": {
+          "center": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.13939915,
+            0.145616592,
+            0.042333318
+          ],
+          "min": [
+            -0.13939915,
+            -0.145616592,
+            -0.042333318
+          ],
+          "size": [
+            0.278798299,
+            0.291233183,
+            0.084666636
+          ]
+        },
+        "face_count": 24974,
+        "format": "ply",
+        "has_vertex_normals": true,
+        "path": "dji-mini-3-pro/radar.ply",
+        "sha256": "6e47c8c402561fbf5cff4fcc58e1bb402854c8f838362b75ea6aa22851ec8581",
+        "size_bytes": 593663,
+        "url": "/assets/radar/drones/dji-mini-3-pro/radar.ply",
+        "vertex_count": 11197
+      },
+      "source": {
+        "excluded_duplicate_archives": [
+          "dji-mini-3-pro.zip"
+        ],
+        "source_archive": "DJI Mini 3 Pro.zip",
+        "source_archive_sha256": "151256b95dc8aa05a86ec44c42a69324144060fc059995769f6bf706106b8f20",
+        "source_forward_axis": "-Z",
+        "source_glb_sha256": "fb0155fb6edc674e13c9c95f39aa8a5c02854bc9209655f6f4ae205264486bee",
+        "source_member": "source/c46229a5-d423-4230-ab42-c4d4bd59d2f6.glb",
+        "source_unit_scale_m": 1.0,
+        "source_up_axis": "+Y"
+      },
+      "visual": {
+        "bounds_m": {
+          "center": [
+            -0.0,
+            0.0,
+            0.0
+          ],
+          "max": [
+            0.13939915,
+            0.145616592,
+            0.042333318
+          ],
+          "min": [
+            -0.13939915,
+            -0.145616592,
+            -0.042333318
+          ],
+          "size": [
+            0.278798299,
+            0.291233183,
+            0.084666636
+          ]
+        },
+        "face_count": 194285,
+        "format": "glb",
+        "path": "dji-mini-3-pro/visual.glb",
+        "sha256": "38a7554907ff31c8f294b9bb314f1abb5d686b6a8b34c9f773e8ebad7d56cf73",
+        "size_bytes": 12695672,
+        "textured": true,
+        "url": "/assets/radar/drones/dji-mini-3-pro/visual.glb",
+        "vertex_count": 166237
+      }
+    }
+  ],
+  "coordinate_convention": {
+    "forward_axis": "+X",
+    "handedness": "right",
+    "left_axis": "+Y",
+    "origin": "axis_aligned_bounding_box_center",
+    "rotation_order": "intrinsic XYZ radians",
+    "units": "metres",
+    "up_axis": "+Z"
+  },
+  "limits": {
+    "alignment_tolerance_m": 0.005,
+    "radar_max_bytes": 2097152,
+    "radar_max_faces": 25000,
+    "visual_max_bytes": 20971520
+  },
+  "pipeline_version": 1,
+  "release_gate": {
+    "reason": "The Sketchfab source listings identify all four models as CC BY 4.0, and OpenAirTwin preserves attribution, source links, and derivative transformation records.",
+    "status": "approved"
+  },
+  "schema_version": 1,
+  "source_archive_summary": {
+    "declared_asset_count": 4,
+    "excluded_duplicate_count": 1,
+    "unique_archive_count": 4
+  }
+}

@@ -6,6 +6,12 @@ export function createRadiomapFeature(context) {
   const scene = () => context.controllers.scene;
   const picking = () => context.controllers.devicePicking;
 
+  function runRequirementMessage() {
+    return Array.isArray(state.radiomap.tx)
+      ? ""
+      : "Place Radio Map Tx before running the radio map.";
+  }
+
   function attachEvents() {
     ui.btnRunRadiomap.addEventListener("click", () => context.utilities.runSolveFromDock(
       ui.btnRunRadiomap,
@@ -47,7 +53,7 @@ export function createRadiomapFeature(context) {
     attachEvents,
     applyPick(pick, target) {
       const position = shared.pickPositionWithSurfaceClearance(pick, target.scope);
-      shared.setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, position);
+      shared.setLogicalAndVisual(state.radiomap, "tx", position);
       controller.invalidateRadiomapResult();
     },
     markerPositions() {
@@ -56,6 +62,7 @@ export function createRadiomapFeature(context) {
     readInputs() {
       solver().readRadiomapInputs();
     },
+    runRequirementMessage,
     activate() {
       context.viewerRef.current.clearOverlay();
     },

@@ -19,3 +19,13 @@ __pycache__/
 /tests/browser/test-results/
 /tests/browser/playwright-report/
 *.tsbuildinfo
+
+# Local Radar development records
+/docs/radar-sensing-development-plan.md
+/docs/radar-small-target-validation.md
+
+# Local Radar sensing demo
+/backend/static/radar-demo.html
+/backend/static/js/radar-demo.js
+/backend/static/css/radar-demo.css
+/tests/browser/radar_demo.spec.js

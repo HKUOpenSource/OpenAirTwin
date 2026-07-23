@@ -17,6 +17,7 @@ from unittest.mock import patch
 from backend import config
 from backend.jobs.deepmimo_jobs import DeepMIMOQueueFull
 from backend.jobs.mobility_jobs import MobilityQueueFull
+from backend.jobs.radar_jobs import RadarQueueFull
 from backend.jobs.radiomap_jobs import RadiomapQueueFull
 from backend.jobs.tile_download_jobs import TileDownloadBusy
 from backend.rt.runtime import SceneNotReady
@@ -36,6 +37,11 @@ class QueueFullMobilityJobManager:
 class QueueFullDeepMIMOJobManager:
     def create_job(self, _payload):
         raise DeepMIMOQueueFull(2)
+
+
+class QueueFullRadarJobManager:
+    def create_job(self, _payload, **_kwargs):
+        raise RadarQueueFull(4)
 
 
 class BusyTileDownloadJobManager:
@@ -106,6 +112,51 @@ class FakeDeepMIMOJobManager:
         if job_id != self.job.job_id:
             return None
         return self.download_path
+
+    def cancel_job(self, job_id):
+        self.cancelled_job_id = job_id
+        return self.job if job_id == self.job.job_id else None
+
+
+class FakeRadarJobManager:
+    def __init__(self, *, status: str = "succeeded") -> None:
+        self.last_payload = None
+        self.last_scene_generation = None
+        self.cancelled_job_id = None
+        started_at = "2026-07-21T12:00:01+00:00" if status != "queued" else None
+        finished_at = "2026-07-21T12:00:02+00:00" if status in {"succeeded", "failed", "cancelled"} else None
+        progress = 1.0 if finished_at else (0.5 if status == "running" else 0.0)
+        self.job = SimpleNamespace(
+            job_id="radar_test",
+            status=status,
+            progress=progress,
+            message="Radar result ready" if status == "succeeded" else "Queued",
+            scene_generation=1,
+            result={"schema_version": 1, "scene_generation": 1, "summary": {"target_count": 0}},
+            error="failed" if status == "failed" else None,
+            to_status_dict=lambda: {
+                "job_id": "radar_test",
+                "status": status,
+                "progress": progress,
+                "message": "Radar result ready" if status == "succeeded" else "Queued",
+                "created_at": "2026-07-21T12:00:00+00:00",
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "scene_generation": 1,
+                **({"error": "failed"} if status == "failed" else {}),
+            },
+        )
+
+    def create_job(self, payload, *, scene_generation):
+        self.last_payload = payload
+        self.last_scene_generation = scene_generation
+        return self.job
+
+    def get_job(self, job_id):
+        return self.job if job_id == self.job.job_id else None
+
+    def get_result(self, job_id):
+        return self.job.result if job_id == self.job.job_id else None
 
     def cancel_job(self, job_id):
         self.cancelled_job_id = job_id
@@ -221,7 +272,7 @@ class ServerHardeningTests(unittest.TestCase):
             self.assertEqual(manifest["bundles"], [])
             app_state.close()
 
-    def test_app_state_close_shuts_down_deepmimo_once(self) -> None:
+    def test_app_state_close_shuts_down_background_managers_once(self) -> None:
         class Manager:
             def __init__(self) -> None:
                 self.shutdown_calls = 0
@@ -230,14 +281,17 @@ class ServerHardeningTests(unittest.TestCase):
                 self.shutdown_calls += 1
 
         manager = Manager()
+        radar_manager = Manager()
         app_state = AppState.__new__(AppState)
         app_state._closed = False
         app_state.deepmimo_job_manager = manager
+        app_state.radar_job_manager = radar_manager
 
         app_state.close()
         app_state.close()
 
         self.assertEqual(manager.shutdown_calls, 1)
+        self.assertEqual(radar_manager.shutdown_calls, 1)
 
     def test_main_closes_server_and_app_state_after_interrupt(self) -> None:
         class FakeServer:
@@ -334,6 +388,27 @@ class ServerHardeningTests(unittest.TestCase):
                 with self.assertRaises(urllib.error.HTTPError) as error:
                     urllib.request.urlopen(f"http://{host}:{port}/js/")
                 self.assertEqual(error.exception.code, 404)
+            finally:
+                server.shutdown()
+                thread.join(timeout=2)
+                server.server_close()
+                config.STATIC_ROOT = previous_static_root
+
+    def test_radar_demo_routes_serve_the_isolated_demo_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            previous_static_root = config.STATIC_ROOT
+            static_root = Path(tmp_dir) / "static"
+            static_root.mkdir()
+            (static_root / "radar-demo.html").write_text("<h1>Radar scene demo</h1>", encoding="utf-8")
+            config.STATIC_ROOT = static_root
+
+            server, thread = self.run_server(SimpleNamespace())
+            try:
+                host, port = server.server_address
+                for route in ("/radar-demo", "/radar-demo.html"):
+                    with urllib.request.urlopen(f"http://{host}:{port}{route}") as response:
+                        self.assertEqual(response.status, 200)
+                        self.assertIn(b"Radar scene demo", response.read())
             finally:
                 server.shutdown()
                 thread.join(timeout=2)
@@ -466,6 +541,143 @@ class ServerHardeningTests(unittest.TestCase):
             payload = json.loads(error.exception.read().decode("utf-8"))
             self.assertFalse(payload["ok"])
             self.assertEqual(payload["max_pending_jobs"], 2)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_radar_job_api_lifecycle_uses_frozen_status_and_bounded_result(self) -> None:
+        manager = FakeRadarJobManager()
+        server, thread = self.run_server(SimpleNamespace(radar_job_manager=manager))
+        try:
+            host, port = server.server_address
+            create_request = urllib.request.Request(
+                f"http://{host}:{port}/api/radar/jobs",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(create_request) as response:
+                created = json.loads(response.read())
+                self.assertEqual(response.status, 202)
+            self.assertEqual(created["job_id"], "radar_test")
+            self.assertEqual(created["scene_generation"], 1)
+            self.assertEqual(manager.last_payload, {})
+            self.assertEqual(manager.last_scene_generation, 1)
+
+            status = json.loads(
+                urllib.request.urlopen(f"http://{host}:{port}/api/radar/jobs/radar_test").read()
+            )
+            self.assertEqual(status["status"], "succeeded")
+            self.assertEqual(status["started_at"], "2026-07-21T12:00:01+00:00")
+            self.assertEqual(status["finished_at"], "2026-07-21T12:00:02+00:00")
+
+            result = json.loads(
+                urllib.request.urlopen(f"http://{host}:{port}/api/radar/jobs/radar_test/result").read()
+            )
+            self.assertEqual(result, manager.job.result)
+            self.assertNotIn("download_url", result)
+            self.assertNotIn("file_path", result)
+
+            cancel_request = urllib.request.Request(
+                f"http://{host}:{port}/api/radar/jobs/radar_test/cancel",
+                data=b"",
+                method="POST",
+            )
+            cancelled = json.loads(urllib.request.urlopen(cancel_request).read())
+            self.assertEqual(cancelled["status"], "succeeded")
+            self.assertEqual(manager.cancelled_job_id, "radar_test")
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_radar_job_api_returns_frozen_errors_and_has_no_download_route(self) -> None:
+        manager = FakeRadarJobManager(status="queued")
+        server, thread = self.run_server(SimpleNamespace(radar_job_manager=manager))
+        try:
+            host, port = server.server_address
+            for suffix, code, error_name in (
+                ("missing", 404, "unknown_job"),
+                ("radar_test/result", 409, "result_not_ready"),
+                ("missing/cancel", 404, "unknown_job"),
+                ("radar_test/download", 404, None),
+            ):
+                request = urllib.request.Request(
+                    f"http://{host}:{port}/api/radar/jobs/{suffix}",
+                    data=b"" if suffix.endswith("/cancel") else None,
+                    method="POST" if suffix.endswith("/cancel") else "GET",
+                )
+                with self.assertRaises(urllib.error.HTTPError) as caught:
+                    urllib.request.urlopen(request)
+                self.assertEqual(caught.exception.code, code)
+                if error_name is not None:
+                    body = json.loads(caught.exception.read())
+                    self.assertEqual(set(body), {"ok", "error", "message"})
+                    self.assertEqual(body["error"], error_name)
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+
+    def test_radar_job_create_maps_invalid_scene_and_queue_errors(self) -> None:
+        cases = (
+            (SimpleNamespace(radar_job_manager=FakeRadarJobManager()), b'{"mode":"invalid"}', 400, "invalid_payload"),
+            (
+                SimpleNamespace(
+                    radar_job_manager=FakeRadarJobManager(),
+                    rt_runtime=FakeSceneSelectionRuntime(),
+                ),
+                b"{}",
+                409,
+                "scene_not_ready",
+            ),
+            (SimpleNamespace(radar_job_manager=QueueFullRadarJobManager()), b"{}", 429, "queue_full"),
+        )
+        for app_state, data, expected_code, expected_error in cases:
+            with self.subTest(error=expected_error):
+                server, thread = self.run_server(app_state)
+                try:
+                    host, port = server.server_address
+                    request = urllib.request.Request(
+                        f"http://{host}:{port}/api/radar/jobs",
+                        data=data,
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with self.assertRaises(urllib.error.HTTPError) as caught:
+                        urllib.request.urlopen(request)
+                    self.assertEqual(caught.exception.code, expected_code)
+                    body = json.loads(caught.exception.read())
+                    self.assertEqual(set(body), {"ok", "error", "message"})
+                    self.assertEqual(body["error"], expected_error)
+                finally:
+                    server.shutdown()
+                    thread.join(timeout=2)
+                    server.server_close()
+
+    def test_radar_job_create_maps_malformed_and_oversized_bodies_to_frozen_errors(self) -> None:
+        server, thread = self.run_server(SimpleNamespace(radar_job_manager=FakeRadarJobManager()))
+        try:
+            host, port = server.server_address
+            for data, max_bytes, expected_error, expected_code in (
+                (b"not-json", 1024, "invalid_payload", 400),
+                (b"{}", 1, "request_too_large", 413),
+            ):
+                with self.subTest(error=expected_error):
+                    request = urllib.request.Request(
+                        f"http://{host}:{port}/api/radar/jobs",
+                        data=data,
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with patch.object(config, "MAX_REQUEST_BODY_BYTES", max_bytes):
+                        with self.assertRaises(urllib.error.HTTPError) as caught:
+                            urllib.request.urlopen(request)
+                    self.assertEqual(caught.exception.code, expected_code)
+                    body = json.loads(caught.exception.read())
+                    self.assertEqual(set(body), {"ok", "error", "message"})
+                    self.assertEqual(body["error"], expected_error)
         finally:
             server.shutdown()
             thread.join(timeout=2)

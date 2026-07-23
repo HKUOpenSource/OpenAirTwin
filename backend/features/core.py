@@ -15,6 +15,10 @@ class FeatureQueueFull(RuntimeError):
         self.max_pending_jobs = int(max_pending_jobs)
 
 
+class RequestBodyTooLarge(ValueError):
+    pass
+
+
 @dataclass(frozen=True)
 class BackendFeatureDefinition:
     id: str

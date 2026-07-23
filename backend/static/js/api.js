@@ -58,6 +58,42 @@ export function solveLink(payload, options = {}) {
   });
 }
 
+// Kept only for the standalone /radar-demo compatibility surface. The
+// registered Radar feature uses the asynchronous Job API below.
+export function solveRadar(payload, options = {}) {
+  return requestJson("/api/radar/solve", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+    signal: options.signal,
+  });
+}
+
+export function createRadarJob(payload, options = {}) {
+  return requestJson("/api/radar/jobs", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+    signal: options.signal,
+  });
+}
+
+export function getRadarJob(jobId, options = {}) {
+  return requestJson(`/api/radar/jobs/${encodeURIComponent(jobId)}`, {signal: options.signal});
+}
+
+export function getRadarResult(jobId, options = {}) {
+  return requestJson(`/api/radar/jobs/${encodeURIComponent(jobId)}/result`, {signal: options.signal});
+}
+
+export function cancelRadarJob(jobId) {
+  return requestJson(`/api/radar/jobs/${encodeURIComponent(jobId)}/cancel`, {method: "POST"});
+}
+
+export function getRadarAssetManifest() {
+  return requestJson("/assets/radar/drones/manifest.json");
+}
+
 export function createRadiomapJob(payload) {
   return requestJson("/api/radiomap/jobs", {
     method: "POST",

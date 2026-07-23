@@ -11,6 +11,14 @@ state should be completed by a maintainer after the release commit is reviewed.
 - [ ] Run `npm test` in `tests/browser/`, including the macOS visual snapshots.
 - [ ] Run `npm test && npm run build` in `website/` and confirm that
   `dist/architecture/index.html` exists.
+- [ ] Verify all four Radar drone assets retain their aurumjuda747 attribution,
+  canonical Sketchfab source links, CC BY 4.0 metadata and derivative hashes.
+- [ ] Complete the desktop Radar smoke from an empty state: place Tx/Rx, add and
+  edit a drone target, run Radar, observe determinate progress, and inspect the
+  Range–Doppler, range-profile, detection and propagation-path results.
+- [ ] Exercise Radar cancellation and a recoverable failure, then confirm a
+  subsequent job succeeds and no Radar download route, button or result file is
+  present.
 - [ ] Move the entries in `CHANGELOG.md` from `Unreleased` to the selected
   Semantic Version and add the release date.
 - [ ] Confirm third-party model, scene and media attribution before adding any
@@ -31,5 +39,6 @@ state should be completed by a maintainer after the release commit is reviewed.
   unless the applicable terms and attribution are included.
 - [ ] Verify the release tag, source archive, CI badge, tutorial home page and
   `/OpenAirTwin/architecture/` page.
-- [ ] Perform one clean installation and Link smoke test from the published tag.
+- [ ] Perform one clean installation and Link plus Radar smoke test from the
+  published tag.
 - [ ] Record any post-release issue under a new `Unreleased` changelog section.

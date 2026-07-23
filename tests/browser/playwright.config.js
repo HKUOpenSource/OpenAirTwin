@@ -3,6 +3,8 @@ import {defineConfig} from "@playwright/test";
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
   ?? (process.platform === "darwin" ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : undefined);
 const pythonCommand = process.env.OAT_TEST_PYTHON ?? (process.platform === "win32" ? "python" : "python3");
+const serverPort = process.env.OAT_PORT ?? "8090";
+const baseURL = `http://127.0.0.1:${serverPort}`;
 
 export default defineConfig({
   testDir: ".",
@@ -11,7 +13,7 @@ export default defineConfig({
   expect: {timeout: 5_000},
   fullyParallel: false,
   use: {
-    baseURL: "http://127.0.0.1:8090",
+    baseURL,
     viewport: {width: 1440, height: 900},
     colorScheme: "light",
     locale: "en-US",
@@ -28,7 +30,7 @@ export default defineConfig({
   webServer: {
     command: `${pythonCommand} -m backend.server`,
     cwd: "../..",
-    url: "http://127.0.0.1:8090/api/health",
+    url: `${baseURL}/api/health`,
     timeout: 60_000,
     reuseExistingServer: true,
   },

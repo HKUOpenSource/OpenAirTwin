@@ -13,7 +13,7 @@ import {
   linkSolverConfig as buildLinkSolverConfig,
   radiomapJobPayload as buildRadiomapJobPayload,
   radiomapSurfacePayload as buildRadiomapSurfacePayload,
-} from "/js/solvers/solver_payloads.js?v=20260519-mode-isolation";
+} from "/js/solvers/solver_payloads.js?v=20260723-empty-devices";
 import {formatCount} from "/js/ui/result_formatters.js?v=20260519-mode-isolation";
 
 export function createSolverControlsController(context) {
@@ -34,6 +34,10 @@ export function createSolverControlsController(context) {
   }
 
   function featureMethod(method) {
+    const activeCandidate = context.features.instance(state.mode)?.[method];
+    if (typeof activeCandidate === "function") {
+      return activeCandidate;
+    }
     for (const definition of context.features.definitions()) {
       const candidate = context.features.instance(definition.id)?.[method];
       if (typeof candidate === "function") {
@@ -258,6 +262,10 @@ function invalidateLinkResult({clearPaths = true, clearOverlay = true} = {}) {
   callFeature("invalidateLinkResult", {clearPaths, clearOverlay});
 }
 
+function invalidateRadarResult({clearPaths = true, clearOverlay = true} = {}) {
+  context.features.instance("radar")?.invalidateRadarResult?.({clearPaths, clearOverlay});
+}
+
 function invalidateRadiomapResult({clearOverlay = true} = {}) {
   callFeature("invalidateRadiomapResult", {clearOverlay});
 }
@@ -358,11 +366,6 @@ function syncMobilityInputs() {
 }
 
 function syncNumericInputs() {
-  const [ltx, lty, ltz] = state.link.tx;
-  const [lrx, lry, lrz] = state.link.rx;
-  const [mtx, mty, mtz] = state.mobility.tx;
-  const [mrx, mry, mrz] = state.mobility.rx;
-  const [rtx, rty, rtz] = state.radiomap.tx;
   const [sx, sy] = state.radiomap.surface.size;
   const heightOffset = state.radiomap.surface.heightOffset;
   const densityLevel = state.radiomap.surface.densityLevel;
@@ -371,27 +374,16 @@ function syncNumericInputs() {
   const colorMinDb = state.radiomap.display.colorMinDb;
   const colorMaxDb = state.radiomap.display.colorMaxDb;
   const colormap = state.radiomap.display.colormap;
-  const [dtx, dty, dtz] = state.deepmimo.tx;
   const dmGrid = state.deepmimo.rxGrid;
   const dmSolver = state.deepmimo.solver;
 
-  inputs.linkTxX.value = ltx.toFixed(1);
-  inputs.linkTxY.value = lty.toFixed(1);
-  inputs.linkTxZ.value = ltz.toFixed(1);
-  inputs.linkRxX.value = lrx.toFixed(1);
-  inputs.linkRxY.value = lry.toFixed(1);
-  inputs.linkRxZ.value = lrz.toFixed(1);
-  inputs.mobilityTxX.value = mtx.toFixed(1);
-  inputs.mobilityTxY.value = mty.toFixed(1);
-  inputs.mobilityTxZ.value = mtz.toFixed(1);
-  inputs.mobilityRxX.value = mrx.toFixed(1);
-  inputs.mobilityRxY.value = mry.toFixed(1);
-  inputs.mobilityRxZ.value = mrz.toFixed(1);
+  syncDeviceVectorInputs([inputs.linkTxX, inputs.linkTxY, inputs.linkTxZ], state.link.tx, "link-tx");
+  syncDeviceVectorInputs([inputs.linkRxX, inputs.linkRxY, inputs.linkRxZ], state.link.rx, "link-rx");
+  syncDeviceVectorInputs([inputs.mobilityTxX, inputs.mobilityTxY, inputs.mobilityTxZ], state.mobility.tx, "mobility-tx");
+  syncDeviceVectorInputs([inputs.mobilityRxX, inputs.mobilityRxY, inputs.mobilityRxZ], state.mobility.rx, "mobility-rx");
   const clearanceScope = context.picking.get(state.deviceControl.activeTarget)?.scope || "link";
   inputs.linkSurfaceClearance.value = String(surfaceClearanceM(clearanceScope));
-  inputs.rmTxX.value = rtx.toFixed(1);
-  inputs.rmTxY.value = rty.toFixed(1);
-  inputs.rmTxZ.value = rtz.toFixed(1);
+  syncDeviceVectorInputs([inputs.rmTxX, inputs.rmTxY, inputs.rmTxZ], state.radiomap.tx, "rm-tx");
   inputs.rmSizeX.value = sx.toFixed(1);
   inputs.rmSizeY.value = sy.toFixed(1);
   inputs.rmHeightOffset.value = heightOffset.toFixed(1);
@@ -402,9 +394,11 @@ function syncNumericInputs() {
   inputs.rmColorMin.value = colorMinDb.toFixed(0);
   inputs.rmColorMax.value = colorMaxDb.toFixed(0);
   inputs.deepMimoScenarioName.value = state.deepmimo.export.scenarioName;
-  inputs.deepMimoTxX.value = dtx.toFixed(1);
-  inputs.deepMimoTxY.value = dty.toFixed(1);
-  inputs.deepMimoTxZ.value = dtz.toFixed(1);
+  syncDeviceVectorInputs(
+    [inputs.deepMimoTxX, inputs.deepMimoTxY, inputs.deepMimoTxZ],
+    state.deepmimo.tx,
+    "deepmimo-tx",
+  );
   const dmBounds = deepMimoRoiBounds();
   inputs.deepMimoRoiCenterX.value = dmBounds ? dmBounds.center[0].toFixed(1) : "";
   inputs.deepMimoRoiCenterY.value = dmBounds ? dmBounds.center[1].toFixed(1) : "";
@@ -421,16 +415,44 @@ function syncNumericInputs() {
   syncLinkAdvancedInputs();
   syncLivePreviewInputs();
   syncMobilityInputs();
+  context.features.instance(state.mode)?.syncInputs?.();
 }
 
 
-function setVector(target, values) {
-  target.splice(0, target.length, ...values.map((value) => Number(value)));
+function normalizeDevicePosition(values) {
+  if (!Array.isArray(values) || values.length !== 3) {
+    return null;
+  }
+  const position = values.map(Number);
+  return position.every(Number.isFinite) ? position : null;
 }
 
-function setLogicalAndVisual(logicalTarget, visualTarget, logicalValues, visualValues = logicalValues) {
-  setVector(logicalTarget, logicalValues);
-  setVector(visualTarget, visualValues);
+function readDeviceVector(inputRefs) {
+  const values = inputRefs.map((input) => input.value.trim());
+  if (values.some((value) => value === "")) {
+    return null;
+  }
+  return normalizeDevicePosition(values);
+}
+
+function syncDeviceVectorInputs(inputRefs, values, targetId) {
+  const position = normalizeDevicePosition(values);
+  if (position) {
+    inputRefs.forEach((input, index) => {
+      input.value = position[index].toFixed(1);
+    });
+    return;
+  }
+  if (state.deviceControl.activeTarget !== targetId) {
+    inputRefs.forEach((input) => {
+      input.value = "";
+    });
+  }
+}
+
+function setLogicalAndVisual(featureState, role, logicalValues, visualValues = logicalValues) {
+  featureState[role] = normalizeDevicePosition(logicalValues);
+  featureState[`${role}Visual`] = normalizeDevicePosition(visualValues);
 }
 
 function surfaceClearanceM(scope = "link") {
@@ -523,26 +545,14 @@ function readLinkAdvancedInputs() {
 }
 
 function readLinkInputs() {
-  setLogicalAndVisual(state.link.tx, state.link.txVisual, [
-    Number(inputs.linkTxX.value),
-    Number(inputs.linkTxY.value),
-    Number(inputs.linkTxZ.value),
-  ]);
-  setLogicalAndVisual(state.link.rx, state.link.rxVisual, [
-    Number(inputs.linkRxX.value),
-    Number(inputs.linkRxY.value),
-    Number(inputs.linkRxZ.value),
-  ]);
+  setLogicalAndVisual(state.link, "tx", readDeviceVector([inputs.linkTxX, inputs.linkTxY, inputs.linkTxZ]));
+  setLogicalAndVisual(state.link, "rx", readDeviceVector([inputs.linkRxX, inputs.linkRxY, inputs.linkRxZ]));
   readSurfaceClearanceInput("link");
   readLinkAdvancedInputs();
 }
 
 function readRadiomapInputs() {
-  setLogicalAndVisual(state.radiomap.tx, state.radiomap.txVisual, [
-    Number(inputs.rmTxX.value),
-    Number(inputs.rmTxY.value),
-    Number(inputs.rmTxZ.value),
-  ]);
+  setLogicalAndVisual(state.radiomap, "tx", readDeviceVector([inputs.rmTxX, inputs.rmTxY, inputs.rmTxZ]));
   state.radiomap.surface.size = [Number(inputs.rmSizeX.value), Number(inputs.rmSizeY.value)];
   state.radiomap.surface.heightOffset = Number(inputs.rmHeightOffset.value);
   state.radiomap.solver.samplesPerTx = Number(inputs.rmSamplesPerTx.value);
@@ -560,11 +570,11 @@ function readRadiomapInputs() {
 }
 
 function readDeepMimoInputs() {
-  setLogicalAndVisual(state.deepmimo.tx, state.deepmimo.txVisual, [
-    Number(inputs.deepMimoTxX.value),
-    Number(inputs.deepMimoTxY.value),
-    Number(inputs.deepMimoTxZ.value),
-  ]);
+  setLogicalAndVisual(
+    state.deepmimo,
+    "tx",
+    readDeviceVector([inputs.deepMimoTxX, inputs.deepMimoTxY, inputs.deepMimoTxZ]),
+  );
   readSurfaceClearanceInput("deepmimo");
   readDeepMimoRoiInputs();
   state.deepmimo.rxGrid.spacing = Number(inputs.deepMimoGridSpacing.value);
@@ -578,16 +588,16 @@ function readDeepMimoInputs() {
 }
 
 function readMobilityInputs() {
-  setLogicalAndVisual(state.mobility.tx, state.mobility.txVisual, [
-    Number(inputs.mobilityTxX.value),
-    Number(inputs.mobilityTxY.value),
-    Number(inputs.mobilityTxZ.value),
-  ]);
-  setLogicalAndVisual(state.mobility.rx, state.mobility.rxVisual, [
-    Number(inputs.mobilityRxX.value),
-    Number(inputs.mobilityRxY.value),
-    Number(inputs.mobilityRxZ.value),
-  ]);
+  setLogicalAndVisual(
+    state.mobility,
+    "tx",
+    readDeviceVector([inputs.mobilityTxX, inputs.mobilityTxY, inputs.mobilityTxZ]),
+  );
+  setLogicalAndVisual(
+    state.mobility,
+    "rx",
+    readDeviceVector([inputs.mobilityRxX, inputs.mobilityRxY, inputs.mobilityRxZ]),
+  );
   readSurfaceClearanceInput("mobility");
   readLinkAdvancedInputs();
   state.mobility.trajectory.velocityMps = Number(inputs.mobilityVelocity.value);
@@ -870,18 +880,23 @@ function resetMobilityTrajectoryFromRx() {
 
 function addCurrentRxWaypoint() {
   readMobilityInputs();
+  if (!Array.isArray(state.mobility.rx)) {
+    ui.hintText.textContent = "Place Mobility Rx before adding a waypoint.";
+    return false;
+  }
   const point = [...state.mobility.rx];
   const points = state.mobility.trajectory.points;
   const last = points[points.length - 1];
   if (last && Math.hypot(point[0] - last[0], point[1] - last[1], point[2] - last[2]) < 1e-6) {
     state.mobility.selectedWaypointIndex = points.length - 1;
     renderAll();
-    return;
+    return false;
   }
   points.push(point);
   state.mobility.selectedWaypointIndex = points.length - 1;
   invalidateMobilityResult();
   renderAll();
+  return true;
 }
 
 async function runMobility() {
@@ -954,6 +969,7 @@ function applyPick(pick, targetId = state.pickTarget) {
     readMobilityInputs,
     readRadiomapInputs,
     invalidateLinkResult,
+    invalidateRadarResult,
     invalidateRadiomapResult,
     invalidateMobilityResult,
     invalidateDeepMimoResult,
