@@ -63,18 +63,7 @@ The installer creates `.oat-env` on every platform and also creates
 `.oat-env.ps1` on Windows. These files preserve the selected CPU/GPU and local
 runtime configuration.
 
-Open [http://127.0.0.1:8090](http://127.0.0.1:8090), then verify the installation:
-
-1. Load the bundled sample scene from the map/scene controls.
-2. Open **Link** mode.
-3. Place one Tx and one Rx in the 3D scene.
-4. Run the link solver and inspect the rendered propagation paths.
-5. Open **Radar Sensing**, place its Tx and Rx, add a drone target from the 3D
-   model picker, and run the asynchronous Radar solver.
-6. Confirm that progress reaches completion and inspect the Range–Doppler,
-   range-profile, detection and propagation-path results.
-
-For guided workflows with videos, use the
+Open [http://127.0.0.1:8090](http://127.0.0.1:8090), then verify the installation. For guided workflows with videos, use the
 [OpenAirTwin tutorial](https://hkuopensource.github.io/OpenAirTwin/).
 
 ## Features
