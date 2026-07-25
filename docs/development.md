@@ -157,6 +157,24 @@ npm test
 npm run build
 ```
 
+The production tutorial uses nine manually reviewed 4064x2144 PNG interface
+states in `website/public/media/tutorial/manual/`: four Map Selection states
+and one state for each analysis Feature. Keep the dedicated Feature-card media
+separate from these approved tutorial images, and do not reintroduce MP4 or
+WebVTT walkthrough assets.
+
+Run the interactive browser contracts after changing tutorial layout, steps,
+hotspots, progress handling or media:
+
+```bash
+cd tests/browser
+npm run test:tutorial-site
+```
+
+This suite starts the Vite site and verifies deep links, history, v2 progress
+migration, compound hotspots, image failure fallback, keyboard behavior and
+responsive layouts at 1440, 768 and 375 pixels.
+
 The production build also copies the interactive architecture document to
 `dist/architecture/index.html`, which becomes the GitHub Pages
 `/OpenAirTwin/architecture/` route.
@@ -189,5 +207,7 @@ Before merging a user-visible change, verify that:
 
 - the root README still provides a working first-run path;
 - the tutorial matches current labels and control order;
+- the nine approved tutorial screenshots remain 4064x2144 and no legacy
+  MP4/VTT walkthrough files are present;
 - the architecture map reflects new registration and runtime connections;
 - third-party data or model sources are recorded with their applicable terms.

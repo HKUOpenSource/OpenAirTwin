@@ -26,7 +26,7 @@
 OpenAirTwin is an open-source digital twin platform for interactive wireless
 research. It combines a Python backend, a static browser frontend, tile-based
 city scenes, and Sionna RT workflows for link analysis, mobility simulation,
-radio-map generation, and DeepMIMO dataset export.
+radio-map generation, DeepMIMO dataset export, and radar sensing.
 
 <p align="center">
   <img src="backend/static/assets/openairtwin_showcase.png" alt="OpenAirTwin browser interface" width="100%">
@@ -63,7 +63,9 @@ The installer creates `.oat-env` on every platform and also creates
 `.oat-env.ps1` on Windows. These files preserve the selected CPU/GPU and local
 runtime configuration.
 
-Open [http://127.0.0.1:8090](http://127.0.0.1:8090), then verify the installation. For guided workflows with videos, use the
+Open [http://127.0.0.1:8090](http://127.0.0.1:8090), then verify the
+installation. For guided workflows with manually reviewed interactive
+screenshots, use the
 [OpenAirTwin tutorial](https://hkuopensource.github.io/OpenAirTwin/).
 
 ## Features
@@ -90,8 +92,9 @@ Open [http://127.0.0.1:8090](http://127.0.0.1:8090), then verify the installatio
 - [Scene data and third-party terms](docs/data-licenses.md): Open3Dhk/CSDI data
   responsibilities, bundled sample-scene attribution and Radar drone-model
   licensing.
-- [Video tutorial](https://hkuopensource.github.io/OpenAirTwin/): browser-led
-  walkthroughs for the map and all five current analysis Features.
+- [Interactive tutorial](https://hkuopensource.github.io/OpenAirTwin/):
+  screenshot-led walkthroughs for all six workflows, with stable deep links
+  and saved progress.
 
 ## Installation Details
 
