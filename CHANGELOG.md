@@ -14,15 +14,27 @@ All notable changes to OpenAirTwin are recorded here. This project follows
   protection and in-memory results, exposed through `/api/radar/jobs`.
 - Added Radar-specific Range–Doppler, range-profile, detection, target-truth and
   classified-path views with isolated Viewer Layers and no data-export route.
-
 - Added a CPU-only CI smoke gate that loads a real Sionna RT scene and exercises
   Link, Radio Map and DeepMIMO export workflows with the pinned runtime stack.
+- Added a responsive interactive screenshot tutorial covering six modes and 24
+  steps, with stable deep links, saved progress, accessible hotspots and
+  deterministic browser contracts.
+
+### Changed
+
+- Replaced the 20 legacy MP4/WebVTT tutorial pairs with nine manually reviewed
+  4064x2144 PNG interface states and restored the original Features → Tutorial
+  → Installation page flow.
+- Updated the Radar Sensing feature preview with a dedicated drone-target image
+  while keeping the approved Radar tutorial screenshot independent.
 
 ### Fixed
 
 - Restored persisted DeepMIMO jobs across server restarts, enforced TTL and
   storage limits for historical job directories, and hardened server shutdown
   so active DeepMIMO workers are terminated and reaped.
+- Prevented Radar state from disabling the shared Tx Orbit control while Link,
+  Mobility, Radio Map or DeepMIMO is the active Feature.
 
 ## [1.0.0] - 2026-07-19
 

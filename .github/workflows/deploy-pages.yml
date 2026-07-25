@@ -33,13 +33,27 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: website/package-lock.json
+          cache-dependency-path: |
+            website/package-lock.json
+            tests/browser/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Install browser test dependencies
+        working-directory: tests/browser
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: tests/browser
+        run: npx playwright install --with-deps chromium
+
       - name: Test tutorial contracts
         run: npm test
+
+      - name: Test interactive tutorial
+        working-directory: tests/browser
+        run: npm run test:tutorial-site
 
       - name: Build
         run: npm run build

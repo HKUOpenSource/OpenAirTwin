@@ -153,9 +153,6 @@ export function createRadarFeature(context) {
     dom.btnSolveRadar.setAttribute("aria-busy", String(activeJob));
     if (deviceRequirement) dom.btnSolveRadar.title = deviceRequirement;
     else dom.btnSolveRadar.removeAttribute("title");
-    context.ui.btnOrbitTx.disabled = !Array.isArray(radar.txVisual);
-    if (!Array.isArray(radar.txVisual)) context.ui.btnOrbitTx.title = "Place Radar Tx before orbiting.";
-    else context.ui.btnOrbitTx.removeAttribute("title");
   }
 
   return {

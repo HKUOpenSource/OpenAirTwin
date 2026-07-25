@@ -117,10 +117,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: tests/browser/package-lock.json
+          cache-dependency-path: |
+            tests/browser/package-lock.json
+            website/package-lock.json
 
       - name: Install browser dependencies
         working-directory: tests/browser
+        run: npm ci
+
+      - name: Install tutorial site dependencies
+        working-directory: website
         run: npm ci
 
       - name: Install Chromium
@@ -130,3 +136,7 @@ jobs:
       - name: Run deterministic browser contracts
         working-directory: tests/browser
         run: npm run test:ci
+
+      - name: Run interactive tutorial browser contracts
+        working-directory: tests/browser
+        run: npm run test:tutorial-site

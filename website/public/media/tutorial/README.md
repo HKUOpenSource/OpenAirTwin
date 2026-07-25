@@ -1,48 +1,30 @@
-OpenAirTwin tutorial video assets
-=================================
+OpenAirTwin interactive tutorial assets
+=======================================
 
-Place compressed MP4 operation clips and matching WebVTT caption files in the mode folders below. Keep each clip well under GitHub's 100MB single-file limit so the site can be pushed and deployed through GitHub Pages without Git LFS.
+The production walkthrough uses nine manually reviewed 2x PNG screenshots in
+`manual/`. Do not add tutorial videos, captions, or automatically generated
+captures.
 
-Keep every MP4/VTT filename stem identical. The tutorial player loads only the
-active clip's metadata, starts paused at 1x speed, and shows the full written
-workflow below the player.
+Map Selection contains four interface states:
 
-Recording guidelines:
-- 10-30 seconds per clip.
-- 1080p or 1920px-wide H.264 MP4 is recommended.
-- Cursor visible.
-- Full browser window preferred.
-- No narration required.
-- Audio is optional, but removing audio keeps files smaller; the website mutes clips by default.
+1. `map-search.png`
+2. `map-selected.png`
+3. `map-loading.png`
+4. `map-scene.png`
 
-Expected files:
+Link, Mobility, Radio Map, DeepMIMO, and Radar each use one full interface
+screenshot. Every production image must remain 4064x2144 so the tutorial can
+zoom into the original pixels without enlarging a low-resolution source.
 
-map/
-- 01-search.mp4
-- 02-select-tiles.mp4
-- 03-download-tile.mp4
-- 04-load-scene.mp4
+The Radar Sensing feature card uses the separate
+`../../feature-radar-sensing.png` asset. Replacing that preview must not modify
+the approved `manual/radar.png` tutorial screenshot.
 
-link/
-- 01-place-tx.mp4
-- 02-place-rx.mp4
-- 03-configure-solver-cir.mp4
-- 04-solve-inspect-results.mp4
+Interactive targets and explanations are authored together in
+`website/src/tutorialData.ts`. Keep targets subtle, use one highlighted region
+per step, and describe observation-only states honestly rather than presenting
+them as clickable application controls.
 
-mobility/
-- 01-set-tx.mp4
-- 02-add-rx-waypoints-enter.mp4
-- 03-tune-trajectory-sampling.mp4
-- 04-run-playback-timeline.mp4
-
-radiomap/
-- 01-place-tx.mp4
-- 02-configure-patch.mp4
-- 03-configure-resolution-display.mp4
-- 04-run-heatmap.mp4
-
-deepmimo/
-- 01-set-tx.mp4
-- 02-draw-roi.mp4
-- 03-configure-receiver-grid.mp4
-- 04-export-dataset-tray.mp4
+Run `npm test` inside `website/` after replacing an image. CI verifies the
+manual asset list, dimensions, 24-step data contract, accessibility controls,
+and the absence of legacy MP4/VTT tutorial material.

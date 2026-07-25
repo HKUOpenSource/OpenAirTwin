@@ -11,6 +11,11 @@ state should be completed by a maintainer after the release commit is reviewed.
 - [ ] Run `npm test` in `tests/browser/`, including the macOS visual snapshots.
 - [ ] Run `npm test && npm run build` in `website/` and confirm that
   `dist/architecture/index.html` exists.
+- [ ] Run `npm run test:tutorial-site` in `tests/browser/` and confirm all six
+  tutorial modes work at 1440, 768 and 375 pixel widths.
+- [ ] Confirm the tutorial contains exactly nine 4064x2144 PNG interface states,
+  no legacy MP4/VTT walkthrough files, and a Radar Feature preview independent
+  from `tutorial/manual/radar.png`.
 - [ ] Verify all four Radar drone assets retain their aurumjuda747 attribution,
   canonical Sketchfab source links, CC BY 4.0 metadata and derivative hashes.
 - [ ] Complete the desktop Radar smoke from an empty state: place Tx/Rx, add and
