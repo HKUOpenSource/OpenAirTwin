@@ -1,27 +1,35 @@
-export type ModeId = "map" | "link" | "mobility" | "radiomap" | "deepmimo";
+export type ModeId = "map" | "link" | "mobility" | "radiomap" | "deepmimo" | "radar";
 
-export type VideoSource = {
+export type TutorialFrame = {
+  id: string;
   src: string;
-  type?: string;
-  label: string;
+  alt: string;
+  width: number;
+  height: number;
+  pixelRatio: 2;
 };
 
-export type VideoAsset = {
-  sources: VideoSource[];
-  captionSrc: string;
-  expectedPath: string;
-  durationHint: string;
+export type TutorialTarget = {
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
 };
 
 export type TutorialStep = {
   id: string;
   title: string;
   summary: string;
-  video: VideoAsset;
-  clicks: string[];
-  parameters: string[];
-  success: string[];
-  warning: string;
+  instruction: string;
+  frameId: string;
+  kind: "action" | "observe";
+  target: TutorialTarget;
+  secondaryTargets?: TutorialTarget[];
+  details: string[];
+  success: string;
+  note: string;
 };
 
 export type TutorialMode = {
@@ -30,109 +38,114 @@ export type TutorialMode = {
   shortLabel: string;
   accent: string;
   summary: string;
+  frames: TutorialFrame[];
   steps: TutorialStep[];
 };
 
-const video = (mode: ModeId, fileName: string, durationHint = "10-30 seconds"): VideoAsset => {
-  const stem = fileName.replace(/\.(mp4|mov)$/i, "");
-
-  return {
-    sources: [
-      { src: `media/tutorial/${mode}/${stem}.mp4`, type: "video/mp4", label: "MP4" },
-    ],
-    captionSrc: `media/tutorial/${mode}/${stem}.vtt`,
-    expectedPath: `website/public/media/tutorial/${mode}/${stem}.mp4`,
-    durationHint,
-  };
-};
+const image = (
+  id: string,
+  src: string,
+  alt: string,
+  width = 4064,
+  height = 2144,
+): TutorialFrame => ({
+  id,
+  src: `media/tutorial/manual/${src}`,
+  alt,
+  width,
+  height,
+  pixelRatio: 2,
+});
 
 export const tutorialModes: TutorialMode[] = [
   {
     id: "map",
     label: "Map Selection",
     shortLabel: "Map",
-    accent: "#1f6fff",
-    summary: "Find a target location, select Open3DHK tiles, download missing tile assets, and load the selected scene.",
+    accent: "#2878ff",
+    summary: "Move from place search to a loaded 3D city scene through four real interface states.",
+    frames: [
+      image(
+        "search",
+        "map-search.png",
+        "OpenAirTwin map selection screen showing an HKU place search and the Hong Kong tile grid.",
+      ),
+      image(
+        "selected",
+        "map-selected.png",
+        "OpenAirTwin map with four HKU scene tiles selected and ready to load.",
+      ),
+      image(
+        "loading",
+        "map-loading.png",
+        "OpenAirTwin map showing the scene loading progress dialog.",
+      ),
+      image(
+        "scene",
+        "map-scene.png",
+        "Loaded OpenAirTwin 3D Hong Kong scene with analysis controls available.",
+      ),
+    ],
     steps: [
       {
         id: "search-location",
-        title: "Search",
-        summary: "Search and focus the target area.",
-        video: video("map", "01-search.mp4"),
-        clicks: [
-          "Click the Place Search input in the left map panel.",
-          "Type the target place keyword.",
-          "Choose the matching result from the search list.",
+        title: "Find the study area",
+        summary: "Use place search to move the map to the intended campus or district.",
+        instruction: "Select the highlighted search panel, then inspect how the result list identifies the target location.",
+        frameId: "search",
+        kind: "action",
+        target: { label: "Place search", x: 0.047, y: 0.182, width: 0.155, height: 0.036, zoom: 1.7 },
+        details: [
+          "Start with a short place name such as HKU.",
+          "Choose the matching result before selecting scene tiles.",
         ],
-        parameters: [
-          "Use a short location keyword first, then refine from the result list.",
-          "Keep the result panel open until the map has panned to the target campus area.",
-        ],
-        success: [
-          "The map focuses on the target area.",
-          "Nearby Open3DHK tile boundaries become easy to inspect.",
-        ],
-        warning: "Search is only a locator. Tiles still need to be selected and loaded before ray-tracing tools can run.",
+        success: "The map is centered on the target area and nearby scene tiles are visible.",
+        note: "Search only changes the map location; it does not load 3D geometry.",
       },
       {
         id: "select-tiles",
-        title: "Select Tiles",
-        summary: "Select only the tiles needed for this scene.",
-        video: video("map", "02-select-tiles.mp4"),
-        clicks: [
-          "Click the focused target tile.",
-          "Add adjacent tiles that cover the intended ROI area.",
-          "Check the selected-tile badge before continuing.",
+        title: "Select scene tiles",
+        summary: "Choose a compact group of tiles that covers the study area.",
+        instruction: "Select the highlighted tile region and compare it with the selection summary in the lower-right corner.",
+        frameId: "selected",
+        kind: "action",
+        target: { label: "Selected tiles", x: 0.388, y: 0.214, width: 0.335, height: 0.51, zoom: 1.55 },
+        details: [
+          "Selected tiles are shown in blue.",
+          "Keep the tile count small enough for a responsive first experiment.",
         ],
-        parameters: [
-          "Tile count controls scene size and loading cost.",
-          "Select only the coverage required for the current experiment.",
-        ],
-        success: [
-          "Selected tiles are visually highlighted.",
-          "The selected-tile badge matches the intended coverage.",
-        ],
-        warning: "Selecting too many tiles makes later solver steps slower and harder to inspect.",
+        success: "Four tiles are selected and the summary reports the expected mesh count.",
+        note: "Selecting a very large area increases download, rendering, and solver cost.",
       },
       {
         id: "download-tile",
-        title: "Download Tiles",
-        summary: "Download missing Open3DHK tiles.",
-        video: video("map", "03-download-tile.mp4"),
-        clicks: [
-          "Open the tile action panel.",
-          "Click Download for unavailable selected tiles.",
-          "Wait until every required tile is marked available.",
+        title: "Load the selected scene",
+        summary: "OpenAirTwin retrieves the selected tile bundles and builds the scene.",
+        instruction: "Inspect the highlighted progress dialog. This is an observation step; no extra click is required while loading runs.",
+        frameId: "loading",
+        kind: "observe",
+        target: { label: "Loading progress", x: 0.374, y: 0.458, width: 0.255, height: 0.092, zoom: 1.65 },
+        details: [
+          "The dialog reports how many selected tiles are being loaded.",
+          "Keep the page open until geometry preparation finishes.",
         ],
-        parameters: [
-          "Download status should finish before Load Selected is used.",
-          "A stable network is needed only in the real platform, not on this tutorial website.",
-        ],
-        success: [
-          "Every selected tile shows an available or ready state.",
-          "The Load Selected action becomes the next natural step.",
-        ],
-        warning: "If one tile is still downloading, loading the scene may omit buildings from that tile.",
+        success: "The loading dialog closes and the 3D scene replaces the map.",
+        note: "A missing or incomplete tile can leave gaps in later propagation results.",
       },
       {
         id: "load-scene",
-        title: "Load Scene",
-        summary: "Load selected tiles into the 3D scene.",
-        video: video("map", "04-load-scene.mp4"),
-        clicks: [
-          "Click Load Selected.",
-          "Wait for geometry to appear in the 3D scene.",
-          "Confirm the scene toolbar and mode controls are available.",
+        title: "Verify the 3D scene",
+        summary: "Confirm that geometry, analysis controls, and scene navigation are ready.",
+        instruction: "Select the highlighted action bar to see where Tx/Rx placement and analysis commands become available.",
+        frameId: "scene",
+        kind: "observe",
+        target: { label: "Analysis controls", x: 0.396, y: 0.852, width: 0.209, height: 0.055, zoom: 1.65 },
+        details: [
+          "Orbit the scene before placing devices.",
+          "Choose the analysis mode from the left configuration panel.",
         ],
-        parameters: [
-          "Loaded tile count should match the selected-tile badge.",
-          "A smaller initial scene is best for tutorial runs and debugging.",
-        ],
-        success: [
-          "The 3D city scene appears.",
-          "Tx/Rx placement and analysis mode controls are enabled.",
-        ],
-        warning: "If the scene looks empty, return to Map Selection and verify that selected tiles were downloaded first.",
+        success: "The city model is visible and the bottom action bar is enabled.",
+        note: "If the scene is empty, return to Map Selection and verify the selected tiles.",
       },
     ],
   },
@@ -140,89 +153,66 @@ export const tutorialModes: TutorialMode[] = [
     id: "link",
     label: "Link Analysis",
     shortLabel: "Link",
-    accent: "#0da6b8",
-    summary: "Place Tx/Rx devices, tune ray-tracing and CIR options, solve the link, and inspect paths and channel output.",
+    accent: "#0b9fb2",
+    summary: "Place a radio link, configure propagation, solve it, and interpret paths and channel taps.",
+    frames: [
+      image(
+        "link-results",
+        "link.png",
+        "OpenAirTwin Link Analysis scene showing traced paths and the path gains and channel taps result panel.",
+      ),
+    ],
     steps: [
       {
         id: "place-tx",
-        title: "Place Tx",
-        summary: "Place the transmitter in the 3D scene.",
-        video: video("link", "01-place-tx.mp4"),
-        clicks: [
-          "Choose Add Tx from the bottom device action bar.",
-          "Click the desired transmitter location in the 3D scene.",
-          "Review or edit the Tx coordinate fields.",
-        ],
-        parameters: [
-          "Tx height should clear nearby ground clutter.",
-          "Coordinate edits are useful when a precise rooftop or street-level point is required.",
-        ],
-        success: [
-          "A Tx marker appears in the scene.",
-          "The parameter panel shows the selected Tx position.",
-        ],
-        warning: "A Tx outside the loaded tiles may produce no useful propagation paths.",
+        title: "Place the transmitter",
+        summary: "Choose Tx and position the transmitter in the loaded scene.",
+        instruction: "Select the highlighted Tx control. In the application, the next scene click places the transmitter.",
+        frameId: "link-results",
+        kind: "action",
+        target: { label: "Tx", x: 0.396, y: 0.859, width: 0.045, height: 0.045, zoom: 1.75 },
+        details: ["Use a rooftop or street-level position that matches the experiment.", "Keep Tx inside loaded geometry."],
+        success: "A blue Tx marker appears and its coordinates are available in the configuration panel.",
+        note: "An endpoint outside the loaded area may produce no useful paths.",
       },
       {
         id: "place-rx",
-        title: "Place Rx",
-        summary: "Place the receiver and confirm endpoints.",
-        video: video("link", "02-place-rx.mp4"),
-        clicks: [
-          "Choose Add Rx from the device action bar.",
-          "Click the receiver location in the scene.",
-          "Confirm both Tx and Rx markers are visible.",
-        ],
-        parameters: [
-          "Rx height usually represents handset, sensor, or base-station receiver height.",
-          "The Tx/Rx separation should remain inside the loaded geometry area.",
-        ],
-        success: [
-          "A Rx marker appears and the link endpoint list is complete.",
-          "The Solve Link button is ready once required parameters are valid.",
-        ],
-        warning: "If Rx is hidden behind the parameter drawer, rotate or pan the scene before placing it.",
+        title: "Place the receiver",
+        summary: "Add the second endpoint and check the link geometry.",
+        instruction: "Select the highlighted Rx control, then compare the two endpoint positions in the scene.",
+        frameId: "link-results",
+        kind: "action",
+        target: { label: "Rx", x: 0.444, y: 0.859, width: 0.043, height: 0.045, zoom: 1.75 },
+        details: ["Rx can represent a handset, sensor, or base station.", "The two endpoints should remain within the scene."],
+        success: "Both endpoints are visible and Solve Link becomes available.",
+        note: "Rotate the scene if a building or panel hides the intended receiver location.",
       },
       {
         id: "configure-solver-cir",
-        title: "Tune Solver and CIR",
-        summary: "Tune solver, propagation, and CIR settings.",
-        video: video("link", "03-configure-solver-cir.mp4"),
-        clicks: [
-          "Open the physical layer, antenna, propagation, solver, and channel output groups.",
-          "Edit frequency, bandwidth, max depth, sample count, and CIR tap range.",
-          "Enable or disable LoS, specular, diffuse, diffraction, and refraction options as needed.",
+        title: "Configure the link",
+        summary: "Set physical-layer, antenna, propagation, solver, and channel-output options.",
+        instruction: "Review the highlighted Propagation Solver settings, then select Solve Link to run the analysis.",
+        frameId: "link-results",
+        kind: "action",
+        target: { label: "Propagation Solver", x: 0.047, y: 0.323, width: 0.198, height: 0.377, zoom: 1.6 },
+        secondaryTargets: [
+          { label: "Solve Link", x: 0.536, y: 0.859, width: 0.064, height: 0.045, zoom: 1.75 },
         ],
-        parameters: [
-          "Carrier frequency and bandwidth define the channel configuration.",
-          "Max depth and samples control ray search quality and runtime.",
-          "Compute CIR must be enabled when tap-level channel output is needed.",
-        ],
-        success: [
-          "The edited values remain visible in the right parameter panel.",
-          "The selected solver budget matches the desired speed and fidelity tradeoff.",
-        ],
-        warning: "Large sample counts and deep reflection settings can be expensive on non-GPU machines.",
+        details: ["Frequency and bandwidth define the channel.", "Samples and path depth control the speed–quality trade-off."],
+        success: "The selected settings remain valid and the Solve Link command is ready.",
+        note: "High sample counts and deep interactions can be expensive without a GPU.",
       },
       {
         id: "solve-inspect-results",
-        title: "Solve and Inspect",
-        summary: "Solve the link and inspect channel results.",
-        video: video("link", "04-solve-inspect-results.mp4"),
-        clicks: [
-          "Click Solve Link.",
-          "Wait for the job status to complete.",
-          "Open the path list and CIR/tap result panel.",
-        ],
-        parameters: [
-          "Compare received power and strongest path before changing solver settings.",
-          "Use path delay and interaction type to understand dominant propagation mechanisms.",
-        ],
-        success: [
-          "Ray paths are drawn between Tx and Rx.",
-          "The result panel reports received power, path count, path details, and CIR/tap values.",
-        ],
-        warning: "No paths usually means endpoints, loaded tiles, or solver constraints need to be checked first.",
+        title: "Inspect link results",
+        summary: "Read path gain, interaction types, delays, and discrete channel taps.",
+        instruction: "Select the highlighted results dock and inspect the summary, path list, and power-delay profile.",
+        frameId: "link-results",
+        kind: "observe",
+        target: { label: "Link results", x: 0.776, y: 0.101, width: 0.184, height: 0.672, zoom: 1.45 },
+        details: ["Compare total and strongest path gain first.", "Use the path list to identify reflection, refraction, and mixed interactions."],
+        success: "The scene shows traced paths while the result dock reports seven paths and channel taps.",
+        note: "No paths usually indicates an endpoint, scene coverage, or solver-constraint problem.",
       },
     ],
   },
@@ -230,89 +220,68 @@ export const tutorialModes: TutorialMode[] = [
     id: "mobility",
     label: "Mobility",
     shortLabel: "Move",
-    accent: "#d87016",
-    summary: "Build a moving receiver route, use Enter from scene focus to add waypoints, run mobility, and play the timeline.",
+    accent: "#df7a23",
+    summary: "Create a receiver trajectory, tune temporal sampling, and run a channel sequence.",
+    frames: [
+      image(
+        "mobility-results",
+        "mobility.png",
+        "OpenAirTwin Mobility Analysis scene showing receiver waypoints, trajectory paths, playback controls, and channel results.",
+        4064,
+        2144,
+      ),
+    ],
     steps: [
       {
         id: "set-tx",
-        title: "Set Tx",
-        summary: "Place the fixed transmitter for the route.",
-        video: video("mobility", "01-set-tx.mp4"),
-        clicks: [
-          "Open Mobility mode.",
-          "Choose Add Tx from the device action bar.",
-          "Click the transmitter position in the scene.",
-        ],
-        parameters: [
-          "The Tx remains fixed while Rx samples move along the route.",
-          "Use a loaded scene that covers the full planned trajectory.",
-        ],
-        success: [
-          "A Tx marker is visible.",
-          "Mobility route controls become the focus of the right panel.",
-        ],
-        warning: "The mobility route should not leave the loaded tile area.",
+        title: "Set the fixed transmitter",
+        summary: "Place the stationary endpoint for the mobility experiment.",
+        instruction: "Select the highlighted Tx control and choose a position that can cover the planned route.",
+        frameId: "mobility-results",
+        kind: "action",
+        target: { label: "Tx", x: 0.399, y: 0.859, width: 0.044, height: 0.045, zoom: 1.75 },
+        details: ["The transmitter stays fixed while Rx moves.", "Load geometry for the entire intended route."],
+        success: "The Tx marker is visible and trajectory controls are available.",
+        note: "Do not let the planned route leave the loaded tile area.",
       },
       {
         id: "add-rx-waypoints-enter",
-        title: "Add Rx Waypoints with Enter",
-        summary: "Add Rx waypoints with the Enter shortcut.",
-        video: video("mobility", "02-add-rx-waypoints-enter.mp4"),
-        clicks: [
-          "Choose Add Current Rx or click a scene point for the receiver.",
-          "Move focus back to the scene or another non-editable surface.",
-          "Press Enter to append the current Rx position as a waypoint.",
+        title: "Build the Rx trajectory",
+        summary: "Append receiver positions in travel order.",
+        instruction: "Review the highlighted waypoint list, then select Rx to add the next receiver position.",
+        frameId: "mobility-results",
+        kind: "action",
+        target: { label: "Add Current Rx", x: 0.052, y: 0.376, width: 0.093, height: 0.025, zoom: 1.8 },
+        secondaryTargets: [
+          { label: "Rx", x: 0.444, y: 0.859, width: 0.043, height: 0.045, zoom: 1.75 },
         ],
-        parameters: [
-          "Enter adds a waypoint only when focus is not inside an input or select field.",
-          "Use the waypoint list to verify order and coordinates after each Enter press.",
-        ],
-        success: [
-          "A new waypoint appears in the route list.",
-          "The scene route line updates after each added point.",
-        ],
-        warning: "If the cursor is inside a parameter input, Enter edits/submits that field instead of adding a waypoint.",
+        details: ["Add Current Rx stores the current receiver position.", "Enter can append a waypoint when focus is outside an input."],
+        success: "The waypoint list and the colored scene trajectory update together.",
+        note: "Pressing Enter inside a field edits that field instead of adding a waypoint.",
       },
       {
         id: "tune-trajectory-sampling",
-        title: "Tune Trajectory Sampling",
-        summary: "Tune velocity, time step, and sample limits.",
-        video: video("mobility", "03-tune-trajectory-sampling.mp4"),
-        clicks: [
-          "Open mobility parameters.",
-          "Edit velocity, time step, and max steps.",
-          "Review the estimated sample count before running.",
-        ],
-        parameters: [
-          "Velocity changes travel time along the waypoint route.",
-          "Time step controls temporal sampling resolution.",
-          "Max steps caps long routes and protects runtime.",
-        ],
-        success: [
-          "The estimated sample count is reasonable.",
-          "Run Mobility is available with the selected route and parameters.",
-        ],
-        warning: "Very small time steps can create many samples and long solve times.",
+        title: "Configure and run mobility",
+        summary: "Set the temporal sampling, then solve the complete receiver route.",
+        instruction: "Review velocity, time step, and maximum steps in the trajectory panel, then select the highlighted Run Mobility control.",
+        frameId: "mobility-results",
+        kind: "action",
+        target: { label: "Run Mobility", x: 0.538, y: 0.859, width: 0.064, height: 0.045, zoom: 1.75 },
+        details: ["A smaller time step produces denser temporal samples.", "Run Mobility solves every sampled receiver position along the route."],
+        success: "The route is solved and the timeline and channel-result panels become available.",
+        note: "Very small time steps can create unnecessarily large jobs.",
       },
       {
         id: "run-playback-timeline",
-        title: "Run and Play Timeline",
-        summary: "Run mobility and scrub the result timeline.",
-        video: video("mobility", "04-run-playback-timeline.mp4"),
-        clicks: [
-          "Click Run Mobility.",
-          "Wait for the job to complete.",
-          "Use play, pause, and scrub controls on the timeline.",
-        ],
-        parameters: [
-          "Timeline playback should match the route order.",
-          "Inspect received power or path changes at specific time samples.",
-        ],
-        success: [
-          "The receiver marker animates along the route.",
-          "Timeline values and result panels update with the selected time sample.",
-        ],
-        warning: "If playback looks static, confirm that more than one waypoint and more than one time sample were generated.",
+        title: "Inspect mobility results",
+        summary: "Explore how path gain, propagation paths, and channel taps change along the route.",
+        instruction: "Select the highlighted results panel, move through the mobility timeline, and compare each sample with the paths in the scene.",
+        frameId: "mobility-results",
+        kind: "observe",
+        target: { label: "Mobility results", x: 0.776, y: 0.1, width: 0.185, height: 0.738, zoom: 1.45 },
+        details: ["The timeline shows path gain over time and selects the current receiver sample.", "The path list and power-delay profile describe the channel at that sample."],
+        success: "The selected timeline sample matches the displayed propagation paths and channel taps.",
+        note: "Compare samples at peaks and fades to understand how the route changes the channel.",
       },
     ],
   },
@@ -320,89 +289,63 @@ export const tutorialModes: TutorialMode[] = [
     id: "radiomap",
     label: "Radio Map",
     shortLabel: "RMap",
-    accent: "#16a36a",
-    summary: "Place a transmitter, configure the map patch and resolution, run the heatmap, and interpret the colorbar.",
+    accent: "#17a36b",
+    summary: "Configure a terrain patch and visualize received power across the scene.",
+    frames: [
+      image(
+        "radiomap-results",
+        "radiomap.png",
+        "OpenAirTwin Radio Map scene showing a colored terrain heatmap and path gain result panel.",
+      ),
+    ],
     steps: [
       {
         id: "place-tx",
-        title: "Place Tx",
-        summary: "Place the transmitter for the heatmap.",
-        video: video("radiomap", "01-place-tx.mp4"),
-        clicks: [
-          "Open Radio Map mode.",
-          "Choose Add Tx.",
-          "Click the transmitter position in the 3D scene.",
-        ],
-        parameters: [
-          "Tx location and height strongly affect heatmap shape.",
-          "Keep Tx inside or near the intended patch area.",
-        ],
-        success: [
-          "A Tx marker is visible.",
-          "Patch and radio-map controls are ready to configure.",
-        ],
-        warning: "Changing Tx after a solve requires running the radio map again.",
+        title: "Place the transmitter",
+        summary: "Set the radio source for the coverage calculation.",
+        instruction: "Select the highlighted Tx control and place the transmitter near the intended patch.",
+        frameId: "radiomap-results",
+        kind: "action",
+        target: { label: "Tx", x: 0.422, y: 0.859, width: 0.044, height: 0.045, zoom: 1.75 },
+        details: ["Tx position and height shape the heatmap.", "Keep the source inside or near the patch."],
+        success: "The transmitter marker appears and patch settings are available.",
+        note: "Moving Tx invalidates the current heatmap and requires a new run.",
       },
       {
         id: "configure-patch",
-        title: "Configure Patch",
-        summary: "Set patch size, center, and receiver height.",
-        video: video("radiomap", "02-configure-patch.mp4"),
-        clicks: [
-          "Open patch controls.",
-          "Edit patch width, depth, center, and receiver height.",
-          "Confirm the patch overlay covers the intended study area.",
-        ],
-        parameters: [
-          "Patch size determines spatial coverage.",
-          "Receiver height should match the scenario, such as pedestrian or rooftop measurements.",
-        ],
-        success: [
-          "The patch overlay matches the target area.",
-          "The receiver plane height is visible in the parameter panel.",
-        ],
-        warning: "A patch outside loaded tiles may produce empty or misleading heatmap regions.",
-      },
-      {
-        id: "configure-resolution-display",
-        title: "Configure Resolution and Display",
-        summary: "Set grid resolution and display controls.",
-        video: video("radiomap", "03-configure-resolution-display.mp4"),
-        clicks: [
-          "Edit cell size and density.",
-          "Choose colormap and color limits.",
-          "Set sample count for the ray search.",
-        ],
-        parameters: [
-          "Smaller cell size gives finer maps but more receiver samples.",
-          "Color limits should make weak and strong coverage regions distinguishable.",
-          "Sample count controls solver quality and runtime.",
-        ],
-        success: [
-          "The predicted receiver-grid size is acceptable.",
-          "Colorbar limits are set before the job starts.",
-        ],
-        warning: "Overly dense grids can make a small tutorial scene feel unresponsive.",
+        title: "Configure the terrain patch",
+        summary: "Set the coverage area, receiver height, grid density, and display range.",
+        instruction: "Select the highlighted Terrain Patch panel and review its area, resolution, and display settings.",
+        frameId: "radiomap-results",
+        kind: "action",
+        target: { label: "Terrain Patch settings", x: 0.047, y: 0.374, width: 0.199, height: 0.284, zoom: 1.62 },
+        details: ["Patch size and height define the receiver area.", "Grid density and color limits control resolution and display."],
+        success: "The terrain patch, sampling density, and color range are ready.",
+        note: "Large dense patches can increase solve time and memory use.",
       },
       {
         id: "run-radiomap",
-        title: "Run Radiomap",
-        summary: "Run the map and inspect heatmap results.",
-        video: video("radiomap", "04-run-heatmap.mp4"),
-        clicks: [
-          "Click Run Radio Map.",
-          "Wait for progress to complete.",
-          "Inspect the heatmap overlay and colorbar result panel.",
-        ],
-        parameters: [
-          "Read colorbar units before comparing maps.",
-          "Compare map resolution against the configured cell size and patch dimensions.",
-        ],
-        success: [
-          "A heatmap appears on the configured patch.",
-          "The result panel reports grid resolution, min/max values, and runtime notes.",
-        ],
-        warning: "If the map is noisy or sparse, increase samples only after confirming patch size and cell size.",
+        title: "Run Map",
+        summary: "Start the radio-map calculation with the configured terrain patch.",
+        instruction: "Select the highlighted Run Map control to calculate the coverage grid.",
+        frameId: "radiomap-results",
+        kind: "action",
+        target: { label: "Run Map", x: 0.514, y: 0.859, width: 0.064, height: 0.045, zoom: 1.75 },
+        details: ["The solver evaluates the configured receiver grid.", "The result appears on the terrain when the run succeeds."],
+        success: "The terrain coverage overlay and result panel are available.",
+        note: "Re-run the map after changing the transmitter or patch settings.",
+      },
+      {
+        id: "inspect-radiomap-results",
+        title: "Inspect radio map results",
+        summary: "Read the heatmap together with grid, range, and scale metadata.",
+        instruction: "Select the highlighted results dock and compare its colorbar with the 3D terrain overlay.",
+        frameId: "radiomap-results",
+        kind: "observe",
+        target: { label: "Radio map results", x: 0.777, y: 0.101, width: 0.185, height: 0.435, zoom: 1.48 },
+        details: ["The displayed metric is path gain in dB.", "Resolution and sample count explain the visual detail."],
+        success: "A colored terrain grid is visible and the result dock reports a successful run.",
+        note: "Check units and display limits before comparing different maps.",
       },
     ],
   },
@@ -410,89 +353,130 @@ export const tutorialModes: TutorialMode[] = [
     id: "deepmimo",
     label: "DeepMIMO",
     shortLabel: "DMIMO",
-    accent: "#7a3ff2",
-    summary: "Define a transmitter and receiver ROI, tune grid/export settings, and generate a DeepMIMO dataset.",
+    accent: "#7b4ce6",
+    summary: "Define a receiver region and export a propagation dataset for learning workflows.",
+    frames: [
+      image(
+        "deepmimo-results",
+        "deepmimo.png",
+        "OpenAirTwin DeepMIMO scene showing a receiver ROI, export parameters, and generated dataset tray.",
+      ),
+    ],
     steps: [
       {
         id: "set-tx",
-        title: "Set Tx",
-        summary: "Choose the transmitter for dataset export.",
-        video: video("deepmimo", "01-set-tx.mp4"),
-        clicks: [
-          "Open DeepMIMO mode.",
-          "Choose Add Tx.",
-          "Click or edit the transmitter position.",
-        ],
-        parameters: [
-          "Tx position is exported as part of the generated scenario.",
-          "Use a position with clear relation to the planned receiver area.",
-        ],
-        success: [
-          "The Tx marker appears.",
-          "ROI tools and export settings are available.",
-        ],
-        warning: "Changing the Tx later changes the dataset definition and requires a new export.",
+        title: "Set the dataset transmitter",
+        summary: "Choose the source that will be paired with generated receiver samples.",
+        instruction: "Select the highlighted Tx control and place the source relative to the intended ROI.",
+        frameId: "deepmimo-results",
+        kind: "action",
+        target: { label: "Tx", x: 0.36, y: 0.86, width: 0.044, height: 0.047, zoom: 1.75 },
+        details: ["Tx position becomes part of the exported scenario.", "Use a reproducible position."],
+        success: "The source is defined and ROI tools become available.",
+        note: "Changing Tx changes the dataset definition.",
       },
       {
         id: "draw-roi",
-        title: "Draw ROI",
-        summary: "Draw the receiver ROI on the scene.",
-        video: video("deepmimo", "02-draw-roi.mp4"),
-        clicks: [
-          "Select Draw ROI.",
-          "Drag across the intended receiver area.",
-          "Adjust the ROI box until it covers the desired users.",
-        ],
-        parameters: [
-          "ROI dimensions define where receivers are generated.",
-          "The ROI should stay inside loaded geometry coverage.",
-        ],
-        success: [
-          "A visible ROI box is shown in the scene.",
-          "The receiver estimate updates from the ROI size and grid settings.",
-        ],
-        warning: "A large ROI with a tight receiver grid can create a very large dataset.",
+        title: "Draw the receiver ROI",
+        summary: "Mark the region where candidate receivers will be generated.",
+        instruction: "Select the highlighted ROI overlay and inspect how it aligns with streets and buildings.",
+        frameId: "deepmimo-results",
+        kind: "action",
+        target: { label: "Draw ROI", x: 0.404, y: 0.86, width: 0.058, height: 0.047, zoom: 1.8 },
+        details: ["Draw ROI creates the initial rectangle.", "Adjust its size before tightening receiver spacing."],
+        success: "A green ROI box covers the intended receiver area.",
+        note: "A large region with tight spacing can create a very large dataset.",
       },
       {
         id: "configure-receiver-grid",
-        title: "Configure Receiver Grid",
-        summary: "Set receiver grid and export options.",
-        video: video("deepmimo", "03-configure-receiver-grid.mp4"),
-        clicks: [
-          "Open receiver grid and export groups.",
-          "Edit receiver spacing, rows, columns, height, and max receivers.",
-          "Choose the export format and channel options.",
-        ],
-        parameters: [
-          "Receiver spacing controls dataset density.",
-          "Max receivers protects export size.",
-          "Export format should match the downstream DeepMIMO workflow.",
-        ],
-        success: [
-          "The receiver estimate is visible and acceptable.",
-          "Export settings show the intended format and channel fields.",
-        ],
-        warning: "Do not export until the receiver estimate is small enough for the target machine and storage budget.",
+        title: "Configure the receiver grid",
+        summary: "Set ROI dimensions, spacing, height, and export limits.",
+        instruction: "Select the highlighted DeepMIMO ROI panel and review the candidate receiver estimate.",
+        frameId: "deepmimo-results",
+        kind: "action",
+        target: { label: "ROI parameters", x: 0.047, y: 0.375, width: 0.199, height: 0.446, zoom: 1.62 },
+        details: ["Rx Spacing controls dataset density.", "Max Receivers protects memory and storage budgets."],
+        success: "The candidate estimate fits the intended experiment and machine.",
+        note: "Review receiver count before starting an export.",
       },
       {
         id: "export-dataset-tray",
-        title: "Export Dataset",
-        summary: "Export the dataset and open the tray.",
-        video: video("deepmimo", "04-export-dataset-tray.mp4"),
-        clicks: [
-          "Click Export DeepMIMO Dataset.",
-          "Wait for the export job to finish.",
-          "Open the dataset tray and inspect the generated item.",
+        title: "Export and download",
+        summary: "Generate the dataset and retrieve it from the dataset tray.",
+        instruction: "Select the highlighted Export Data control, then inspect the generated dataset card in the upper-right.",
+        frameId: "deepmimo-results",
+        kind: "action",
+        target: { label: "Export Data", x: 0.574, y: 0.86, width: 0.063, height: 0.047, zoom: 1.75 },
+        secondaryTargets: [
+          { label: "Generated dataset", x: 0.773, y: 0.146, width: 0.187, height: 0.09, zoom: 1.5 },
         ],
-        parameters: [
-          "Dataset name, receiver count, and format should match the configured export.",
-          "Use the tray to download or inspect completed datasets.",
-        ],
-        success: [
-          "The dataset tray opens with a completed export.",
-          "The generated dataset reports receiver count, size, and status.",
-        ],
-        warning: "If the tray stays empty, confirm the ROI, receiver estimate, and export job status first.",
+        details: ["The tray records completed exports.", "Confirm scenario name and job status before downloading."],
+        success: "The generated dataset appears in the tray with a Download action.",
+        note: "An empty tray usually means the export is still running or the ROI is invalid.",
+      },
+    ],
+  },
+  {
+    id: "radar",
+    label: "Radar Sensing",
+    shortLabel: "Radar",
+    accent: "#d34b78",
+    summary: "Configure radar geometry and moving targets, then inspect detections and range–Doppler output.",
+    frames: [
+      image(
+        "radar-results",
+        "radar.png",
+        "OpenAirTwin Radar Sensing scene showing drone targets and range-Doppler detection results.",
+      ),
+    ],
+    steps: [
+      {
+        id: "place-radar",
+        title: "Place radar endpoints",
+        summary: "Set Tx and Rx for monostatic or bistatic sensing.",
+        instruction: "Select the highlighted Tx/Rx controls and place both radar endpoints in the scene.",
+        frameId: "radar-results",
+        kind: "action",
+        target: { label: "Radar Tx / Rx", x: 0.397, y: 0.859, width: 0.09, height: 0.045, zoom: 1.72 },
+        details: ["Co-located endpoints approximate monostatic sensing.", "Separated endpoints create bistatic geometry."],
+        success: "Both radar endpoints are visible and target controls are enabled.",
+        note: "Endpoint geometry changes target observability and clutter paths.",
+      },
+      {
+        id: "add-targets",
+        title: "Configure radar and targets",
+        summary: "Set radar processing and define the drone targets, positions, and velocities.",
+        instruction: "Select the highlighted configuration area to review Radar Geometry and Drone Targets together.",
+        frameId: "radar-results",
+        kind: "action",
+        target: { label: "Radar and target configuration", x: 0.047, y: 0.218, width: 0.198, height: 0.69, zoom: 1.55 },
+        details: ["Radar Geometry defines waveform and processing.", "Each target stores its model, position, velocity, and radar cross section."],
+        success: "Radar settings are valid and three labeled drone targets are visible.",
+        note: "Targets outside the useful range or field of view may not be detected.",
+      },
+      {
+        id: "run-radar",
+        title: "Run Radar",
+        summary: "Start the sensing calculation with the configured radar and targets.",
+        instruction: "Select the highlighted Run Radar control to calculate propagation and detections.",
+        frameId: "radar-results",
+        kind: "action",
+        target: { label: "Run Radar", x: 0.536, y: 0.859, width: 0.064, height: 0.045, zoom: 1.75 },
+        details: ["The solver evaluates target and clutter propagation.", "Detection results appear after the run completes."],
+        success: "Radar detections and range-Doppler results are available.",
+        note: "Larger waveforms and deeper propagation settings cost more.",
+      },
+      {
+        id: "run-inspect-radar",
+        title: "Inspect radar detections",
+        summary: "Compare detections, propagation paths, SNR, and range–Doppler views.",
+        instruction: "Select the highlighted result dock and compare target labels with the plotted detections.",
+        frameId: "radar-results",
+        kind: "observe",
+        target: { label: "Radar results", x: 0.776, y: 0.101, width: 0.185, height: 0.737, zoom: 1.45 },
+        details: ["Switch processing views to understand clutter cancellation.", "Use Target Detail for local range–Doppler peaks."],
+        success: "Three associated detections appear with their target truth markers.",
+        note: "No detection can be valid; inspect SNR and geometry before lowering thresholds.",
       },
     ],
   },
@@ -571,5 +555,11 @@ export const featureItems: Array<{
     title: "DeepMIMO",
     body: "Create DeepMIMO datasets from selected urban regions, connecting wireless digital twins with AI-driven wireless research.",
     image: "feature-deepmimo-export.png",
+  },
+  {
+    modeId: "radar",
+    title: "Radar Sensing",
+    body: "Place moving drone targets and compare propagation-aware detections, paths, and range–Doppler processing inside the same digital twin.",
+    image: "feature-radar-sensing.png",
   },
 ];

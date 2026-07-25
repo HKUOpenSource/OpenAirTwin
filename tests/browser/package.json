@@ -5,6 +5,7 @@
   "scripts": {
     "test": "playwright test",
     "test:ci": "playwright test --grep-invert snapshots",
+    "test:tutorial-site": "playwright test --config tutorial-site.config.js",
     "test:update": "playwright test --update-snapshots"
   },
   "devDependencies": {

@@ -456,7 +456,7 @@ main {
 
 .featureGrid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -780,7 +780,7 @@ main {
 
 .workflowTabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
   padding: 8px;
   border-bottom: 1px solid var(--line);
@@ -832,7 +832,7 @@ main {
 .tutorialSteps {
   position: relative;
   grid-column: 1;
-  grid-row: 1 / span 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -907,7 +907,7 @@ main {
   box-shadow: 0 0 22px color-mix(in srgb, var(--mode-accent) 38%, transparent);
 }
 
-.videoWorkspace {
+.tutorialStageWorkspace {
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
@@ -918,51 +918,32 @@ main {
   overflow: hidden;
 }
 
-.videoHeader {
+.tutorialStageHeader {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
-  align-items: start;
+  align-items: center;
   padding: 16px;
   border-bottom: 1px solid rgba(190, 213, 246, 0.14);
   background: rgba(255, 255, 255, 0.035);
 }
 
-.videoHeader > div:first-child {
-  min-width: 0;
-}
-
-.videoHeader span {
-  color: color-mix(in srgb, var(--mode-accent) 78%, #ffffff);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.videoHeader h3 {
-  margin: 5px 0 0;
-  color: #ffffff;
-  font-size: 22px;
-  line-height: 1.14;
-  font-weight: 860;
-}
-
-.videoHeader p {
-  margin: 7px 0 0;
+.tutorialPrompt {
+  margin: 0;
   max-width: 100%;
-  color: var(--muted);
+  color: #c8d2e0;
   font-size: 13px;
-  line-height: 1.48;
+  line-height: 1.5;
 }
 
-.videoControls {
+.lessonNavigation {
   display: flex;
   flex-wrap: wrap;
   justify-content: end;
   gap: 8px;
 }
 
-.videoControls button {
+.lessonNavigation button {
   min-height: 38px;
   padding: 0 12px;
   border: 1px solid rgba(190, 213, 246, 0.18);
@@ -974,239 +955,21 @@ main {
   font-weight: 840;
 }
 
-.videoControls button:hover {
+.lessonNavigation button:hover {
   border-color: rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.08);
 }
 
-.videoControls button:disabled {
+.lessonNavigation button:disabled {
   opacity: 0.42;
   cursor: not-allowed;
 }
 
-.playbackRate {
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 8px 0 10px;
-  border: 1px solid rgba(190, 213, 246, 0.18);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.playbackRate span {
-  color: #b9c5d5;
-  font-size: 11px;
-}
-
-.playbackRate select {
-  border: 0;
-  background: #111722;
-  color: #ffffff;
-  font: inherit;
-  font-size: 12px;
-}
-
-.videoControls button.primary {
+.lessonNavigation button.primary {
   color: #ffffff;
   border-color: var(--mode-accent);
   background: var(--mode-accent);
   box-shadow: 0 12px 28px color-mix(in srgb, var(--mode-accent) 25%, transparent);
-}
-
-.videoFrame {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  background:
-    linear-gradient(135deg, #10192a, #060910 46%, #0d1724),
-    #05070b;
-}
-
-.videoFrame video {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #05070b;
-}
-
-.videoFrame video.isUnavailable {
-  opacity: 0.24;
-  filter: grayscale(0.35);
-}
-
-.playbackStatus {
-  margin: 0;
-  padding: 10px 14px;
-  border-top: 1px solid rgba(190, 213, 246, 0.12);
-  color: #9faabd;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.playbackPrompt {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-}
-
-.playbackPrompt button {
-  min-height: 42px;
-  padding: 0 16px;
-  border-radius: 8px;
-  color: #ffffff;
-  background: rgba(7, 11, 18, 0.9);
-  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.32);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 880;
-  pointer-events: auto;
-}
-
-.missingVideo {
-  position: absolute;
-  inset: 18px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: start;
-  gap: 10px;
-  max-width: 620px;
-  margin: auto;
-  padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  background: rgba(7, 11, 18, 0.88);
-  color: #ffffff;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(14px);
-}
-
-.missingVideo span {
-  color: #9ed7ff;
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.missingVideo h4 {
-  margin: 0;
-  font-size: 30px;
-  line-height: 1.08;
-}
-
-.missingVideo p {
-  max-width: 520px;
-  margin: 0;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.missingVideo code {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  padding: 8px 10px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  font-size: 12px;
-}
-
-.stepNotes {
-  grid-column: 2;
-  grid-row: 2;
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  padding: 14px;
-  border: 1px solid rgba(190, 213, 246, 0.16);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
-}
-
-.stepNotesHead {
-  padding-bottom: 11px;
-  border-bottom: 1px solid rgba(190, 213, 246, 0.13);
-}
-
-.stepNotesHead span {
-  color: color-mix(in srgb, var(--mode-accent) 78%, #ffffff);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.stepNotesHead h4 {
-  margin: 4px 0 0;
-  color: #ffffff;
-  font-size: 17px;
-  line-height: 1.2;
-}
-
-.stepNotesHead p {
-  margin: 7px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.quickNotes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  min-height: 0;
-}
-
-.quickNote {
-  padding: 10px;
-  border: 1px solid rgba(190, 213, 246, 0.14);
-  border-radius: 8px;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--mode-accent) 12%, transparent), transparent 46%),
-    rgba(5, 7, 11, 0.46);
-}
-
-.quickNote h5 {
-  margin: 0;
-  color: color-mix(in srgb, var(--mode-accent) 78%, #ffffff);
-  font-size: 11px;
-  line-height: 1.25;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.quickNote p {
-  margin: 6px 0 0;
-  color: #b7c1d0;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.quickNote ol {
-  margin: 7px 0 0;
-  padding-left: 19px;
-  color: #b7c1d0;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.quickNote li + li {
-  margin-top: 4px;
-}
-
-.warningNote {
-  border-color: rgba(255, 186, 78, 0.22);
-}
-
-.warningNote h5 {
-  color: #ffc878;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1296,7 +1059,7 @@ main {
     scroll-snap-align: start;
   }
 
-  .videoHeader {
+  .tutorialStageHeader {
     grid-template-columns: 1fr;
   }
 
@@ -1305,7 +1068,7 @@ main {
     padding: 12px;
   }
 
-  .videoWorkspace {
+  .tutorialStageWorkspace {
     grid-column: 1;
     grid-row: 1;
   }
@@ -1321,17 +1084,8 @@ main {
     content: none;
   }
 
-  .videoControls {
+  .lessonNavigation {
     justify-content: start;
-  }
-
-  .stepNotes {
-    grid-column: 1;
-    grid-row: 3;
-  }
-
-  .quickNotes {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .footer {
@@ -1463,43 +1217,183 @@ main {
     grid-template-columns: 1fr;
   }
 
-  .videoHeader {
+  .tutorialStageHeader {
     padding: 14px;
   }
 
-  .videoHeader p {
+  .tutorialPrompt {
     white-space: normal;
   }
 
-  .videoControls {
+  .lessonNavigation {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
   }
 
-  .videoControls button,
-  .playbackRate {
+  .lessonNavigation button {
     width: 100%;
   }
+}
 
-  .playbackRate {
-    justify-content: space-between;
+/* Interactive screenshot stage inside the original tutorial shell */
+.tutorialStageShell {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background: #05070b;
+}
+
+.tutorialViewport {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior-y: auto;
+  touch-action: pan-y;
+  background: #030509;
+}
+
+.tutorialCanvas {
+  position: relative;
+  width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #030509;
+}
+
+.tutorialCanvas img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.tutorialTargetBox {
+  position: absolute;
+  z-index: 2;
+  border: 2px solid color-mix(in srgb, var(--mode-accent) 80%, #ffffff);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--mode-accent) 5%, transparent);
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.86),
+    0 0 24px color-mix(in srgb, var(--mode-accent) 34%, transparent);
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+
+.tutorialTargetBox::before {
+  position: absolute;
+  inset: -12px;
+  border: 1px solid color-mix(in srgb, var(--mode-accent) 72%, transparent);
+  border-radius: 15px;
+  content: "";
+  animation: manualTargetPulse 1.8s ease-out infinite;
+}
+
+.tutorialTargetBox:has(+ .tutorialTarget:hover),
+.tutorialTargetBox:has(+ .tutorialTarget:focus-visible) {
+  background: color-mix(in srgb, var(--mode-accent) 13%, transparent);
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 0 32px color-mix(in srgb, var(--mode-accent) 52%, transparent);
+}
+
+.tutorialTarget {
+  position: absolute;
+  z-index: 3;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  color: #ffffff;
+  background: transparent;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+
+.tutorialTarget > span {
+  position: absolute;
+  top: -15px;
+  right: -15px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--mode-accent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42);
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.imageFallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  color: #ffffff;
+  text-align: center;
+  background:
+    linear-gradient(135deg, rgba(31, 111, 255, 0.14), transparent),
+    #0a101a;
+}
+
+.imageFallback span {
+  color: #ffbf70;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.imageFallback h4 {
+  margin: 8px 0 0;
+  font-size: 25px;
+}
+
+.imageFallback p {
+  max-width: 540px;
+  margin: 8px 0 0;
+  color: #b8c3d2;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tutorialTarget:focus-visible,
+.tutorialSteps button:focus-visible,
+.workflowTabs button:focus-visible,
+.lessonNavigation button:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 3px;
+}
+
+@keyframes manualTargetPulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.98);
   }
 
-  .quickNotes {
-    grid-template-columns: 1fr;
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorialTargetBox::before {
+    animation: none;
+    opacity: 0.72;
   }
 
-  .missingVideo {
-    inset: 10px;
-    padding: 16px;
-  }
-
-  .missingVideo h4 {
-    font-size: 22px;
-  }
-
-  .missingVideo p {
-    font-size: 12px;
+  .tutorialTargetBox {
+    transition: none;
   }
 }
