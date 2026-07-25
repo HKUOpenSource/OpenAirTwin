@@ -691,7 +691,8 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("velocity: motion.velocity", controls_source)
         self.assertIn('return "Place Radar Tx and Rx before running sensing."', controls_source)
         self.assertIn("!controls.devicesReady()", runtime_source)
-        self.assertIn("context.ui.btnOrbitTx.disabled = !Array.isArray(radar.txVisual)", runtime_source)
+        self.assertNotIn("context.ui.btnOrbitTx.disabled", runtime_source)
+        self.assertNotIn("context.ui.btnOrbitTx.title", runtime_source)
 
     def test_other_modes_start_without_devices(self) -> None:
         html = read_static_html()

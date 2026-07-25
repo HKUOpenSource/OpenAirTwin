@@ -372,6 +372,34 @@ test("all feature modes start without Tx or Rx devices", async ({page}) => {
   await expect(page.locator("#btnRunDeepMimo")).toHaveAttribute("title", "Place DeepMIMO Tx before exporting data.");
 });
 
+test("transmitter orbit availability follows the active feature", async ({page}) => {
+  await openDeterministicApp(page);
+  await enableRealViewer(page);
+  await configureMainDeviceFixture(page);
+
+  for (const mode of ["link", "mobility", "radiomap", "deepmimo"]) {
+    await activateMode(page, mode);
+    await expect(page.locator("#btnOrbitTx")).toBeEnabled();
+  }
+
+  await activateMode(page, "radar");
+  await expect(page.locator("#btnOrbitTx")).toBeDisabled();
+
+  await page.evaluate(async () => {
+    const {state} = await import("/js/app_state.js?v=20260723-radar-shared-groups");
+    state.radar.tx = [72, 32, 40];
+    state.radar.txVisual = [...state.radar.tx];
+    state.link.tx = null;
+    state.link.txVisual = null;
+    for (const id of ["linkTxX", "linkTxY", "linkTxZ"]) {
+      document.getElementById(id).value = "";
+    }
+  });
+  await activateMode(page, "link");
+  await expect(page.locator("#btnOrbitTx")).toBeDisabled();
+  await expect(page.locator("#btnOrbitTx")).toHaveAttribute("title", "Place Tx before orbiting.");
+});
+
 test("feature transports, polling, controls and scene layers remain isolated", async ({page}) => {
   let linkRequests = 0;
   let radarRequests = 0;
