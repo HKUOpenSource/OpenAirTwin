@@ -64,8 +64,7 @@ The installer creates `.oat-env` on every platform and also creates
 runtime configuration.
 
 Open [http://127.0.0.1:8090](http://127.0.0.1:8090), then verify the
-installation. For guided workflows with manually reviewed interactive
-screenshots, use the
+installation. For tutorials, use the
 [OpenAirTwin tutorial](https://hkuopensource.github.io/OpenAirTwin/).
 
 ## Features
