@@ -192,6 +192,7 @@ test("supports keyboard mode navigation and visible target focus", async ({ page
 
   const target = page.locator("[data-tutorial-target]");
   await expect(target).toHaveCount(1);
+  await expect(target).toBeEnabled();
   await target.focus();
   await expect(target).toBeFocused();
   const metrics = await target.evaluate((element) => {
