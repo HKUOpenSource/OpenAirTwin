@@ -124,6 +124,37 @@ Then open `http://127.0.0.1:8091/ui-catalog/`. The Playwright configuration
 starts this catalog automatically and verifies its public variants, states,
 accessible names, and contract-only test Feature.
 
+Phase 4 keeps Native as the production owner and adds the React compatibility
+foundation under `workbench/src/`. Install and verify the locked toolchain with:
+
+```bash
+cd workbench
+npm ci
+npm test
+```
+
+The development catalog command above now delegates to Vite and renders Native
+and React implementations side by side. Its browser test compares 26
+representative states for element semantics, ARIA, classes and computed style,
+then proves that React controls dispatch typed Commands. The production build
+continues to load `backend/static/js/app.js`; React catalog and migration source
+must not appear in the Vite production manifest.
+
+React UI code follows these ownership rules:
+
+1. Import components directly from their source file; do not add barrel files.
+2. Components receive typed Props and emit `UiCommand`; they do not call REST or
+   import mutable Feature state.
+3. Expose Legacy/Feature state through `ObservableStateAdapter` and
+   `useSyncExternalStore`, with immutable snapshots between notifications.
+4. Mount only into an empty boundary through `ReactRootRegistry`; register every
+   external subscription or timer for cleanup and let unmount restore focus.
+5. Keep imperative Three.js, Leaflet and Canvas engines outside React. A React
+   component may own their stable host, never their internal DOM or resources.
+6. Do not switch a production subtree until its React implementation passes
+   Native parity and the Legacy renderer/event owner is deleted in the same
+   work package.
+
 When the existing DOM intentionally changes, regenerate the Phase 1 contract
 with the real browser and review the diff; never edit the generated JSON by
 hand:

@@ -4,6 +4,7 @@
     "allowImportingTsExtensions": true,
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -18,5 +19,10 @@
     "target": "ES2024",
     "types": ["node", "vite/client"]
   },
-  "include": ["src/**/*.ts", "vite.config.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ]
 }

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
 import { CORE_STYLE_ORDER, PRODUCTION_BASE } from "./src/toolchain-contract.ts";
@@ -11,6 +12,10 @@ const projectRoot = resolve(workbenchRoot, "..");
 const legacyRoot = resolve(projectRoot, "backend/static");
 const legacyJavaScriptRoot = resolve(legacyRoot, "js");
 const outputRoot = resolve(legacyRoot, "workbench");
+const toolsRoot = resolve(projectRoot, "tools");
+const catalogRoot = resolve(toolsRoot, "ui-catalog");
+const catalogIndexPath = resolve(catalogRoot, "index.html");
+const catalogStylePath = resolve(catalogRoot, "catalog.css");
 
 function toPosixPath(value: string): string {
   return value.split(sep).join("/");
@@ -102,6 +107,59 @@ function normalizeLegacyModuleIdsPlugin(): Plugin {
   };
 }
 
+function developmentCatalogPlugin(): Plugin {
+  return {
+    name: "openairtwin-development-ui-catalog",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const pathname = new URL(request.url ?? "/", "http://127.0.0.1")
+          .pathname;
+        if (pathname === "/ui-catalog") {
+          response.statusCode = 302;
+          response.setHeader("Location", "/ui-catalog/");
+          response.end();
+          return;
+        }
+        if (pathname.startsWith("/css/")) {
+          const stylesheet = pathname.slice("/css/".length);
+          if (CORE_STYLE_ORDER.some((candidate) => candidate === stylesheet)) {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "text/css; charset=utf-8");
+            response.setHeader("Cache-Control", "no-store");
+            response.end(
+              readFileSync(resolve(legacyRoot, "css", stylesheet), "utf8"),
+            );
+            return;
+          }
+        }
+        if (pathname === "/ui-catalog/catalog.css") {
+          response.statusCode = 200;
+          response.setHeader("Content-Type", "text/css; charset=utf-8");
+          response.setHeader("Cache-Control", "no-store");
+          response.end(readFileSync(catalogStylePath, "utf8"));
+          return;
+        }
+        if (pathname !== "/ui-catalog/") {
+          next();
+          return;
+        }
+        void server
+          .transformIndexHtml(pathname, readFileSync(catalogIndexPath, "utf8"))
+          .then((html) => {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "text/html; charset=utf-8");
+            response.setHeader("Cache-Control", "no-store");
+            response.end(html);
+          })
+          .catch((error: unknown) => {
+            next(error instanceof Error ? error : new Error(String(error)));
+          });
+      });
+    },
+  };
+}
+
 function productionImportMapPlugin(): Plugin {
   const aliasesByPath = collectLegacySpecifiers();
   const appSourcePath = resolve(legacyJavaScriptRoot, "app.js");
@@ -179,21 +237,38 @@ export default defineConfig({
   root: legacyRoot,
   base: PRODUCTION_BASE,
   publicDir: false,
-  plugins: [normalizeLegacyModuleIdsPlugin(), productionImportMapPlugin()],
+  plugins: [
+    normalizeLegacyModuleIdsPlugin(),
+    react(),
+    developmentCatalogPlugin(),
+    productionImportMapPlugin(),
+  ],
   resolve: {
     alias: [
+      {
+        find: "/@oat-catalog",
+        replacement: resolve(workbenchRoot, "src/catalog"),
+      },
+      {
+        find: "react",
+        replacement: resolve(workbenchRoot, "node_modules/react"),
+      },
+      {
+        find: "react-dom",
+        replacement: resolve(workbenchRoot, "node_modules/react-dom"),
+      },
       { find: "/js", replacement: resolve(legacyRoot, "js") },
       { find: "/css", replacement: resolve(legacyRoot, "css") },
       { find: "/lib", replacement: resolve(legacyRoot, "lib") },
     ],
   },
   server: {
-    host: "127.0.0.1",
-    port: 5173,
+    host: process.env.OAT_UI_CATALOG_HOST ?? "127.0.0.1",
+    port: Number.parseInt(process.env.OAT_UI_CATALOG_PORT ?? "5173", 10),
     strictPort: true,
     fs: {
       strict: true,
-      allow: [legacyRoot],
+      allow: [legacyRoot, workbenchRoot, toolsRoot],
     },
     proxy: {
       "/api": {

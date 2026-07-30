@@ -414,6 +414,8 @@ Leaflet、Three.js 标签层、SVG/Canvas 和明确登记的兼容适配器可�
 
 ### Phase 4：建立 React 基础与兼容桥
 
+> 执行状态：已完成（2026-07-30）。React 基础、类型化 Primitive、CommandBus、External Store Adapter、Root 生命周期和双目录等价门禁已落地；生产 UI 所有权仍全部属于 Native/Legacy，生产 Bundle 未包含 React 或组件目录代码。
+
 交付物：
 
 - 固定 React 与 React Vite Plugin 版本；
@@ -432,6 +434,17 @@ Leaflet、Three.js 标签层、SVG/Canvas 和明确登记的兼容适配器可�
 - React 与 Native 组件目录截图和 computed style 一致；
 - Dispose 后没有重复 Listener、Timer、Subscription、WebGL Resource 或 Root；
 - 组件异常进入现有用户可见错误路径，不产生空白工作台。
+
+实现记录：
+
+- 精确锁定 React、React DOM、Vite React Plugin、类型声明、Vitest、jsdom 和 Testing Library；Hooks 与 Fast Refresh 规则进入 ESLint 门禁；
+- `AppProviders` 只提供类型化 Command 分发和错误上报，公共组件不导入全局 Feature 状态、不调用 REST、不操作兄弟 DOM；
+- `ObservableStateAdapter` 为 Legacy/Feature 状态提供稳定 Snapshot、显式通知、惰性订阅和确定性释放，React 通过 `useSyncExternalStore` 读取；
+- `ReactRootRegistry` 只允许挂载空容器，集中登记 Root、Root Error Hook、Cleanup、Unmount 和焦点恢复，并拒绝重复 Root 与卸载后的 Cleanup 注册；
+- React Primitive 复用 Phase 2 的 `oat-*` DOM/CSS 合同；Native 与 React 目录对 26 个代表状态逐项比较语义、ARIA、class 和 computed style；
+- Vitest Fake Timer 覆盖轮询通知、Busy、Cancel、Timer 与 Subscription Cleanup；Error Boundary 异常显示可见公共错误面板；
+- 组件目录改由开发 Vite 提供，生产 Python 路由继续返回 404；Catalog、测试代码和 React 迁移源码不进入生产 manifest；
+- 当前生产 Rollup 入口仍是原 `backend/static/js/app.js`，五个 Feature、DOM ID、交互、computed style 和视觉快照没有切换所有权或更新基线。
 
 ### Phase 5：迁移结果区与重复数据 UI
 
@@ -719,10 +732,10 @@ ui-release: 加固、文档、打包并验证 Release Candidate
 
 ## 14. 下一执行工作包
 
-下一项开发任务只执行 Phase 4：
+下一项开发任务只执行 Phase 5 的第一个完整结果边界：
 
-1. 固定 React、React DOM 与 Vite React Plugin 版本，并记录 License 和 Bundle 基线。
-2. 建立 AppProviders、Error Boundary、Root Lifecycle 和 External Store Adapter，不接管生产 UI 子树。
-3. 使用 Phase 2 合同实现类型化 React Primitive，并在组件目录中与 Native 实现逐项对比。
-4. 保持现有 Feature Controller、Transport、DOM ID、操作逻辑、computed style 和视觉快照不变。
-5. 只有组件等价、生命周期清理和完整生产 Build 回归全部通过后，才允许进入 Phase 5。
+1. 先用 CodeGraph 选择依赖最少的 DeepMIMO Dataset 结果边界，冻结其 View Model、Command、DOM、滚动、焦点和异步状态合同。
+2. 在 Legacy 子树之外建立空 Mount，并通过 `ObservableStateAdapter` 与 `CommandBus` 接入现有 Controller/Transport。
+3. React 接管后在同一工作包删除该边界的 Legacy Renderer 和事件绑定，禁止双写、双渲染或长期 Flag。
+4. 保持 DOM ID、下载/取消、Busy、Empty、Error、Stale、焦点、滚动、computed style 和截图不变。
+5. 只有该边界的单元、生命周期、生产 Build、完整 Python 和 Playwright 回归全部通过后，才迁移下一个结果区。

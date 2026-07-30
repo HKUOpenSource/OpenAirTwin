@@ -65,6 +65,8 @@ if (
 }
 
 for (const [source, entry] of Object.entries(manifest)) {
+  if (source.includes("workbench/src/") || source.includes("ui-catalog"))
+    fail(`development React source entered the production manifest: ${source}`);
   if (!entry || typeof entry !== "object" || typeof entry.file !== "string")
     fail(`invalid manifest entry ${source}`);
   const outputPath = resolve(outputRoot, entry.file);

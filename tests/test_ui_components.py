@@ -33,12 +33,38 @@ class ClassCollector(HTMLParser):
             self.class_values.extend(str(values["class"]).split())
 
 
+class FeatureClassCollector(ClassCollector):
+    def __init__(self) -> None:
+        super().__init__()
+        self.in_feature = False
+        self.section_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        if not self.in_feature:
+            if tag != "section" or values.get("data-test-feature") != "native":
+                return
+            self.in_feature = True
+            self.section_depth = 1
+        elif tag == "section":
+            self.section_depth += 1
+        super().handle_starttag(tag, attrs)
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.in_feature and tag == "section":
+            self.section_depth -= 1
+            if self.section_depth == 0:
+                self.in_feature = False
+
+
 def test_manifest_and_catalog_cover_every_public_variant_and_state() -> None:
     manifest = load_manifest()
     catalog = read(CATALOG_PATH)
     components = {component["name"]: component for component in manifest["components"]}
-    assert manifest["schemaVersion"] == 1
-    assert manifest["phase"] == 2
+    assert manifest["schemaVersion"] == 2
+    assert manifest["phase"] == 4
+    assert manifest["productionOwner"] == "native"
+    assert manifest["reactCatalogEntry"] == "workbench/src/catalog/main.tsx"
     assert set(components) == {
         "Panel", "Button", "Field", "Checkbox", "Badge", "MetricGrid",
         "ListCard", "EmptyState", "ScrollRegion", "Icon",
@@ -54,6 +80,22 @@ def test_manifest_and_catalog_cover_every_public_variant_and_state() -> None:
         assert f"oat-badge--{variant}" in catalog
     for modifier in ("primary", "compact", "icon", "danger", "block", "toolbar"):
         assert f"oat-button--{modifier}" in catalog
+    for component in components.values():
+        react_source = PROJECT_ROOT / component["reactSource"]
+        assert react_source.is_file(), react_source
+
+
+def test_react_catalog_is_development_only_and_keeps_native_as_production_owner() -> None:
+    catalog = read(CATALOG_PATH)
+    vite = read(PROJECT_ROOT / "workbench" / "vite.config.ts")
+    production_index = read(STATIC_ROOT / "index.html")
+    assert 'data-catalog-implementation="native"' in catalog
+    assert 'data-catalog-implementation="react"' in catalog
+    assert 'src="/@oat-catalog/main.tsx"' in catalog
+    assert 'apply: "serve"' in vite
+    assert "developmentCatalogPlugin()" in vite
+    assert "@oat-catalog" not in production_index
+    assert "reactCatalogRoot" not in production_index
 
 
 def test_legacy_aliases_share_public_rules_and_production_markup() -> None:
@@ -123,9 +165,8 @@ def test_icon_geometry_uses_tokens_and_accessibility_contract() -> None:
 
 def test_contract_only_feature_uses_public_component_classes() -> None:
     source = read(CATALOG_PATH)
-    section = source.split("<section class=\"oat-panel\" data-test-feature", 1)[1].split("</section>", 1)[0]
-    collector = ClassCollector()
-    collector.feed(section)
+    collector = FeatureClassCollector()
+    collector.feed(source)
     assert collector.class_values
     assert all(name.startswith("oat-") for name in collector.class_values)
     for required in (
