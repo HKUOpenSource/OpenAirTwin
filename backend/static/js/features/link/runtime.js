@@ -105,5 +105,8 @@ export function createLinkFeature(context) {
     render() {
       resultView.renderLinkResult();
     },
+    dispose() {
+      resultView.dispose();
+    },
   };
 }

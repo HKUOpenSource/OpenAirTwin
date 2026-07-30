@@ -175,7 +175,7 @@ test("React primitives match native DOM state and computed style", async ({
     });
   });
 
-  expect(parity).toHaveLength(26);
+  expect(parity).toHaveLength(28);
   for (const item of parity) {
     expect(item.react, item.key).not.toBeNull();
     expect(item.react.semantic, `${item.key} semantic`).toEqual(

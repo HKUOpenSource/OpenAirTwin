@@ -448,6 +448,8 @@ Leaflet、Three.js 标签层、SVG/Canvas 和明确登记的兼容适配器可�
 
 ### Phase 5：迁移结果区与重复数据 UI
 
+> 执行状态：已完成（2026-07-30）。Link、Mobility、Radio Map、Radar 结果区和 DeepMIMO Dataset tray 已切换为 React 生产所有者；Shell、Controller、Transport、Viewer 与 Feature 生命周期保持不变。
+
 按既定顺序一次迁移一个完整边界。
 
 交付物：
@@ -465,6 +467,15 @@ Leaflet、Three.js 标签层、SVG/Canvas 和明确登记的兼容适配器可�
 - 视觉快照与 computed style 不变；
 - 切换 Feature 后不会出现上一个 Feature 的结果；
 - 重复激活不会泄漏事件、Timer、DOM 或图形资源。
+
+实现记录：
+
+- `ResultDockContent` 通过一个稳定 Root 持有 Link、Mobility、Radio Map 与 Radar 的全部结果 DOM，并保留冻结 ID 和顺序；DeepMIMO Dataset tray 使用独立 Root；
+- 各 Legacy result view 只负责生成可序列化 ViewModel、处理既有 Command 并调用 Viewer/图表 Adapter，不再创建或替换结果列表节点；
+- Link/Mobility SVG 与 Radar Canvas 保持稳定 host，普通状态更新不重建图表元素；Radar crosshair、tooltip 和领域 palette 仍由命令式 Adapter 管理；
+- 公共 `MetricGrid`、`ListCard`、`EmptyState`、`Filter` 与 `ChartFrame` 进入生产结果边界，组件清单升级为 Phase 5 mixed ownership；
+- 空 mount 使用内部 `data-oat-react-owner` 标识，不新增公开 DOM ID；Root、CommandBus、Store、Timer 与 Canvas listener 均在 Feature/Page dispose 时释放；
+- 生产 manifest 只允许已接管的 React 模块，继续拒绝 Catalog 和测试源码；Phase 0 DOM、computed style 与视觉快照不更新。
 
 ### Phase 6：迁移控件、表单和设备 UI
 
@@ -732,10 +743,10 @@ ui-release: 加固、文档、打包并验证 Release Candidate
 
 ## 14. 下一执行工作包
 
-下一项开发任务只执行 Phase 5 的第一个完整结果边界：
+下一项开发任务执行 Phase 6 的第一个完整控件边界：
 
-1. 先用 CodeGraph 选择依赖最少的 DeepMIMO Dataset 结果边界，冻结其 View Model、Command、DOM、滚动、焦点和异步状态合同。
-2. 在 Legacy 子树之外建立空 Mount，并通过 `ObservableStateAdapter` 与 `CommandBus` 接入现有 Controller/Transport。
-3. React 接管后在同一工作包删除该边界的 Legacy Renderer 和事件绑定，禁止双写、双渲染或长期 Flag。
-4. 保持 DOM ID、下载/取消、Busy、Empty、Error、Stale、焦点、滚动、computed style 和截图不变。
-5. 只有该边界的单元、生命周期、生产 Build、完整 Python 和 Playwright 回归全部通过后，才迁移下一个结果区。
+1. 用 CodeGraph 选择依赖最少且具有完整 Payload 浏览器覆盖的 Feature 表单边界。
+2. 冻结字段值、校验时机、Command、Payload、焦点、Picking 和失效合同。
+3. React 接管完整表单与对应设备操作后，在同一工作包删除旧模板和事件绑定，禁止双写。
+4. 保持 REST、Feature 生命周期、DOM ID、视觉、键盘、错误提示和 Viewer 操作不变。
+5. 只有单元、Payload、生命周期、生产 Build、完整 Python 与 Playwright 门禁全部通过后，才迁移下一个控件边界。

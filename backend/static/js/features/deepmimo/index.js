@@ -15,6 +15,7 @@ function createResultView(context) {
     deepMimoRoiBounds: shared.deepMimoRoiBounds,
     deepMimoReceiverEstimate: shared.deepMimoReceiverEstimate,
     deepMimoDownloadUrl: context.transport.deepMimoDownloadUrl,
+    closeModeMenu: context.utilities.closeModeMenu,
   });
 }
 

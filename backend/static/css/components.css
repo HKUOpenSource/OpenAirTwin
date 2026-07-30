@@ -357,6 +357,14 @@
   overscroll-behavior:contain;
 }
 
+.oat-react-mount {
+  display:contents;
+}
+
+.oat-chart-frame:not(.radarChartFrame) {
+  display:contents;
+}
+
 .oat-scroll-region::-webkit-scrollbar {
   width:6px;
   height:6px;

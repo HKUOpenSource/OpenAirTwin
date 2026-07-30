@@ -61,13 +61,16 @@ def test_manifest_and_catalog_cover_every_public_variant_and_state() -> None:
     manifest = load_manifest()
     catalog = read(CATALOG_PATH)
     components = {component["name"]: component for component in manifest["components"]}
-    assert manifest["schemaVersion"] == 2
-    assert manifest["phase"] == 4
-    assert manifest["productionOwner"] == "native"
+    assert manifest["schemaVersion"] == 3
+    assert manifest["phase"] == 5
+    assert manifest["productionOwner"] == "mixed"
+    assert manifest["reactProductionBoundaries"] == [
+        "result-dock-content", "deepmimo-dataset-tray",
+    ]
     assert manifest["reactCatalogEntry"] == "workbench/src/catalog/main.tsx"
     assert set(components) == {
         "Panel", "Button", "Field", "Checkbox", "Badge", "MetricGrid",
-        "ListCard", "EmptyState", "ScrollRegion", "Icon",
+        "ListCard", "EmptyState", "Filter", "ChartFrame", "ScrollRegion", "Icon",
     }
     assert set(components["Button"]["variants"]) == {
         "default", "primary", "compact", "icon", "danger", "block", "toolbar",
@@ -119,7 +122,9 @@ def test_legacy_aliases_share_public_rules_and_production_markup() -> None:
             assert {"oat-input", "oat-input--compact"} <= names
         if "btn" in names:
             assert "oat-button" in names
-    assert production.count("oat-button--legacy-native-font") == 5
+    assert production.count("oat-button--legacy-native-font") == 4
+    result_component = read(PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx")
+    assert result_component.count("oat-button--legacy-native-font") == 1
 
 
 def test_feature_rows_compose_public_components_without_core_button_overrides() -> None:
@@ -128,9 +133,12 @@ def test_feature_rows_compose_public_components_without_core_button_overrides() 
         JS_ROOT / "entry_map.js": ["entryPlaceResult oat-list-card oat-list-card--interactive"],
         JS_ROOT / "performance_panel.js": ["categoryItem oat-check oat-list-card"],
         JS_ROOT / "ui" / "tile_selection_view.js": ["tileItem oat-check oat-list-card"],
-        JS_ROOT / "ui" / "link_result_view.js": ["pathAllButton oat-list-card oat-list-card--interactive", "pathRow oat-list-card oat-list-card--interactive"],
+        PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx": [
+            "pathAllButton oat-list-card oat-list-card--interactive",
+            "pathRow oat-list-card oat-list-card--interactive",
+            'className="radarEmptyState"',
+        ],
         JS_ROOT / "features" / "radar" / "controls.js": ["radarTargetCard oat-list-card oat-list-card--interactive", "radarEmptyState oat-empty-state"],
-        JS_ROOT / "ui" / "radar_result_view.js": ["radarResultRow oat-list-card oat-list-card--interactive", "radarEmptyState oat-empty-state"],
     }
     for path, patterns in expected_patterns.items():
         source = read(path)

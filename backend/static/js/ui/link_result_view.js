@@ -67,20 +67,6 @@ function formatPathSelectionMeta(paths, summary = null) {
   return "";
 }
 
-function makePathText(className, text) {
-  const element = document.createElement("span");
-  element.className = className;
-  element.textContent = text;
-  return element;
-}
-
-function makePathMetric(label, value) {
-  const metric = document.createElement("span");
-  metric.className = "pathMetric";
-  metric.append(makePathText("pathMetricLabel", label), makePathText("pathMetricValue", value));
-  return metric;
-}
-
 function formatDelay(delaySeconds) {
   const value = Number(delaySeconds);
   if (!Number.isFinite(value)) {
@@ -90,430 +76,260 @@ function formatDelay(delaySeconds) {
   return `${ns.toFixed(Math.abs(ns) >= 10 ? 1 : 2)} ns`;
 }
 
-export function createLinkResultView({
-  state,
-  ui,
-  getViewer,
-  featureId = "link",
-  resultTitle = "Link Results",
-  renderWhenInactive = true,
-}) {
-  const featureState = () => state[featureId];
+function detailField(id, label, value, wide = false) {
+  return {id, label, value, wide};
+}
 
-  function livePreviewStatusAppliesToCurrentMode() {
-    return state.livePreview.mode === featureId && state.mode === featureId;
+export function createPathResultsViewModel(paths, selectedIndex, summary = null, featureId = "link") {
+  if (!paths.length) {
+    return {
+      visible: false,
+      featureId,
+      countLabel: "0 paths",
+      meta: "",
+      selectedIndex: -1,
+      rows: [],
+      detail: null,
+    };
   }
+  const rows = paths.map((path, index) => {
+    const variants = pathVariantCount(path);
+    const typeLabel = formatPathTypeLabel(path);
+    const gain = formatPathGainValue(path);
+    const delay = formatPathDelayValue(path);
+    return {
+      index,
+      name: `Path ${index + 1}`,
+      typeLabel,
+      typeClassName: pathTypeClass(path),
+      variantLabel: variants > 1 ? `${variants} variants` : null,
+      gain,
+      delay,
+      ariaLabel: `Path ${index + 1}, ${typeLabel}, path gain ${gain}, delay ${delay}`,
+      selected: selectedIndex === index,
+    };
+  });
+  const path = selectedIndex >= 0 && selectedIndex < paths.length ? paths[selectedIndex] : null;
+  const variants = path ? pathVariantCount(path) : 0;
+  const fields = path ? [
+    detailField("interaction", "Interaction Chain", describeInteractionSequence(path), true),
+    ...(variants > 1 ? [
+      detailField("variants", "Variants", `${variants} variants`),
+      detailField("raw-paths", "Raw Paths", formatRawPathIndices(path), true),
+      detailField("representative", "Representative", String(path.representative_path_index ?? path.path_index ?? "N/A")),
+    ] : []),
+    detailField("gain", "Path Gain", formatFixed(path.path_gain_db, 2, " dB")),
+    detailField("power", "Power (Linear)", formatExp(path.path_gain_linear)),
+    detailField("array-pairs", "Array Pairs", String(path.array_pair_count ?? 1)),
+    detailField("strongest-pair", "Strongest Pair", formatFixed(path.strongest_pair_power_db, 2, " dB")),
+    detailField("coefficient-abs", "|a|", formatExp(path.coefficient_abs)),
+    detailField("phase", "Phase", formatFixed(path.coefficient_phase_deg, 1, " deg")),
+    detailField("delay", "Delay", formatFixed(path.delay_ns, 2, " ns")),
+    detailField("length", "Length", formatFixed(path.path_length_m, 2, " m")),
+    detailField("doppler", "Doppler", formatFixed(path.doppler_hz, 2, " Hz")),
+    detailField("aod", "AoD (zen/azi)", `${formatFixed(path.departure_zenith_deg, 1)} / ${formatFixed(path.departure_azimuth_deg, 1)} deg`),
+    detailField("aoa", "AoA (zen/azi)", `${formatFixed(path.arrival_zenith_deg, 1)} / ${formatFixed(path.arrival_azimuth_deg, 1)} deg`),
+    detailField("real", "Re(a)", formatExp(path.coefficient_real)),
+    detailField("imaginary", "Im(a)", formatExp(path.coefficient_imag)),
+  ] : [];
+  return {
+    visible: true,
+    featureId,
+    countLabel: formatPathSelectionCount(paths, summary),
+    meta: formatPathSelectionMeta(paths, summary),
+    selectedIndex,
+    rows,
+    detail: path ? {
+      title: `Path ${selectedIndex + 1}`,
+      typeLabel: formatPathTypeLabel(path),
+      fields,
+    } : null,
+  };
+}
+
+export function createChannelViewModel(channel) {
+  if (!channel) {
+    return {
+      visible: false,
+      metrics: [
+        {id: "tap-total", valueId: "linkTapTotalPower", label: "Total Tap Power", value: "--"},
+        {id: "tap-peak", valueId: "linkTapPeak", label: "Strongest Tap", value: "--"},
+        {id: "cir-count", valueId: "linkCirCoeffCount", label: "Channel Coefficients", value: "--"},
+        {id: "cir-strongest", valueId: "linkCirStrongest", label: "Largest Coefficient |h|", value: "--"},
+      ],
+    };
+  }
+  const peakPower = Number(channel.peak_tap_power_db);
+  const peak = channel.peak_tap_index === null
+    || channel.peak_tap_index === undefined
+    || !Number.isFinite(peakPower)
+    ? "N/A"
+    : `${channel.peak_tap_index} / ${peakPower.toFixed(2)} dB`;
+  const cirSummary = channel.cir_summary || {};
+  return {
+    visible: true,
+    metrics: [
+      {id: "tap-total", valueId: "linkTapTotalPower", label: "Total Tap Power", value: Number.isFinite(channel.total_power_db) ? `${channel.total_power_db.toFixed(2)} dB` : "N/A"},
+      {id: "tap-peak", valueId: "linkTapPeak", label: "Strongest Tap", value: peak},
+      {id: "cir-count", valueId: "linkCirCoeffCount", label: "Channel Coefficients", value: String(cirSummary.coefficient_count ?? "--")},
+      {id: "cir-strongest", valueId: "linkCirStrongest", label: "Largest Coefficient |h|", value: formatExp(Number(cirSummary.strongest_coefficient_abs))},
+    ],
+  };
+}
+
+export function drawLinkTapChart(svg, channel) {
+  svg.replaceChildren();
+  if (!channel) return;
+  const indices = Array.isArray(channel.tap_indices) ? channel.tap_indices : [];
+  const powers = Array.isArray(channel.power_db) ? channel.power_db.map(Number) : [];
+  const delays = Array.isArray(channel.delays_s) ? channel.delays_s : [];
+  const rows = indices
+    .map((index, i) => ({index, power: powers[i], delay: delays[i]}))
+    .filter((row) => Number.isFinite(row.power));
+  if (!rows.length) return;
+
+  const width = 420;
+  const height = 172;
+  const left = 68;
+  const right = 16;
+  const top = 22;
+  const bottom = 48;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const maxPower = Math.max(...rows.map((row) => row.power));
+  const minPower = Math.min(...rows.map((row) => row.power));
+  let displayMin = Math.max(minPower, maxPower - 60);
+  if (!(displayMin < maxPower)) displayMin = maxPower - 1;
+  const scaleY = (value) => top + (1 - ((Math.max(value, displayMin) - displayMin) / (maxPower - displayMin))) * plotHeight;
+
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("aria-label", "Power delay profile chart: x-axis Tap Index, y-axis Power in dB");
+  const title = svgNode("title");
+  title.textContent = "Power delay profile chart";
+  const desc = svgNode("desc");
+  desc.textContent = "X-axis shows Tap Index. Y-axis shows tap power in dB. Delay is available in each bar tooltip.";
+  svg.append(title, desc);
+
+  const yTicks = [maxPower, (maxPower + displayMin) / 2, displayMin];
+  for (const value of yTicks) {
+    const y = scaleY(value);
+    svg.appendChild(svgNode("line", {x1: left, y1: y, x2: width - right, y2: y, class: "tapGrid"}));
+  }
+  const yAxisTitle = svgNode("text", {x: 15, y: top + (plotHeight / 2), class: "tapAxisTitle", "text-anchor": "middle", transform: `rotate(-90 15 ${top + (plotHeight / 2)})`});
+  yAxisTitle.textContent = "Power (dB)";
+  const xAxisTitle = svgNode("text", {x: left + (plotWidth / 2), y: height - 10, class: "tapAxisTitle", "text-anchor": "middle"});
+  xAxisTitle.textContent = "Tap Index";
+  svg.append(
+    svgNode("line", {x1: left, y1: top, x2: left, y2: top + plotHeight, class: "tapAxis"}),
+    svgNode("line", {x1: left, y1: top + plotHeight, x2: width - right, y2: top + plotHeight, class: "tapAxis"}),
+    yAxisTitle,
+    xAxisTitle,
+  );
+  for (const value of yTicks) {
+    const text = svgNode("text", {x: left - 9, y: scaleY(value), class: "tapAxisLabel", "text-anchor": "end", "dominant-baseline": "middle"});
+    text.textContent = `${value.toFixed(0)} dB`;
+    svg.appendChild(text);
+  }
+  const barGap = Math.min(4, plotWidth / rows.length * 0.25);
+  const barWidth = Math.max(2, (plotWidth / rows.length) - barGap);
+  rows.forEach((row, i) => {
+    const x = left + i * (plotWidth / rows.length) + barGap / 2;
+    const y = scaleY(row.power);
+    const rect = svgNode("rect", {x, y, width: barWidth, height: Math.max(1, top + plotHeight - y), class: row.index === channel.peak_tap_index ? "tapBar peak" : "tapBar"});
+    const tooltip = svgNode("title");
+    tooltip.textContent = `Tap ${row.index}\nPower: ${row.power.toFixed(2)} dB\nDelay: ${formatDelay(row.delay)}`;
+    rect.appendChild(tooltip);
+    svg.appendChild(rect);
+  });
+  const peakRowIndex = rows.findIndex((row) => row.index === channel.peak_tap_index);
+  const xTicks = [
+    {row: rows[0], i: 0},
+    {row: peakRowIndex >= 0 ? rows[peakRowIndex] : null, i: peakRowIndex},
+    {row: rows[rows.length - 1], i: rows.length - 1},
+  ];
+  const seen = new Set();
+  for (const tick of xTicks) {
+    if (!tick.row || tick.i < 0 || seen.has(tick.i)) continue;
+    seen.add(tick.i);
+    const x = left + (tick.i + 0.5) * (plotWidth / rows.length);
+    const label = svgNode("text", {x, y: top + plotHeight + 18, class: tick.row.index === channel.peak_tap_index ? "tapAxisLabel tapPeakLabel" : "tapAxisLabel", "text-anchor": "middle"});
+    label.textContent = String(tick.row.index);
+    svg.append(svgNode("line", {x1: x, y1: top + plotHeight, x2: x, y2: top + plotHeight + 5, class: "tapAxis"}), label);
+  }
+}
+
+export function createLinkResultView({state, ui, getViewer, resultDock}) {
+  const unregisterCommands = resultDock.registerCommandHandler("link", (command) => {
+    if (command.name !== "link.path.select") return;
+    const result = state.link.result;
+    if (!result) return;
+    const index = Number(command.payload?.index);
+    state.link.selectedPath = Number.isInteger(index) ? index : -1;
+    getViewer().renderPaths(result.paths, state.link.selectedPath);
+    renderLinkResult();
+  });
 
   function syncLivePreviewStatusUi() {
-    const visible = state.livePreview.status !== "Idle" && livePreviewStatusAppliesToCurrentMode();
+    const visible = state.livePreview.status !== "Idle"
+      && state.livePreview.mode === "link"
+      && state.mode === "link";
     ui.livePreviewStatus.classList.toggle("hidden", !visible);
     ui.livePreviewStatus.textContent = visible ? state.livePreview.status : "Idle";
   }
 
-  function hidePathDetails() {
-    ui.pathDetailList.innerHTML = "";
-    ui.pathDetailTitle.textContent = "Selected Path";
-    ui.pathDetailSection.classList.add("hidden");
-    ui.pathDetailSection.setAttribute("aria-hidden", "true");
-  }
-
-  function scrollSelectedPathDetailsIntoView() {
-    requestAnimationFrame(() => {
-      if (!ui.pathDetailSection.classList.contains("hidden")) {
-        ui.pathDetailSection.scrollIntoView({block: "nearest"});
-      }
-    });
-  }
-
-  function renderPathDetails(paths, selectedIndex) {
-    if (!paths.length || selectedIndex < 0 || selectedIndex >= paths.length) {
-      hidePathDetails();
-      return;
-    }
-
-    ui.pathDetailList.innerHTML = "";
-    ui.pathDetailTitle.textContent = "Selected Path";
-    ui.pathDetailSection.classList.remove("hidden");
-    ui.pathDetailSection.setAttribute("aria-hidden", "false");
-    const path = paths[selectedIndex];
-    const card = document.createElement("div");
-    card.className = "pathDetailCard oat-list-card active";
-
-    const head = document.createElement("div");
-    head.className = "pathDetailHead";
-    const title = document.createElement("div");
-    title.className = "pathDetailTitle";
-    title.textContent = `Path ${selectedIndex + 1}`;
-    const typeTag = document.createElement("span");
-    typeTag.className = "pathTypeTag";
-    typeTag.textContent = formatPathTypeLabel(path);
-    head.append(title, typeTag);
-
-    const grid = document.createElement("div");
-    grid.className = "pathDetailGrid";
-
-    const addField = (label, value, wide = false) => {
-      const item = document.createElement("div");
-      item.className = "pathDetailItem oat-list-card" + (wide ? " wide" : "");
-      const key = document.createElement("b");
-      key.textContent = label;
-      const text = document.createElement("span");
-      text.textContent = value;
-      item.append(key, text);
-      grid.appendChild(item);
-    };
-
-    addField("Interaction Chain", describeInteractionSequence(path), true);
-    const variants = pathVariantCount(path);
-    if (variants > 1) {
-      addField("Variants", `${variants} variants`);
-      addField("Raw Paths", formatRawPathIndices(path), true);
-      addField("Representative", String(path.representative_path_index ?? path.path_index ?? "N/A"));
-    }
-    addField("Path Gain", formatFixed(path.path_gain_db, 2, " dB"));
-    addField("Power (Linear)", formatExp(path.path_gain_linear));
-    addField("Array Pairs", String(path.array_pair_count ?? 1));
-    addField("Strongest Pair", formatFixed(path.strongest_pair_power_db, 2, " dB"));
-    addField("|a|", formatExp(path.coefficient_abs));
-    addField("Phase", formatFixed(path.coefficient_phase_deg, 1, " deg"));
-    addField("Delay", formatFixed(path.delay_ns, 2, " ns"));
-    addField("Length", formatFixed(path.path_length_m, 2, " m"));
-    addField("Doppler", formatFixed(path.doppler_hz, 2, " Hz"));
-    addField(
-      "AoD (zen/azi)",
-      `${formatFixed(path.departure_zenith_deg, 1)} / ${formatFixed(path.departure_azimuth_deg, 1)} deg`,
-    );
-    addField(
-      "AoA (zen/azi)",
-      `${formatFixed(path.arrival_zenith_deg, 1)} / ${formatFixed(path.arrival_azimuth_deg, 1)} deg`,
-    );
-    addField("Re(a)", formatExp(path.coefficient_real));
-    addField("Im(a)", formatExp(path.coefficient_imag));
-
-    card.append(head, grid);
-    ui.pathDetailList.appendChild(card);
-  }
-
-  function clearPathSelection() {
-    ui.pathButtons.innerHTML = "";
-    ui.pathSelectionCount.textContent = "0 paths";
-    ui.pathSelectionMeta.textContent = "";
-    ui.pathSelectionMeta.classList.add("hidden");
-    ui.pathSelectionSection.classList.add("hidden");
-    ui.pathSelectionSection.setAttribute("aria-hidden", "true");
-  }
-
-  function scrollSelectedPathRowIntoView() {
-    requestAnimationFrame(() => {
-      const active = ui.pathButtons.querySelector(".pathRow.active, .pathAllButton.active");
-      if (active) {
-        active.scrollIntoView({block: "nearest"});
-      }
-    });
-  }
-
-  function renderPathSelection(paths, selectedIndex, onSelect, summary = null) {
-    ui.pathButtons.innerHTML = "";
-    if (!paths.length) {
-      clearPathSelection();
-      return;
-    }
-
-    ui.pathSelectionSection.classList.remove("hidden");
-    ui.pathSelectionSection.setAttribute("aria-hidden", "false");
-    ui.pathSelectionCount.textContent = formatPathSelectionCount(paths, summary);
-    const meta = formatPathSelectionMeta(paths, summary);
-    ui.pathSelectionMeta.textContent = meta;
-    ui.pathSelectionMeta.classList.toggle("hidden", !meta);
-
-    const allButton = document.createElement("button");
-    allButton.type = "button";
-    allButton.className = "pathAllButton oat-list-card oat-list-card--interactive" + (selectedIndex === -1 ? " active" : "");
-    allButton.setAttribute("aria-pressed", String(selectedIndex === -1));
-    allButton.textContent = "Show all paths";
-    allButton.addEventListener("click", () => onSelect(-1));
-    ui.pathButtons.appendChild(allButton);
-
-    paths.forEach((path, index) => {
-      const variants = pathVariantCount(path);
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = "pathRow oat-list-card oat-list-card--interactive" + (selectedIndex === index ? " active" : "");
-      row.setAttribute("aria-pressed", String(selectedIndex === index));
-      row.setAttribute(
-        "aria-label",
-        `Path ${index + 1}, ${formatPathTypeLabel(path)}, path gain ${formatPathGainValue(path)}, delay ${formatPathDelayValue(path)}`,
-      );
-      row.addEventListener("click", () => onSelect(index));
-
-      const head = document.createElement("span");
-      head.className = "pathRowHead";
-      head.appendChild(makePathText("pathRowName", `Path ${index + 1}`));
-      const badges = document.createElement("span");
-      badges.className = "pathRowBadges";
-      badges.appendChild(makePathText(`pathRowBadge type-${pathTypeClass(path)}`, formatPathTypeLabel(path)));
-      if (variants > 1) {
-        badges.appendChild(makePathText("pathRowBadge pathVariantBadge", `${variants} variants`));
-      }
-      head.appendChild(badges);
-
-      const metrics = document.createElement("span");
-      metrics.className = "pathRowMetrics";
-      metrics.append(
-        makePathMetric("Path gain", formatPathGainValue(path)),
-        makePathMetric("Delay", formatPathDelayValue(path)),
-      );
-
-      row.append(head, metrics);
-      ui.pathButtons.appendChild(row);
-    });
-    scrollSelectedPathRowIntoView();
-  }
-
-  function renderTapChart(channel) {
-    ui.linkTapChart.replaceChildren();
-    const indices = Array.isArray(channel.tap_indices) ? channel.tap_indices : [];
-    const powers = Array.isArray(channel.power_db) ? channel.power_db.map(Number) : [];
-    const delays = Array.isArray(channel.delays_s) ? channel.delays_s : [];
-    const rows = indices
-      .map((index, i) => ({index, power: powers[i], delay: delays[i]}))
-      .filter((row) => Number.isFinite(row.power));
-    if (!rows.length) {
-      return;
-    }
-
-    const width = 420;
-    const height = 172;
-    const left = 68;
-    const right = 16;
-    const top = 22;
-    const bottom = 48;
-    const plotWidth = width - left - right;
-    const plotHeight = height - top - bottom;
-    const maxPower = Math.max(...rows.map((row) => row.power));
-    const minPower = Math.min(...rows.map((row) => row.power));
-    let displayMin = Math.max(minPower, maxPower - 60);
-    if (!(displayMin < maxPower)) {
-      displayMin = maxPower - 1;
-    }
-    const scaleY = (value) => top + (1 - ((Math.max(value, displayMin) - displayMin) / (maxPower - displayMin))) * plotHeight;
-
-    ui.linkTapChart.setAttribute("viewBox", `0 0 ${width} ${height}`);
-    ui.linkTapChart.setAttribute("aria-label", "Power delay profile chart: x-axis Tap Index, y-axis Power in dB");
-    const title = svgNode("title");
-    title.textContent = "Power delay profile chart";
-    const desc = svgNode("desc");
-    desc.textContent = "X-axis shows Tap Index. Y-axis shows tap power in dB. Delay is available in each bar tooltip.";
-    ui.linkTapChart.append(title, desc);
-
-    const yTicks = [
-      {label: "max", value: maxPower},
-      {label: "mid", value: (maxPower + displayMin) / 2},
-      {label: "min", value: displayMin},
-    ];
-    for (const tick of yTicks) {
-      const y = scaleY(tick.value);
-      ui.linkTapChart.appendChild(svgNode("line", {
-        x1: left,
-        y1: y,
-        x2: width - right,
-        y2: y,
-        class: "tapGrid",
-      }));
-    }
-
-    const yAxisTitle = svgNode("text", {
-      x: 15,
-      y: top + (plotHeight / 2),
-      class: "tapAxisTitle",
-      "text-anchor": "middle",
-      transform: `rotate(-90 15 ${top + (plotHeight / 2)})`,
-    });
-    yAxisTitle.textContent = "Power (dB)";
-    const xAxisTitle = svgNode("text", {
-      x: left + (plotWidth / 2),
-      y: height - 10,
-      class: "tapAxisTitle",
-      "text-anchor": "middle",
-    });
-    xAxisTitle.textContent = "Tap Index";
-    ui.linkTapChart.append(
-      svgNode("line", {x1: left, y1: top, x2: left, y2: top + plotHeight, class: "tapAxis"}),
-      svgNode("line", {x1: left, y1: top + plotHeight, x2: width - right, y2: top + plotHeight, class: "tapAxis"}),
-      yAxisTitle,
-      xAxisTitle,
-    );
-
-    for (const tick of yTicks) {
-      const text = svgNode("text", {
-        x: left - 9,
-        y: scaleY(tick.value),
-        class: "tapAxisLabel",
-        "text-anchor": "end",
-        "dominant-baseline": "middle",
-      });
-      text.textContent = `${tick.value.toFixed(0)} dB`;
-      ui.linkTapChart.appendChild(text);
-    }
-
-    const barGap = Math.min(4, plotWidth / rows.length * 0.25);
-    const barWidth = Math.max(2, (plotWidth / rows.length) - barGap);
-    rows.forEach((row, i) => {
-      const x = left + i * (plotWidth / rows.length) + barGap / 2;
-      const y = scaleY(row.power);
-      const barHeight = Math.max(1, top + plotHeight - y);
-      const rect = svgNode("rect", {
-        x,
-        y,
-        width: barWidth,
-        height: barHeight,
-        class: row.index === channel.peak_tap_index ? "tapBar peak" : "tapBar",
-      });
-      const title = svgNode("title");
-      title.textContent = `Tap ${row.index}\nPower: ${row.power.toFixed(2)} dB\nDelay: ${formatDelay(row.delay)}`;
-      rect.appendChild(title);
-      ui.linkTapChart.appendChild(rect);
-    });
-
-    const peakRowIndex = rows.findIndex((row) => row.index === channel.peak_tap_index);
-    const xTicks = [
-      {row: rows[0], i: 0},
-      {row: peakRowIndex >= 0 ? rows[peakRowIndex] : null, i: peakRowIndex},
-      {row: rows[rows.length - 1], i: rows.length - 1},
-    ];
-    const seenTickPositions = new Set();
-    for (const tick of xTicks) {
-      if (!tick.row || tick.i < 0 || seenTickPositions.has(tick.i)) {
-        continue;
-      }
-      seenTickPositions.add(tick.i);
-      const x = left + (tick.i + 0.5) * (plotWidth / rows.length);
-      const label = svgNode("text", {
-        x,
-        y: top + plotHeight + 18,
-        class: tick.row.index === channel.peak_tap_index ? "tapAxisLabel tapPeakLabel" : "tapAxisLabel",
-        "text-anchor": "middle",
-      });
-      label.textContent = String(tick.row.index);
-      ui.linkTapChart.append(
-        svgNode("line", {
-          x1: x,
-          y1: top + plotHeight,
-          x2: x,
-          y2: top + plotHeight + 5,
-          class: "tapAxis",
-        }),
-        label,
-      );
-    }
-  }
-
-  function renderLinkChannel(channel) {
-    if (!channel) {
-      ui.linkTapAnalysisSection.classList.add("hidden");
-      ui.linkTapAnalysisSection.setAttribute("aria-hidden", "true");
-      ui.linkTapChart.replaceChildren();
-      return;
-    }
-
-    ui.linkTapAnalysisSection.classList.remove("hidden");
-    ui.linkTapAnalysisSection.setAttribute("aria-hidden", "false");
-    ui.linkTapTotalPower.textContent = Number.isFinite(channel.total_power_db)
-      ? `${channel.total_power_db.toFixed(2)} dB`
-      : "N/A";
-    const peakPower = Number(channel.peak_tap_power_db);
-    ui.linkTapPeak.textContent = (
-      channel.peak_tap_index === null
-      || channel.peak_tap_index === undefined
-      || !Number.isFinite(peakPower)
-    )
-      ? "N/A"
-      : `${channel.peak_tap_index} / ${peakPower.toFixed(2)} dB`;
-    const cirSummary = channel.cir_summary || {};
-    ui.linkCirCoeffCount.textContent = String(cirSummary.coefficient_count ?? "--");
-    ui.linkCirStrongest.textContent = formatExp(Number(cirSummary.strongest_coefficient_abs));
-    renderTapChart(channel);
-  }
-
   function renderLinkResult() {
-    if (!renderWhenInactive && state.mode !== featureId) {
-      return;
-    }
-    const current = featureState();
-    const result = current.result;
-    const liveActive = state.mode === featureId
-      && state.livePreview.mode === featureId
+    const result = state.link.result;
+    const liveActive = state.mode === "link"
+      && state.livePreview.mode === "link"
       && state.livePreview.status !== "Idle";
+    const visible = state.mode === "link" && (Boolean(result) || liveActive);
     syncLivePreviewStatusUi();
-    if ((!result && !liveActive) || state.mode !== featureId) {
-      if (state.mode !== "mobility") {
-        ui.linkChannelSection.classList.add("hidden");
-        ui.linkChannelSection.setAttribute("aria-hidden", "true");
-      }
-      ui.linkResult.style.display = "none";
-      ui.mobilityResult.style.display = "none";
-      ui.mobilityTimelineSection.classList.add("hidden");
-      ui.mobilityTimelineSection.setAttribute("aria-hidden", "true");
-      renderLinkChannel(null);
-      if (state.mode !== "mobility") {
-        clearPathSelection();
-        hidePathDetails();
-      }
-      if (state.mode === featureId && !result) {
+    if (state.mode === "link") {
+      ui.linkChannelSection.classList.toggle("hidden", !visible);
+      ui.linkChannelSection.classList.remove("radarResultMode");
+      ui.linkChannelSection.setAttribute("aria-hidden", String(!visible));
+      if (visible) {
+        ui.resultDockTitle.textContent = "Link Results";
+        ui.resultDockSubtitle.textContent = "Path Gains & Taps";
+      } else if (!result) {
         getViewer().clearPaths();
       }
-      return;
+    } else if (!["mobility", "radiomap", "radar"].includes(state.mode)) {
+      ui.linkChannelSection.classList.add("hidden");
+      ui.linkChannelSection.classList.remove("radarResultMode");
+      ui.linkChannelSection.setAttribute("aria-hidden", "true");
     }
-
-    ui.linkChannelSection.classList.remove("hidden");
-    ui.linkChannelSection.setAttribute("aria-hidden", "false");
-    ui.resultDockTitle.textContent = resultTitle;
-    ui.resultDockSubtitle.textContent = "Path Gains & Taps";
-    ui.linkResult.style.display = "block";
-    ui.mobilityResult.style.display = "none";
-    ui.mobilityTimelineSection.classList.add("hidden");
-    ui.mobilityTimelineSection.setAttribute("aria-hidden", "true");
-    if (!result) {
-      ui.linkPower.textContent = "--";
-      ui.linkBest.textContent = "--";
-      ui.linkPaths.textContent = "--";
-      ui.linkLos.textContent = "--";
-      ui.linkLos.className = "pill no";
-      renderLinkChannel(null);
-      clearPathSelection();
-      hidePathDetails();
-      return;
-    }
-    ui.linkPower.textContent = Number.isFinite(result.summary.received_power_db)
-      ? `${result.summary.received_power_db.toFixed(2)} dB`
-      : "N/A";
-    ui.linkBest.textContent = Number.isFinite(result.summary.strongest_path_db)
-      ? `${result.summary.strongest_path_db.toFixed(2)} dB`
-      : "N/A";
-    ui.linkPaths.textContent = String(result.summary.valid_paths ?? 0);
-    const hasLos = (result.summary.los_paths ?? 0) > 0;
-    ui.linkLos.textContent = hasLos ? "Yes" : "No";
-    ui.linkLos.className = `pill ${hasLos ? "yes" : "no"}`;
-    renderLinkChannel(result.channel);
-    getViewer().renderPaths(result.paths, current.selectedPath);
-
-    renderPathDetails(result.paths, current.selectedPath);
-    renderPathSelection(result.paths, current.selectedPath, (index) => {
-      current.selectedPath = index;
-      getViewer().renderPaths(result.paths, index);
-      renderLinkResult();
-      scrollSelectedPathDetailsIntoView();
-    }, result.summary);
+    const hasLos = (result?.summary?.los_paths ?? 0) > 0;
+    const channel = createChannelViewModel(result?.channel);
+    const paths = createPathResultsViewModel(
+      result?.paths || [],
+      state.link.selectedPath,
+      result?.summary,
+      "link",
+    );
+    resultDock.update("link", {
+      status: result ? "success" : liveActive ? "loading" : "empty",
+      visible,
+      summary: [
+        {id: "link-power", valueId: "linkPower", label: "Total Path Gain", value: result && Number.isFinite(result.summary.received_power_db) ? `${result.summary.received_power_db.toFixed(2)} dB` : result ? "N/A" : "--"},
+        {id: "link-best", valueId: "linkBest", label: "Strongest Path Gain", value: result && Number.isFinite(result.summary.strongest_path_db) ? `${result.summary.strongest_path_db.toFixed(2)} dB` : result ? "N/A" : "--"},
+        {id: "link-paths", valueId: "linkPaths", label: "Paths", value: result ? String(result.summary.valid_paths ?? 0) : "--"},
+        {id: "link-los", valueId: "linkLos", label: "Line of Sight", value: result ? (hasLos ? "Yes" : "No") : "--", valueClassName: `pill ${hasLos ? "yes" : "no"} oat-badge`},
+      ],
+      channel,
+      paths,
+    }, ["link", "mobility", "radiomap", "radar"].includes(state.mode) ? state.mode : null);
+    const chart = resultDock.element("linkTapChart");
+    if (state.mode === "link") drawLinkTapChart(chart, result?.channel || null);
+    if (result && state.mode === "link") getViewer().renderPaths(result.paths, state.link.selectedPath);
   }
 
   return {
-    clearPathSelection,
-    hidePathDetails,
-    renderLinkChannel,
+    createChannelViewModel,
+    createPathResultsViewModel,
+    dispose: unregisterCommands,
+    drawLinkTapChart,
     renderLinkResult,
-    renderPathDetails,
-    renderPathSelection,
-    scrollSelectedPathDetailsIntoView,
     syncLivePreviewStatusUi,
   };
 }

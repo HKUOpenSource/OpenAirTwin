@@ -250,6 +250,10 @@ export default defineConfig({
         replacement: resolve(workbenchRoot, "src/catalog"),
       },
       {
+        find: "/@oat",
+        replacement: resolve(workbenchRoot, "src"),
+      },
+      {
         find: "react",
         replacement: resolve(workbenchRoot, "node_modules/react"),
       },

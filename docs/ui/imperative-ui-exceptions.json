@@ -14,10 +14,8 @@
     "backend/static/js/performance_panel.js",
     "backend/static/js/scene_render_state.js",
     "backend/static/js/solver_controls.js",
-    "backend/static/js/ui/deepmimo_dataset_view.js",
     "backend/static/js/ui/link_result_view.js",
     "backend/static/js/ui/mobility_result_view.js",
-    "backend/static/js/ui/radar_result_view.js",
     "backend/static/js/ui/result_formatters.js",
     "backend/static/js/ui/tile_selection_view.js"
   ],
@@ -29,11 +27,8 @@
     "backend/static/js/param_tooltips.js",
     "backend/static/js/performance_panel.js",
     "backend/static/js/scene_render_state.js",
-    "backend/static/js/ui/link_result_view.js",
     "backend/static/js/ui/loading_overlay_controller.js",
-    "backend/static/js/ui/mobility_result_view.js",
     "backend/static/js/ui/radar_result_view.js",
-    "backend/static/js/ui/radiomap_result_view.js",
     "backend/static/js/viewer.js"
   ],
   "runtimeCustomProperties": [

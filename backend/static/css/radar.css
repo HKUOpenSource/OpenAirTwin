@@ -4,10 +4,6 @@
   display:none;
 }
 
-.radarSiblingHidden {
-  display:none;
-}
-
 .radarOnlyParams {
   display:flex;
   flex-direction:column;

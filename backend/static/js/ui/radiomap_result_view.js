@@ -6,67 +6,36 @@ function formatArea(size) {
   return `${formatFixed(Number(width), 1)} x ${formatFixed(Number(height), 1, " m")}`;
 }
 
+function statusType(status) {
+  if (status === "Succeeded") return "success";
+  if (status === "Failed") return "error";
+  if (status === "Cancelled") return "warning";
+  if (status === "Idle") return "empty";
+  return "loading";
+}
+
 export function createRadiomapResultView({
   state,
   ui,
   getViewer,
   radiomapColorRange,
   syncLivePreviewStatusUi,
-  hidePathDetails,
+  resultDock,
 }) {
-  function renderRadiomapColorbar(visible) {
-    ui.rmColorbarSection.classList.toggle("hidden", !visible);
-    ui.rmColorbarSection.setAttribute("aria-hidden", String(!visible));
-    if (!visible) {
-      return;
-    }
+  function createViewModel(visible) {
     const {minDb, maxDb, colormap} = radiomapColorRange();
-    ui.rmColorbar.style.background = colormapGradient(colormap);
-    ui.rmColormapLabel.textContent = `Colormap: ${colormap}`;
-    ui.rmColorbarRange.textContent = `Display limits: ${minDb.toFixed(0)} .. ${maxDb.toFixed(0)} dB`;
-    ui.rmColorbarMin.textContent = `${minDb.toFixed(0)} dB`;
-    ui.rmColorbarMax.textContent = `${maxDb.toFixed(0)} dB`;
-  }
-
-  function hideRadiomapDockContent() {
-    ui.radiomapResult.style.display = "none";
-    ui.radiomapResolutionSection.classList.add("hidden");
-    ui.radiomapResolutionSection.setAttribute("aria-hidden", "true");
-    renderRadiomapColorbar(false);
-  }
-
-  function renderRadiomapResult() {
-    const shouldShow = state.mode === "radiomap"
-      && (state.radiomap.status !== "Idle" || Boolean(state.radiomap.result));
-    syncLivePreviewStatusUi();
-    if (!shouldShow) {
-      hideRadiomapDockContent();
-      if (state.mode === "radiomap") {
-        ui.linkChannelSection.classList.add("hidden");
-        ui.linkChannelSection.setAttribute("aria-hidden", "true");
-      }
-      return;
-    }
-
-    ui.linkChannelSection.classList.remove("hidden");
-    ui.linkChannelSection.setAttribute("aria-hidden", "false");
-    ui.resultDockTitle.textContent = "Radio Map Results";
-    ui.resultDockSubtitle.textContent = "Path gain / Terrain grid";
-    ui.linkResult.style.display = "none";
-    ui.mobilityResult.style.display = "none";
-    ui.mobilityTimelineSection.classList.add("hidden");
-    ui.mobilityTimelineSection.setAttribute("aria-hidden", "true");
-    ui.linkTapAnalysisSection.classList.add("hidden");
-    ui.linkTapAnalysisSection.setAttribute("aria-hidden", "true");
-    ui.pathSelectionSection.classList.add("hidden");
-    ui.pathSelectionSection.setAttribute("aria-hidden", "true");
-    hidePathDetails();
-    ui.radiomapResolutionSection.classList.remove("hidden");
-    ui.radiomapResolutionSection.setAttribute("aria-hidden", "false");
-    ui.radiomapResult.style.display = "block";
-    ui.rmStatus.textContent = formatStatus(state.radiomap.status);
-    ui.rmMetric.textContent = "Path gain (dB)";
-    ui.rmArea.textContent = formatArea(state.radiomap.surface.size);
+    const summary = [
+      {id: "status", label: "Status", value: formatStatus(state.radiomap.status), valueId: "rmStatus"},
+      {id: "metric", label: "Metric", value: "Path gain (dB)", valueId: "rmMetric"},
+      {id: "grid", label: "Grid", value: "--", valueId: "rmGrid"},
+      {id: "mesh", label: "Solver Mesh", value: "--", valueId: "rmMesh"},
+    ];
+    const resolution = [
+      {id: "area", label: "Area", value: formatArea(state.radiomap.surface.size), valueId: "rmArea"},
+      {id: "cell-size", label: "Cell Size", value: "--", valueId: "rmCellSizeSummary"},
+      {id: "samples", label: "Samples / Tx", value: "--", valueId: "rmSamples"},
+      {id: "range", label: "Result Range", value: "--", valueId: "rmRange"},
+    ];
 
     if (state.radiomap.result) {
       const {surface, solver, range} = state.radiomap.result;
@@ -76,37 +45,74 @@ export function createRadiomapResultView({
       const requestedCellSize = Number(surface.requested_cell_size);
       if (surface.resolution_mode === "cell_size_grid") {
         const [nx, ny] = Array.isArray(surface.grid_shape) ? surface.grid_shape : ["?", "?"];
-        ui.rmGrid.textContent = `${nx} x ${ny} cells (${formatCount(surface.grid_cell_count)})`;
-        ui.rmMesh.textContent = `${formatCount(surface.triangle_count)} triangles`;
-        ui.rmCellSizeSummary.textContent = `${formatFixed(requestedCellSize, 1, " m")} target | ${formatFixed(Number(surface.resolved_cell_size_x), 1)} x ${formatFixed(Number(surface.resolved_cell_size_y), 1, " m")} resolved`;
+        summary[2].value = `${nx} x ${ny} cells (${formatCount(surface.grid_cell_count)})`;
+        summary[3].value = `${formatCount(surface.triangle_count)} triangles`;
+        resolution[1].value = `${formatFixed(requestedCellSize, 1, " m")} target | ${formatFixed(Number(surface.resolved_cell_size_x), 1)} x ${formatFixed(Number(surface.resolved_cell_size_y), 1, " m")} resolved`;
       } else {
-        ui.rmGrid.textContent = `Auto D${surface.density_level} terrain cells (${formatCount(surface.cell_count)})`;
-        ui.rmMesh.textContent = `${formatCount(surface.cell_count)} triangles`;
-        ui.rmCellSizeSummary.textContent = `Auto D${surface.density_level} | terrain-derived`;
+        summary[2].value = `Auto D${surface.density_level} terrain cells (${formatCount(surface.cell_count)})`;
+        summary[3].value = `${formatCount(surface.cell_count)} triangles`;
+        resolution[1].value = `Auto D${surface.density_level} | terrain-derived`;
       }
-      ui.rmSamples.textContent = `${formatCount(solver?.base_samples_per_tx)} base | ${formatCount(solver?.effective_samples_per_tx)} effective`;
+      resolution[2].value = `${formatCount(solver?.base_samples_per_tx)} base | ${formatCount(solver?.effective_samples_per_tx)} effective`;
       const rangeMin = Number(range?.min);
       const rangeMax = Number(range?.max);
-      ui.rmRange.textContent = Number.isFinite(rangeMin) && Number.isFinite(rangeMax)
+      resolution[3].value = Number.isFinite(rangeMin) && Number.isFinite(rangeMax)
         ? `${rangeMin.toFixed(1)} .. ${rangeMax.toFixed(1)} dB`
         : "N/A";
     } else {
       const cellSize = state.radiomap.surface.cellSize;
       const densityLevel = state.radiomap.surface.densityLevel;
-      ui.rmGrid.textContent = cellSize == null ? `Auto D${densityLevel} terrain cells` : "Pending grid";
-      ui.rmMesh.textContent = "Pending";
-      ui.rmCellSizeSummary.textContent = cellSize == null
+      summary[2].value = cellSize == null ? `Auto D${densityLevel} terrain cells` : "Pending grid";
+      summary[3].value = "Pending";
+      resolution[1].value = cellSize == null
         ? `Auto D${densityLevel} | terrain-derived`
         : `${formatFixed(Number(cellSize), 1, " m")} target | pending`;
-      ui.rmSamples.textContent = `${formatCount(state.radiomap.solver.samplesPerTx)} base | pending`;
-      ui.rmRange.textContent = "--";
+      resolution[2].value = `${formatCount(state.radiomap.solver.samplesPerTx)} base | pending`;
     }
-    renderRadiomapColorbar(true);
+
+    return {
+      status: statusType(state.radiomap.status),
+      visible,
+      summary,
+      resolution,
+      colorbar: {
+        visible,
+        colormapLabel: `Colormap: ${colormap}`,
+        rangeLabel: `Display limits: ${minDb.toFixed(0)} .. ${maxDb.toFixed(0)} dB`,
+        minLabel: `${minDb.toFixed(0)} dB`,
+        maxLabel: `${maxDb.toFixed(0)} dB`,
+        gradient: colormapGradient(colormap),
+      },
+    };
   }
 
-  return {
+  function renderRadiomapResult() {
+    const shouldShow = state.mode === "radiomap"
+      && (state.radiomap.status !== "Idle" || Boolean(state.radiomap.result));
+    syncLivePreviewStatusUi();
+    if (state.mode === "radiomap") {
+      ui.linkChannelSection.classList.toggle("hidden", !shouldShow);
+      ui.linkChannelSection.setAttribute("aria-hidden", String(!shouldShow));
+      ui.linkChannelSection.classList.remove("radarResultMode");
+      if (shouldShow) {
+        ui.resultDockTitle.textContent = "Radio Map Results";
+        ui.resultDockSubtitle.textContent = "Path gain / Terrain grid";
+      }
+    }
+    resultDock.update("radiomap", createViewModel(shouldShow), state.mode);
+  }
+
+  function hideRadiomapDockContent() {
+    resultDock.update("radiomap", createViewModel(false), state.mode);
+  }
+
+  function renderRadiomapColorbar(visible) {
+    resultDock.update("radiomap", createViewModel(visible), state.mode);
+  }
+
+  return Object.freeze({
     hideRadiomapDockContent,
     renderRadiomapColorbar,
     renderRadiomapResult,
-  };
+  });
 }

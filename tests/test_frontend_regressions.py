@@ -213,12 +213,8 @@ class FrontendRegressionTests(unittest.TestCase):
                 "invalidateDeepMimoResult",
                 "readDeepMimoInputs",
                 "rerenderRadiomapOverlay",
-                "renderLinkResult",
-                "renderMobilityResult",
                 "renderMobilityTrajectoryPreview",
-                "renderRadiomapResult",
                 "renderDeepMimoState",
-                "renderDeepMimoDatasetTray",
                 "runLinkSolve",
                 "runMobility",
                 "runRadiomap",
@@ -231,9 +227,6 @@ class FrontendRegressionTests(unittest.TestCase):
                 "addCurrentRxWaypoint",
                 "deleteMobilityWaypoint",
                 "resetMobilityTrajectoryFromRx",
-                "selectMobilityStep",
-                "startMobilityPlayback",
-                "stopMobilityPlayback",
                 "cancelLivePreview",
                 "handleLivePreviewDeviceUpdate",
                 "applyPick",
@@ -838,24 +831,25 @@ class FrontendRegressionTests(unittest.TestCase):
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
         state_source = read_frontend_js_modules()
         dom_source = read_static_js("dom_refs.js")
+        result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
 
         self.assertIn('id="rmSamplesPerTx"', html)
         self.assertIn('id="rmCellSize"', html)
         self.assertIn('id="rmColormap"', html)
-        self.assertIn('id="rmColorbarSection"', html)
-        self.assertIn('id="radiomapResolutionSection"', html)
-        self.assertIn('id="rmMesh"', html)
-        self.assertIn('id="rmArea"', html)
-        self.assertIn('id="rmCellSizeSummary"', html)
-        self.assertIn("Solver Mesh", html)
-        self.assertIn("Resolution &amp; Budget", html)
-        self.assertIn("Display Scale", html)
+        self.assertIn('id="rmColorbarSection"', result_component)
+        self.assertIn('id="radiomapResolutionSection"', result_component)
+        self.assertIn('valueId: "rmMesh"', source)
+        self.assertIn('valueId: "rmArea"', source)
+        self.assertIn('valueId: "rmCellSizeSummary"', source)
+        self.assertIn("Solver Mesh", source)
+        self.assertIn("Resolution &amp; Budget", result_component)
+        self.assertIn("Display Scale", result_component)
         self.assertIn('<option value="jet" selected>jet</option>', html)
         self.assertIn("solver: {samplesPerTx: 1000000}", state_source)
         self.assertIn('colormap: "jet"', state_source)
         self.assertIn('rmSamplesPerTx: document.getElementById("rmSamplesPerTx")', dom_source)
-        self.assertIn('rmMesh: document.getElementById("rmMesh")', dom_source)
-        self.assertIn('rmCellSizeSummary: document.getElementById("rmCellSizeSummary")', dom_source)
+        self.assertNotIn('document.getElementById("rmMesh")', dom_source)
+        self.assertNotIn('document.getElementById("rmCellSizeSummary")', dom_source)
         self.assertIn("surface.cell_size = state.radiomap.surface.cellSize", source)
         self.assertIn("samples_per_tx: state.radiomap.solver.samplesPerTx", source)
         self.assertNotIn("samples_per_tx: 1000000", source)
@@ -891,6 +885,7 @@ class FrontendRegressionTests(unittest.TestCase):
         scene_source = read_frontend_js_modules()
         entry_source = read_static_js("entry_map.js")
         performance_source = read_static_js("performance_panel.js")
+        result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
 
         dock_start = html.index('id="linkChannelSection"')
         link_panel_start = html.index('id="linkPanel"')
@@ -898,7 +893,8 @@ class FrontendRegressionTests(unittest.TestCase):
         dock_html = html[dock_start:link_panel_start]
         left_panel_html = html[link_panel_start:]
 
-        self.assertIn('id="radiomapResult"', dock_html)
+        self.assertIn('data-oat-react-owner="result-dock"', dock_html)
+        self.assertIn('id="radiomapResult"', result_component)
         self.assertIn('id="btnResultDockToggle"', dock_html)
         self.assertIn('aria-expanded="true"', dock_html)
         self.assertIn('id="channelAnalysisScroll" class="channelAnalysisScroll oat-scroll-region"', dock_html)
@@ -945,16 +941,17 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("ui.channelAnalysisScroll.inert = !expanded;", scene_source)
         self.assertIn("Radio Map Results", source)
         self.assertIn("Path gain / Terrain grid", source)
-        self.assertIn("Path gain (dB)", html)
-        self.assertIn("Grid", html)
-        self.assertIn("Solver Mesh", html)
-        self.assertIn("Area", html)
-        self.assertIn("Cell Size", html)
-        self.assertIn("Samples / Tx", html)
-        self.assertIn("Result Range", html)
-        self.assertIn("Display Scale", html)
+        self.assertIn("Path gain (dB)", source)
+        self.assertIn("Grid", source)
+        self.assertIn("Solver Mesh", source)
+        self.assertIn("Area", source)
+        self.assertIn("Cell Size", source)
+        self.assertIn("Samples / Tx", source)
+        self.assertIn("Result Range", source)
+        self.assertIn("Display Scale", result_component)
         self.assertNotIn('id="radiomapResult"', left_panel_html[left_panel_html.index('id="radiomapPanel"'):])
-        self.assertIn('ui.radiomapResult.style.display = "none";', source)
+        self.assertIn('resultDock.update("radiomap"', source)
+        self.assertNotIn("ui.radiomapResult", source)
         self.assertIn('ui.linkChannelSection.classList.remove("hidden");', source)
         self.assertIn('ui.resultDockTitle.textContent = "Radio Map Results";', source)
         self.assertIn('syncModeUi();\n  syncControlSidebarUi();\n  syncViewerMarkers();', scene_source)
@@ -1060,20 +1057,21 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_path_details_show_array_pair_aggregation(self) -> None:
         source = read_frontend_js_modules()
+        result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
 
-        self.assertIn('addField("Array Pairs", String(path.array_pair_count ?? 1));', source)
-        self.assertIn('addField("Strongest Pair", formatFixed(path.strongest_pair_power_db, 2, " dB"));', source)
-        self.assertIn('addField("Variants", `${variants} variants`);', source)
-        self.assertIn('addField("Raw Paths", formatRawPathIndices(path), true);', source)
-        self.assertIn('addField("Representative", String(path.representative_path_index ?? path.path_index ?? "N/A"));', source)
+        self.assertIn('detailField("array-pairs", "Array Pairs", String(path.array_pair_count ?? 1))', source)
+        self.assertIn('detailField("strongest-pair", "Strongest Pair", formatFixed(path.strongest_pair_power_db, 2, " dB"))', source)
+        self.assertIn('detailField("variants", "Variants", `${variants} variants`)', source)
+        self.assertIn('detailField("raw-paths", "Raw Paths", formatRawPathIndices(path), true)', source)
+        self.assertIn('detailField("representative", "Representative", String(path.representative_path_index ?? path.path_index ?? "N/A"))', source)
         self.assertIn('const PATH_TYPE_LABELS = {', source)
         self.assertIn('LOS: "Line-of-sight"', source)
         self.assertIn('MIXED: "Mixed interactions"', source)
         self.assertIn('function formatPathSelectionMeta(paths, summary = null)', source)
         self.assertIn('return `${solverPaths} solver ${solverPaths === 1 ? "path" : "paths"}${mergedLabel}`;', source)
-        self.assertIn('makePathMetric("Path gain", formatPathGainValue(path))', source)
-        self.assertIn('makePathMetric("Delay", formatPathDelayValue(path))', source)
-        self.assertIn('badges.appendChild(makePathText("pathRowBadge pathVariantBadge", `${variants} variants`));', source)
+        self.assertIn('gain = formatPathGainValue(path)', source)
+        self.assertIn('delay = formatPathDelayValue(path)', source)
+        self.assertIn('className="pathRowBadge pathVariantBadge"', result_component)
         self.assertNotIn('function formatPathButtonLabel(path, index)', source)
         self.assertNotIn('return parts.join(" · ");', source)
 
@@ -1081,42 +1079,39 @@ class FrontendRegressionTests(unittest.TestCase):
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
         css_source = read_app_css()
         source = read_frontend_js_modules()
+        result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
 
         dock_start = html.index('id="linkChannelSection"')
         link_panel_start = html.index('id="linkPanel"')
         radiomap_panel_start = html.index('id="radiomapPanel"')
         dock_html = html[dock_start:link_panel_start]
         link_panel_html = html[link_panel_start:radiomap_panel_start]
-        selection_index = dock_html.index('id="pathSelectionSection"')
-        buttons_index = dock_html.index('id="pathButtons"')
-        detail_index = dock_html.index('id="pathDetailSection"')
-        tap_index = dock_html.index('id="linkTapAnalysisSection"')
+        selection_index = result_component.index('id="pathSelectionSection"')
+        buttons_index = result_component.index('id="pathButtons"')
+        detail_index = result_component.index('id="pathDetailSection"')
+        tap_index = result_component.index('id="linkTapAnalysisSection"')
 
         self.assertIn("Link Results", dock_html)
-        self.assertIn('id="linkResult"', dock_html)
-        self.assertIn('id="pathSelectionSection"', dock_html)
-        self.assertIn('id="pathSelectionCount"', dock_html)
-        self.assertIn('id="pathSelectionMeta"', dock_html)
-        self.assertIn('id="pathButtons" class="pathList oat-scroll-region"', dock_html)
-        self.assertIn('id="pathDetailSection" class="linkDockSection hidden" aria-hidden="true"', dock_html)
-        self.assertIn('id="pathDetailTitle"', dock_html)
-        self.assertIn('id="linkTapAnalysisSection"', dock_html)
+        self.assertIn('data-oat-react-owner="result-dock"', dock_html)
+        for element_id in (
+            "linkResult", "pathSelectionSection", "pathSelectionCount", "pathSelectionMeta",
+            "pathButtons", "pathDetailSection", "pathDetailTitle", "linkTapAnalysisSection",
+        ):
+            self.assertIn(f'id="{element_id}"', result_component)
         self.assertLess(selection_index, buttons_index)
         self.assertLess(selection_index, detail_index)
-        self.assertLess(detail_index, tap_index)
+        self.assertLess(
+            result_component.index("<PathSections"),
+            result_component.index("<ChannelSection"),
+        )
         self.assertIn("Path Gains &amp; Taps", dock_html)
-        self.assertIn("Selected Path", dock_html)
-        self.assertIn("Total Path Gain", dock_html)
-        self.assertIn("Strongest Path Gain", dock_html)
-        self.assertIn("Line of Sight", dock_html)
-        self.assertIn("Power Delay Profile", dock_html)
-        self.assertIn("Discrete Channel Taps", dock_html)
-        self.assertIn("Total Tap Power", dock_html)
-        self.assertIn("Strongest Tap", dock_html)
-        self.assertIn("Channel Coefficients", dock_html)
-        self.assertIn("Largest Coefficient |h|", dock_html)
-        self.assertNotIn("<b>Total Power</b>", dock_html)
-        self.assertNotIn("<b>Peak Tap</b>", dock_html)
+        for label in ("Selected Path", "Power Delay Profile", "Discrete Channel Taps"):
+            self.assertIn(label, result_component)
+        for label in (
+            "Total Path Gain", "Strongest Path Gain", "Line of Sight", "Total Tap Power",
+            "Strongest Tap", "Channel Coefficients", "Largest Coefficient |h|",
+        ):
+            self.assertIn(label, source)
         path_section_css = css_rule_body(css_source, "#pathSelectionSection")
         self.assertIn("position:relative", path_section_css)
         self.assertNotIn("position:sticky", path_section_css)
@@ -1130,38 +1125,35 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn('id="pathButtons"', link_panel_html)
         self.assertNotIn('id="pathDetailSection"', link_panel_html)
         self.assertNotIn("Channel Result", html)
-        self.assertIn("function renderPathSelection(paths, selectedIndex, onSelect, summary = null)", source)
-        self.assertIn('ui.pathSelectionSection.classList.add("hidden");', source)
-        self.assertIn('ui.pathSelectionSection.classList.remove("hidden");', source)
-        self.assertIn('allButton.textContent = "Show all paths";', source)
-        self.assertIn('row.className = "pathRow oat-list-card oat-list-card--interactive" + (selectedIndex === index ? " active" : "");', source)
-        self.assertIn('scrollSelectedPathRowIntoView();', source)
+        self.assertIn("function createPathResultsViewModel(paths, selectedIndex", source)
+        self.assertIn('name: `${model.featureId}.path.select`', result_component)
+        self.assertIn('"pathAllButton oat-list-card oat-list-card--interactive"', result_component)
+        self.assertIn('"pathRow oat-list-card oat-list-card--interactive"', result_component)
+        self.assertIn('active.scrollIntoView({ block: "nearest" })', result_component)
         self.assertNotIn('All display paths are shown in the viewer.', source)
         self.assertNotIn('function renderAllPathsDetail', source)
-        self.assertIn("scrollSelectedPathDetailsIntoView();", source)
-        self.assertIn("getViewer().renderPaths(result.paths, index);", source)
-        self.assertIn("getViewer().renderPaths(paths, index);", source)
+        self.assertIn('registerCommandHandler("link", (command) =>', source)
+        self.assertIn('command.name !== "link.path.select"', source)
+        self.assertIn("getViewer().renderPaths(result.paths, state.link.selectedPath);", source)
+        self.assertIn("getViewer().renderPaths(sample.paths || [], state.mobility.selectedPath);", source)
 
     def test_tap_analysis_no_longer_controls_whole_link_result_dock(self) -> None:
         source = read_static_js("ui/link_result_view.js")
-        render_channel_start = source.index("function renderLinkChannel")
-        render_channel = source[
-            render_channel_start:
-            source.index("function renderLinkResult", render_channel_start)
-        ]
+        result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
+        draw_chart = source[source.index("export function drawLinkTapChart"):source.index("export function createLinkResultView")]
 
-        self.assertIn('ui.linkTapAnalysisSection.classList.add("hidden");', render_channel)
-        self.assertIn('ui.linkTapAnalysisSection.classList.remove("hidden");', render_channel)
-        self.assertNotIn("ui.linkChannelSection.classList.add", render_channel)
-        self.assertNotIn("ui.linkChannelSection.classList.remove", render_channel)
+        self.assertIn('id="linkTapAnalysisSection"', result_component)
+        self.assertIn('!channel.visible && "hidden"', result_component)
+        self.assertNotIn("linkChannelSection", draw_chart)
 
     def test_tap_chart_axes_are_labeled_and_not_clipped(self) -> None:
         source = read_frontend_js_modules()
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
         css = read_app_css()
 
-        self.assertIn('viewBox="0 0 420 172"', html)
-        self.assertIn("Power delay profile chart: x-axis Tap Index, y-axis Power in dB", html)
+        result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
+        self.assertIn('viewBox="0 0 420 172"', result_component)
+        self.assertIn("Power delay profile chart: x-axis Tap Index, y-axis Power in dB", result_component)
         self.assertIn("const left = 68;", source)
         self.assertNotIn("const left = 36;", source)
         self.assertIn('yAxisTitle.textContent = "Power (dB)";', source)
@@ -1178,16 +1170,17 @@ class FrontendRegressionTests(unittest.TestCase):
         source = read_frontend_js_modules()
         css_source = read_app_css()
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
 
         self.assertIn('id="tabMobility"', html)
         self.assertIn('id="btnRunMobility"', html)
         self.assertIn('id="mobilityWaypointList"', html)
         self.assertIn('id="mobilityMaxSteps" type="number" step="1" min="2" max="10000" value="1000"', html)
         self.assertNotIn('id="mobilityMaxSteps" type="number" step="1" min="2" max="500"', html)
-        self.assertIn('id="mobilitySeriesChart"', html)
-        self.assertIn('Path Gain Range', html)
-        self.assertIn('<option value="received_power_db">Path Gain</option>', html)
-        self.assertIn('<option value="peak_tap_power_db">Strongest Tap</option>', html)
+        self.assertIn('id="mobilitySeriesChart"', result_component)
+        self.assertIn('Path Gain Range', source)
+        self.assertIn('{ value: "received_power_db", label: "Path Gain" }', result_component)
+        self.assertIn('{ value: "peak_tap_power_db", label: "Strongest Tap" }', result_component)
         self.assertIn('id="mobilityTxDeviceCard"', html)
         self.assertIn('id="mobilityRxDeviceCard"', html)
         self.assertIn('id="mobilityTxX"', html)
@@ -1248,16 +1241,19 @@ class FrontendRegressionTests(unittest.TestCase):
         viewer_source = read_frontend_js_modules()
         scene_source = read_frontend_js_modules()
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
 
-        self.assertIn('id="mobilityResult"', html)
-        self.assertIn('id="mobilityTimelineSection"', html)
+        self.assertIn('data-oat-react-owner="result-dock"', html)
+        self.assertIn('id="mobilityResult"', result_component)
+        self.assertIn('id="mobilityTimelineSection"', result_component)
         self.assertIn('ui.resultDockTitle.textContent = "Mobility Results";', source)
         self.assertIn('ui.resultDockSubtitle.textContent = "Trajectory & Taps";', source)
         self.assertIn('received_power_db: {label: "Total Path Gain", unit: "dB"}', source)
         self.assertIn('peak_tap_power_db: {label: "Strongest Tap", unit: "dB"}', source)
         self.assertIn("function renderMobilityResult()", source)
         self.assertIn("function renderMobilitySeriesChart(result)", source)
-        self.assertIn("renderPathDetails(paths, state.mobility.selectedPath);", source)
+        self.assertIn("createPathResultsViewModel(", source)
+        self.assertIn('resultDock.registerCommandHandler("mobility"', source)
         self.assertIn("renderMobilityResult();", scene_source)
         self.assertIn("renderMobilityTrajectory(points = [], samples = [], selectedIndex = -1)", viewer_source)
         self.assertIn("if (points.length < 1)", viewer_source)
@@ -1348,6 +1344,7 @@ class FrontendRegressionTests(unittest.TestCase):
         viewer_source = read_static_js("viewer.js")
         css_source = read_app_css()
         dataset_view_source = read_static_js("ui/deepmimo_dataset_view.js")
+        dataset_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "deepmimo" / "DeepMimoDatasetTray.tsx").read_text(encoding="utf-8")
         deepmimo_payload_source = solver_source.split("export function deepMimoPayload(", 1)[1].split(
             "export function",
             1,
@@ -1376,11 +1373,12 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn('id="deepMimoProgressPercent"', html)
         self.assertNotIn('id="deepMimoDownloadLink"', html)
         self.assertNotIn("Download Dataset", html)
-        self.assertIn('id="deepMimoDatasetTray" class="deepMimoDatasetTray hidden" aria-hidden="true"', html)
-        self.assertIn('id="deepMimoDatasetToggle"', html)
-        self.assertIn('id="deepMimoDatasetCount"', html)
-        self.assertIn('id="deepMimoDatasetPanel"', html)
-        self.assertIn('id="deepMimoDatasetList"', html)
+        self.assertIn('data-oat-react-owner="deepmimo-datasets"', html)
+        for element_id in (
+            "deepMimoDatasetTray", "deepMimoDatasetToggle", "deepMimoDatasetCount",
+            "deepMimoDatasetPanel", "deepMimoDatasetList",
+        ):
+            self.assertIn(f'id="{element_id}"', dataset_component)
         self.assertIn('requestJson("/api/deepmimo/jobs"', api_source)
         self.assertIn('cancelDeepMimoJob(jobId)', api_source)
         self.assertIn('`/api/deepmimo/jobs/${encodeURIComponent(jobId)}/cancel`', api_source)
@@ -1389,9 +1387,10 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('deepMimoRoiCenterX: document.getElementById("deepMimoRoiCenterX")', dom_source)
         self.assertNotIn("deepMimoRoiSummary", dom_source)
         self.assertIn('deepMimoRxCandidates: document.getElementById("deepMimoRxCandidates")', dom_source)
-        self.assertIn('deepMimoDatasetTray: document.getElementById("deepMimoDatasetTray")', dom_source)
-        self.assertIn('deepMimoDatasetToggle: document.getElementById("deepMimoDatasetToggle")', dom_source)
-        self.assertIn('deepMimoDatasetList: document.getElementById("deepMimoDatasetList")', dom_source)
+        self.assertIn('deepMimoDatasetMount: document.querySelector(\'[data-oat-react-owner="deepmimo-datasets"]\')', dom_source)
+        self.assertNotIn('document.getElementById("deepMimoDatasetTray")', dom_source)
+        self.assertNotIn('document.getElementById("deepMimoDatasetToggle")', dom_source)
+        self.assertNotIn('document.getElementById("deepMimoDatasetList")', dom_source)
         self.assertIn('deepmimoAntennaParams: [...document.querySelectorAll(".deepmimoAntennaParam")]', dom_source)
         self.assertNotIn("deepMimoDownloadLink", dom_source)
         self.assertNotIn("deepMimoSceneBuffer", dom_source)
@@ -1411,7 +1410,8 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('/js/dom_refs.js?v=20260519-mode-isolation', app_source)
         self.assertIn('/js/solver_controls.js?v=20260723-empty-devices', app_source)
         self.assertIn('/js/scene_render_state.js?v=20260723-empty-devices', app_source)
-        self.assertIn('ui.deepMimoDatasetToggle.addEventListener("click"', app_source)
+        self.assertNotIn('ui.deepMimoDatasetToggle.addEventListener("click"', app_source)
+        self.assertIn('name: "deepmimo.datasets.toggle"', dataset_component)
         self.assertIn("featureRegistry.instance(definition.id)?.closeTransientUi?.();", app_source)
         self.assertIn("featureRegistry.activate(definition.id, context);", app_source)
         self.assertIn('id: "deepmimo"', app_source)
@@ -1480,9 +1480,10 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('state.deepmimo.status = "succeeded";', solver_source)
         self.assertIn("state.deepmimo.datasets = [", solver_source)
         self.assertIn("deepMimoDownloadUrl(jobId)", solver_source)
-        self.assertIn('const visible = state.mode === "deepmimo" && hasDatasets;', dataset_view_source)
+        self.assertIn('const visible = state.mode === "deepmimo" && datasets.length > 0;', dataset_view_source)
         self.assertIn("state.deepmimo.datasetTrayOpen = false;", dataset_view_source)
-        self.assertIn('ui.deepMimoDatasetTray.classList.toggle("hidden", !visible);', dataset_view_source)
+        self.assertIn("bridge.update({", dataset_view_source)
+        self.assertNotIn("document.createElement", dataset_view_source)
         self.assertNotIn("ui.deepMimoDownloadLink", solver_source)
         self.assertIn('title: "Exporting DeepMIMO Dataset"', solver_source)
         self.assertIn("await pollDeepMimo(job.job_id);", solver_source)

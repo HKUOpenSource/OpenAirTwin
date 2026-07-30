@@ -18,6 +18,10 @@ const EXCLUDED_PRODUCTION_NAMES = [
   "playwright-report",
 ];
 const PRODUCTION_BASE = "/workbench/";
+const REQUIRED_REACT_ENTRIES = [
+  "workbench/src/features/results/result-dock-bridge.tsx",
+  "workbench/src/features/deepmimo/deepmimo-dataset-bridge.tsx",
+];
 
 const workbenchRoot = fileURLToPath(new URL("..", import.meta.url));
 const outputRoot = resolve(workbenchRoot, "../backend/static/workbench");
@@ -42,6 +46,7 @@ const index = readFileSync(indexPath, "utf8");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const files = walk(outputRoot);
 const appEntry = manifest["js/app.js"];
+const manifestSources = Object.keys(manifest);
 
 if (!index.includes('<script type="importmap">'))
   fail("compatibility import map is missing");
@@ -64,9 +69,19 @@ if (
   fail("development-only files entered the production output");
 }
 
+for (const requiredSource of REQUIRED_REACT_ENTRIES) {
+  if (!manifestSources.some((source) => source.endsWith(requiredSource)))
+    fail(`production React entry is missing: ${requiredSource}`);
+}
+
 for (const [source, entry] of Object.entries(manifest)) {
-  if (source.includes("workbench/src/") || source.includes("ui-catalog"))
-    fail(`development React source entered the production manifest: ${source}`);
+  if (
+    source.includes("ui-catalog") ||
+    source.includes("workbench/src/catalog/") ||
+    source.includes("workbench/src/test/")
+  ) {
+    fail(`development-only source entered the production manifest: ${source}`);
+  }
   if (!entry || typeof entry !== "object" || typeof entry.file !== "string")
     fail(`invalid manifest entry ${source}`);
   const outputPath = resolve(outputRoot, entry.file);

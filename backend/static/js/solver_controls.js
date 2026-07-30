@@ -640,54 +640,6 @@ function clearLivePreviewStatus() {
   syncLivePreviewStatusUi();
 }
 
-function renderLinkChannel(channel) {
-  callFeature("renderLinkChannel", channel);
-}
-
-function renderLinkResult() {
-  callFeature("renderLinkResult");
-}
-
-function clearPathSelection() {
-  callFeature("clearPathSelection");
-}
-
-function hidePathDetails() {
-  callFeature("hidePathDetails");
-}
-
-function renderPathDetails(paths, selectedIndex) {
-  callFeature("renderPathDetails", paths, selectedIndex);
-}
-
-function renderPathSelection(paths, selectedIndex, onSelect, summary = null) {
-  callFeature("renderPathSelection", paths, selectedIndex, onSelect, summary);
-}
-
-function scrollSelectedPathDetailsIntoView() {
-  callFeature("scrollSelectedPathDetailsIntoView");
-}
-
-function stopMobilityPlayback() {
-  callFeature("stopMobilityPlayback");
-}
-
-function selectMobilityStep(index) {
-  callFeature("selectMobilityStep", index);
-}
-
-function startMobilityPlayback() {
-  callFeature("startMobilityPlayback");
-}
-
-function renderMobilityResult() {
-  callFeature("renderMobilityResult");
-}
-
-function renderRadiomapResult() {
-  callFeature("renderRadiomapResult");
-}
-
 function deepMimoRoiBounds() {
   const cornerA = state.deepmimo.roi.cornerA;
   const cornerB = state.deepmimo.roi.cornerB;
@@ -770,10 +722,6 @@ function renderDeepMimoState() {
 
 function addDeepMimoDataset(job) {
   callFeature("addDeepMimoDataset", job);
-}
-
-function renderDeepMimoDatasetTray() {
-  callFeature("renderDeepMimoDatasetTray");
 }
 
 function setDeepMimoRoiCorner(position) {
@@ -928,21 +876,12 @@ function applyPick(pick, targetId = state.pickTarget) {
     setLivePreviewStatus,
     clearLivePreviewStatus,
     syncLivePreviewStatusUi,
-    renderLinkChannel,
-    clearPathSelection,
-    hidePathDetails,
-    renderPathDetails,
-    renderPathSelection,
-    scrollSelectedPathDetailsIntoView,
     readMobilityInputs,
     mobilityEstimate,
-    renderMobilityResult,
     renderMobilityTrajectoryPreview,
-    stopMobilityPlayback,
     readRadiomapInputs,
     radiomapJobPayload,
     radiomapColorRange,
-    renderRadiomapResult,
     deepMimoRoiBounds,
     deepMimoReceiverEstimate,
     deepMimoPayload,
@@ -975,12 +914,8 @@ function applyPick(pick, targetId = state.pickTarget) {
     invalidateDeepMimoResult,
     readDeepMimoInputs,
     rerenderRadiomapOverlay,
-    renderLinkResult,
-    renderMobilityResult,
     renderMobilityTrajectoryPreview,
-    renderRadiomapResult,
     renderDeepMimoState,
-    renderDeepMimoDatasetTray,
     runLinkSolve,
     runMobility,
     runRadiomap,
@@ -993,9 +928,6 @@ function applyPick(pick, targetId = state.pickTarget) {
     addCurrentRxWaypoint,
     deleteMobilityWaypoint,
     resetMobilityTrajectoryFromRx,
-    selectMobilityStep,
-    startMobilityPlayback,
-    stopMobilityPlayback,
     cancelLivePreview,
     handleLivePreviewDeviceUpdate,
     applyPick,

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import { AppProviders } from "../app/AppProviders.tsx";
@@ -17,6 +18,7 @@ export interface MountReactRootOptions {
   readonly commandBus: CommandBus;
   readonly reportError: RootErrorReporter;
   readonly restoreFocusTo?: HTMLElement | null;
+  readonly synchronous?: boolean;
 }
 
 export interface ReactRootHandle {
@@ -85,15 +87,19 @@ export class ReactRootRegistry {
       reportError: options.reportError,
     };
     this.#roots.set(options.id, registered);
-    root.render(
-      <AppProviders
-        commandBus={options.commandBus}
-        reportError={options.reportError}
-        rootId={options.id}
-      >
-        <ErrorBoundary>{options.children}</ErrorBoundary>
-      </AppProviders>,
-    );
+    const renderRoot = () => {
+      root.render(
+        <AppProviders
+          commandBus={options.commandBus}
+          reportError={options.reportError}
+          rootId={options.id}
+        >
+          <ErrorBoundary>{options.children}</ErrorBoundary>
+        </AppProviders>,
+      );
+    };
+    if (options.synchronous) flushSync(renderRoot);
+    else renderRoot();
     return {
       id: options.id,
       registerCleanup: (cleanup) => {

@@ -19,6 +19,7 @@ import {createParamTooltipController} from "/js/param_tooltips.js";
 import {createPerformancePanelController} from "/js/performance_panel.js";
 import {createSceneRenderStateController} from "/js/scene_render_state.js?v=20260723-empty-devices";
 import {createSolverControlsController} from "/js/solver_controls.js?v=20260723-empty-devices";
+import {createResultDockBridge} from "/@oat/features/results/result-dock-bridge.tsx";
 
 const settings = new SettingsBus();
 const pickingRegistry = new PickingRegistry();
@@ -52,6 +53,7 @@ const context = {
   controllers: {},
   utilities: {},
 };
+let resultDockBridge = null;
 
 const dialogController = createAppDialogController(context);
 context.controllers.dialogs = dialogController;
@@ -321,6 +323,13 @@ function attachEvents() {
 
 async function bootstrap() {
   featureRegistry.mountTemplates(document);
+  resultDockBridge = createResultDockBridge({
+    container: ui.resultContentMount,
+    reportError: ({error}) => {
+      showErrorDialog("Result UI Failed", error);
+    },
+  });
+  context.featureServices.resultDock = resultDockBridge;
   featureRegistry.initialize(context);
   featureRegistry.activate(state.mode, context);
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 10, force: true});
@@ -347,6 +356,12 @@ async function bootstrap() {
     sceneRenderState.syncControlSidebarUi();
   }
 }
+
+window.addEventListener("pagehide", () => {
+  featureRegistry.dispose(context);
+  resultDockBridge?.dispose();
+  resultDockBridge = null;
+}, {once: true});
 
 bootstrap().catch((error) => {
   sceneRenderState.hideOverlay(null, true);

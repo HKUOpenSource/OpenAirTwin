@@ -1,6 +1,6 @@
 # OpenAirTwin UI 组件合同
 
-> 状态：Phase 4 Native/React 等价实现合同；生产所有者仍为 Native
+> 状态：Phase 5 生产合同；结果数据 UI 为 React 所有者，其余边界仍为 Native
 >
 > 范围：核心桌面工作台，`1280x720` 及以上
 >
@@ -57,7 +57,7 @@
 
 `.btn`、`.miniBtn`、`.miniSelect` 和 `.danger` 仅是兼容 Alias，退役条件见 [legacy-aliases.md](legacy-aliases.md)。Feature 不能再为这些组件定义核心按钮几何。
 
-### 2.2 Phase 4 React 实现映射
+### 2.2 Phase 5 React 实现与生产边界
 
 类型化 React Primitive 位于 `workbench/src/design-system/components/`，并继续输出 2.1 节的同一组 `oat-*` class。机器清单中的 `reactSource` 是每个公共组件的唯一 React 源码位置；禁止为 Feature 复制 Primitive 或建立 Barrel 入口。
 
@@ -70,7 +70,9 @@ React 组件遵循以下边界：
 - Root 只能挂载到空容器，由 `ReactRootRegistry` 统一 Unmount、Cleanup 和恢复焦点；
 - 组件异常由 Error Boundary 显示公共错误面板，并通过 Root Error Hook 进入宿主错误路径；
 - `className` 只用于领域布局组合，禁止传入任意 inline style 或设计值；
-- 当前 `component-manifest.json` 的 `productionOwner` 为 `native`；Phase 5 切换一个完整子树前不得改变。
+- 当前 `component-manifest.json` 的 `productionOwner` 为 `mixed`。`result-dock-content` 和 `deepmimo-dataset-tray` 是已批准的 React 生产边界；其余控件在 Phase 6 前仍由 Native 持有。
+- `Filter` 与 `ChartFrame` 位于 `ResultData.tsx`，与 `MetricGrid`、`ListCard`、`EmptyState` 一起构成结果区公共组件集合。
+- React 结果边界只接收类型化 ViewModel 并发送冻结 Command；Legacy adapter 不得再写入这些子树。
 
 开发目录在同一页面渲染 Native 与 React 两列，逐项验证 DOM 状态和 computed style。该目录只由 Vite 开发服务提供，不属于生产入口或发布 Bundle。
 

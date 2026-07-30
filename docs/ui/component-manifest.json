@@ -1,9 +1,13 @@
 {
-  "schemaVersion": 2,
-  "phase": 4,
+  "schemaVersion": 3,
+  "phase": 5,
   "cssOwner": "backend/static/css/components.css",
   "catalog": "tools/ui-catalog/index.html",
-  "productionOwner": "native",
+  "productionOwner": "mixed",
+  "reactProductionBoundaries": [
+    "result-dock-content",
+    "deepmimo-dataset-tray"
+  ],
   "reactCatalogEntry": "workbench/src/catalog/main.tsx",
   "components": [
     {
@@ -61,6 +65,20 @@
       "classes": ["oat-empty-state"],
       "variants": ["default"],
       "states": ["empty"]
+    },
+    {
+      "name": "Filter",
+      "reactSource": "workbench/src/design-system/components/ResultData.tsx",
+      "classes": ["oat-input", "oat-input--compact"],
+      "variants": ["compact"],
+      "states": ["default", "disabled"]
+    },
+    {
+      "name": "ChartFrame",
+      "reactSource": "workbench/src/design-system/components/ResultData.tsx",
+      "classes": ["oat-chart-frame"],
+      "variants": ["svg-host", "canvas-host"],
+      "states": ["empty", "populated"]
     },
     {
       "name": "ScrollRegion",

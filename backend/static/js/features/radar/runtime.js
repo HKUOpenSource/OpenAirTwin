@@ -57,11 +57,6 @@ export function createRadarFeature(context) {
     dom.btnPickRadarRx.addEventListener("click", () => picking().openDevicePrecision("radar-rx"));
     dom.btnPickRadarTarget.addEventListener("click", () => context.featureServices.picking.toggleTarget("radar-target"));
     dom.btnFocusRadarTarget.addEventListener("click", () => renderer.focusTarget(radar.selectedTargetId));
-    dom.radarPathDisplayMode.addEventListener("change", () => {
-      radar.pathDisplayMode = dom.radarPathDisplayMode.value;
-      scene().renderAll();
-    });
-
     for (const input of [dom.radarTxX, dom.radarTxY, dom.radarTxZ, dom.radarRxX, dom.radarRxY, dom.radarRxZ]) {
       input.addEventListener("change", () => {
         inputChanged();
@@ -178,10 +173,9 @@ export function createRadarFeature(context) {
       assetPreview.deactivate();
       renderer.deactivate();
       resultView.restoreOtherResultSections();
-      dom.radarResultSections.classList.add("hidden");
     },
     onSettingsChanged() { controller.invalidateRadarResult(); renderer.clearResult(); },
     render() { renderStatus(); resultView.renderRadarResult(); renderer.render(); assetPreview.syncState(); },
-    dispose() { assetPreview.dispose(); renderer.dispose(); },
+    dispose() { resultView.dispose(); assetPreview.dispose(); renderer.dispose(); },
   };
 }

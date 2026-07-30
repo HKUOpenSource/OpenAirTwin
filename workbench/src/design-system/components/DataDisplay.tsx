@@ -37,6 +37,8 @@ export interface MetricItem {
   readonly id: string;
   readonly label: ReactNode;
   readonly value: ReactNode;
+  readonly valueId?: string;
+  readonly valueClassName?: string;
 }
 
 export interface MetricGridProps {
@@ -50,7 +52,9 @@ export function MetricGrid({ items, className }: MetricGridProps) {
       {items.map((item) => (
         <div className="oat-list-card" key={item.id}>
           <b>{item.label}</b>
-          <span>{item.value}</span>
+          <span id={item.valueId} className={item.valueClassName}>
+            {item.value}
+          </span>
         </div>
       ))}
     </div>
@@ -102,12 +106,13 @@ export function ListCard({
 export interface EmptyStateProps {
   readonly message: ReactNode;
   readonly action?: ReactNode;
+  readonly className?: string;
 }
 
-export function EmptyState({ message, action }: EmptyStateProps) {
+export function EmptyState({ message, action, className }: EmptyStateProps) {
   return (
     <>
-      <p className="oat-empty-state">{message}</p>
+      <p className={classNames("oat-empty-state", className)}>{message}</p>
       {action}
     </>
   );

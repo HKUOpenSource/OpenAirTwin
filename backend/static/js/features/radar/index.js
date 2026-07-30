@@ -137,31 +137,6 @@ const PANEL = `
   </section>
 `;
 
-const RESULTS = `
-  <div id="radarResultSections" class="radarResultSections hidden" aria-hidden="true">
-    <div id="radarResult" class="linkResultSummary radarResultSummary">
-      <div class="channelStats linkSummaryStats oat-metric-grid">
-        <div><b>Detections</b><span id="radarDetectionMetric">--</span></div>
-        <div><b>Propagation Paths</b><span id="radarPathMetric">--</span></div>
-        <div><b>Peak SNR</b><span id="radarSnrMetric">--</span></div>
-        <div><b>Noise Power</b><span id="radarNoiseMetric">--</span></div>
-      </div>
-    </div>
-    <section id="radarRangeDopplerSection" class="linkDockSection radarChartSection">
-      <div class="sectionTitleRow"><div><div class="sectionTitle">Range–Doppler</div><div id="radarRdMeta" class="channelAnalysisMiniTitle">Power heatmap with CA-CFAR detections</div></div><span id="radarRdTruncated" class="radarSummaryBadge oat-badge hidden">DOWNSAMPLED</span></div>
-      <div class="radarProcessingToolbar" role="group" aria-label="Range Doppler signal processing view"><button id="radarRdRaw" class="active" type="button">Raw</button><button id="radarRdMean" type="button">Mean-subtracted</button><button id="radarRdIdeal" type="button">Ideal Clutter-cancelled</button></div>
-      <p id="radarRdProcessingHint" class="radarProcessingHint">No additional clutter suppression; configured direct-path cancellation still applies.</p>
-      <div class="radarChartToolbar" role="group" aria-label="Range Doppler viewport"><button id="radarRdFocus" class="active" type="button">Target Detail</button><button id="radarRdFull" type="button">Scene Overview</button><span id="radarRdHover">Hover for range, Doppler, and power.</span></div>
-      <div id="radarPlotLegend" class="radarPlotLegend" aria-label="Range Doppler legend"><span class="target">Ground truth</span><span class="detection">Associated detection</span><span class="clutter">Clutter detection</span><span class="power">Power (dBm)</span></div>
-      <div class="radarChartFrame"><canvas id="radarRangeDopplerCanvas" class="radarChart" aria-label="Range Doppler heatmap"></canvas><div id="radarChartCrosshair" class="radarChartCrosshair hidden" aria-hidden="true"><i class="vertical"></i><i class="horizontal"></i><span id="radarChartTooltip"></span></div></div>
-    </section>
-    <section class="linkDockSection radarChartSection"><div class="sectionTitle">Range Profile</div><canvas id="radarRangeProfileCanvas" class="radarChart radarProfileChart" aria-label="Range profile"></canvas></section>
-    <section id="radarDetectionSection" class="linkDockSection"><div class="sectionTitleRow"><div class="sectionTitle">Detections</div><span id="radarDetectionCount" class="radarSummaryBadge oat-badge">0</span></div><div class="radarResultControls"><select id="radarDetectionFilter" aria-label="Detection filter"><option value="all">Targets + strongest clutter</option><option value="target">Target detections only</option><option value="clutter">Clutter detections only</option></select><button id="radarDetectionMore" class="miniBtn oat-button oat-button--compact hidden" type="button">Show all</button></div><div id="radarDetectionList" class="radarResultList radarDetectionList oat-scroll-region"></div></section>
-    <section id="radarTruthSection" class="linkDockSection"><div class="sectionTitle">Target Ground Truth</div><div id="radarTruthList" class="radarResultList oat-scroll-region"></div></section>
-    <section id="radarPathSection" class="linkDockSection"><div class="sectionTitleRow"><div class="sectionTitle">Propagation Paths</div><span id="radarPathCount" class="radarSummaryBadge oat-badge">0</span></div><div class="radarPathControls"><select id="radarPathDisplayMode" aria-label="3D path display"><option value="target">Target Echoes</option><option value="key" selected>Target + Key Clutter</option><option value="all">All Returned Paths</option></select><span id="radarPathDisplayHint">Target echoes plus the 12 strongest clutter paths.</span></div><div id="radarPathList" class="radarResultList radarPathList oat-scroll-region"></div></section>
-  </div>
-`;
-
 const DEVICE_CARDS = `
   <section id="radarTxDeviceCard" class="deviceCoordPanel hidden"><div class="deviceCoordGrid">
     <label>X <span class="unitInput"><input id="radarTxX" type="number" step="1" placeholder="—"/><span class="unitSuffix">m</span></span></label><label>Y <span class="unitInput"><input id="radarTxY" type="number" step="1" placeholder="—"/><span class="unitSuffix">m</span></span></label><label>Z <span class="unitInput"><input id="radarTxZ" type="number" step="1" placeholder="—"/><span class="unitSuffix">m</span></span></label>
@@ -177,12 +152,11 @@ const DEVICE_ACTIONS = `
 
 function queryDom(root) {
   const ids = [
-    "tabRadar", "radarPanel", "radarResultSections", "radarTxDeviceCard", "radarRxDeviceCard", "radarTxX", "radarTxY", "radarTxZ", "radarRxX", "radarRxY", "radarRxZ", "btnPickRadarTx", "btnPickRadarRx", "btnSolveRadar",
+    "tabRadar", "radarPanel", "radarTxDeviceCard", "radarRxDeviceCard", "radarTxX", "radarTxY", "radarTxZ", "radarRxX", "radarRxY", "radarRxZ", "btnPickRadarTx", "btnPickRadarRx", "btnSolveRadar",
     "radarJobBar", "radarJobStatus", "radarJobMessage", "radarJobProgress", "btnCancelRadar", "btnRetryRadar", "radarModeMonostatic", "radarModeBistatic", "radarModeHint",
     "radarTargetsGroup", "radarAssetPicker", "radarAssetPreviewCanvas", "radarAssetPreviewStatus", "radarAssetPreviewName", "radarAssetPreviewCount", "radarAssetPickerHint", "btnRadarAssetPrevious", "btnRadarAssetNext", "btnAddRadarTarget", "radarTargetCount", "radarTargetList", "radarTargetEditor", "radarEditorTitle", "radarEditorAssetName", "radarTargetAsset", "radarTargetX", "radarTargetY", "radarTargetZ", "radarTargetRoll", "radarTargetPitch", "radarTargetYaw", "radarTargetSpeed", "radarTargetDirection", "radarTargetClimb", "radarVelocityVectorPreview", "radarTargetRcs", "btnPickRadarTarget", "btnFocusRadarTarget", "btnRemoveRadarTarget",
     "radarCarrierFrequency", "radarBandwidth", "radarNumSubcarriers", "radarNumSymbols", "radarTxPower", "radarNoiseFigure", "radarSystemLoss", "radarNoiseTemperature", "radarDirectPathCancellation", "radarRangeResolutionPreview", "radarDopplerResolutionPreview", "radarVelocityResolutionPreview",
     "radarCfarEnabled", "radarCfarGuardRange", "radarCfarGuardDoppler", "radarCfarTrainingRange", "radarCfarTrainingDoppler", "radarCfarPfa", "radarSamplesPerSrc", "radarMaxPaths", "radarMaxDepth", "radarSeed", "radarLos", "radarSpecular", "radarDiffuse", "radarRefraction", "radarDiffraction", "radarSyntheticArray", "radarInputError",
-    "radarResult", "radarDetectionMetric", "radarPathMetric", "radarSnrMetric", "radarNoiseMetric", "radarRangeDopplerSection", "radarRdMeta", "radarRdTruncated", "radarRdRaw", "radarRdMean", "radarRdIdeal", "radarRdProcessingHint", "radarRdFocus", "radarRdFull", "radarRdHover", "radarPlotLegend", "radarRangeDopplerCanvas", "radarChartCrosshair", "radarChartTooltip", "radarRangeProfileCanvas", "radarDetectionSection", "radarDetectionCount", "radarDetectionFilter", "radarDetectionMore", "radarDetectionList", "radarTruthSection", "radarTruthList", "radarPathSection", "radarPathCount", "radarPathDisplayMode", "radarPathDisplayHint", "radarPathList",
   ];
   const dom = Object.fromEntries(ids.map((id) => [id, root.getElementById(id)]));
   dom.radarOnlyParams = [dom.radarPanel];
@@ -193,9 +167,9 @@ function createResultView(context) {
   return createRadarResultView({
     state: context.state,
     ui: context.ui,
-    dom: context.dom,
     renderAll: context.featureServices.solver.renderAll,
     focusTarget: (targetId) => context.renderer?.focusTarget(targetId),
+    resultDock: context.featureServices.resultDock,
   });
 }
 
@@ -213,7 +187,7 @@ function createController(context) {
 export const radarFeature = defineFeature({
   id: "radar", order: 50, title: "Radar Sensing", createState: createRadarState,
   createTransport: createRadarTransport, createController, createResultView, createRenderer: createRadarRenderer, createFeature: createRadarFeature, queryDom,
-  templateFragments: {featureModeMenuAnchor: MODE_MENU, featurePanelAnchor: PANEL, featureDeviceCardAnchor: DEVICE_CARDS, featureDeviceActionAnchor: DEVICE_ACTIONS, channelAnalysisScroll: RESULTS},
+  templateFragments: {featureModeMenuAnchor: MODE_MENU, featurePanelAnchor: PANEL, featureDeviceCardAnchor: DEVICE_CARDS, featureDeviceActionAnchor: DEVICE_ACTIONS},
   provides: ["radar-domain"], inputReader: "readRadarInputs", settingsDependencies: ["radar-device", "surface-clearance"],
   sharedControlPolicy: {tx: true, rx: true, antenna: false, channel: false},
   ui: {tabRef: "tabRadar", panelRef: "radarPanel", runButtonRef: "btnSolveRadar", disableDuringTileLoad: true, parameterGroups: ["radarOnlyParams"], resultMethod: "renderRadarResult"},

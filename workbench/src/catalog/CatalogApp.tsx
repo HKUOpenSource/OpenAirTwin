@@ -23,6 +23,7 @@ import {
   ScrollRegion,
 } from "../design-system/components/Panel.tsx";
 import { Checkbox } from "../design-system/components/Selection.tsx";
+import { ChartFrame, Filter } from "../design-system/components/ResultData.tsx";
 import type { UiCommand } from "../runtime/ui-command.ts";
 import { CommandBus } from "../runtime/ui-command.ts";
 
@@ -215,6 +216,23 @@ export function CatalogApp({ commandBus }: CatalogAppProps) {
             ]}
           />
         </div>
+        <span data-parity-key="filter-compact">
+          <Filter
+            ariaLabel="Result filter"
+            commandName="catalog.results.filter"
+            featureId="catalog"
+            value="all"
+            options={[
+              { label: "All results", value: "all" },
+              { label: "Selected results", value: "selected" },
+            ]}
+          />
+        </span>
+        <span data-parity-key="chart-frame">
+          <ChartFrame label="Chart frame">
+            <div>Chart host</div>
+          </ChartFrame>
+        </span>
         <ScrollRegion className="oat-catalog__list">
           <span data-parity-key="list-interactive">
             <ListCard

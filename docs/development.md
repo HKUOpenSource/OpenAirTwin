@@ -124,8 +124,9 @@ Then open `http://127.0.0.1:8091/ui-catalog/`. The Playwright configuration
 starts this catalog automatically and verifies its public variants, states,
 accessible names, and contract-only test Feature.
 
-Phase 4 keeps Native as the production owner and adds the React compatibility
-foundation under `workbench/src/`. Install and verify the locked toolchain with:
+Phase 5 uses mixed production ownership: React owns the result dock content and
+DeepMIMO dataset tray, while Native still owns the shell, forms and device
+controls. Install and verify the locked toolchain with:
 
 ```bash
 cd workbench
@@ -134,11 +135,17 @@ npm test
 ```
 
 The development catalog command above now delegates to Vite and renders Native
-and React implementations side by side. Its browser test compares 26
+and React implementations side by side. Its browser test compares 28
 representative states for element semantics, ARIA, classes and computed style,
 then proves that React controls dispatch typed Commands. The production build
-continues to load `backend/static/js/app.js`; React catalog and migration source
-must not appear in the Vite production manifest.
+continues to load `backend/static/js/app.js`; only approved React production
+boundaries may appear in the Vite manifest, while Catalog and test source remain
+excluded.
+
+Result UI ownership is defined by `workbench/src/features/results/` and
+`workbench/src/features/deepmimo/`. Legacy result views may build ViewModels,
+handle Commands and draw into stable SVG/Canvas hosts, but must not create,
+replace or directly mutate React-owned result rows.
 
 React UI code follows these ownership rules:
 

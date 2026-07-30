@@ -13,16 +13,6 @@ export function createDeepMimoFeature(context) {
   }
 
   function attachEvents() {
-    ui.deepMimoDatasetToggle.addEventListener("click", (event) => {
-      event.stopPropagation();
-      context.utilities.closeModeMenu();
-      if (state.deepmimo.datasets.length === 0) {
-        return;
-      }
-      state.deepmimo.datasetTrayOpen = !state.deepmimo.datasetTrayOpen;
-      resultView.renderDeepMimoDatasetTray();
-    });
-    ui.deepMimoDatasetTray.addEventListener("click", (event) => event.stopPropagation());
     ui.btnRunDeepMimo.addEventListener("click", () => {
       picking().clearActiveDevice({render: false});
       solver().cancelLivePreview();
@@ -110,6 +100,9 @@ export function createDeepMimoFeature(context) {
     },
     render() {
       resultView.renderDeepMimoState();
+    },
+    dispose() {
+      resultView.dispose();
     },
   };
 }

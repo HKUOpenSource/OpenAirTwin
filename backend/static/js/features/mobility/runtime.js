@@ -52,27 +52,6 @@ export function createMobilityFeature(context) {
       solver().resetMobilityTrajectoryFromRx();
       scene().renderAll();
     });
-    ui.mobilityMetric.addEventListener("change", () => {
-      state.mobility.metric = ui.mobilityMetric.value;
-      resultView.renderMobilityResult();
-    });
-    ui.mobilityStepSlider.addEventListener("input", () => {
-      resultView.selectMobilityStep(Number(ui.mobilityStepSlider.value));
-    });
-    ui.mobilityPlaybackSpeed.addEventListener("change", () => {
-      state.mobility.playbackSpeed = Number(ui.mobilityPlaybackSpeed.value);
-      if (state.mobility.playing) {
-        resultView.startMobilityPlayback();
-      }
-    });
-    ui.btnMobilityPlay.addEventListener("click", () => {
-      if (state.mobility.playing) {
-        resultView.stopMobilityPlayback();
-        resultView.renderMobilityResult();
-        return;
-      }
-      resultView.startMobilityPlayback();
-    });
     window.addEventListener("keydown", (event) => {
       if (state.mode !== "mobility" || state.entry.visible || ui.loadingScreen.style.display !== "none" || isEditableKeyboardTarget(event.target)) {
         return;
@@ -122,6 +101,9 @@ export function createMobilityFeature(context) {
       if (rxReady) ui.btnMobilityAddRxPoint.removeAttribute("title");
       else ui.btnMobilityAddRxPoint.title = "Place Mobility Rx before adding a waypoint.";
       resultView.renderMobilityResult();
+    },
+    dispose() {
+      resultView.dispose();
     },
   };
 }

@@ -72,7 +72,7 @@ export function ScrollRegion({
 }: ScrollRegionProps) {
   return (
     <div
-      className={classNames("oat-scroll-region", className)}
+      className={classNames(className, "oat-scroll-region")}
       id={id}
       aria-label={label}
       tabIndex={tabIndex}

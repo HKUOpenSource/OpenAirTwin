@@ -22,6 +22,11 @@ import {
 
 const MAX_LIST_PATHS = 120;
 const MAX_KEY_CLUTTER_DETECTIONS = 10;
+const PROCESSING_OPTIONS = [
+  {id: "raw", label: "Raw"},
+  {id: "mean_subtracted", label: "Mean-subtracted"},
+  {id: "ideal_clutter_cancelled", label: "Ideal Clutter-cancelled"},
+];
 
 function fmt(value, digits = 2, suffix = "") {
   return Number.isFinite(Number(value)) ? `${Number(value).toFixed(digits)}${suffix}` : "--";
@@ -41,21 +46,6 @@ function pathClassificationLabel(classification) {
   }
 }
 
-function buttonRow({title, meta, detail, selected, className = "", data = {}}) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = `radarResultRow oat-list-card oat-list-card--interactive ${className}${selected ? " selected" : ""}`;
-  Object.entries(data).forEach(([key, value]) => { button.dataset[key] = value; });
-  const heading = document.createElement("span");
-  heading.className = "radarResultRowHead";
-  const strong = document.createElement("strong"); strong.textContent = title;
-  const small = document.createElement("small"); small.textContent = meta;
-  heading.append(strong, small);
-  const copy = document.createElement("span"); copy.textContent = detail;
-  button.append(heading, copy);
-  return button;
-}
-
 function visiblePathEntries(radar, result) {
   const entries = (result.paths || []).map((path, index) => ({path, index}));
   if (radar.pathDisplayMode === "all") return entries;
@@ -72,7 +62,43 @@ function visiblePathEntries(radar, result) {
   return entries.filter(({index}) => included.has(index));
 }
 
-export function createRadarResultView({state, ui, dom, renderAll, focusTarget}) {
+function emptyModel() {
+  return {
+    status: "empty",
+    visible: false,
+    summary: [
+      {id: "detections", label: "Detections", value: "--", valueId: "radarDetectionMetric"},
+      {id: "paths", label: "Propagation Paths", value: "--", valueId: "radarPathMetric"},
+      {id: "snr", label: "Peak SNR", value: "--", valueId: "radarSnrMetric"},
+      {id: "noise", label: "Noise Power", value: "--", valueId: "radarNoiseMetric"},
+    ],
+    rangeDoppler: {
+      meta: "Power heatmap with CA-CFAR detections",
+      truncated: false,
+      processingView: "raw",
+      processingHint: "No additional clutter suppression; configured direct-path cancellation still applies.",
+      processingOptions: PROCESSING_OPTIONS.map((option) => ({...option, available: option.id === "raw"})),
+      viewport: "focus",
+      focusAvailable: false,
+    },
+    detectionFilter: "all",
+    detectionCount: "0",
+    detectionMoreLabel: "Show all",
+    detectionMoreVisible: false,
+    detectionEmptyMessage: "",
+    detections: [],
+    truthEmptyMessage: "",
+    truth: [],
+    pathDisplayMode: "key",
+    pathDisplayHint: "Target echoes plus the 12 strongest clutter paths.",
+    pathCount: "0",
+    pathEmptyMessage: "",
+    paths: [],
+    pathNote: "",
+  };
+}
+
+export function createRadarResultView({state, ui, renderAll, focusTarget, resultDock}) {
   const radar = state.radar;
   let chartLayout = null;
   let rangeDopplerView = "focus";
@@ -80,6 +106,7 @@ export function createRadarResultView({state, ui, dom, renderAll, focusTarget}) 
   let showAllDetections = false;
   let renderedResult = null;
   let powerScales = new Map();
+  let eventController = null;
 
   function activeProcessingView(result = radar.result) {
     return radarProcessingView(result, radar.processingView);
@@ -116,26 +143,86 @@ export function createRadarResultView({state, ui, dom, renderAll, focusTarget}) 
     if (path.target_ids?.[0]) focusTarget?.(path.target_ids[0]);
   }
 
+  function detectionRows(processingView) {
+    const detections = processingView.detections;
+    if (!detections.length) {
+      return {count: "0", moreVisible: false, rows: [], emptyMessage: "No detections passed the CA-CFAR threshold."};
+    }
+    const targets = detections.filter((item) => item.classification === "target" || item.target_id);
+    const clutter = detections.filter((item) => item.classification !== "target" && !item.target_id);
+    const boundedClutter = showAllDetections ? clutter : clutter.slice(0, MAX_KEY_CLUTTER_DETECTIONS);
+    const visible = detectionFilter === "target" ? targets : detectionFilter === "clutter" ? boundedClutter : [...targets, ...boundedClutter];
+    const filterTotal = detectionFilter === "target" ? targets.length : detectionFilter === "clutter" ? clutter.length : detections.length;
+    return {
+      count: `${visible.length} / ${filterTotal}${processingView.detectionSummary.detections_truncated ? "+" : ""}`,
+      moreVisible: detectionFilter !== "target" && clutter.length > MAX_KEY_CLUTTER_DETECTIONS,
+      rows: visible.map((item) => ({
+        id: `detection-${item.detection_id}`,
+        title: item.target_id ? radarTargetDisplayName(item.target_id) : item.classification === "target" ? "Unassociated Target" : item.classification === "clutter" ? "Clutter Detection" : "Unassociated Detection",
+        meta: `Range ${fmt(item.equivalent_range_m, 2, " m")} · Radial velocity ${fmt(item.equivalent_radial_velocity_mps, 2, " m/s")}`,
+        detail: `SNR ${fmt(item.snr_db, 1, " dB")} · Arrival azimuth ${fmt(item.arrival_azimuth_deg, 1, "°")}`,
+        selected: item.detection_id === radar.selectedDetectionId,
+        className: item.classification === "target" || item.target_id ? "associated" : item.classification === "clutter" ? "path-clutter" : "unassociated",
+        dataAttribute: "detectionId",
+        dataValue: item.detection_id,
+      })),
+      emptyMessage: "",
+    };
+  }
+
+  function truthRows(result) {
+    return result.targets.map((target) => ({
+      id: `target-${target.id}`,
+      title: radarTargetDisplayName(target.id),
+      meta: radarAssetDisplayName(radar.assets, target.asset_id),
+      detail: `${radarObservabilityLabel(target.observability?.status)} · Position [${target.position_m.map((value) => fmt(value, 1)).join(", ")}] m · Speed ${fmt(Math.hypot(...target.velocity_mps), 1, " m/s")} · RCS ${fmt(target.rcs_m2, 4, " m²")}`,
+      selected: target.id === radar.selectedTargetId,
+      className: "",
+      dataAttribute: "targetId",
+      dataValue: target.id,
+    }));
+  }
+
+  function pathRows(result) {
+    if (!result.paths.length) {
+      return {count: "0", rows: [], emptyMessage: "No propagation paths returned.", note: ""};
+    }
+    const entries = visiblePathEntries(radar, result);
+    return {
+      count: `${entries.length} / ${result.summary.returned_path_count}${result.summary.paths_truncated ? "+" : ""}`,
+      rows: entries.slice(0, MAX_LIST_PATHS).map(({path, index}) => ({
+        id: `path-${index}`,
+        title: pathClassificationLabel(path.classification),
+        meta: path.target_ids.map(radarTargetDisplayName).join(", ") || path.path_id,
+        detail: `Range ${fmt(path.equivalent_range_m, 2, " m")} · Doppler ${fmt(path.doppler_hz, 1, " Hz")} · Gain ${fmt(path.path_gain_db, 1, " dB")}`,
+        selected: index === radar.selectedPath,
+        className: `path-${path.classification}`,
+        dataAttribute: "pathIndex",
+        dataValue: String(index),
+      })),
+      emptyMessage: "",
+      note: entries.length > MAX_LIST_PATHS ? `Showing the first ${MAX_LIST_PATHS} of ${entries.length} visible paths.` : "",
+    };
+  }
+
   function drawRangeDoppler(result, processingView) {
-    const rd = rangeDopplerView === "focus" && processingView.rangeDopplerFocus
+    const rangeDoppler = rangeDopplerView === "focus" && processingView.rangeDopplerFocus
       ? processingView.rangeDopplerFocus
       : processingView.rangeDoppler;
+    const legend = resultDock.element("radarPlotLegend");
     const legendTargetId = radar.selectedTargetId || result.targets?.[0]?.id;
-    dom.radarPlotLegend?.style.setProperty("--radar-legend-target-color", radarTargetColor(legendTargetId));
-    dom.radarPlotLegend?.style.setProperty("--radar-legend-clutter-color", RADAR_CLUTTER_COLOR);
-    dom.radarPlotLegend?.style.setProperty("--radar-legend-unassociated-target-color", RADAR_UNASSOCIATED_TARGET_COLOR);
-    dom.radarPlotLegend?.style.setProperty("--radar-legend-unassociated-detection-color", RADAR_UNASSOCIATED_DETECTION_COLOR);
-    if (dom.radarPlotLegend) dom.radarPlotLegend.dataset.targetId = legendTargetId || "";
+    legend.style.setProperty("--radar-legend-target-color", radarTargetColor(legendTargetId));
+    legend.style.setProperty("--radar-legend-clutter-color", RADAR_CLUTTER_COLOR);
+    legend.style.setProperty("--radar-legend-unassociated-target-color", RADAR_UNASSOCIATED_TARGET_COLOR);
+    legend.style.setProperty("--radar-legend-unassociated-detection-color", RADAR_UNASSOCIATED_DETECTION_COLOR);
+    legend.dataset.targetId = legendTargetId || "";
     if (!powerScales.has(processingView.id)) {
-      powerScales.set(processingView.id, radarPowerScale({
-        range_doppler: processingView.rangeDoppler,
-        statistics: result.statistics,
-      }));
+      powerScales.set(processingView.id, radarPowerScale({range_doppler: processingView.rangeDoppler, statistics: result.statistics}));
     }
     chartLayout = drawRadarRangeDoppler({
-      canvas: dom.radarRangeDopplerCanvas,
+      canvas: resultDock.element("radarRangeDopplerCanvas"),
       result,
-      rangeDoppler: rd,
+      rangeDoppler,
       detections: processingView.detections,
       selectedDetectionId: radar.selectedDetectionId,
       selectedTargetId: radar.selectedTargetId,
@@ -144,142 +231,95 @@ export function createRadarResultView({state, ui, dom, renderAll, focusTarget}) 
   }
 
   function drawRangeProfile(processingView) {
-    const rd = rangeDopplerView === "focus" && processingView.rangeDopplerFocus
+    const rangeDoppler = rangeDopplerView === "focus" && processingView.rangeDopplerFocus
       ? processingView.rangeDopplerFocus
       : processingView.rangeDoppler;
     drawRadarRangeProfile({
-      canvas: dom.radarRangeProfileCanvas,
+      canvas: resultDock.element("radarRangeProfileCanvas"),
       profile: processingView.rangeProfile,
-      maxRangeM: rd.equivalent_range_axis_m?.at(-1) ?? null,
+      maxRangeM: rangeDoppler.equivalent_range_axis_m?.at(-1) ?? null,
     });
   }
 
-  function renderDetections(processingView) {
-    dom.radarDetectionList.replaceChildren();
-    const detections = processingView.detections;
-    const summary = processingView.detectionSummary;
-    if (!detections.length) {
-      dom.radarDetectionCount.textContent = "0";
-      dom.radarDetectionMore.classList.add("hidden");
-      const empty = document.createElement("p"); empty.className = "radarEmptyState oat-empty-state"; empty.textContent = "No detections passed the CA-CFAR threshold."; dom.radarDetectionList.append(empty); return;
-    }
-    const targets = detections.filter((item) => item.classification === "target" || item.target_id);
-    const clutter = detections.filter((item) => item.classification !== "target" && !item.target_id);
-    const boundedClutter = showAllDetections ? clutter : clutter.slice(0, MAX_KEY_CLUTTER_DETECTIONS);
-    const visible = detectionFilter === "target" ? targets : detectionFilter === "clutter" ? boundedClutter : [...targets, ...boundedClutter];
-    const filterTotal = detectionFilter === "target" ? targets.length : detectionFilter === "clutter" ? clutter.length : detections.length;
-    const canExpand = detectionFilter !== "target" && clutter.length > MAX_KEY_CLUTTER_DETECTIONS;
-    dom.radarDetectionCount.textContent = `${visible.length} / ${filterTotal}${summary.detections_truncated ? "+" : ""}`;
-    dom.radarDetectionMore.classList.toggle("hidden", !canExpand);
-    dom.radarDetectionMore.textContent = showAllDetections ? "Show strongest only" : `Show all ${clutter.length}`;
-    visible.forEach((item) => dom.radarDetectionList.append(buttonRow({
-      title: item.target_id ? radarTargetDisplayName(item.target_id) : item.classification === "target" ? "Unassociated Target" : item.classification === "clutter" ? "Clutter Detection" : "Unassociated Detection",
-      meta: `Range ${fmt(item.equivalent_range_m, 2, " m")} · Radial velocity ${fmt(item.equivalent_radial_velocity_mps, 2, " m/s")}`,
-      detail: `SNR ${fmt(item.snr_db, 1, " dB")} · Arrival azimuth ${fmt(item.arrival_azimuth_deg, 1, "°")}`,
-      selected: item.detection_id === radar.selectedDetectionId, className: item.classification === "target" || item.target_id ? "associated" : item.classification === "clutter" ? "path-clutter" : "unassociated", data: {detectionId: item.detection_id},
-    })));
-  }
-
-  function renderTruth(result) {
-    dom.radarTruthList.replaceChildren();
-    if (!result.targets.length) {
-      const empty = document.createElement("p"); empty.className = "radarEmptyState oat-empty-state"; empty.textContent = "No targets were configured for this solve."; dom.radarTruthList.append(empty); return;
-    }
-    result.targets.forEach((target) => dom.radarTruthList.append(buttonRow({
-      title: radarTargetDisplayName(target.id), meta: radarAssetDisplayName(radar.assets, target.asset_id),
-      detail: `${radarObservabilityLabel(target.observability?.status)} · Position [${target.position_m.map((value) => fmt(value, 1)).join(", ")}] m · Speed ${fmt(Math.hypot(...target.velocity_mps), 1, " m/s")} · RCS ${fmt(target.rcs_m2, 4, " m²")}`,
-      selected: target.id === radar.selectedTargetId, data: {targetId: target.id},
-    })));
-  }
-
-  function renderPaths(result) {
-    dom.radarPathList.replaceChildren();
-    if (!result.paths.length) {
-      dom.radarPathCount.textContent = "0";
-      const empty = document.createElement("p"); empty.className = "radarEmptyState oat-empty-state"; empty.textContent = "No propagation paths returned."; dom.radarPathList.append(empty); return;
-    }
-    const entries = visiblePathEntries(radar, result);
-    dom.radarPathCount.textContent = `${entries.length} / ${result.summary.returned_path_count}${result.summary.paths_truncated ? "+" : ""}`;
-    entries.slice(0, MAX_LIST_PATHS).forEach(({path, index}) => dom.radarPathList.append(buttonRow({
-      title: pathClassificationLabel(path.classification), meta: path.target_ids.map(radarTargetDisplayName).join(", ") || path.path_id,
-      detail: `Range ${fmt(path.equivalent_range_m, 2, " m")} · Doppler ${fmt(path.doppler_hz, 1, " Hz")} · Gain ${fmt(path.path_gain_db, 1, " dB")}`,
-      selected: index === radar.selectedPath, className: `path-${path.classification}`, data: {pathIndex: index},
-    })));
-    if (entries.length > MAX_LIST_PATHS) {
-      const note = document.createElement("p"); note.className = "radarListNote"; note.textContent = `Showing the first ${MAX_LIST_PATHS} of ${entries.length} visible paths.`; dom.radarPathList.append(note);
-    }
-  }
-
-  function hideOtherResultSections() {
-    for (const child of ui.channelAnalysisScroll.children) {
-      if (child !== dom.radarResultSections) child.classList.add("radarSiblingHidden");
-    }
-  }
-
   function restoreOtherResultSections() {
-    for (const child of ui.channelAnalysisScroll.children) child.classList.remove("radarSiblingHidden");
     ui.linkChannelSection.classList.remove("radarResultMode");
   }
 
   function renderRadarResult() {
     if (state.mode !== "radar") {
       restoreOtherResultSections();
-      dom.radarResultSections.classList.add("hidden");
-      dom.radarResultSections.setAttribute("aria-hidden", "true");
+      resultDock.update("radar", emptyModel(), ["link", "mobility", "radiomap", "radar"].includes(state.mode) ? state.mode : null);
       return;
     }
-    hideOtherResultSections();
-    const result = radar.result;
     ui.resultDockTitle.textContent = "Radar Sensing Results";
     ui.resultDockSubtitle.textContent = "Range–Doppler & CA-CFAR";
+    const result = radar.result;
     if (!result) {
-      ui.linkChannelSection.classList.remove("radarResultMode");
-      dom.radarResultSections.classList.add("hidden");
-      dom.radarResultSections.setAttribute("aria-hidden", "true");
+      restoreOtherResultSections();
       ui.linkChannelSection.classList.add("hidden");
       ui.linkChannelSection.setAttribute("aria-hidden", "true");
+      resultDock.update("radar", emptyModel(), "radar");
       return;
     }
     ui.linkChannelSection.classList.remove("hidden");
     ui.linkChannelSection.classList.add("radarResultMode");
     ui.linkChannelSection.setAttribute("aria-hidden", "false");
-    dom.radarResultSections.classList.remove("hidden");
-    dom.radarResultSections.setAttribute("aria-hidden", "false");
-    dom.radarResult.style.display = "block";
     if (renderedResult !== result) {
       renderedResult = result;
       radar.processingView = "raw";
       detectionFilter = "all";
       showAllDetections = false;
       powerScales = new Map();
-      dom.radarDetectionFilter.value = detectionFilter;
     }
     const processingView = activeProcessingView(result);
-    dom.radarPathDisplayMode.value = radar.pathDisplayMode;
-    dom.radarPathDisplayHint.textContent = radar.pathDisplayMode === "target"
+    if (!processingView.rangeDopplerFocus) rangeDopplerView = "full";
+    const displayedRangeDoppler = rangeDopplerView === "focus" ? processingView.rangeDopplerFocus : processingView.rangeDoppler;
+    const targetDetectionCount = processingView.detectionSummary.target_detection_count
+      ?? processingView.detections.filter((item) => item.target_id).length;
+    const detections = detectionRows(processingView);
+    const truth = truthRows(result);
+    const paths = pathRows(result);
+    const pathDisplayHint = radar.pathDisplayMode === "target"
       ? "Only target echo paths are shown in 3D."
       : radar.pathDisplayMode === "all"
         ? "All returned target, clutter, and direct paths are shown."
         : `Target echoes plus the ${radar.keyClutterLimit} strongest clutter paths.`;
-    const targetDetectionCount = processingView.detectionSummary.target_detection_count ?? processingView.detections.filter((item) => item.target_id).length;
-    dom.radarDetectionMetric.textContent = `${countLabel(targetDetectionCount, "target detection")} · ${processingView.detectionSummary.total_detection_count} total`;
-    dom.radarPathMetric.textContent = `${result.summary.total_target_path_count} target · ${result.summary.total_clutter_path_count} clutter`;
-    dom.radarSnrMetric.textContent = fmt(processingView.peakSnrDb, 1, " dB");
-    dom.radarNoiseMetric.textContent = fmt(result.statistics.noise_power_dbm, 1, " dBm");
-    if (!processingView.rangeDopplerFocus) rangeDopplerView = "full";
-    const displayedRd = rangeDopplerView === "focus" ? processingView.rangeDopplerFocus : processingView.rangeDoppler;
-    dom.radarRdMeta.textContent = `${processingView.label.toUpperCase()} · ${rangeDopplerView === "focus" ? "TARGET DETAIL" : "SCENE OVERVIEW"}`;
-    dom.radarRdTruncated.classList.toggle("hidden", !displayedRd.truncated);
-    for (const [viewId, button] of [["raw", dom.radarRdRaw], ["mean_subtracted", dom.radarRdMean], ["ideal_clutter_cancelled", dom.radarRdIdeal]]) {
-      button.disabled = !radarProcessingViewAvailable(result, viewId);
-      button.classList.toggle("active", processingView.id === viewId);
-      button.setAttribute("aria-pressed", processingView.id === viewId ? "true" : "false");
-    }
-    dom.radarRdProcessingHint.textContent = processingView.hint;
-    dom.radarRdFocus.classList.toggle("active", rangeDopplerView === "focus");
-    dom.radarRdFull.classList.toggle("active", rangeDopplerView === "full");
-    dom.radarRdFocus.disabled = !processingView.rangeDopplerFocus;
-    drawRangeDoppler(result, processingView); drawRangeProfile(processingView); renderDetections(processingView); renderTruth(result); renderPaths(result);
+
+    resultDock.update("radar", {
+      status: "success",
+      visible: true,
+      summary: [
+        {id: "detections", label: "Detections", value: `${countLabel(targetDetectionCount, "target detection")} · ${processingView.detectionSummary.total_detection_count} total`, valueId: "radarDetectionMetric"},
+        {id: "paths", label: "Propagation Paths", value: `${result.summary.total_target_path_count} target · ${result.summary.total_clutter_path_count} clutter`, valueId: "radarPathMetric"},
+        {id: "snr", label: "Peak SNR", value: fmt(processingView.peakSnrDb, 1, " dB"), valueId: "radarSnrMetric"},
+        {id: "noise", label: "Noise Power", value: fmt(result.statistics.noise_power_dbm, 1, " dBm"), valueId: "radarNoiseMetric"},
+      ],
+      rangeDoppler: {
+        meta: `${processingView.label.toUpperCase()} · ${rangeDopplerView === "focus" ? "TARGET DETAIL" : "SCENE OVERVIEW"}`,
+        truncated: Boolean(displayedRangeDoppler?.truncated),
+        processingView: processingView.id,
+        processingHint: processingView.hint,
+        processingOptions: PROCESSING_OPTIONS.map((option) => ({...option, available: radarProcessingViewAvailable(result, option.id)})),
+        viewport: rangeDopplerView,
+        focusAvailable: Boolean(processingView.rangeDopplerFocus),
+      },
+      detectionFilter,
+      detectionCount: detections.count,
+      detectionMoreLabel: showAllDetections ? "Show strongest only" : `Show all ${processingView.detections.filter((item) => item.classification !== "target" && !item.target_id).length}`,
+      detectionMoreVisible: detections.moreVisible,
+      detectionEmptyMessage: detections.emptyMessage,
+      detections: detections.rows,
+      truthEmptyMessage: truth.length ? "" : "No targets were configured for this solve.",
+      truth,
+      pathDisplayMode: radar.pathDisplayMode,
+      pathDisplayHint,
+      pathCount: paths.count,
+      pathEmptyMessage: paths.emptyMessage,
+      paths: paths.rows,
+      pathNote: paths.note,
+    }, "radar");
+    drawRangeDoppler(result, processingView);
+    drawRangeProfile(processingView);
   }
 
   function selectProcessingView(viewId) {
@@ -293,43 +333,77 @@ export function createRadarResultView({state, ui, dom, renderAll, focusTarget}) 
     renderAll();
   }
 
+  const unregisterCommands = resultDock.registerCommandHandler("radar", (command) => {
+    const value = command.payload?.value;
+    if (command.name === "radar.detection.select") selectDetection(String(value || ""));
+    else if (command.name === "radar.truth.select") selectTarget(String(value || ""));
+    else if (command.name === "radar.path.select") selectPath(Number(value));
+    else if (command.name === "radar.processing.select") selectProcessingView(String(value || ""));
+    else if (command.name === "radar.rangeDoppler.scope.select") {
+      if (value === "focus" && !activeProcessingView().rangeDopplerFocus) return;
+      rangeDopplerView = value === "full" ? "full" : "focus";
+      renderRadarResult();
+    } else if (command.name === "radar.detections.filter") {
+      detectionFilter = String(value || "all");
+      showAllDetections = false;
+      renderRadarResult();
+    } else if (command.name === "radar.detections.toggleAll") {
+      showAllDetections = !showAllDetections;
+      renderRadarResult();
+    } else if (command.name === "radar.paths.displayMode.change") {
+      radar.pathDisplayMode = String(value || "key");
+      renderAll();
+    }
+  });
+
   function attachEvents() {
-    dom.radarDetectionList.addEventListener("click", (event) => { const row = event.target.closest("[data-detection-id]"); if (row) selectDetection(row.dataset.detectionId); });
-    dom.radarTruthList.addEventListener("click", (event) => { const row = event.target.closest("[data-target-id]"); if (row) selectTarget(row.dataset.targetId); });
-    dom.radarPathList.addEventListener("click", (event) => { const row = event.target.closest("[data-path-index]"); if (row) selectPath(Number(row.dataset.pathIndex)); });
-    dom.radarRdRaw.addEventListener("click", () => selectProcessingView("raw"));
-    dom.radarRdMean.addEventListener("click", () => selectProcessingView("mean_subtracted"));
-    dom.radarRdIdeal.addEventListener("click", () => selectProcessingView("ideal_clutter_cancelled"));
-    dom.radarRdFocus.addEventListener("click", () => { if (!activeProcessingView().rangeDopplerFocus) return; rangeDopplerView = "focus"; renderRadarResult(); });
-    dom.radarRdFull.addEventListener("click", () => { rangeDopplerView = "full"; renderRadarResult(); });
-    dom.radarDetectionFilter.addEventListener("change", () => { detectionFilter = dom.radarDetectionFilter.value; showAllDetections = false; renderRadarResult(); });
-    dom.radarDetectionMore.addEventListener("click", () => { showAllDetections = !showAllDetections; renderRadarResult(); });
-    dom.radarRangeDopplerCanvas.addEventListener("mousemove", (event) => {
-      const rect = dom.radarRangeDopplerCanvas.getBoundingClientRect();
-      const x = event.clientX - rect.left; const y = event.clientY - rect.top;
+    if (eventController) return;
+    eventController = new AbortController();
+    const {signal} = eventController;
+    const canvas = resultDock.element("radarRangeDopplerCanvas");
+    canvas.addEventListener("mousemove", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
       const cell = radarRangeDopplerHover(chartLayout, x, y);
-      dom.radarRdHover.textContent = cell
+      const hover = resultDock.element("radarRdHover");
+      const crosshair = resultDock.element("radarChartCrosshair");
+      hover.textContent = cell
         ? `Range ${fmt(cell.rangeM, 2, " m")} · Doppler ${fmt(cell.dopplerHz, 1, " Hz")} · Power ${fmt(cell.powerDbm, 1, " dBm")}`
         : "Hover for range, Doppler, and power.";
-      dom.radarChartCrosshair.classList.toggle("hidden", !cell);
+      crosshair.classList.toggle("hidden", !cell);
       if (cell) {
-        dom.radarChartCrosshair.style.setProperty("--radar-crosshair-x", `${x}px`);
-        dom.radarChartCrosshair.style.setProperty("--radar-crosshair-y", `${y}px`);
-        dom.radarChartTooltip.style.left = `${Math.min(Math.max(8, x + 12), Math.max(8, rect.width - 164))}px`;
-        dom.radarChartTooltip.style.top = `${Math.max(8, y - 48)}px`;
-        dom.radarChartTooltip.textContent = `Range ${fmt(cell.rangeM, 2, " m")} · Doppler ${fmt(cell.dopplerHz, 1, " Hz")} · Power ${fmt(cell.powerDbm, 1, " dBm")}`;
+        crosshair.style.setProperty("--radar-crosshair-x", `${x}px`);
+        crosshair.style.setProperty("--radar-crosshair-y", `${y}px`);
+        const tooltip = resultDock.element("radarChartTooltip");
+        tooltip.style.left = `${Math.min(Math.max(8, x + 12), Math.max(8, rect.width - 164))}px`;
+        tooltip.style.top = `${Math.max(8, y - 48)}px`;
+        tooltip.textContent = `Range ${fmt(cell.rangeM, 2, " m")} · Doppler ${fmt(cell.dopplerHz, 1, " Hz")} · Power ${fmt(cell.powerDbm, 1, " dBm")}`;
       }
-    });
-    dom.radarRangeDopplerCanvas.addEventListener("mouseleave", () => { dom.radarRdHover.textContent = "Hover for range, Doppler, and power."; dom.radarChartCrosshair.classList.add("hidden"); });
-    dom.radarRangeDopplerCanvas.addEventListener("click", (event) => {
-      const rect = dom.radarRangeDopplerCanvas.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top;
-      const closest = chartLayout?.points.map((point) => ({...point, distance: Math.hypot(point.x - x, point.y - y)})).sort((a, b) => a.distance - b.distance)[0];
+    }, {signal});
+    canvas.addEventListener("mouseleave", () => {
+      resultDock.element("radarRdHover").textContent = "Hover for range, Doppler, and power.";
+      resultDock.element("radarChartCrosshair").classList.add("hidden");
+    }, {signal});
+    canvas.addEventListener("click", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const closest = chartLayout?.points
+        .map((point) => ({...point, distance: Math.hypot(point.x - x, point.y - y)}))
+        .sort((left, right) => left.distance - right.distance)[0];
       if (closest?.distance <= 18) {
         if (closest.type === "target") selectTarget(closest.id);
         else selectDetection(closest.id);
       }
-    });
+    }, {signal});
   }
 
-  return Object.freeze({attachEvents, renderRadarResult, restoreOtherResultSections, selectDetection, selectPath, selectTarget});
+  function dispose() {
+    eventController?.abort();
+    eventController = null;
+    unregisterCommands();
+  }
+
+  return Object.freeze({attachEvents, dispose, renderRadarResult, restoreOtherResultSections, selectDetection, selectPath, selectTarget});
 }

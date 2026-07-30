@@ -160,6 +160,7 @@ def test_radar_rs08_frontend_uses_job_api_and_owns_its_complete_workflow() -> No
     transport_source = (radar_root / "transport.js").read_text(encoding="utf-8")
     controller_source = (PROJECT_ROOT / "backend" / "static" / "js" / "controllers" / "radar_controller.js").read_text(encoding="utf-8")
     result_source = (PROJECT_ROOT / "backend" / "static" / "js" / "ui" / "radar_result_view.js").read_text(encoding="utf-8")
+    result_component_source = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
     renderer_source = (radar_root / "renderer.js").read_text(encoding="utf-8")
     charts_source = (radar_root / "charts.js").read_text(encoding="utf-8")
     colors_source = (radar_root / "colors.js").read_text(encoding="utf-8")
@@ -174,10 +175,15 @@ def test_radar_rs08_frontend_uses_job_api_and_owns_its_complete_workflow() -> No
         assert method in controller_source
     for capability in (
         "radarModeMonostatic", "btnAddRadarTarget", "btnRemoveRadarTarget", "btnPickRadarTarget",
-        "radarNumSubcarriers", "radarNumSymbols", "radarCfarEnabled", "radarRangeDopplerCanvas",
-        "radarDetectionList", "radarTruthList", "radarPathList",
+        "radarNumSubcarriers", "radarNumSymbols", "radarCfarEnabled",
     ):
         assert capability in index_source
+    for capability in (
+        "radarRangeDopplerCanvas", "radarDetectionList", "radarTruthList", "radarPathList",
+    ):
+        assert capability in result_component_source
+    assert 'resultDock: context.featureServices.resultDock' in index_source
+    assert 'resultDock.registerCommandHandler("radar"' in result_source
     assert "1048576" in controls_source
     assert "scene_generation" in controller_source
     assert "RadarTargetScene" in renderer_source
@@ -193,7 +199,7 @@ def test_radar_rs08_frontend_uses_job_api_and_owns_its_complete_workflow() -> No
     assert "radarTargetColor" in result_source
     assert "RADAR_TARGET_COLORS" in colors_source
     assert 'selected ? "#1f6fff"' not in charts_source
-    assert 'id="radarPlotLegend"' in index_source
+    assert 'id="radarPlotLegend"' in result_component_source
     assert "Color matches scene target" not in index_source
     assert ".radarPlotLegend .clutter:before" in css_source
     assert "border:1.5px solid var(--radar-legend-clutter-color)" in css_source

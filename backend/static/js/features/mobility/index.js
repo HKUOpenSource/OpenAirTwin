@@ -18,12 +18,10 @@ function createResultView(context) {
     ui: context.ui,
     getViewer: shared.getViewer,
     renderAll: shared.renderAll,
-    renderLinkChannel: paths.renderLinkChannel,
-    clearPathSelection: paths.clearPathSelection,
-    hidePathDetails: paths.hidePathDetails,
-    renderPathDetails: paths.renderPathDetails,
-    renderPathSelection: paths.renderPathSelection,
-    scrollSelectedPathDetailsIntoView: paths.scrollSelectedPathDetailsIntoView,
+    resultDock: context.featureServices.resultDock,
+    createChannelViewModel: paths.createChannelViewModel,
+    createPathResultsViewModel: paths.createPathResultsViewModel,
+    drawLinkTapChart: paths.drawLinkTapChart,
   });
 }
 
