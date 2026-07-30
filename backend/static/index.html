@@ -5,7 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>OpenAirTwin</title>
   <link rel="stylesheet" href="/lib/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/css/app.css?v=20260723-radar-shared-groups" />
+  <link rel="stylesheet" href="/css/tokens.css?v=20260730-css-architecture" />
+  <link rel="stylesheet" href="/css/base.css?v=20260730-css-architecture" />
+  <link rel="stylesheet" href="/css/components.css?v=20260730-css-architecture" />
+  <link rel="stylesheet" href="/css/shell.css?v=20260730-css-architecture" />
+  <link rel="stylesheet" href="/css/entry-map.css?v=20260730-css-architecture" />
+  <link rel="stylesheet" href="/css/results.css?v=20260730-css-architecture" />
+  <link rel="stylesheet" href="/css/radar.css?v=20260730-css-architecture" />
 </head>
 <body>
   <canvas id="view"></canvas>
@@ -16,7 +22,7 @@
       <div class="paramTooltipArrow" aria-hidden="true"></div>
     </div>
 
-    <div id="linkChannelSection" class="channelAnalysisDock hidden" aria-hidden="true">
+    <div id="linkChannelSection" class="channelAnalysisDock oat-panel hidden" aria-hidden="true">
       <button
         class="channelAnalysisHead"
         id="btnResultDockToggle"
@@ -36,17 +42,17 @@
           </span>
         </span>
       </button>
-      <div id="channelAnalysisScroll" class="channelAnalysisScroll" aria-hidden="false">
+      <div id="channelAnalysisScroll" class="channelAnalysisScroll oat-scroll-region" aria-hidden="false">
         <div id="linkResult" class="linkResultSummary">
-          <div class="channelStats linkSummaryStats">
+          <div class="channelStats linkSummaryStats oat-metric-grid">
             <div><b>Total Path Gain</b><span id="linkPower">--</span></div>
             <div><b>Strongest Path Gain</b><span id="linkBest">--</span></div>
             <div><b>Paths</b><span id="linkPaths">--</span></div>
-            <div><b>Line of Sight</b><span id="linkLos" class="pill no">No</span></div>
+            <div><b>Line of Sight</b><span id="linkLos" class="pill no oat-badge">No</span></div>
           </div>
         </div>
         <div id="mobilityResult" class="linkResultSummary">
-          <div class="channelStats linkSummaryStats">
+          <div class="channelStats linkSummaryStats oat-metric-grid">
             <div><b>Steps</b><span id="mobilitySteps">--</span></div>
             <div><b>Path Gain Range</b><span id="mobilityPowerRange">--</span></div>
             <div><b>Duration</b><span id="mobilityDuration">--</span></div>
@@ -54,7 +60,7 @@
           </div>
         </div>
         <div id="radiomapResult" class="linkResultSummary">
-          <div class="channelStats linkSummaryStats">
+          <div class="channelStats linkSummaryStats oat-metric-grid">
             <div><b>Status</b><span id="rmStatus">Idle</span></div>
             <div><b>Metric</b><span id="rmMetric">Path gain (dB)</span></div>
             <div><b>Grid</b><span id="rmGrid">--</span></div>
@@ -63,7 +69,7 @@
         </div>
         <div id="radiomapResolutionSection" class="linkDockSection hidden" aria-hidden="true">
           <div class="sectionTitle">Resolution &amp; Budget</div>
-          <div class="channelStats">
+          <div class="channelStats oat-metric-grid">
             <div><b>Area</b><span id="rmArea">--</span></div>
             <div><b>Cell Size</b><span id="rmCellSizeSummary">--</span></div>
             <div><b>Samples / Tx</b><span id="rmSamples">--</span></div>
@@ -115,7 +121,7 @@
             </div>
             <div class="channelAnalysisMiniTitle pathSelectionCount" id="pathSelectionCount">0 paths</div>
           </div>
-          <div id="pathButtons" class="pathList"></div>
+          <div id="pathButtons" class="pathList oat-scroll-region"></div>
         </div>
         <div id="pathDetailSection" class="linkDockSection hidden" aria-hidden="true">
           <div class="sectionTitle" id="pathDetailTitle">Selected Path</div>
@@ -128,7 +134,7 @@
               <div class="channelAnalysisMiniTitle">Discrete Channel Taps</div>
             </div>
           </div>
-          <div class="channelStats">
+          <div class="channelStats oat-metric-grid">
             <div><b>Total Tap Power</b><span id="linkTapTotalPower">--</span></div>
             <div><b>Strongest Tap</b><span id="linkTapPeak">--</span></div>
             <div><b>Channel Coefficients</b><span id="linkCirCoeffCount">--</span></div>
@@ -158,11 +164,11 @@
         <span class="deepMimoDatasetLabel">Datasets</span>
         <span class="deepMimoDatasetCount" id="deepMimoDatasetCount" aria-live="polite">0</span>
       </button>
-      <div id="deepMimoDatasetPanel" class="deepMimoDatasetPanel hidden" aria-hidden="true">
+      <div id="deepMimoDatasetPanel" class="deepMimoDatasetPanel oat-panel hidden" aria-hidden="true">
         <div class="deepMimoDatasetHeader">
           <span>Generated Datasets</span>
         </div>
-        <div id="deepMimoDatasetList" class="deepMimoDatasetList"></div>
+        <div id="deepMimoDatasetList" class="deepMimoDatasetList oat-scroll-region"></div>
       </div>
     </div>
 
@@ -171,14 +177,14 @@
         <div class="loadingTitle" id="loadingTitle">Loading Scene</div>
         <div id="barWrap"><div id="bar"></div></div>
         <div id="loadingPhase">Initializing...</div>
-        <button class="btn loadingCancelBtn hidden" id="btnLoadingCancel" type="button">Cancel</button>
+        <button class="btn oat-button loadingCancelBtn hidden" id="btnLoadingCancel" type="button">Cancel</button>
       </div>
     </div>
 
     <div id="appDialog" class="appDialog hidden" aria-hidden="true">
       <div class="appDialogBackdrop" aria-hidden="true"></div>
       <section
-        class="appDialogCard"
+        class="appDialogCard oat-panel"
         id="appDialogCard"
         role="alertdialog"
         aria-modal="true"
@@ -197,8 +203,8 @@
         <p class="appDialogMessage" id="appDialogMessage"></p>
         <pre class="appDialogDetail hidden" id="appDialogDetail"></pre>
         <div class="appDialogActions">
-          <button class="btn appDialogSecondary hidden" id="appDialogSecondary" type="button">Cancel</button>
-          <button class="btn primary appDialogPrimary" id="appDialogPrimary" type="button">OK</button>
+          <button class="btn oat-button appDialogSecondary hidden" id="appDialogSecondary" type="button">Cancel</button>
+          <button class="btn primary oat-button oat-button--primary appDialogPrimary" id="appDialogPrimary" type="button">OK</button>
         </div>
       </section>
     </div>
@@ -220,7 +226,7 @@
           </span>
         </button>
         <div class="entrySidebarStack">
-          <section class="entryIntro" id="entrySidebar">
+          <section class="entryIntro oat-panel" id="entrySidebar">
             <div class="entrySidebarHead">
               <div class="entrySidebarBrand" aria-label="OpenAirTwin">
                 <img class="brandLogo openAirTwinLogo" src="/assets/openairtwin_logo.png" alt="OpenAirTwin logo" />
@@ -231,12 +237,12 @@
               <div class="entryManualRow">
                 <input
                   id="entryPlaceInput"
-                  class="entryManualInput"
+                  class="entryManualInput oat-input"
                   type="text"
                   placeholder="e.g. HKU, Pok Fu Lam, Central"
                   autocomplete="off"
                 />
-                <button class="miniBtn" id="btnEntrySearch" type="button">Search</button>
+                <button class="miniBtn oat-button oat-button--compact" id="btnEntrySearch" type="button">Search</button>
               </div>
               <div class="entryManualHint" id="entrySearchHint"></div>
               <div class="entryPlaceResults" id="entryPlaceResults" aria-live="polite"></div>
@@ -275,7 +281,7 @@
           </div>
 
           <div class="entryLoadAction">
-            <button class="btn primary entryFooterBtn" id="btnEnterScene" type="button" disabled>
+            <button class="btn primary oat-button oat-button--primary entryFooterBtn" id="btnEnterScene" type="button" disabled>
               Load Selected Tiles
             </button>
             <button class="quickIconBtn" id="btnEntryReturnScene" type="button" title="Return to 3D" aria-label="Return to 3D" disabled>
@@ -298,13 +304,13 @@
         <svg viewBox="0 0 24 24"><path d="M5 7h14"></path><path d="M5 12h14"></path><path d="M5 17h14"></path></svg>
       </span>
     </button>
-    <div id="ui">
+    <div id="ui" class="oat-panel">
       <div class="uiHead">
         <div class="uiTitleBlock" aria-label="OpenAirTwin">
           <img class="brandLogo openAirTwinLogo" src="/assets/openairtwin_logo.png" alt="OpenAirTwin logo" />
         </div>
       </div>
-      <div id="uiBody">
+      <div id="uiBody" class="oat-scroll-region">
         <details class="paramGroup modeSelector" id="modeSelector">
           <summary class="paramGroupSummary modeSelectButton" id="modeSelectButton" aria-haspopup="listbox" aria-expanded="false" aria-controls="modeMenu">
             <span class="modeSelectTitle" id="modeSelectTitle">Mode (Link Analysis)</span>
@@ -784,7 +790,7 @@
       </div>
     </div>
 
-    <div id="deviceDock" class="deviceDock hidden" aria-hidden="true">
+    <div id="deviceDock" class="deviceDock oat-panel hidden" aria-hidden="true">
       <div id="devicePrecisionPanel" class="devicePrecisionPanel deviceCompactBar hidden" aria-hidden="true">
         <div class="devicePrecisionHead">
           <div id="devicePrecisionTitle" class="devicePrecisionTitle">Tx</div>
@@ -938,7 +944,7 @@
           <path d="M15 6v15"></path>
         </svg>
       </button>
-      <div id="performanceDock" class="performanceDock hidden collapsed" aria-hidden="true">
+      <div id="performanceDock" class="performanceDock oat-panel hidden collapsed" aria-hidden="true">
         <button
           class="performanceDockHead"
           id="btnPerformanceDockToggle"

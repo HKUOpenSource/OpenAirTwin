@@ -55,7 +55,7 @@ export function createEntryMapController(context) {
 
 function setEntrySearchHint(message, isError = false) {
   ui.entrySearchHint.textContent = message;
-  ui.entrySearchHint.style.color = isError ? "#b45309" : "#63758f";
+  ui.entrySearchHint.classList.toggle("is-error", isError);
 }
 
 

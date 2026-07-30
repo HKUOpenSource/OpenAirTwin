@@ -1,0 +1,54 @@
+{
+  "capturedAt": "2026-07-30T11:28:55.200Z",
+  "playwrightBrowser": "chromium",
+  "resourcesAfter": {
+    "activeIntervals": 1,
+    "canvasElements": 4,
+    "domNodes": 1396,
+    "frameListeners": 0,
+    "listenerRegistrations": 274,
+    "radarLabelElements": 0
+  },
+  "resourcesBefore": {
+    "activeIntervals": 1,
+    "canvasElements": 4,
+    "domNodes": 1396,
+    "frameListeners": 0,
+    "listenerRegistrations": 274,
+    "radarLabelElements": 0
+  },
+  "runtime": {
+    "browser": {
+      "hardwareConcurrency": 10,
+      "language": "en-US",
+      "platform": "MacIntel",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/146.0.0.0 Safari/537.36"
+    },
+    "memory": {
+      "jsHeapSizeLimit": 4294967296,
+      "totalJSHeapSize": 47901947,
+      "usedJSHeapSize": 40218947
+    },
+    "navigationMs": {
+      "domComplete": 90.4,
+      "domContentLoaded": 86.9,
+      "loadEventEnd": 90.4,
+      "responseEnd": 3.3
+    },
+    "paints": {
+      "first-paint": 768,
+      "first-contentful-paint": 768
+    },
+    "transfer": {
+      "decodedBodyBytes": 18133972,
+      "encodedBodyBytes": 18133972,
+      "resourceCount": 101,
+      "transferBytes": 18163672
+    },
+    "viewport": {
+      "height": 900,
+      "width": 1440
+    }
+  },
+  "uiReadyWallMs": 152
+}

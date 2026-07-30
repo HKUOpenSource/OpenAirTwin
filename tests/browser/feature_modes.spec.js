@@ -1,4 +1,29 @@
+import {mkdirSync, readFileSync, writeFileSync} from "node:fs";
+import {fileURLToPath} from "node:url";
+
 import {expect, test} from "@playwright/test";
+
+const PHASE0_BASELINE_DIRECTORY = new URL("./baselines/", import.meta.url);
+const UPDATE_PHASE0_BASELINE = process.env.OAT_UPDATE_PHASE0_BASELINE === "1";
+
+function phase0BaselineUrl(filename) {
+  return new URL(filename, PHASE0_BASELINE_DIRECTORY);
+}
+
+function assertPhase0Baseline(filename, actual) {
+  const url = phase0BaselineUrl(filename);
+  if (UPDATE_PHASE0_BASELINE) {
+    mkdirSync(fileURLToPath(PHASE0_BASELINE_DIRECTORY), {recursive: true});
+    writeFileSync(url, `${JSON.stringify(actual, null, 2)}\n`, "utf8");
+  }
+  expect(actual).toEqual(JSON.parse(readFileSync(url, "utf8")));
+}
+
+function writePhase0Observation(filename, actual) {
+  if (!UPDATE_PHASE0_BASELINE) return;
+  mkdirSync(fileURLToPath(PHASE0_BASELINE_DIRECTORY), {recursive: true});
+  writeFileSync(phase0BaselineUrl(filename), `${JSON.stringify(actual, null, 2)}\n`, "utf8");
+}
 
 const RT_CAPABILITIES = {
   ok: true,
@@ -214,6 +239,18 @@ async function enableRealViewer(page) {
   await expect(page.locator("#deviceDock")).toBeVisible();
 }
 
+async function enableViewerStub(page) {
+  await page.evaluate(async () => {
+    const {state, viewerRef} = await import("/js/app_state.js?v=20260723-radar-shared-groups");
+    viewerRef.current.__ready = true;
+    viewerRef.current.loadedTileIds.add("fixture-tile");
+    state.entry.visible = false;
+    document.querySelector('[data-mode="mobility"]').click();
+    document.querySelector('[data-mode="link"]').click();
+  });
+  await expect(page.locator("#deviceDock")).toBeVisible();
+}
+
 async function configureRadarFixture(page, {targets = true} = {}) {
   await page.evaluate(async (includeTargets) => {
     const {state} = await import("/js/app_state.js?v=20260723-radar-shared-groups");
@@ -259,6 +296,367 @@ async function configureMainDeviceFixture(page) {
     document.querySelector('[data-mode="link"]').click();
   });
 }
+
+async function installPhase0ResourceProbe(page) {
+  await page.addInitScript(() => {
+    const probe = {
+      listenerRegistrations: 0,
+      activeIntervals: new Set(),
+    };
+    const addEventListener = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function phase0AddEventListener(...args) {
+      probe.listenerRegistrations += 1;
+      return addEventListener.apply(this, args);
+    };
+    const setInterval = window.setInterval.bind(window);
+    const clearInterval = window.clearInterval.bind(window);
+    window.setInterval = (...args) => {
+      const intervalId = setInterval(...args);
+      probe.activeIntervals.add(intervalId);
+      return intervalId;
+    };
+    window.clearInterval = (intervalId) => {
+      probe.activeIntervals.delete(intervalId);
+      return clearInterval(intervalId);
+    };
+    Object.defineProperty(window, "__oatPhase0ResourceProbe", {
+      configurable: false,
+      enumerable: false,
+      value: probe,
+      writable: false,
+    });
+  });
+}
+
+async function capturePhase0DomContract(page) {
+  return page.evaluate(() => {
+    const normalizeText = (value) => String(value || "").replace(/\s+/g, " ").trim();
+    const elements = [...document.querySelectorAll("[id]")];
+    return {
+      document: {
+        lang: document.documentElement.lang,
+        title: document.title,
+      },
+      elements: elements.map((element, order) => {
+        const attributes = Object.fromEntries(
+          [...element.attributes]
+            .filter(({name}) => (
+              name.startsWith("aria-")
+              || name.startsWith("data-mode")
+              || [
+                "autocomplete", "for", "href", "max", "min", "name", "placeholder",
+                "role", "step", "tabindex", "title", "type",
+              ].includes(name)
+            ))
+            .map(({name, value}) => [name, value])
+            .sort(([left], [right]) => left.localeCompare(right)),
+        );
+        const labels = "labels" in element && element.labels
+          ? [...element.labels].map((label) => normalizeText(label.textContent))
+          : [];
+        const contract = {
+          id: element.id,
+          order,
+          tag: element.tagName.toLowerCase(),
+          classes: [...element.classList],
+          attributes,
+        };
+        if (labels.length) contract.labels = labels;
+        if (element.matches("button, summary, option")) contract.text = normalizeText(element.textContent);
+        if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+          contract.defaultValue = element.defaultValue;
+          contract.defaultChecked = element.defaultChecked;
+          contract.disabled = element.disabled;
+        } else if (element instanceof HTMLSelectElement) {
+          contract.defaultValue = [...element.options].find((option) => option.defaultSelected)?.value
+            ?? element.options[0]?.value
+            ?? "";
+          contract.disabled = element.disabled;
+        } else if (element instanceof HTMLButtonElement) {
+          contract.disabled = element.disabled;
+        } else if (element instanceof HTMLDetailsElement) {
+          contract.open = element.open;
+        }
+        return contract;
+      }),
+    };
+  });
+}
+
+async function capturePhase0ComputedStyles(page) {
+  return page.evaluate(() => {
+    const properties = [
+      "align-items", "background-color", "border-bottom-color", "border-bottom-style",
+      "border-bottom-width", "border-left-color", "border-left-style", "border-left-width",
+      "border-radius", "border-right-color", "border-right-style", "border-right-width",
+      "border-top-color", "border-top-style", "border-top-width", "box-shadow", "box-sizing",
+      "color", "column-gap", "display", "flex-direction", "flex-wrap", "font-family", "font-size",
+      "font-weight", "gap", "grid-template-columns", "height", "justify-content", "line-height",
+      "margin-bottom", "margin-left", "margin-right", "margin-top", "max-height", "max-width",
+      "min-height", "min-width", "opacity", "overflow-x", "overflow-y", "padding-bottom",
+      "padding-left", "padding-right", "padding-top", "pointer-events", "position", "row-gap",
+      "scrollbar-width", "text-align", "transition-duration", "transition-property", "width", "z-index",
+    ];
+    const targets = {
+      badge: "#radarTargetCount",
+      checkbox: "#radarModeMonostatic",
+      collapsibleGroup: ".propagationSolverGroup",
+      collapsibleSummary: ".propagationSolverGroup > summary",
+      compactButton: "#btnEntrySearch",
+      controlPanel: "#ui",
+      controlScroll: "#uiBody",
+      deviceDock: "#deviceDock",
+      dialog: "#appDialogCard",
+      entryPanel: "#entrySidebar",
+      numberInput: "#cfgFrequency",
+      performanceDock: "#performanceDock",
+      primaryButton: "#btnEnterScene",
+      radarField: "label[for='radarCarrierFrequency']",
+      resultDock: "#linkChannelSection",
+      scrollRegion: "#channelAnalysisScroll",
+      select: "#txArrayPattern",
+    };
+    const components = Object.fromEntries(Object.entries(targets).map(([name, selector]) => {
+      const element = document.querySelector(selector);
+      if (!element) throw new Error(`Missing Phase 0 style target: ${selector}`);
+      const style = getComputedStyle(element);
+      return [name, {
+        selector,
+        styles: Object.fromEntries(properties.map((property) => [property, style.getPropertyValue(property)])),
+      }];
+    }));
+    const rootStyle = getComputedStyle(document.documentElement);
+    const tokens = Object.fromEntries(
+      [...rootStyle]
+        .filter((property) => property.startsWith("--oat-"))
+        .sort()
+        .map((property) => [property, rootStyle.getPropertyValue(property).trim()]),
+    );
+    return {components, tokens};
+  });
+}
+
+async function capturePhase0ResourceSnapshot(page) {
+  return page.evaluate(async () => {
+    const {viewerRef} = await import("/js/app_state.js?v=20260723-radar-shared-groups");
+    const probe = window.__oatPhase0ResourceProbe;
+    return {
+      activeIntervals: probe.activeIntervals.size,
+      canvasElements: document.querySelectorAll("canvas").length,
+      domNodes: document.querySelectorAll("*").length,
+      frameListeners: viewerRef.current.frameListeners?.size ?? 0,
+      listenerRegistrations: probe.listenerRegistrations,
+      radarLabelElements: document.querySelectorAll(".radarTargetLabel, .radarTargetConnector").length,
+    };
+  });
+}
+
+test("core CSS modules load in order and expose the desktop computed-style contract", async ({page}) => {
+  const cssResponses = [];
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    if (url.pathname.startsWith("/css/")) cssResponses.push({path: url.pathname, status: response.status()});
+  });
+  await openDeterministicApp(page);
+
+  const architecture = await page.evaluate(() => {
+    const sheets = [...document.styleSheets]
+      .filter((sheet) => new URL(sheet.href).pathname.startsWith("/css/"));
+    const style = (selector) => getComputedStyle(document.querySelector(selector));
+    return {
+      sheets: sheets.map((sheet) => ({
+        path: new URL(sheet.href).pathname,
+        rules: [...sheet.cssRules].map((rule) => rule.cssText.slice(0, 120)),
+      })),
+      controlWidth: style("#ui").width,
+      controlRadius: style("#ui").borderRadius,
+      bodyOverflowY: style("#uiBody").overflowY,
+      accent: style(":root").getPropertyValue("--oat-accent-primary").trim(),
+    };
+  });
+  const expectedPaths = [
+    "/css/tokens.css", "/css/base.css", "/css/components.css", "/css/shell.css",
+    "/css/entry-map.css", "/css/results.css", "/css/radar.css",
+  ];
+  expect(cssResponses.sort((left, right) => left.path.localeCompare(right.path)))
+    .toEqual(expectedPaths.map((path) => ({path, status: 200})).sort((left, right) => left.path.localeCompare(right.path)));
+  expect(architecture.sheets.map(({path}) => path)).toEqual(expectedPaths);
+  expect(architecture.sheets.every(({rules}) => rules.length > 0)).toBe(true);
+  expect(architecture.sheets[0].rules[0]).toContain("@layer reset, tokens, base, components, layout, features, utilities");
+  expect(architecture).toMatchObject({
+    controlWidth: "430px",
+    controlRadius: "18px",
+    bodyOverflowY: "auto",
+    accent: "#3478f6",
+  });
+});
+
+test("phase 0 DOM, style, network and resource contracts remain frozen", async ({page, browserName}) => {
+  await installPhase0ResourceProbe(page);
+  const responseRecords = [];
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    const isUiResource = ["/css/", "/js/", "/lib/"].some((prefix) => url.pathname.startsWith(prefix))
+      || url.pathname === "/assets/openairtwin_logo.png"
+      || url.pathname === "/assets/radar/drones/manifest.json";
+    if (!isUiResource) return;
+    responseRecords.push((async () => {
+      const headers = await response.allHeaders();
+      return {
+        contentLength: Number(headers["content-length"] || 0),
+        contentType: String(headers["content-type"] || "").split(";", 1)[0],
+        path: url.pathname,
+        resourceType: response.request().resourceType(),
+        status: response.status(),
+      };
+    })());
+  });
+
+  const wallStartMs = Date.now();
+  await openDeterministicApp(page);
+  const uiReadyWallMs = Date.now() - wallStartMs;
+  const domContract = await capturePhase0DomContract(page);
+  const computedStyles = await capturePhase0ComputedStyles(page);
+  await enableRealViewer(page);
+  await configureMainDeviceFixture(page);
+
+  const modes = ["link", "mobility", "radiomap", "deepmimo", "radar"];
+  for (const mode of modes) await activateMode(page, mode);
+  await activateMode(page, "link");
+  const resourcesBefore = await capturePhase0ResourceSnapshot(page);
+  for (let cycle = 0; cycle < 5; cycle += 1) {
+    for (const mode of modes) await activateMode(page, mode);
+  }
+  await activateMode(page, "link");
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const resourcesAfter = await capturePhase0ResourceSnapshot(page);
+  const resourceDelta = Object.fromEntries(
+    Object.keys(resourcesBefore).map((key) => [key, resourcesAfter[key] - resourcesBefore[key]]),
+  );
+  expect(resourceDelta).toEqual({
+    activeIntervals: 0,
+    canvasElements: 0,
+    domNodes: 0,
+    frameListeners: 0,
+    listenerRegistrations: 0,
+    radarLabelElements: 0,
+  });
+
+  const networkContract = (await Promise.all(responseRecords))
+    .sort((left, right) => left.path.localeCompare(right.path));
+  const runtimeObservation = await page.evaluate(() => {
+    const navigation = performance.getEntriesByType("navigation")[0];
+    const paints = Object.fromEntries(
+      performance.getEntriesByType("paint").map((entry) => [entry.name, Math.round(entry.startTime * 100) / 100]),
+    );
+    const resources = performance.getEntriesByType("resource");
+    return {
+      browser: {
+        hardwareConcurrency: navigator.hardwareConcurrency,
+        language: navigator.language,
+        platform: navigator.platform,
+        userAgent: navigator.userAgent,
+      },
+      memory: performance.memory ? {
+        jsHeapSizeLimit: performance.memory.jsHeapSizeLimit,
+        totalJSHeapSize: performance.memory.totalJSHeapSize,
+        usedJSHeapSize: performance.memory.usedJSHeapSize,
+      } : null,
+      navigationMs: navigation ? {
+        domComplete: Math.round(navigation.domComplete * 100) / 100,
+        domContentLoaded: Math.round(navigation.domContentLoadedEventEnd * 100) / 100,
+        loadEventEnd: Math.round(navigation.loadEventEnd * 100) / 100,
+        responseEnd: Math.round(navigation.responseEnd * 100) / 100,
+      } : null,
+      paints,
+      transfer: {
+        decodedBodyBytes: resources.reduce((total, entry) => total + entry.decodedBodySize, 0),
+        encodedBodyBytes: resources.reduce((total, entry) => total + entry.encodedBodySize, 0),
+        resourceCount: resources.length,
+        transferBytes: resources.reduce((total, entry) => total + entry.transferSize, 0),
+      },
+      viewport: {height: innerHeight, width: innerWidth},
+    };
+  });
+
+  assertPhase0Baseline("phase-0-dom-contract.json", domContract);
+  assertPhase0Baseline("phase-0-computed-styles.json", computedStyles);
+  assertPhase0Baseline("phase-0-network-contract.json", networkContract);
+  assertPhase0Baseline("phase-0-resource-contract.json", {
+    cycles: 5,
+    modes,
+    resourceDelta,
+  });
+  writePhase0Observation("phase-0-runtime-observation.json", {
+    capturedAt: new Date().toISOString(),
+    playwrightBrowser: browserName,
+    resourcesAfter,
+    resourcesBefore,
+    runtime: runtimeObservation,
+    uiReadyWallMs,
+  });
+});
+
+test("phase 0 full workbench desktop snapshots stay stable", async ({page}) => {
+  await page.route("**/api/link/solve", (route) => route.fulfill({json: LINK_RESULT}));
+  await openDeterministicApp(page);
+  await enableViewerStub(page);
+  await configureMainDeviceFixture(page);
+  await activateMode(page, "link");
+  await page.locator("#btnSolveLink").click();
+  await expect(page.locator("#linkPower")).toHaveText("-81.25 dB");
+  await expect(page.locator("#deviceDock")).toBeVisible();
+  await expect(page.locator("#performanceDock")).toBeVisible();
+  if (await page.locator("#performanceDock").evaluate((dock) => dock.classList.contains("collapsed"))) {
+    await page.locator("#btnPerformanceDockToggle").click();
+  }
+  await expect(page.locator("#performanceDock")).not.toHaveClass(/collapsed/);
+
+  await page.setViewportSize({width: 1440, height: 900});
+  await expect(page.locator("#performanceDock")).toHaveScreenshot("performance-dock-expanded.png", {
+    animations: "disabled",
+    caret: "hide",
+  });
+  await expect(page).toHaveScreenshot("workbench-shell-1440.png", {
+    animations: "disabled",
+    caret: "hide",
+    fullPage: false,
+  });
+
+  await page.locator("#btnPerformanceDockToggle").click();
+  await expect(page.locator("#performanceDock")).toHaveClass(/collapsed/);
+  await page.setViewportSize({width: 1280, height: 720});
+  const layout = await page.evaluate(() => {
+    const rect = (selector) => document.querySelector(selector).getBoundingClientRect().toJSON();
+    const overlaps = (left, right) => left.left < right.right && left.right > right.left
+      && left.top < right.bottom && left.bottom > right.top;
+    const control = rect("#ui");
+    const results = rect("#linkChannelSection");
+    const devices = rect("#deviceDock");
+    const performance = rect("#performanceDock");
+    return {
+      controlDevicesOverlap: overlaps(control, devices),
+      controlResultsOverlap: overlaps(control, results),
+      devicesWithinViewport: devices.left >= 0 && devices.right <= innerWidth && devices.bottom <= innerHeight,
+      performanceDevicesOverlap: overlaps(performance, devices),
+      performanceResultsOverlap: overlaps(performance, results),
+      resultsDevicesOverlap: overlaps(results, devices),
+    };
+  });
+  expect(layout).toEqual({
+    controlDevicesOverlap: false,
+    controlResultsOverlap: false,
+    devicesWithinViewport: true,
+    performanceDevicesOverlap: false,
+    performanceResultsOverlap: false,
+    resultsDevicesOverlap: false,
+  });
+  await expect(page).toHaveScreenshot("workbench-shell-1280.png", {
+    animations: "disabled",
+    caret: "hide",
+    fullPage: false,
+  });
+});
 
 test("catalog order and five mode control snapshots stay stable", async ({page}) => {
   await openDeterministicApp(page);
@@ -1408,10 +1806,29 @@ test("Radar target workflow, monostatic payload and result selections stay linke
     return viewerRef.current.layers.get("radar", "paths").group.children.length;
   })).toBe(1);
   expect(await page.locator("#radarPanel, #radarResultSections").allTextContents()).not.toEqual(expect.arrayContaining([expect.stringMatching(/download|export/i)]));
-  await page.setViewportSize({width: 700, height: 800});
+  await page.setViewportSize({width: 1280, height: 720});
   await expect(page.locator("#radarPanel")).toBeVisible();
-  expect(await page.locator(".radarVectorGrid").first().evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" ").length)).toBe(2);
-  expect((await page.locator("#radarRangeDopplerCanvas").boundingBox()).width).toBeGreaterThan(140);
+  expect(await page.locator(".radarVectorGrid").first().evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" ").length)).toBe(3);
+  expect((await page.locator("#radarRangeDopplerCanvas").boundingBox()).width).toBeGreaterThan(300);
+  const narrowDesktopLayout = await page.evaluate(() => {
+    const rect = (selector) => document.querySelector(selector).getBoundingClientRect().toJSON();
+    const overlaps = (left, right) => left.left < right.right && left.right > right.left && left.top < right.bottom && left.bottom > right.top;
+    const control = rect("#ui");
+    const results = rect("#linkChannelSection");
+    const devices = rect("#deviceDock");
+    return {
+      controlResultsOverlap: overlaps(control, results),
+      controlDevicesOverlap: overlaps(control, devices),
+      resultsDevicesOverlap: overlaps(results, devices),
+      devicesWithinViewport: devices.left >= 0 && devices.right <= innerWidth && devices.bottom <= innerHeight,
+    };
+  });
+  expect(narrowDesktopLayout).toEqual({
+    controlResultsOverlap: false,
+    controlDevicesOverlap: false,
+    resultsDevicesOverlap: false,
+    devicesWithinViewport: true,
+  });
 
   await page.evaluate(() => {
     window.__radarRetainedLabel = document.querySelector(".radarTargetLabel");

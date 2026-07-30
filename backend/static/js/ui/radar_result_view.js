@@ -4,7 +4,12 @@ import {
   radarPowerScale,
   radarRangeDopplerHover,
 } from "/js/features/radar/charts.js?v=20260723-radar-processing-views";
-import {radarTargetColor} from "/js/features/radar/colors.js?v=20260722-radar-color-contract";
+import {
+  RADAR_CLUTTER_COLOR,
+  RADAR_UNASSOCIATED_DETECTION_COLOR,
+  RADAR_UNASSOCIATED_TARGET_COLOR,
+  radarTargetColor,
+} from "/js/features/radar/colors.js?v=20260722-radar-color-contract";
 import {
   radarProcessingView,
   radarProcessingViewAvailable,
@@ -39,7 +44,7 @@ function pathClassificationLabel(classification) {
 function buttonRow({title, meta, detail, selected, className = "", data = {}}) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `radarResultRow ${className}${selected ? " selected" : ""}`;
+  button.className = `radarResultRow oat-list-card ${className}${selected ? " selected" : ""}`;
   Object.entries(data).forEach(([key, value]) => { button.dataset[key] = value; });
   const heading = document.createElement("span");
   heading.className = "radarResultRowHead";
@@ -117,6 +122,9 @@ export function createRadarResultView({state, ui, dom, renderAll, focusTarget}) 
       : processingView.rangeDoppler;
     const legendTargetId = radar.selectedTargetId || result.targets?.[0]?.id;
     dom.radarPlotLegend?.style.setProperty("--radar-legend-target-color", radarTargetColor(legendTargetId));
+    dom.radarPlotLegend?.style.setProperty("--radar-legend-clutter-color", RADAR_CLUTTER_COLOR);
+    dom.radarPlotLegend?.style.setProperty("--radar-legend-unassociated-target-color", RADAR_UNASSOCIATED_TARGET_COLOR);
+    dom.radarPlotLegend?.style.setProperty("--radar-legend-unassociated-detection-color", RADAR_UNASSOCIATED_DETECTION_COLOR);
     if (dom.radarPlotLegend) dom.radarPlotLegend.dataset.targetId = legendTargetId || "";
     if (!powerScales.has(processingView.id)) {
       powerScales.set(processingView.id, radarPowerScale({

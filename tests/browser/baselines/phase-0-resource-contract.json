@@ -1,0 +1,18 @@
+{
+  "cycles": 5,
+  "modes": [
+    "link",
+    "mobility",
+    "radiomap",
+    "deepmimo",
+    "radar"
+  ],
+  "resourceDelta": {
+    "activeIntervals": 0,
+    "canvasElements": 0,
+    "domNodes": 0,
+    "frameListeners": 0,
+    "listenerRegistrations": 0,
+    "radarLabelElements": 0
+  }
+}

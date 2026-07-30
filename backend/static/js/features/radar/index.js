@@ -17,31 +17,31 @@ const MODE_MENU = `
 const INFO_TIP = (label, copy) => `<span class="infoTip" tabindex="0" aria-label="${label} details">i<span class="tipBubble" role="tooltip">${copy}</span></span>`;
 
 const FIELD = (id, label, value, unit = "", attrs = "", help = "") => `
-  <label class="radarField" for="${id}"><span class="radarFieldLabel">${label}${help ? INFO_TIP(label, help) : ""}</span>
-    <span class="unitInput"><input id="${id}" type="number" value="${value}" ${attrs}/>${unit ? `<span class="unitSuffix" aria-hidden="true">${unit}</span>` : ""}</span>
+  <label class="radarField oat-field" for="${id}"><span class="radarFieldLabel">${label}${help ? INFO_TIP(label, help) : ""}</span>
+    <span class="unitInput"><input class="oat-input" id="${id}" type="number" value="${value}" ${attrs}/>${unit ? `<span class="unitSuffix" aria-hidden="true">${unit}</span>` : ""}</span>
   </label>`;
 
 const PANEL = `
   <section id="radarPanel" class="modePanel radarOnlyParams hidden" aria-label="Radar sensing configuration">
     <div id="radarJobBar" class="radarJobBar hidden" data-status="idle">
-      <div class="radarJobCopy"><span id="radarJobStatus" class="radarStatusPill">READY</span><strong id="radarJobMessage">Ready</strong></div>
+      <div class="radarJobCopy"><span id="radarJobStatus" class="radarStatusPill oat-badge">READY</span><strong id="radarJobMessage">Ready</strong></div>
       <progress id="radarJobProgress" max="1" value="0" aria-label="Radar task progress"></progress>
-      <div class="radarJobActions"><button id="btnCancelRadar" class="miniBtn hidden" type="button">Cancel</button><button id="btnRetryRadar" class="miniBtn hidden" type="button">Retry</button></div>
+      <div class="radarJobActions"><button id="btnCancelRadar" class="miniBtn oat-button oat-button--compact hidden" type="button">Cancel</button><button id="btnRetryRadar" class="miniBtn oat-button oat-button--compact hidden" type="button">Retry</button></div>
     </div>
 
     <details id="radarGeometryGroup" class="paramGroup radarGroup">
       <summary class="paramGroupSummary">Radar Geometry</summary>
       <div class="paramGroupBody radarGroupBody">
         <div class="radarModeSwitch" role="radiogroup" aria-label="Radar geometry">
-          <label><input id="radarModeMonostatic" name="radarMode" type="radio" value="monostatic"/> Monostatic</label>
-          <label><input id="radarModeBistatic" name="radarMode" type="radio" value="bistatic" checked/> Bistatic</label>
+          <label class="oat-check"><input id="radarModeMonostatic" name="radarMode" type="radio" value="monostatic"/> Monostatic</label>
+          <label class="oat-check"><input id="radarModeBistatic" name="radarMode" type="radio" value="bistatic" checked/> Bistatic</label>
         </div>
         <p id="radarModeHint" class="radarHint">Tx and Rx are placed independently.</p>
       </div>
     </details>
 
     <details id="radarTargetsGroup" class="paramGroup radarGroup">
-      <summary class="paramGroupSummary"><span>Drone Targets</span><span id="radarTargetCount" class="radarSummaryBadge">0 / 16</span></summary>
+      <summary class="paramGroupSummary"><span>Drone Targets</span><span id="radarTargetCount" class="radarSummaryBadge oat-badge">0 / 16</span></summary>
       <div class="paramGroupBody radarGroupBody">
         <div id="radarAssetPicker" class="radarAssetPicker" data-state="loading" aria-label="New target model">
           <div class="radarAssetPreviewViewport">
@@ -58,11 +58,11 @@ const PANEL = `
             <div><span>New Target Model</span><strong id="radarAssetPreviewName" aria-live="polite">Loading…</strong></div>
             <span id="radarAssetPreviewCount" class="radarAssetPreviewCount">0 / 0</span>
           </div>
-          <button id="btnAddRadarTarget" class="miniBtn radarAssetAddButton" type="button" disabled>Add Target</button>
-          <div class="radarEditorActions" role="group" aria-label="Selected target actions"><button id="btnPickRadarTarget" class="miniBtn" type="button">Pick in 3D</button><button id="btnFocusRadarTarget" class="miniBtn" type="button">Focus Target</button><button id="btnRemoveRadarTarget" class="miniBtn danger" type="button">Remove Target</button></div>
+          <button id="btnAddRadarTarget" class="miniBtn oat-button oat-button--compact oat-button--primary radarAssetAddButton" type="button" disabled>Add Target</button>
+          <div class="radarEditorActions" role="group" aria-label="Selected target actions"><button id="btnPickRadarTarget" class="miniBtn oat-button oat-button--compact" type="button">Pick in 3D</button><button id="btnFocusRadarTarget" class="miniBtn oat-button oat-button--compact" type="button">Focus Target</button><button id="btnRemoveRadarTarget" class="miniBtn danger oat-button oat-button--compact oat-button--danger" type="button">Remove Target</button></div>
           <p id="radarAssetPickerHint" class="radarAssetPickerHint">Drag to rotate the 3D preview.</p>
         </div>
-        <div id="radarTargetList" class="radarTargetList" role="listbox" aria-label="Radar targets"></div>
+        <div id="radarTargetList" class="radarTargetList oat-scroll-region" role="listbox" aria-label="Radar targets"></div>
         <div id="radarTargetEditor" class="radarTargetEditor">
           <div class="radarEditorHead"><strong id="radarEditorTitle">Target</strong><span id="radarEditorAssetName">--</span></div>
           <label class="radarField radarWide" for="radarTargetAsset"><span class="radarFieldLabel">Drone Model</span><select id="radarTargetAsset"></select></label>
@@ -140,7 +140,7 @@ const PANEL = `
 const RESULTS = `
   <div id="radarResultSections" class="radarResultSections hidden" aria-hidden="true">
     <div id="radarResult" class="linkResultSummary radarResultSummary">
-      <div class="channelStats linkSummaryStats">
+      <div class="channelStats linkSummaryStats oat-metric-grid">
         <div><b>Detections</b><span id="radarDetectionMetric">--</span></div>
         <div><b>Propagation Paths</b><span id="radarPathMetric">--</span></div>
         <div><b>Peak SNR</b><span id="radarSnrMetric">--</span></div>
@@ -148,7 +148,7 @@ const RESULTS = `
       </div>
     </div>
     <section id="radarRangeDopplerSection" class="linkDockSection radarChartSection">
-      <div class="sectionTitleRow"><div><div class="sectionTitle">Range–Doppler</div><div id="radarRdMeta" class="channelAnalysisMiniTitle">Power heatmap with CA-CFAR detections</div></div><span id="radarRdTruncated" class="radarSummaryBadge hidden">DOWNSAMPLED</span></div>
+      <div class="sectionTitleRow"><div><div class="sectionTitle">Range–Doppler</div><div id="radarRdMeta" class="channelAnalysisMiniTitle">Power heatmap with CA-CFAR detections</div></div><span id="radarRdTruncated" class="radarSummaryBadge oat-badge hidden">DOWNSAMPLED</span></div>
       <div class="radarProcessingToolbar" role="group" aria-label="Range Doppler signal processing view"><button id="radarRdRaw" class="active" type="button">Raw</button><button id="radarRdMean" type="button">Mean-subtracted</button><button id="radarRdIdeal" type="button">Ideal Clutter-cancelled</button></div>
       <p id="radarRdProcessingHint" class="radarProcessingHint">No additional clutter suppression; configured direct-path cancellation still applies.</p>
       <div class="radarChartToolbar" role="group" aria-label="Range Doppler viewport"><button id="radarRdFocus" class="active" type="button">Target Detail</button><button id="radarRdFull" type="button">Scene Overview</button><span id="radarRdHover">Hover for range, Doppler, and power.</span></div>
@@ -156,9 +156,9 @@ const RESULTS = `
       <div class="radarChartFrame"><canvas id="radarRangeDopplerCanvas" class="radarChart" aria-label="Range Doppler heatmap"></canvas><div id="radarChartCrosshair" class="radarChartCrosshair hidden" aria-hidden="true"><i class="vertical"></i><i class="horizontal"></i><span id="radarChartTooltip"></span></div></div>
     </section>
     <section class="linkDockSection radarChartSection"><div class="sectionTitle">Range Profile</div><canvas id="radarRangeProfileCanvas" class="radarChart radarProfileChart" aria-label="Range profile"></canvas></section>
-    <section id="radarDetectionSection" class="linkDockSection"><div class="sectionTitleRow"><div class="sectionTitle">Detections</div><span id="radarDetectionCount" class="radarSummaryBadge">0</span></div><div class="radarResultControls"><select id="radarDetectionFilter" aria-label="Detection filter"><option value="all">Targets + strongest clutter</option><option value="target">Target detections only</option><option value="clutter">Clutter detections only</option></select><button id="radarDetectionMore" class="miniBtn hidden" type="button">Show all</button></div><div id="radarDetectionList" class="radarResultList radarDetectionList"></div></section>
-    <section id="radarTruthSection" class="linkDockSection"><div class="sectionTitle">Target Ground Truth</div><div id="radarTruthList" class="radarResultList"></div></section>
-    <section id="radarPathSection" class="linkDockSection"><div class="sectionTitleRow"><div class="sectionTitle">Propagation Paths</div><span id="radarPathCount" class="radarSummaryBadge">0</span></div><div class="radarPathControls"><select id="radarPathDisplayMode" aria-label="3D path display"><option value="target">Target Echoes</option><option value="key" selected>Target + Key Clutter</option><option value="all">All Returned Paths</option></select><span id="radarPathDisplayHint">Target echoes plus the 12 strongest clutter paths.</span></div><div id="radarPathList" class="radarResultList radarPathList"></div></section>
+    <section id="radarDetectionSection" class="linkDockSection"><div class="sectionTitleRow"><div class="sectionTitle">Detections</div><span id="radarDetectionCount" class="radarSummaryBadge oat-badge">0</span></div><div class="radarResultControls"><select id="radarDetectionFilter" aria-label="Detection filter"><option value="all">Targets + strongest clutter</option><option value="target">Target detections only</option><option value="clutter">Clutter detections only</option></select><button id="radarDetectionMore" class="miniBtn oat-button oat-button--compact hidden" type="button">Show all</button></div><div id="radarDetectionList" class="radarResultList radarDetectionList oat-scroll-region"></div></section>
+    <section id="radarTruthSection" class="linkDockSection"><div class="sectionTitle">Target Ground Truth</div><div id="radarTruthList" class="radarResultList oat-scroll-region"></div></section>
+    <section id="radarPathSection" class="linkDockSection"><div class="sectionTitleRow"><div class="sectionTitle">Propagation Paths</div><span id="radarPathCount" class="radarSummaryBadge oat-badge">0</span></div><div class="radarPathControls"><select id="radarPathDisplayMode" aria-label="3D path display"><option value="target">Target Echoes</option><option value="key" selected>Target + Key Clutter</option><option value="all">All Returned Paths</option></select><span id="radarPathDisplayHint">Target echoes plus the 12 strongest clutter paths.</span></div><div id="radarPathList" class="radarResultList radarPathList oat-scroll-region"></div></section>
   </div>
 `;
 

@@ -14,6 +14,15 @@ from backend.rt.radar_payload import RADAR_JOB_ROUTE_CONTRACT
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+APP_CSS_FILES = (
+    "tokens.css", "base.css", "components.css", "shell.css",
+    "entry-map.css", "results.css", "radar.css",
+)
+
+
+def read_app_css() -> str:
+    css_root = PROJECT_ROOT / "backend" / "static" / "css"
+    return "\n".join((css_root / name).read_text(encoding="utf-8") for name in APP_CSS_FILES)
 
 
 def test_backend_catalog_and_existing_routes_are_explicit() -> None:
@@ -155,7 +164,7 @@ def test_radar_rs08_frontend_uses_job_api_and_owns_its_complete_workflow() -> No
     charts_source = (radar_root / "charts.js").read_text(encoding="utf-8")
     colors_source = (radar_root / "colors.js").read_text(encoding="utf-8")
     viewer_source = (PROJECT_ROOT / "backend" / "static" / "js" / "viewer.js").read_text(encoding="utf-8")
-    css_source = (PROJECT_ROOT / "backend" / "static" / "css" / "app.css").read_text(encoding="utf-8")
+    css_source = read_app_css()
 
     assert "createLinkResultView" not in index_source
     assert "renderLinkResult" not in index_source + runtime_source
@@ -186,7 +195,9 @@ def test_radar_rs08_frontend_uses_job_api_and_owns_its_complete_workflow() -> No
     assert 'selected ? "#1f6fff"' not in charts_source
     assert 'id="radarPlotLegend"' in index_source
     assert "Color matches scene target" not in index_source
-    assert ".radarPlotLegend .clutter:before{border:1.5px solid #718299;background:transparent}" in css_source
+    assert ".radarPlotLegend .clutter:before" in css_source
+    assert "border:1.5px solid var(--radar-legend-clutter-color)" in css_source
+    assert 'style.setProperty("--radar-legend-clutter-color", RADAR_CLUTTER_COLOR)' in result_source
     assert "decluttered" not in renderer_source
     assert "flipped" not in renderer_source
     assert "subscribeFrame(updateTargetLabelPositions)" in renderer_source

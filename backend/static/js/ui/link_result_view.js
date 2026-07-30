@@ -154,7 +154,7 @@ export function createLinkResultView({
 
     const addField = (label, value, wide = false) => {
       const item = document.createElement("div");
-      item.className = "pathDetailItem" + (wide ? " wide" : "");
+      item.className = "pathDetailItem oat-list-card" + (wide ? " wide" : "");
       const key = document.createElement("b");
       key.textContent = label;
       const text = document.createElement("span");

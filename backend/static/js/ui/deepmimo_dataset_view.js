@@ -61,7 +61,7 @@ export function createDeepMimoDatasetView({
 
     ui.deepMimoDatasetList.replaceChildren(...datasets.map((dataset) => {
       const item = document.createElement("div");
-      item.className = "deepMimoDatasetItem";
+      item.className = "deepMimoDatasetItem oat-list-card";
 
       const meta = document.createElement("div");
       meta.className = "deepMimoDatasetMeta";

@@ -50,6 +50,55 @@ Compatibility facades such as the existing `api.js` exports, global state
 properties and legacy Viewer methods remain available for existing callers, but
 new Feature code should prefer the registry and layer interfaces.
 
+### Core workbench CSS
+
+The desktop workbench loads native CSS modules directly from `index.html` in
+this fixed order:
+
+1. `tokens.css` declares the layer order and every `--oat-*` design token.
+2. `base.css` owns reset, document defaults, the canvas and utilities.
+3. `components.css` owns reusable controls, fields, badges, metric grids, list
+   cards and scroll regions.
+4. `shell.css` owns the control/results shell, device dock, performance panel,
+   loading state and dialogs.
+5. `entry-map.css` owns the map entry experience and first-party Leaflet
+   overrides.
+6. `results.css` owns result UI shared by Link, Mobility, Radio Map and
+   DeepMIMO.
+7. `radar.css` owns only Radar-specific target editing, waveform, CFAR,
+   Range-Doppler and scene-label UI.
+
+The global Cascade Layer order is `reset, tokens, base, components, layout,
+features, utilities`. Every rule must belong to one of those layers. Do not
+change the HTML load order to resolve a specificity problem.
+
+All reusable design values use the `--oat-*` namespace. Color literals are
+allowed only in `tokens.css`; other modules consume colors through `var()`.
+Dynamic runtime properties such as `--analysis-dock-bottom-reserve`, Radar
+label scale, legend colors and chart crosshair coordinates remain component
+inputs rather than design tokens. Canvas UI chrome must use `readUiToken()`;
+Feature data palettes remain in their JavaScript domain modules.
+
+Prefer these public classes before adding a Feature-specific component:
+`oat-panel`, `oat-button` and its modifiers, `oat-field`, `oat-input`,
+`oat-check`, `oat-badge`, `oat-metric-grid`, `oat-list-card`, and
+`oat-scroll-region`. Preserve DOM IDs and Feature semantic classes because they
+are lifecycle and JavaScript hooks. Add a Feature rule only when the behavior is
+domain-specific, then place it in `results.css`, `radar.css`, or a future
+Feature module with a clearly documented owner.
+
+The core workbench is desktop-only. Its supported contract starts at
+`1280x720`; `1440x900` is the visual-regression reference. Do not add mobile
+breakpoints to these files. The tutorial website has a separate responsive
+stylesheet and test suite.
+
+The frozen pre-framework UI evidence is documented in
+[`ui-phase-0-baseline.md`](ui-phase-0-baseline.md). It includes DOM, computed
+style, network and resource contracts plus full-workbench snapshots at both
+supported reference sizes. Do not regenerate these artifacts during component
+or framework work unless the contract change is explicit, reviewed and listed
+in that phase's fidelity evidence.
+
 ### Backend
 
 Backend Features live under `backend/features/`. A Feature defines its service

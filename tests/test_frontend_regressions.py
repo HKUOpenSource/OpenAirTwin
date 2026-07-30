@@ -8,6 +8,16 @@ import unittest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_JS_ROOT = PROJECT_ROOT / "backend" / "static" / "js"
 STATIC_HTML = PROJECT_ROOT / "backend" / "static" / "index.html"
+STATIC_CSS_ROOT = PROJECT_ROOT / "backend" / "static" / "css"
+APP_CSS_FILES = (
+    "tokens.css",
+    "base.css",
+    "components.css",
+    "shell.css",
+    "entry-map.css",
+    "results.css",
+    "radar.css",
+)
 
 
 def read_static_js(name: str) -> str:
@@ -25,7 +35,18 @@ def read_frontend_js_modules() -> str:
 
 
 def read_static_css(name: str) -> str:
-    return (PROJECT_ROOT / "backend" / "static" / "css" / name).read_text(encoding="utf-8")
+    return (STATIC_CSS_ROOT / name).read_text(encoding="utf-8")
+
+
+def read_app_css() -> str:
+    return "\n".join(read_static_css(name) for name in APP_CSS_FILES)
+
+
+def css_rule_body(source: str, selector: str) -> str:
+    match = re.search(rf"(?:^|\n)\s*{re.escape(selector)}\s*\{{([^{{}}]*)\}}", source)
+    if match is None:
+        raise AssertionError(f"Missing CSS selector: {selector}")
+    return match.group(1)
 
 
 def read_static_html() -> str:
@@ -120,6 +141,44 @@ def skip_js_string(source: str, quote_index: int) -> int:
 
 
 class FrontendRegressionTests(unittest.TestCase):
+    def test_core_css_architecture_uses_ordered_layers_and_tokens(self) -> None:
+        html = read_static_html()
+        loaded_css = re.findall(r'href="/css/([^?\"]+)', html)
+
+        self.assertEqual(loaded_css, list(APP_CSS_FILES))
+        self.assertFalse((STATIC_CSS_ROOT / "app.css").exists())
+        self.assertIn(
+            "@layer reset, tokens, base, components, layout, features, utilities;",
+            read_static_css("tokens.css"),
+        )
+        for name in APP_CSS_FILES:
+            self.assertIn("@layer", read_static_css(name), name)
+        for name in APP_CSS_FILES[1:]:
+            source = read_static_css(name)
+            self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(", source), name)
+            self.assertNotIn("max-width:720px", source, name)
+            self.assertNotIn("max-width: 720px", source, name)
+            self.assertNotIn("-var(", source, name)
+        important_uses = re.findall(r"[^{}]+\{[^{}]*!important[^{}]*\}", read_app_css())
+        self.assertEqual(len(important_uses), 1)
+        self.assertTrue(important_uses[0].lstrip().startswith(".hidden"))
+        components = read_static_css("components.css")
+        for selector in (
+            ".oat-panel", ".oat-button", ".oat-field", ".oat-input", ".oat-check",
+            ".oat-badge", ".oat-metric-grid", ".oat-list-card", ".oat-scroll-region",
+        ):
+            css_rule_body(components, selector)
+
+        theme_source = read_static_js("ui/theme_tokens.js")
+        radar_charts = read_static_js("features/radar/charts.js")
+        entry_map = read_static_js("entry_map.js")
+        self.assertIn("export function readUiToken(tokenName)", theme_source)
+        self.assertIn('readUiToken("--oat-canvas-background")', radar_charts)
+        self.assertIn('readUiToken("--oat-canvas-grid")', radar_charts)
+        self.assertNotIn('context.fillStyle = "#f7f9fc"', radar_charts)
+        self.assertNotIn("entrySearchHint.style.color", entry_map)
+        self.assertIn('entrySearchHint.classList.toggle("is-error", isError)', entry_map)
+
     def test_controller_factory_public_facades_remain_stable(self) -> None:
         solver_methods = exported_controller_methods(
             read_static_js("solver_controls.js"),
@@ -501,7 +560,7 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_scene_mode_selector_replaces_low_value_stats(self) -> None:
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
-        css_source = read_static_css("app.css")
+        css_source = read_app_css()
         app_source = read_frontend_js_modules()
         dom_source = read_static_js("dom_refs.js")
         scene_source = read_frontend_js_modules()
@@ -524,8 +583,8 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('<span class="modeMenuTitle">Link Analysis</span>', html)
         self.assertIn('<span class="modeMenuTitle">Mobility Analysis</span>', html)
         self.assertIn(".modeSelector", css_source)
-        self.assertIn(".modeSelector{margin:2px 0 8px}", css_source)
-        self.assertIn(".modeSelectButton{box-sizing:border-box;width:100%}", css_source)
+        self.assertIn("margin:", css_rule_body(css_source, ".modeSelector"))
+        self.assertIn("width:100%", css_rule_body(css_source, ".modeSelectButton"))
         self.assertIn(".modeMenuDot", css_source)
         self.assertIn(".modeMenuItem.active", css_source)
         self.assertIn('modeSelector: document.getElementById("modeSelector")', dom_source)
@@ -543,7 +602,7 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_research_parameters_are_collapsible_without_outer_card(self) -> None:
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
-        css_source = read_static_css("app.css")
+        css_source = read_app_css()
 
         self.assertNotIn("Research Parameters", html)
         self.assertNotIn("paramGroupTitle", html)
@@ -580,16 +639,20 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('aria-label="Compute CIR details"', html)
         self.assertIn("Requests compact channel-tap summaries after path solving.", html)
         self.assertIn("right-side Power Delay Profile section.", html)
-        self.assertIn(".solverCfg{margin-top:10px;padding:0;border:0;border-radius:0;background:transparent}", css_source)
+        solver_css = css_rule_body(css_source, ".solverCfg")
+        for property_name in ("margin-top:", "padding:", "border:", "border-radius:", "background:"):
+            self.assertIn(property_name, solver_css)
         self.assertIn(".paramGroupSummary::after", css_source)
         self.assertIn(".paramGroup[open] > .paramGroupBody", css_source)
-        self.assertIn('href="/css/app.css?v=20260723-radar-shared-groups"', html)
-        self.assertIn(
-            ".propagationSolverGroup .paramGrid + .paramCheckGrid{margin-top:12px}",
-            css_source,
+        self.assertEqual(
+            re.findall(r'href="/css/([^?\"]+)', html),
+            list(APP_CSS_FILES),
         )
-        self.assertIn("#uiBody{min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:12px;margin-right:-12px;scrollbar-gutter:stable;", css_source)
-        self.assertIn("#uiBody::-webkit-scrollbar{width:10px}", css_source)
+        self.assertIn("margin-top:", css_rule_body(css_source, ".propagationSolverGroup .paramGrid + .paramCheckGrid"))
+        ui_body_css = css_rule_body(css_source, "#uiBody")
+        for property_name in ("min-height:", "overflow-y:", "overflow-x:", "padding-right:", "margin-right:", "scrollbar-gutter:"):
+            self.assertIn(property_name, ui_body_css)
+        self.assertIn("width:", css_rule_body(css_source, "#uiBody::-webkit-scrollbar"))
         self.assertIn("background-clip:content-box", css_source)
         self.assertIn('src="/js/app.js?v=20260723-radar-shared-groups"', html)
 
@@ -601,32 +664,23 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_radar_checkboxes_use_the_shared_card_geometry(self) -> None:
         radar_source = read_static_js("features/radar/index.js")
-        css_source = read_static_css("app.css")
-        radar_check_css = css_source.split(".radarCheck{", 1)[1].split("}", 1)[0]
-        radar_input_css = css_source.split(".radarCheck>input{", 1)[1].split("}", 1)[0]
+        css_source = read_app_css()
+        radar_check_css = css_rule_body(css_source, ".radarCheck")
+        radar_input_css = css_rule_body(css_source, ".radarCheck>input")
 
-        self.assertEqual(radar_source.count('class="radarCheck"'), 8)
+        self.assertEqual(len(re.findall(r'class="radarCheck(?:\s[^\"]*)?"', radar_source)), 8)
         self.assertIn('id="radarDirectPathCancellation" type="checkbox"', radar_source)
         self.assertIn('id="radarCfarEnabled" type="checkbox"', radar_source)
-        for declaration in (
-            "width:100%",
-            "min-height:34px",
-            "align-items:center",
-            "padding:7px 8px",
-            "border:1px solid rgba(130,140,160,.18)",
-            "border-radius:8px",
-            "background:#fff",
-            "font-size:12px",
-        ):
+        for declaration in ("width:", "min-height:", "align-items:", "padding:", "border:", "border-radius:", "background:", "font-size:"):
             self.assertIn(declaration, radar_check_css)
         self.assertIn("width:14px", radar_input_css)
         self.assertIn("height:14px", radar_input_css)
         self.assertIn("margin:0", radar_input_css)
-        self.assertIn(".radarCheck + .radarFieldGrid{margin-top:12px}", css_source)
+        self.assertIn("margin-top:", css_rule_body(css_source, ".radarCheck + .radarFieldGrid"))
 
     def test_radar_groups_start_collapsed_and_share_the_standard_chevron(self) -> None:
         radar_source = read_static_js("features/radar/index.js")
-        css_source = read_static_css("app.css")
+        css_source = read_app_css()
         self.assertEqual(radar_source.count('class="paramGroup radarGroup"'), 5)
         self.assertEqual(radar_source.count('class="paramGroupSummary"'), 5)
         self.assertEqual(radar_source.count('class="paramGroupBody radarGroupBody"'), 5)
@@ -635,36 +689,30 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn("OFDM Waveform &amp; Signal", radar_source)
         self.assertNotIn(".radarGroup>summary", css_source)
         self.assertNotIn(".radarGroup:not([open])", css_source)
-        shared_chevron = css_source.split(".paramGroupSummary::after{", 1)[1].split("}", 1)[0]
+        shared_chevron = css_rule_body(css_source, ".paramGroupSummary::after")
         self.assertNotIn('content:"⌄"', shared_chevron)
 
     def test_radar_asset_picker_uses_neutral_flat_styling(self) -> None:
-        css_source = read_static_css("app.css")
-        picker_css = css_source.split(".radarAssetPicker{", 1)[1].split("}", 1)[0]
-        viewport_css = css_source.split(".radarAssetPreviewViewport{", 1)[1].split("}", 1)[0]
-        nav_css = css_source.split(".radarAssetNav{", 1)[1].split("}", 1)[0]
-        count_css = css_source.split(".radarAssetPreviewCount{", 1)[1].split("}", 1)[0]
-        add_button_css = css_source.split(".radarAssetAddButton{", 1)[1].split("}", 1)[0]
+        css_source = read_app_css()
+        picker_css = css_rule_body(css_source, ".radarAssetPicker")
+        viewport_css = css_rule_body(css_source, ".radarAssetPreviewViewport")
+        nav_css = css_rule_body(css_source, ".radarAssetNav")
+        count_css = css_rule_body(css_source, ".radarAssetPreviewCount")
+        add_button_css = css_rule_body(css_source, ".radarAssetAddButton")
 
         self.assertIn("padding:0", picker_css)
         self.assertIn("border:0", picker_css)
         self.assertIn("background:transparent", picker_css)
         self.assertIn("box-shadow:none", picker_css)
         self.assertNotIn("gradient", picker_css)
-        self.assertIn("background:#f4f6f8", viewport_css)
+        self.assertIn("background:var(--oat-", viewport_css)
         self.assertNotIn("gradient", viewport_css)
-        self.assertIn("background:#fff", nav_css)
-        self.assertIn("box-shadow:0 2px 6px rgba(36,55,82,.08)", nav_css)
-        self.assertIn("background:#eef1f4", count_css)
-        self.assertIn("box-shadow:0 2px 5px rgba(31,111,255,.14)", add_button_css)
-        self.assertIn(
-            '.radarAssetPicker[data-state="ready"] .radarAssetPickerHint{display:none}',
-            css_source,
-        )
-        self.assertIn(
-            '.radarAssetPicker[data-state="ready"] #btnAddRadarTarget[title]~.radarAssetPickerHint{display:block}',
-            css_source,
-        )
+        self.assertIn("background:var(--oat-", nav_css)
+        self.assertIn("box-shadow:", nav_css)
+        self.assertIn("background:var(--oat-", count_css)
+        self.assertIn("box-shadow:", add_button_css)
+        self.assertIn("display:none", css_rule_body(css_source, '.radarAssetPicker[data-state="ready"] .radarAssetPickerHint'))
+        self.assertIn("display:block", css_rule_body(css_source, '.radarAssetPicker[data-state="ready"] #btnAddRadarTarget[title]~.radarAssetPickerHint'))
 
     def test_radar_starts_without_devices_or_targets(self) -> None:
         state_source = read_static_js("features/radar/state.js")
@@ -680,7 +728,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("nextTargetNumber: 1", state_source)
         self.assertIn("selectedTargetId: null", state_source)
         self.assertNotIn("DEFAULT_TARGETS", state_source)
-        self.assertIn('<span id="radarTargetCount" class="radarSummaryBadge">0 / 16</span>', panel_source)
+        self.assertIn('<span id="radarTargetCount" class="radarSummaryBadge oat-badge">0 / 16</span>', panel_source)
         self.assertIn("const INITIAL_SPEED_MIN_MPS = 5", controls_source)
         self.assertIn("const INITIAL_SPEED_MAX_MPS = 15", controls_source)
         self.assertIn("const INITIAL_DIRECTION_MIN_DEG = -180", controls_source)
@@ -742,29 +790,22 @@ class FrontendRegressionTests(unittest.TestCase):
     def test_radar_target_actions_are_full_width_and_stateful(self) -> None:
         radar_source = read_static_js("features/radar/index.js")
         controls_source = read_static_js("features/radar/controls.js")
-        css_source = read_static_css("app.css")
-        action_layout_css = css_source.split(".radarEditorActions{", 1)[1].split("}", 1)[0]
-        action_button_css = css_source.split(".radarEditorActions .miniBtn{", 1)[1].split("}", 1)[0]
-        picking_css = css_source.split(
-            ".radarEditorActions #btnPickRadarTarget.picking{",
-            1,
-        )[1].split("}", 1)[0]
+        css_source = read_app_css()
+        action_layout_css = css_rule_body(css_source, ".radarEditorActions")
+        action_button_css = css_rule_body(css_source, ".radarEditorActions .miniBtn")
+        picking_css = css_rule_body(css_source, ".radarEditorActions #btnPickRadarTarget.picking")
 
         self.assertIn("display:grid", action_layout_css)
         self.assertIn("grid-template-columns:repeat(3,minmax(0,1fr))", action_layout_css)
         self.assertIn("width:100%", action_layout_css)
         self.assertIn("min-height:36px", action_button_css)
         self.assertIn("justify-content:center", action_button_css)
-        self.assertIn("background:#1f6fff", picking_css)
-        self.assertIn("color:#fff", picking_css)
-        self.assertIn(
-            '.radarEditorActions #btnPickRadarTarget.picking::after{content:"Picking in 3D"',
-            css_source,
-        )
-        self.assertIn(
-            ".radarEditorActions .miniBtn.danger{border-color:rgba(210,79,79,.34);background:#fff7f7",
-            css_source,
-        )
+        self.assertIn("background:var(--oat-", picking_css)
+        self.assertIn("color:var(--oat-", picking_css)
+        self.assertIn('content:"Picking in 3D"', css_rule_body(css_source, ".radarEditorActions #btnPickRadarTarget.picking::after"))
+        danger_css = css_rule_body(css_source, ".radarEditorActions .miniBtn.danger")
+        self.assertIn("border-color:var(--oat-", danger_css)
+        self.assertIn("background:var(--oat-", danger_css)
         add_button_position = radar_source.index('id="btnAddRadarTarget"')
         actions_position = radar_source.index('class="radarEditorActions"')
         target_list_position = radar_source.index('id="radarTargetList"')
@@ -840,7 +881,7 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_radiomap_results_live_in_right_side_dock(self) -> None:
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
-        css_source = read_static_css("app.css")
+        css_source = read_app_css()
         source = read_frontend_js_modules()
         app_source = read_frontend_js_modules()
         state_source = read_frontend_js_modules()
@@ -858,32 +899,35 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('id="radiomapResult"', dock_html)
         self.assertIn('id="btnResultDockToggle"', dock_html)
         self.assertIn('aria-expanded="true"', dock_html)
-        self.assertIn('id="channelAnalysisScroll" class="channelAnalysisScroll"', dock_html)
-        self.assertIn(".channelAnalysisDock{position:absolute;", css_source)
-        self.assertIn("backdrop-filter:blur(14px);overflow:hidden;transition:", css_source)
-        self.assertIn("--analysis-dock-bottom-reserve:calc(var(--quick-bar-bottom) + 96px);", css_source)
-        self.assertIn(".channelAnalysisScroll{box-sizing:border-box;max-height:calc(100vh - var(--analysis-dock-top) - var(--analysis-dock-bottom-reserve) - 62px);overflow-x:hidden;overflow-y:auto;padding:0 12px 12px;scrollbar-width:thin;", css_source)
-        self.assertIn(".channelAnalysisDock.collapsed .channelAnalysisScroll{max-height:0;padding-top:0;padding-bottom:0;opacity:0;overflow:hidden;pointer-events:none}", css_source)
-        self.assertIn(".channelAnalysisDock.collapsed .channelAnalysisChevron{transform:rotate(-90deg)}", css_source)
-        self.assertIn(".channelAnalysisHeadActions{display:flex;align-items:center;", css_source)
-        self.assertIn(".channelAnalysisChevron{width:22px;height:22px;border-radius:999px;display:inline-grid;place-items:center;", css_source)
-        self.assertIn('.channelAnalysisChevron svg{width:14px;height:14px;display:block;fill:none;stroke:currentColor;stroke-width:3;', css_source)
+        self.assertIn('id="channelAnalysisScroll" class="channelAnalysisScroll oat-scroll-region"', dock_html)
+        dock_css = css_rule_body(css_source, ".channelAnalysisDock")
+        for property_name in ("position:", "backdrop-filter:", "overflow:", "transition:"):
+            self.assertIn(property_name, dock_css)
+        self.assertIn("--analysis-dock-bottom-reserve:", read_static_css("tokens.css"))
+        scroll_css = css_rule_body(css_source, ".channelAnalysisScroll")
+        for property_name in ("box-sizing:", "max-height:", "overflow-x:", "overflow-y:", "padding:", "scrollbar-width:"):
+            self.assertIn(property_name, scroll_css)
+        self.assertIn("pointer-events:none", css_rule_body(css_source, ".channelAnalysisDock.collapsed .channelAnalysisScroll"))
+        self.assertIn("transform:rotate(-90deg)", css_rule_body(css_source, ".channelAnalysisDock.collapsed .channelAnalysisChevron"))
+        self.assertIn("display:flex", css_rule_body(css_source, ".channelAnalysisHeadActions"))
+        self.assertIn("display:inline-grid", css_rule_body(css_source, ".channelAnalysisChevron"))
+        self.assertIn("stroke:currentColor", css_rule_body(css_source, ".channelAnalysisChevron svg"))
         self.assertIn('<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg>', dock_html)
-        self.assertIn(".channelAnalysisScroll::-webkit-scrollbar{width:6px}", css_source)
+        self.assertIn("width:", css_rule_body(css_source, ".channelAnalysisScroll::-webkit-scrollbar"))
         self.assertIn(".channelAnalysisScroll::-webkit-scrollbar-thumb:hover", css_source)
         self.assertNotIn(".channelAnalysisDock::-webkit-scrollbar", css_source)
         self.assertIn('class="sidebarToggleIcon sidebarToggleIconCollapse"', html)
         self.assertIn('class="sidebarToggleIcon sidebarToggleIconOpen"', html)
         self.assertIn('<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></svg>', html)
         self.assertIn('<svg viewBox="0 0 24 24"><path d="M5 7h14"></path><path d="M5 12h14"></path><path d="M5 17h14"></path></svg>', html)
-        self.assertIn('.sidebarToggleIcon svg{width:20px;height:20px;display:block;fill:none;stroke:currentColor;stroke-width:2.4;', css_source)
-        self.assertIn('#entryScreen.sidebarCollapsed .entrySidebarToggle .sidebarToggleIconOpen,#panelToggle.panelCollapsed .sidebarToggleIconOpen{opacity:1;transform:scale(1)}', css_source)
+        self.assertIn("stroke:currentColor", css_rule_body(css_source, ".sidebarToggleIcon svg"))
+        self.assertIn("opacity:1", css_rule_body(css_source, "#entryScreen.sidebarCollapsed .entrySidebarToggle .sidebarToggleIconOpen,#panelToggle.panelCollapsed .sidebarToggleIconOpen"))
         self.assertNotIn("ui.panelToggle.textContent", scene_source)
         self.assertNotIn("ui.panelToggle.textContent", entry_source)
         self.assertNotIn("ui.btnEntrySidebarToggle.textContent", entry_source)
         self.assertIn('class="performanceDockChevron" aria-hidden="true"', html)
-        self.assertIn('.performanceDockChevron{width:20px;height:20px;border-radius:999px;display:inline-grid;place-items:center;', css_source)
-        self.assertIn('.performanceDockChevron svg{width:13px;height:13px;display:block;fill:none;stroke:currentColor;stroke-width:3;', css_source)
+        self.assertIn("display:inline-grid", css_rule_body(css_source, ".performanceDockChevron"))
+        self.assertIn("stroke:currentColor", css_rule_body(css_source, ".performanceDockChevron svg"))
         self.assertIn('document.documentElement.style.setProperty("--analysis-dock-bottom-reserve"', performance_source)
         self.assertIn("function bottomReserveForElement(element, gapPx = 18)", performance_source)
         self.assertIn("bottomReserveForElement(ui.deviceDock)", performance_source)
@@ -924,7 +968,7 @@ class FrontendRegressionTests(unittest.TestCase):
         solver_source = read_frontend_js_modules()
         state_source = read_frontend_js_modules()
         viewer_source = read_static_js("viewer.js")
-        css_source = read_static_css("app.css")
+        css_source = read_app_css()
 
         self.assertIn('id="livePreviewStatus"', html)
         self.assertIn('id="livePreviewEnabled" type="checkbox"', html)
@@ -942,19 +986,21 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('value="1.5"', html)
         self.assertIn(">Clearance\n", html)
         self.assertIn("Distance from the picked surface for the active mode device.", html)
-        self.assertIn(".deviceDock{position:absolute;left:50%;bottom:16px;z-index:17;width:auto;max-width:min(600px, calc(100vw - 420px));min-width:0", css_source)
-        self.assertIn(".livePreviewParam .paramCheckGrid + .paramGrid{margin-top:12px}", css_source)
-        self.assertIn(".devicePrecisionPanel{width:auto;max-width:100%;", css_source)
-        self.assertIn(".deviceCompactBar{display:flex;align-items:center;gap:6px;min-height:44px}", css_source)
-        self.assertIn(".devicePrecisionStatus{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}", css_source)
-        self.assertIn(".deviceCoordPanels{min-width:0;display:flex;align-items:center;gap:6px;flex:0 1 auto}", css_source)
-        self.assertIn(".deviceCoordPanel{min-width:0;flex:0 0 auto}", css_source)
-        self.assertIn(".deviceCoordGrid{display:grid;grid-template-columns:repeat(3,104px);gap:5px}", css_source)
-        self.assertIn("text-align:left;font-variant-numeric:tabular-nums", css_source)
-        self.assertIn(".deviceCoordGrid .unitInput input[type=\"number\"],.deviceClearanceField .unitInput input[type=\"number\"]{padding-right:24px}", css_source)
-        self.assertIn(".deviceCoordGrid .unitSuffix,.deviceClearanceField .unitSuffix{right:6px;font-size:10px}", css_source)
-        self.assertIn(".deviceClearanceField{display:flex;align-items:center;gap:5px;flex:0 0 166px", css_source)
-        self.assertIn(".deviceCompactBar{flex-wrap:wrap;gap:6px}", css_source)
+        device_dock_css = css_rule_body(css_source, ".deviceDock")
+        for property_name in ("position:", "left:", "bottom:", "z-index:", "width:", "max-width:", "min-width:"):
+            self.assertIn(property_name, device_dock_css)
+        self.assertIn("margin-top:", css_rule_body(css_source, ".livePreviewParam .paramCheckGrid + .paramGrid"))
+        self.assertIn("max-width:100%", css_rule_body(css_source, ".devicePrecisionPanel"))
+        self.assertIn("display:flex", css_rule_body(css_source, ".deviceCompactBar"))
+        self.assertIn("clip-path:inset(50%)", css_rule_body(css_source, ".devicePrecisionStatus"))
+        self.assertIn("display:flex", css_rule_body(css_source, ".deviceCoordPanels"))
+        self.assertIn("flex:0 0 auto", css_rule_body(css_source, ".deviceCoordPanel"))
+        self.assertIn("grid-template-columns:repeat(3,104px)", css_rule_body(css_source, ".deviceCoordGrid"))
+        self.assertIn("font-variant-numeric:tabular-nums", css_source)
+        self.assertIn("padding-right:", css_rule_body(css_source, '.deviceCoordGrid .unitInput input[type="number"],.deviceClearanceField .unitInput input[type="number"]'))
+        self.assertIn("font-size:", css_rule_body(css_source, ".deviceCoordGrid .unitSuffix,.deviceClearanceField .unitSuffix"))
+        self.assertIn("display:flex", css_rule_body(css_source, ".deviceClearanceField"))
+        self.assertIn("@media (min-width:1280px) and (max-width:1359px)", read_static_css("shell.css"))
         self.assertIn("livePreview: {\n    enabled: false", state_source)
         self.assertIn("previewSamplesPerSrc: 1000", state_source)
         self.assertIn("surfaceClearanceM: 1.5", state_source)
@@ -1031,7 +1077,7 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_link_results_live_in_right_side_dock(self) -> None:
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
-        css_source = read_static_css("app.css")
+        css_source = read_app_css()
         source = read_frontend_js_modules()
 
         dock_start = html.index('id="linkChannelSection"')
@@ -1049,7 +1095,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('id="pathSelectionSection"', dock_html)
         self.assertIn('id="pathSelectionCount"', dock_html)
         self.assertIn('id="pathSelectionMeta"', dock_html)
-        self.assertIn('id="pathButtons" class="pathList"', dock_html)
+        self.assertIn('id="pathButtons" class="pathList oat-scroll-region"', dock_html)
         self.assertIn('id="pathDetailSection" class="linkDockSection hidden" aria-hidden="true"', dock_html)
         self.assertIn('id="pathDetailTitle"', dock_html)
         self.assertIn('id="linkTapAnalysisSection"', dock_html)
@@ -1069,12 +1115,13 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("Largest Coefficient |h|", dock_html)
         self.assertNotIn("<b>Total Power</b>", dock_html)
         self.assertNotIn("<b>Peak Tap</b>", dock_html)
-        self.assertIn("#pathSelectionSection{position:relative;background:rgba(248,251,255,.98);overflow:hidden}", css_source)
-        self.assertNotIn("#pathSelectionSection{position:sticky;", css_source)
-        self.assertIn(".pathList{display:flex;flex-direction:column;", css_source)
-        self.assertIn(".pathAllButton{display:flex;", css_source)
-        self.assertIn(".pathRow{position:relative;display:grid;", css_source)
-        self.assertIn(".pathRowMetrics{display:grid;grid-template-columns:1fr 1fr;", css_source)
+        path_section_css = css_rule_body(css_source, "#pathSelectionSection")
+        self.assertIn("position:relative", path_section_css)
+        self.assertNotIn("position:sticky", path_section_css)
+        self.assertIn("flex-direction:column", css_rule_body(css_source, ".pathList"))
+        self.assertIn("display:flex", css_rule_body(css_source, ".pathAllButton"))
+        self.assertIn("display:grid", css_rule_body(css_source, ".pathRow"))
+        self.assertIn("grid-template-columns:1fr 1fr", css_rule_body(css_source, ".pathRowMetrics"))
         self.assertNotIn(".pathRow.active::before", css_source)
         self.assertNotIn('id="linkResult"', link_panel_html)
         self.assertNotIn('id="pathSelectionSection"', link_panel_html)
@@ -1109,7 +1156,7 @@ class FrontendRegressionTests(unittest.TestCase):
     def test_tap_chart_axes_are_labeled_and_not_clipped(self) -> None:
         source = read_frontend_js_modules()
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
-        css = (PROJECT_ROOT / "backend" / "static" / "css" / "app.css").read_text(encoding="utf-8")
+        css = read_app_css()
 
         self.assertIn('viewBox="0 0 420 172"', html)
         self.assertIn("Power delay profile chart: x-axis Tap Index, y-axis Power in dB", html)
@@ -1127,7 +1174,7 @@ class FrontendRegressionTests(unittest.TestCase):
         app_source = read_frontend_js_modules()
         state_source = read_frontend_js_modules()
         source = read_frontend_js_modules()
-        css_source = read_static_css("app.css")
+        css_source = read_app_css()
         html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
 
         self.assertIn('id="tabMobility"', html)
@@ -1297,7 +1344,7 @@ class FrontendRegressionTests(unittest.TestCase):
         scene_source = read_frontend_js_modules()
         solver_source = read_frontend_js_modules()
         viewer_source = read_static_js("viewer.js")
-        css_source = read_static_css("app.css")
+        css_source = read_app_css()
         dataset_view_source = read_static_js("ui/deepmimo_dataset_view.js")
         deepmimo_payload_source = solver_source.split("export function deepMimoPayload(", 1)[1].split(
             "export function",

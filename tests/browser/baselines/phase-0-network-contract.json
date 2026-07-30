@@ -1,0 +1,667 @@
+[
+  {
+    "contentLength": 37692,
+    "contentType": "image/png",
+    "path": "/assets/openairtwin_logo.png",
+    "resourceType": "image",
+    "status": 200
+  },
+  {
+    "contentLength": 14381,
+    "contentType": "application/json",
+    "path": "/assets/radar/drones/manifest.json",
+    "resourceType": "fetch",
+    "status": 200
+  },
+  {
+    "contentLength": 867,
+    "contentType": "text/css",
+    "path": "/css/base.css",
+    "resourceType": "stylesheet",
+    "status": 200
+  },
+  {
+    "contentLength": 21786,
+    "contentType": "text/css",
+    "path": "/css/components.css",
+    "resourceType": "stylesheet",
+    "status": 200
+  },
+  {
+    "contentLength": 11828,
+    "contentType": "text/css",
+    "path": "/css/entry-map.css",
+    "resourceType": "stylesheet",
+    "status": 200
+  },
+  {
+    "contentLength": 25972,
+    "contentType": "text/css",
+    "path": "/css/radar.css",
+    "resourceType": "stylesheet",
+    "status": 200
+  },
+  {
+    "contentLength": 15776,
+    "contentType": "text/css",
+    "path": "/css/results.css",
+    "resourceType": "stylesheet",
+    "status": 200
+  },
+  {
+    "contentLength": 25301,
+    "contentType": "text/css",
+    "path": "/css/shell.css",
+    "resourceType": "stylesheet",
+    "status": 200
+  },
+  {
+    "contentLength": 15712,
+    "contentType": "text/css",
+    "path": "/css/tokens.css",
+    "resourceType": "stylesheet",
+    "status": 200
+  },
+  {
+    "contentLength": 4290,
+    "contentType": "text/javascript",
+    "path": "/js/api.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 3758,
+    "contentType": "text/javascript",
+    "path": "/js/app_state.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 11773,
+    "contentType": "text/javascript",
+    "path": "/js/app.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 2621,
+    "contentType": "text/javascript",
+    "path": "/js/colormaps.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 5080,
+    "contentType": "text/javascript",
+    "path": "/js/controllers/app_dialog_controller.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 8044,
+    "contentType": "text/javascript",
+    "path": "/js/controllers/deepmimo_controller.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 11869,
+    "contentType": "text/javascript",
+    "path": "/js/controllers/device_picking_controller.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 6025,
+    "contentType": "text/javascript",
+    "path": "/js/controllers/link_controller.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 4818,
+    "contentType": "text/javascript",
+    "path": "/js/controllers/mobility_controller.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 6831,
+    "contentType": "text/javascript",
+    "path": "/js/controllers/radar_controller.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 3691,
+    "contentType": "text/javascript",
+    "path": "/js/controllers/radiomap_controller.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9653,
+    "contentType": "text/javascript",
+    "path": "/js/controllers/scene_loader_controller.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9233,
+    "contentType": "text/javascript",
+    "path": "/js/core/feature_registry.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 15172,
+    "contentType": "text/javascript",
+    "path": "/js/dom_refs.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 29917,
+    "contentType": "text/javascript",
+    "path": "/js/entry_map.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 3093,
+    "contentType": "text/javascript",
+    "path": "/js/features/deepmimo/index.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 297,
+    "contentType": "text/javascript",
+    "path": "/js/features/deepmimo/renderer.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 4219,
+    "contentType": "text/javascript",
+    "path": "/js/features/deepmimo/runtime.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 629,
+    "contentType": "text/javascript",
+    "path": "/js/features/deepmimo/state.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 235,
+    "contentType": "text/javascript",
+    "path": "/js/features/deepmimo/transport.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 577,
+    "contentType": "text/javascript",
+    "path": "/js/features/feature_catalog.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 3323,
+    "contentType": "text/javascript",
+    "path": "/js/features/link/index.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 282,
+    "contentType": "text/javascript",
+    "path": "/js/features/link/renderer.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 3810,
+    "contentType": "text/javascript",
+    "path": "/js/features/link/runtime.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 565,
+    "contentType": "text/javascript",
+    "path": "/js/features/link/state.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 103,
+    "contentType": "text/javascript",
+    "path": "/js/features/link/transport.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 3906,
+    "contentType": "text/javascript",
+    "path": "/js/features/mobility/index.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 482,
+    "contentType": "text/javascript",
+    "path": "/js/features/mobility/renderer.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 4979,
+    "contentType": "text/javascript",
+    "path": "/js/features/mobility/runtime.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 510,
+    "contentType": "text/javascript",
+    "path": "/js/features/mobility/state.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 193,
+    "contentType": "text/javascript",
+    "path": "/js/features/mobility/transport.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 10839,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/asset_preview.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 14755,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/charts.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 771,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/colors.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 19712,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/controls.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 19712,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/controls.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 25861,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/index.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 1385,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/presentation.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 2945,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/processing_views.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 19995,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/renderer.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9413,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/runtime.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 1648,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/state.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 5054,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/target_scene.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 288,
+    "contentType": "text/javascript",
+    "path": "/js/features/radar/transport.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 2662,
+    "contentType": "text/javascript",
+    "path": "/js/features/radiomap/index.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 289,
+    "contentType": "text/javascript",
+    "path": "/js/features/radiomap/renderer.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 2611,
+    "contentType": "text/javascript",
+    "path": "/js/features/radiomap/runtime.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 418,
+    "contentType": "text/javascript",
+    "path": "/js/features/radiomap/state.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 193,
+    "contentType": "text/javascript",
+    "path": "/js/features/radiomap/transport.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 4185,
+    "contentType": "text/javascript",
+    "path": "/js/param_tooltips.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9600,
+    "contentType": "text/javascript",
+    "path": "/js/performance_panel.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 10862,
+    "contentType": "text/javascript",
+    "path": "/js/scene_render_state.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 34853,
+    "contentType": "text/javascript",
+    "path": "/js/solver_controls.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 1033,
+    "contentType": "text/javascript",
+    "path": "/js/solvers/antenna_config.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9657,
+    "contentType": "text/javascript",
+    "path": "/js/solvers/solver_payloads.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9657,
+    "contentType": "text/javascript",
+    "path": "/js/solvers/solver_payloads.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9403,
+    "contentType": "text/javascript",
+    "path": "/js/tile_model.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9403,
+    "contentType": "text/javascript",
+    "path": "/js/tile_model.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 3659,
+    "contentType": "text/javascript",
+    "path": "/js/ui/deepmimo_dataset_view.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 19104,
+    "contentType": "text/javascript",
+    "path": "/js/ui/link_result_view.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 3028,
+    "contentType": "text/javascript",
+    "path": "/js/ui/loading_overlay_controller.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9378,
+    "contentType": "text/javascript",
+    "path": "/js/ui/mobility_result_view.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 19033,
+    "contentType": "text/javascript",
+    "path": "/js/ui/radar_result_view.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 5207,
+    "contentType": "text/javascript",
+    "path": "/js/ui/radiomap_result_view.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 805,
+    "contentType": "text/javascript",
+    "path": "/js/ui/result_formatters.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 271,
+    "contentType": "text/javascript",
+    "path": "/js/ui/theme_tokens.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 5391,
+    "contentType": "text/javascript",
+    "path": "/js/ui/tile_selection_view.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 51237,
+    "contentType": "text/javascript",
+    "path": "/js/viewer.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 7978,
+    "contentType": "text/javascript",
+    "path": "/js/viewer/asset_manager.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 659,
+    "contentType": "text/javascript",
+    "path": "/js/viewer/dispose.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 2601,
+    "contentType": "text/javascript",
+    "path": "/js/viewer/layer_manager.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 8490,
+    "contentType": "text/javascript",
+    "path": "/js/viewer/primitives.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 31921,
+    "contentType": "text/javascript",
+    "path": "/lib/BufferGeometryUtils.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9349,
+    "contentType": "text/javascript",
+    "path": "/lib/GLBGeometryLoader.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 108533,
+    "contentType": "text/javascript",
+    "path": "/lib/GLTFLoader.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 14806,
+    "contentType": "text/css",
+    "path": "/lib/leaflet/leaflet.css",
+    "resourceType": "stylesheet",
+    "status": 200
+  },
+  {
+    "contentLength": 147552,
+    "contentType": "text/javascript",
+    "path": "/lib/leaflet/leaflet.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 421,
+    "contentType": "text/javascript",
+    "path": "/lib/Line2.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 1454,
+    "contentType": "text/javascript",
+    "path": "/lib/LineGeometry.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 11296,
+    "contentType": "text/javascript",
+    "path": "/lib/LineMaterial.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 9337,
+    "contentType": "text/javascript",
+    "path": "/lib/LineSegments2.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 4647,
+    "contentType": "text/javascript",
+    "path": "/lib/LineSegmentsGeometry.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 29880,
+    "contentType": "text/javascript",
+    "path": "/lib/OrbitControls.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 16634,
+    "contentType": "text/javascript",
+    "path": "/lib/PLYLoader.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 91058,
+    "contentType": "text/javascript",
+    "path": "/lib/proj4/proj4.js",
+    "resourceType": "script",
+    "status": 200
+  },
+  {
+    "contentLength": 1272972,
+    "contentType": "text/javascript",
+    "path": "/lib/three.module.js",
+    "resourceType": "script",
+    "status": 200
+  }
+]
