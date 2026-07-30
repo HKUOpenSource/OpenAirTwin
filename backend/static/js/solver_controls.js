@@ -307,14 +307,14 @@ function renderMobilityWaypoints() {
   normalizeMobilityWaypointSelection();
   if (!state.mobility.trajectory.points.length) {
     const empty = document.createElement("div");
-    empty.className = "waypointEmpty";
+    empty.className = "waypointEmpty oat-empty-state";
     empty.textContent = "No Rx waypoints yet";
     ui.mobilityWaypointList.appendChild(empty);
     return;
   }
   state.mobility.trajectory.points.forEach((point, index) => {
     const item = document.createElement("div");
-    item.className = "waypointItem";
+    item.className = "waypointItem oat-list-card oat-list-card--interactive";
     item.classList.toggle("active", index === state.mobility.selectedWaypointIndex);
     item.addEventListener("click", () => {
       state.mobility.selectedWaypointIndex = index;

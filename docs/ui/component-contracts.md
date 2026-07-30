@@ -1,6 +1,6 @@
 # OpenAirTwin UI 组件合同
 
-> 状态：Phase 1 冻结合同
+> 状态：Phase 2 原生实现合同
 >
 > 范围：核心桌面工作台，`1280x720` 及以上
 >
@@ -45,6 +45,18 @@
 | `LoadingOverlay` | `title`, `message`, `progress` | `cancellable` | 模态 busy 状态；取消 Command 仅在可取消时启用 | `shell.css` |
 | `ChartFrame` | `id`, `title`, `host` | `legend`, `tooltip`, `empty`, `loading` | Canvas/SVG 引擎拥有 host 内部；普通组件更新不重建引擎 | `results.css`, `radar.css` |
 
+### 2.1 Phase 2 原生类映射
+
+当前原生实现以 [component-manifest.json](component-manifest.json) 为机器可读事实来源，并由 `tools/ui-catalog/index.html` 展示全部公开 Variant 和状态。公共类包括：
+
+- 结构：`oat-panel`、`oat-panel__header`、`oat-panel__title`；
+- 操作：`oat-button`、`oat-button-group` 及 `--primary / --compact / --icon / --danger / --block / --toolbar`；
+- 字段：`oat-field`、`oat-input`、`oat-input--compact`、`oat-check`；
+- 数据：`oat-badge`、`oat-metric-grid`、`oat-list-card`、`oat-empty-state`；
+- 基础设施：`oat-scroll-region`、`oat-icon`。
+
+`.btn`、`.miniBtn`、`.miniSelect` 和 `.danger` 仅是兼容 Alias，退役条件见 [legacy-aliases.md](legacy-aliases.md)。Feature 不能再为这些组件定义核心按钮几何。
+
 ## 3. 工作台组合组件
 
 | 组件 | 当前实例 | 唯一所有者 | 允许组合 |
@@ -87,4 +99,4 @@ Feature 专属组件仍必须组合公共 Button、Field、Badge、Metric、List
 
 ## 6. 变更与验收
 
-新增 UI 前必须先在本文件登记公共组件或 Feature 专属理由，再在 [交互合同](interaction-contracts.md) 登记 Command，并更新浏览器生成的 DOM 合同。任何未归属 ID、未命名用户操作、跨所有者 DOM 写入或未登记 inline style 都会阻断 Phase 2。
+新增 UI 前必须先更新机器可读组件清单和原生组件目录，再在本文件登记公共组件或 Feature 专属理由，并在 [交互合同](interaction-contracts.md) 登记 Command。任何未归属 ID、未命名用户操作、跨所有者 DOM 写入、未登记 inline style 或未说明的重复组件实现都会阻断后续阶段。

@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+from html.parser import HTMLParser
+import json
+from pathlib import Path
+import re
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+STATIC_ROOT = PROJECT_ROOT / "backend" / "static"
+CSS_ROOT = STATIC_ROOT / "css"
+JS_ROOT = STATIC_ROOT / "js"
+MANIFEST_PATH = PROJECT_ROOT / "docs" / "ui" / "component-manifest.json"
+CATALOG_PATH = PROJECT_ROOT / "tools" / "ui-catalog" / "index.html"
+
+
+def read(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def load_manifest() -> dict:
+    return json.loads(read(MANIFEST_PATH))
+
+
+class ClassCollector(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.class_values: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        if values.get("class"):
+            self.class_values.extend(str(values["class"]).split())
+
+
+def test_manifest_and_catalog_cover_every_public_variant_and_state() -> None:
+    manifest = load_manifest()
+    catalog = read(CATALOG_PATH)
+    components = {component["name"]: component for component in manifest["components"]}
+    assert manifest["schemaVersion"] == 1
+    assert manifest["phase"] == 2
+    assert set(components) == {
+        "Panel", "Button", "Field", "Checkbox", "Badge", "MetricGrid",
+        "ListCard", "EmptyState", "ScrollRegion", "Icon",
+    }
+    assert set(components["Button"]["variants"]) == {
+        "default", "primary", "compact", "icon", "danger", "block", "toolbar",
+    }
+    for state in ("hover", "focus-visible", "active", "pressed", "disabled", "busy"):
+        assert state in components["Button"]["states"]
+    for state in ("hover", "focus-visible", "disabled", "invalid", "read-only"):
+        assert state in components["Field"]["states"]
+    for variant in ("success", "warning", "error", "busy"):
+        assert f"oat-badge--{variant}" in catalog
+    for modifier in ("primary", "compact", "icon", "danger", "block", "toolbar"):
+        assert f"oat-button--{modifier}" in catalog
+
+
+def test_legacy_aliases_share_public_rules_and_production_markup() -> None:
+    components = read(CSS_ROOT / "components.css")
+    assert not re.search(r"(?m)^\s*\.(?:btn|miniBtn|miniSelect|danger)\s*\{", components)
+    assert ":where(.oat-button:not(.oat-button--compact),.btn)" in components
+    assert ":where(.oat-button--compact,.miniBtn)" in components
+    assert ".miniSelect,.oat-input--compact" in components
+    assert components.count(".oat-button--legacy-native-font") == 1
+
+    production = "\n".join(
+        [read(STATIC_ROOT / "index.html")]
+        + [read(path) for path in sorted(JS_ROOT.rglob("*.js")) if path.name != "radar-demo.js"]
+    )
+    class_attributes = re.findall(r'class(?:Name)?\s*=\s*["`]([^"`]+)', production)
+    for value in class_attributes:
+        names = set(value.split())
+        if "miniBtn" in names:
+            assert {"oat-button", "oat-button--compact"} <= names
+        if "miniSelect" in names:
+            assert {"oat-input", "oat-input--compact"} <= names
+        if "btn" in names:
+            assert "oat-button" in names
+    assert production.count("oat-button--legacy-native-font") == 5
+
+
+def test_feature_rows_compose_public_components_without_core_button_overrides() -> None:
+    expected_patterns = {
+        JS_ROOT / "solver_controls.js": ["waypointItem oat-list-card oat-list-card--interactive", "waypointEmpty oat-empty-state"],
+        JS_ROOT / "entry_map.js": ["entryPlaceResult oat-list-card oat-list-card--interactive"],
+        JS_ROOT / "performance_panel.js": ["categoryItem oat-check oat-list-card"],
+        JS_ROOT / "ui" / "tile_selection_view.js": ["tileItem oat-check oat-list-card"],
+        JS_ROOT / "ui" / "link_result_view.js": ["pathAllButton oat-list-card oat-list-card--interactive", "pathRow oat-list-card oat-list-card--interactive"],
+        JS_ROOT / "features" / "radar" / "controls.js": ["radarTargetCard oat-list-card oat-list-card--interactive", "radarEmptyState oat-empty-state"],
+        JS_ROOT / "ui" / "radar_result_view.js": ["radarResultRow oat-list-card oat-list-card--interactive", "radarEmptyState oat-empty-state"],
+    }
+    for path, patterns in expected_patterns.items():
+        source = read(path)
+        assert all(pattern in source for pattern in patterns), path
+
+    radar_css = read(CSS_ROOT / "radar.css")
+    assert ".radarEditorActions .miniBtn" not in radar_css
+    assert not re.search(r"(?m)^\s*\.radarAssetAddButton\s*\{", radar_css)
+
+
+def test_icon_geometry_uses_tokens_and_accessibility_contract() -> None:
+    token_source = read(CSS_ROOT / "tokens.css")
+    for token in (
+        "--oat-icon-size-xs", "--oat-icon-size-md", "--oat-icon-size-base",
+        "--oat-icon-size-2xl", "--oat-icon-stroke-default", "--oat-icon-stroke-chevron",
+    ):
+        assert token in token_source
+    css_source = "\n".join(read(CSS_ROOT / name) for name in ("shell.css", "entry-map.css", "results.css", "radar.css"))
+    for selector in (
+        ".channelAnalysisChevron svg", ".quickIconBtn svg", ".performanceDockChevron svg",
+        ".deviceActionIcon svg", ".appDialogClose svg", ".sidebarToggleIcon svg",
+        ".deepMimoDatasetIcon svg", ".radarAssetNav svg",
+    ):
+        match = re.search(rf"{re.escape(selector)}\s*\{{([^{{}}]+)\}}", css_source)
+        assert match is not None, selector
+        assert "var(--oat-icon-" in match.group(1), selector
+    catalog = read(CATALOG_PATH)
+    assert 'class="oat-button oat-button--icon"' in catalog
+    assert 'aria-label="Locate transmitter"' in catalog
+    assert 'class="oat-icon"' in catalog and 'aria-hidden="true"' in catalog
+
+
+def test_contract_only_feature_uses_public_component_classes() -> None:
+    source = read(CATALOG_PATH)
+    section = source.split("<section class=\"oat-panel\" data-test-feature", 1)[1].split("</section>", 1)[0]
+    collector = ClassCollector()
+    collector.feed(section)
+    assert collector.class_values
+    assert all(name.startswith("oat-") for name in collector.class_values)
+    for required in (
+        "oat-panel__header", "oat-field", "oat-input", "oat-button-group",
+        "oat-button", "oat-metric-grid", "oat-list-card", "oat-scroll-region",
+    ):
+        assert required in collector.class_values
+
+
+def test_catalog_is_development_only() -> None:
+    server_source = read(PROJECT_ROOT / "backend" / "server.py")
+    assert "ui-catalog" not in server_source
+    assert "serve_ui_catalog" not in server_source
+    assert (PROJECT_ROOT / "tools" / "serve_ui_catalog.py").is_file()

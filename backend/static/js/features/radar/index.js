@@ -58,8 +58,8 @@ const PANEL = `
             <div><span>New Target Model</span><strong id="radarAssetPreviewName" aria-live="polite">Loading…</strong></div>
             <span id="radarAssetPreviewCount" class="radarAssetPreviewCount">0 / 0</span>
           </div>
-          <button id="btnAddRadarTarget" class="miniBtn oat-button oat-button--compact oat-button--primary radarAssetAddButton" type="button" disabled>Add Target</button>
-          <div class="radarEditorActions" role="group" aria-label="Selected target actions"><button id="btnPickRadarTarget" class="miniBtn oat-button oat-button--compact" type="button">Pick in 3D</button><button id="btnFocusRadarTarget" class="miniBtn oat-button oat-button--compact" type="button">Focus Target</button><button id="btnRemoveRadarTarget" class="miniBtn danger oat-button oat-button--compact oat-button--danger" type="button">Remove Target</button></div>
+          <button id="btnAddRadarTarget" class="miniBtn oat-button oat-button--compact oat-button--primary oat-button--block radarAssetAddButton" type="button" disabled>Add Target</button>
+          <div class="radarEditorActions" role="group" aria-label="Selected target actions"><button id="btnPickRadarTarget" class="miniBtn oat-button oat-button--compact oat-button--toolbar" type="button">Pick in 3D</button><button id="btnFocusRadarTarget" class="miniBtn oat-button oat-button--compact oat-button--toolbar" type="button">Focus Target</button><button id="btnRemoveRadarTarget" class="miniBtn danger oat-button oat-button--compact oat-button--toolbar oat-button--danger" type="button">Remove Target</button></div>
           <p id="radarAssetPickerHint" class="radarAssetPickerHint">Drag to rotate the 3D preview.</p>
         </div>
         <div id="radarTargetList" class="radarTargetList oat-scroll-region" role="listbox" aria-label="Radar targets"></div>

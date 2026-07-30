@@ -146,12 +146,12 @@
 }
 
 .channelAnalysisChevron svg {
-  width:14px;
-  height:14px;
+  width:var(--oat-icon-size-sm);
+  height:var(--oat-icon-size-sm);
   display:block;
   fill:none;
   stroke:currentColor;
-  stroke-width:3;
+  stroke-width:var(--oat-icon-stroke-chevron);
   stroke-linecap:round;
   stroke-linejoin:round;
 }
@@ -207,11 +207,11 @@
 }
 
 .quickIconBtn svg {
-  width:21px;
-  height:21px;
+  width:var(--oat-icon-size-2xl);
+  height:var(--oat-icon-size-2xl);
   fill:none;
   stroke:currentColor;
-  stroke-width:1.9;
+  stroke-width:var(--oat-icon-stroke-light);
   stroke-linecap:round;
   stroke-linejoin:round;
 }
@@ -313,12 +313,12 @@
 }
 
 .performanceDockChevron svg {
-  width:13px;
-  height:13px;
+  width:var(--oat-icon-size-xs);
+  height:var(--oat-icon-size-xs);
   display:block;
   fill:none;
   stroke:currentColor;
-  stroke-width:3;
+  stroke-width:var(--oat-icon-stroke-chevron);
   stroke-linecap:round;
   stroke-linejoin:round;
 }
@@ -786,11 +786,11 @@
 }
 
 .deviceActionIcon svg {
-  width:15px;
-  height:15px;
+  width:var(--oat-icon-size-md);
+  height:var(--oat-icon-size-md);
   fill:none;
   stroke:currentColor;
-  stroke-width:2;
+  stroke-width:var(--oat-icon-stroke-default);
   stroke-linecap:round;
   stroke-linejoin:round;
 }
@@ -984,11 +984,11 @@
 }
 
 .appDialogClose svg {
-  width:16px;
-  height:16px;
+  width:var(--oat-icon-size-base);
+  height:var(--oat-icon-size-base);
   fill:none;
   stroke:currentColor;
-  stroke-width:2.3;
+  stroke-width:var(--oat-icon-stroke-dialog);
   stroke-linecap:round;
   stroke-linejoin:round;
 }

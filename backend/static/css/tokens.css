@@ -327,6 +327,7 @@
     --oat-radius-dialog: 20px;
     --oat-radius-pill: 999px;
     --oat-duration-instant: .14s;
+    --oat-duration-toolbar: .15s;
     --oat-duration-fast: .18s;
     --oat-duration-sidebar: .26s;
     --oat-ease-standard: cubic-bezier(.22,1,.36,1);
@@ -336,6 +337,19 @@
     --oat-control-height-md: 36px;
     --oat-control-height-lg: 44px;
     --oat-control-icon-lg: 44px;
+    --oat-icon-size-xs: 13px;
+    --oat-icon-size-sm: 14px;
+    --oat-icon-size-md: 15px;
+    --oat-icon-size-base: 16px;
+    --oat-icon-size-lg: 17px;
+    --oat-icon-size-xl: 20px;
+    --oat-icon-size-2xl: 21px;
+    --oat-icon-stroke-default: 2;
+    --oat-icon-stroke-light: 1.9;
+    --oat-icon-stroke-medium: 2.2;
+    --oat-icon-stroke-dialog: 2.3;
+    --oat-icon-stroke-strong: 2.4;
+    --oat-icon-stroke-chevron: 3;
 
     /* Named stacking contexts. */
     --oat-z-performance: 1;

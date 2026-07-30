@@ -198,7 +198,7 @@
   color:var(--oat-color-4b6281);
   padding:0;
   cursor:pointer;
-  transition:border-color .15s ease,color .15s ease,background .15s ease,transform .15s ease;
+  transition:border-color var(--oat-duration-toolbar) ease,color var(--oat-duration-toolbar) ease,background var(--oat-duration-toolbar) ease,transform var(--oat-duration-toolbar) ease;
 }
 
 .radarAssetNav.previous {
@@ -210,11 +210,11 @@
 }
 
 .radarAssetNav svg {
-  width:17px;
-  height:17px;
+  width:var(--oat-icon-size-lg);
+  height:var(--oat-icon-size-lg);
   fill:none;
   stroke:currentColor;
-  stroke-width:2.2;
+  stroke-width:var(--oat-icon-stroke-medium);
   stroke-linecap:round;
   stroke-linejoin:round;
 }
@@ -276,32 +276,6 @@
   color:var(--oat-color-5f6f84);
   font-variant-numeric:tabular-nums;
   white-space:nowrap;
-}
-
-.radarAssetAddButton {
-  width:100%;
-  min-height:34px;
-  border-color:var(--oat-color-1f6fff);
-  background:var(--oat-color-1f6fff);
-  color:var(--oat-color-white);
-  box-shadow:0 2px 5px var(--oat-color-rgba-31-111-255-0-14);
-}
-
-.radarAssetAddButton:hover:not(:disabled) {
-  background:var(--oat-color-145fe8);
-}
-
-.radarAssetAddButton:focus-visible {
-  outline:2px solid var(--oat-color-rgba-31-111-255-0-42);
-  outline-offset:2px;
-}
-
-.radarAssetAddButton:disabled {
-  border-color:var(--oat-color-rgba-115-132-157-0-22);
-  background:var(--oat-color-dfe6ef);
-  box-shadow:none;
-  color:var(--oat-color-8290a5);
-  cursor:not-allowed;
 }
 
 .radarAssetPickerHint {
@@ -508,39 +482,6 @@
   margin-top:var(--oat-space-9);
 }
 
-.radarEditorActions .miniBtn {
-  box-sizing:border-box;
-  display:inline-flex;
-  min-width:0;
-  min-height:36px;
-  align-items:center;
-  justify-content:center;
-  border-color:var(--oat-color-rgba-89-111-145-0-3);
-  border-radius:var(--oat-radius-md);
-  background:var(--oat-color-f7f9fc);
-  box-shadow:0 1px 2px var(--oat-color-rgba-36-55-82-0-07);
-  color:var(--oat-color-31445f);
-  padding:var(--oat-space-6);
-  font-size:var(--oat-font-size-11);
-  font-weight:800;
-  line-height:1.15;
-  white-space:nowrap;
-  transition:transform .15s ease,border-color .15s ease,background .15s ease,color .15s ease,box-shadow .15s ease;
-}
-
-.radarEditorActions .miniBtn:hover:not(:disabled) {
-  transform:translateY(-1px);
-  border-color:var(--oat-color-rgba-31-111-255-0-46);
-  background:var(--oat-color-white);
-  color:var(--oat-color-1f64e0);
-  box-shadow:0 3px 8px var(--oat-color-rgba-36-55-82-0-1);
-}
-
-.radarEditorActions .miniBtn:focus-visible {
-  outline:2px solid var(--oat-color-rgba-31-111-255-0-44);
-  outline-offset:2px;
-}
-
 .radarEditorActions #btnPickRadarTarget {
   border-color:var(--oat-color-rgba-31-111-255-0-32);
   background:var(--oat-color-f2f7ff);
@@ -575,18 +516,6 @@
   border-color:var(--oat-color-145fe8);
   background:var(--oat-color-145fe8);
   color:var(--oat-color-white);
-}
-
-.radarEditorActions .miniBtn.danger {
-  border-color:var(--oat-color-rgba-210-79-79-0-34);
-  background:var(--oat-color-fff7f7);
-  color:var(--oat-color-b63d3d);
-}
-
-.radarEditorActions .miniBtn.danger:hover:not(:disabled) {
-  border-color:var(--oat-color-rgba-210-79-79-0-56);
-  background:var(--oat-color-fff0ef);
-  color:var(--oat-color-a92f2f);
 }
 
 .radarCheck {

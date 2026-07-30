@@ -54,11 +54,11 @@
 }
 
 .deepMimoDatasetIcon svg {
-  width:15px;
-  height:15px;
+  width:var(--oat-icon-size-md);
+  height:var(--oat-icon-size-md);
   fill:none;
   stroke:currentColor;
-  stroke-width:2;
+  stroke-width:var(--oat-icon-stroke-default);
   stroke-linecap:round;
   stroke-linejoin:round;
 }

@@ -137,7 +137,7 @@ export function createLinkResultView({
     ui.pathDetailSection.setAttribute("aria-hidden", "false");
     const path = paths[selectedIndex];
     const card = document.createElement("div");
-    card.className = "pathDetailCard active";
+    card.className = "pathDetailCard oat-list-card active";
 
     const head = document.createElement("div");
     head.className = "pathDetailHead";
@@ -228,7 +228,7 @@ export function createLinkResultView({
 
     const allButton = document.createElement("button");
     allButton.type = "button";
-    allButton.className = "pathAllButton" + (selectedIndex === -1 ? " active" : "");
+    allButton.className = "pathAllButton oat-list-card oat-list-card--interactive" + (selectedIndex === -1 ? " active" : "");
     allButton.setAttribute("aria-pressed", String(selectedIndex === -1));
     allButton.textContent = "Show all paths";
     allButton.addEventListener("click", () => onSelect(-1));
@@ -238,7 +238,7 @@ export function createLinkResultView({
       const variants = pathVariantCount(path);
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "pathRow" + (selectedIndex === index ? " active" : "");
+      row.className = "pathRow oat-list-card oat-list-card--interactive" + (selectedIndex === index ? " active" : "");
       row.setAttribute("aria-pressed", String(selectedIndex === index));
       row.setAttribute(
         "aria-label",

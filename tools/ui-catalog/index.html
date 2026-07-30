@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenAirTwin Native UI Catalog</title>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/shell.css" />
+  <link rel="stylesheet" href="/css/entry-map.css" />
+  <link rel="stylesheet" href="/css/results.css" />
+  <link rel="stylesheet" href="/css/radar.css" />
+  <link rel="stylesheet" href="/ui-catalog/catalog.css" />
+</head>
+<body class="oat-catalog">
+  <main class="oat-catalog__main">
+    <header class="oat-catalog__header">
+      <div>
+        <p>OpenAirTwin Design System</p>
+        <h1>Native component catalog</h1>
+      </div>
+      <span class="oat-badge oat-badge--success">Phase 2</span>
+    </header>
+
+    <section class="oat-catalog__section" aria-labelledby="buttons-title">
+      <h2 id="buttons-title">Buttons</h2>
+      <div class="oat-catalog__row" data-catalog-family="button">
+        <button class="oat-button" type="button">Default</button>
+        <button class="oat-button oat-button--primary" type="button">Primary</button>
+        <button class="oat-button oat-button--compact" type="button">Compact</button>
+        <button class="oat-button oat-button--compact oat-button--danger" type="button">Danger</button>
+        <button class="oat-button active" type="button" aria-pressed="true">Pressed</button>
+        <button class="oat-button busy" type="button" aria-busy="true">Busy</button>
+        <button class="oat-button" type="button" disabled>Disabled</button>
+        <button class="oat-button oat-button--icon" type="button" aria-label="Locate transmitter">
+          <svg class="oat-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg>
+        </button>
+        <button class="oat-button oat-button--compact oat-button--toolbar" type="button">Toolbar</button>
+        <button class="oat-button oat-button--primary oat-button--block" type="button">Block</button>
+      </div>
+    </section>
+
+    <section class="oat-catalog__section" aria-labelledby="fields-title">
+      <h2 id="fields-title">Fields and selection</h2>
+      <div class="oat-catalog__grid" data-catalog-family="field">
+        <label class="oat-field" for="catalog-text"><span>Text field</span><input class="oat-input" id="catalog-text" value="OpenAirTwin" /></label>
+        <label class="oat-field" for="catalog-select"><span>Compact select</span><select class="oat-input oat-input--compact" id="catalog-select"><option>Link Analysis</option></select></label>
+        <label class="oat-field" for="catalog-invalid"><span>Invalid field</span><input class="oat-input is-invalid" id="catalog-invalid" value="Invalid" aria-invalid="true" /></label>
+        <label class="oat-field" for="catalog-readonly"><span>Read-only field</span><input class="oat-input" id="catalog-readonly" value="42.0 m" readonly /></label>
+        <label class="oat-field" for="catalog-disabled"><span>Disabled field</span><input class="oat-input" id="catalog-disabled" value="Unavailable" disabled /></label>
+        <label class="oat-check"><input type="checkbox" checked /><span>Checked option</span></label>
+        <label class="oat-check"><input type="checkbox" disabled /><span>Disabled option</span></label>
+      </div>
+    </section>
+
+    <section class="oat-catalog__section" aria-labelledby="data-title">
+      <h2 id="data-title">Status and data</h2>
+      <div class="oat-catalog__row" data-catalog-family="badge">
+        <span class="oat-badge">Neutral</span>
+        <span class="oat-badge oat-badge--success">Success</span>
+        <span class="oat-badge oat-badge--warning">Warning</span>
+        <span class="oat-badge oat-badge--error">Error</span>
+        <span class="oat-badge oat-badge--busy">Busy</span>
+      </div>
+      <div class="oat-metric-grid" data-catalog-family="metric-grid">
+        <div class="oat-list-card"><b>Total Path Gain</b><span>-81.25 dB</span></div>
+        <div class="oat-list-card"><b>Paths</b><span>12</span></div>
+      </div>
+      <div class="oat-catalog__list oat-scroll-region" data-catalog-family="list-card">
+        <button class="oat-list-card oat-list-card--interactive" type="button">Interactive list card</button>
+        <button class="oat-list-card oat-list-card--interactive selected" type="button" aria-selected="true">Selected list card</button>
+        <p class="oat-empty-state">No results available</p>
+      </div>
+    </section>
+
+    <section class="oat-panel" data-test-feature aria-labelledby="feature-title">
+      <div class="oat-panel__header">
+        <h2 class="oat-panel__title" id="feature-title">Contract-only test feature</h2>
+        <span class="oat-badge oat-badge--busy">Ready</span>
+      </div>
+      <label class="oat-field" for="feature-frequency"><span>Carrier Frequency</span><input class="oat-input" id="feature-frequency" type="number" value="5.8" /></label>
+      <div class="oat-button-group" role="group" aria-label="Feature actions">
+        <button class="oat-button oat-button--compact" type="button">Reset</button>
+        <button class="oat-button oat-button--primary" type="button">Run</button>
+      </div>
+      <div class="oat-metric-grid">
+        <div class="oat-list-card"><b>Paths</b><span>8</span></div>
+        <div class="oat-list-card"><b>Peak SNR</b><span>24 dB</span></div>
+      </div>
+      <div class="oat-scroll-region" tabindex="0" aria-label="Feature results">
+        <button class="oat-list-card oat-list-card--interactive" type="button" aria-selected="true">Selected result</button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

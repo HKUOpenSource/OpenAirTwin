@@ -32,7 +32,13 @@ def test_phase1_dom_contract_is_a_complete_enrichment_of_phase0() -> None:
 
     for element_id, baseline in phase0_by_id.items():
         contracted = phase1_by_id[element_id]
-        assert {key: contracted[key] for key in baseline} == baseline
+        for key, value in baseline.items():
+            if key != "classes":
+                assert contracted[key] == value
+        baseline_classes = baseline["classes"]
+        contracted_classes = contracted["classes"]
+        assert [name for name in contracted_classes if name in baseline_classes] == baseline_classes
+        assert all(name.startswith("oat-") for name in contracted_classes if name not in baseline_classes)
         assert contracted["owner"] in phase1["owners"]
         assert contracted["compatibility"] == "required"
 

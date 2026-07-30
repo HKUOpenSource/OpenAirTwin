@@ -163,7 +163,7 @@ export function createRadarControls(context) {
     dom.radarTargetCount.textContent = `${radar.targets.length} / ${RADAR_MAX_TARGETS}`;
     if (!radar.targets.length) {
       const empty = document.createElement("p");
-      empty.className = "radarEmptyState";
+      empty.className = "radarEmptyState oat-empty-state";
       empty.textContent = "No targets added. Choose a drone model above, then select Add Target.";
       dom.radarTargetList.append(empty);
       return;
@@ -171,7 +171,7 @@ export function createRadarControls(context) {
     for (const target of radar.targets) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = `radarTargetCard${target.id === radar.selectedTargetId ? " selected" : ""}`;
+      button.className = `radarTargetCard oat-list-card oat-list-card--interactive${target.id === radar.selectedTargetId ? " selected" : ""}`;
       button.dataset.targetId = target.id;
       button.setAttribute("role", "option");
       button.setAttribute("aria-selected", String(target.id === radar.selectedTargetId));

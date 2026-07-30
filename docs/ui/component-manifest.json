@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "phase": 2,
+  "cssOwner": "backend/static/css/components.css",
+  "catalog": "tools/ui-catalog/index.html",
+  "components": [
+    {
+      "name": "Panel",
+      "classes": ["oat-panel", "oat-panel__header", "oat-panel__title"],
+      "variants": ["default"],
+      "states": ["hidden"]
+    },
+    {
+      "name": "Button",
+      "classes": ["oat-button", "oat-button-group"],
+      "variants": ["default", "primary", "compact", "icon", "danger", "block", "toolbar"],
+      "states": ["hover", "focus-visible", "active", "pressed", "disabled", "busy"]
+    },
+    {
+      "name": "Field",
+      "classes": ["oat-field", "oat-input"],
+      "variants": ["default", "compact"],
+      "states": ["hover", "focus-visible", "disabled", "invalid", "read-only"]
+    },
+    {
+      "name": "Checkbox",
+      "classes": ["oat-check"],
+      "variants": ["default"],
+      "states": ["checked", "focus-visible", "disabled"]
+    },
+    {
+      "name": "Badge",
+      "classes": ["oat-badge"],
+      "variants": ["neutral", "success", "warning", "error", "busy"],
+      "states": ["default"]
+    },
+    {
+      "name": "MetricGrid",
+      "classes": ["oat-metric-grid"],
+      "variants": ["default"],
+      "states": ["default"]
+    },
+    {
+      "name": "ListCard",
+      "classes": ["oat-list-card"],
+      "variants": ["default", "interactive"],
+      "states": ["hover", "focus-visible", "selected"]
+    },
+    {
+      "name": "EmptyState",
+      "classes": ["oat-empty-state"],
+      "variants": ["default"],
+      "states": ["empty"]
+    },
+    {
+      "name": "ScrollRegion",
+      "classes": ["oat-scroll-region"],
+      "variants": ["default"],
+      "states": ["overflow"]
+    },
+    {
+      "name": "Icon",
+      "classes": ["oat-icon"],
+      "variants": ["xs", "sm", "md", "base", "lg", "xl", "2xl"],
+      "states": ["decorative", "named-control"]
+    }
+  ],
+  "legacyAliases": [
+    {"class": "btn", "replacement": "oat-button", "removeAfterOwnerPhase": 7},
+    {"class": "miniBtn", "replacement": "oat-button oat-button--compact", "removeAfterOwnerPhase": 7},
+    {"class": "miniSelect", "replacement": "oat-input oat-input--compact", "removeAfterOwnerPhase": 6},
+    {"class": "danger", "replacement": "oat-button--danger", "removeAfterOwnerPhase": 7}
+  ],
+  "internalCompatibilityClasses": [
+    {
+      "class": "oat-button--legacy-native-font",
+      "purpose": "Preserve the Phase 0 platform-control typography of newly classified miniBtn instances.",
+      "removeAfterOwnerPhase": 7
+    }
+  ]
+}

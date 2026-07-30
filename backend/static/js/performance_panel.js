@@ -97,7 +97,7 @@ function populatePerformanceControls(manifest) {
     }
 
     const row = document.createElement("label");
-    row.className = "categoryItem";
+    row.className = "categoryItem oat-check oat-list-card";
     row.dataset.category = category.name;
 
     const input = document.createElement("input");

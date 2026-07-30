@@ -108,6 +108,22 @@ Command-style DOM and runtime inline styles are a closed allowlist documented in
 [`ui/imperative-ui-exceptions.md`](ui/imperative-ui-exceptions.md). Framework
 and component-library decisions are recorded under `docs/adr/`.
 
+Phase 2 adds the machine-readable
+[`ui/component-manifest.json`](ui/component-manifest.json), the icon rules in
+[`ui/icon-contracts.md`](ui/icon-contracts.md), and the temporary Alias policy in
+[`ui/legacy-aliases.md`](ui/legacy-aliases.md). New UI must use the public
+`oat-*` classes and appear in the native component catalog before it is used by
+a Feature. Start the development-only catalog separately; the production Python
+server intentionally does not expose it:
+
+```bash
+.venv/bin/python tools/serve_ui_catalog.py
+```
+
+Then open `http://127.0.0.1:8091/ui-catalog/`. The Playwright configuration
+starts this catalog automatically and verifies its public variants, states,
+accessible names, and contract-only test Feature.
+
 When the existing DOM intentionally changes, regenerate the Phase 1 contract
 with the real browser and review the diff; never edit the generated JSON by
 hand:

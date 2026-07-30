@@ -23,6 +23,55 @@ function assertPhase0Baseline(filename, actual) {
   expect(actual).toEqual(JSON.parse(readFileSync(url, "utf8")));
 }
 
+function assertPhase0DomBaseline(actual) {
+  const filename = "phase-0-dom-contract.json";
+  const url = phase0BaselineUrl(filename);
+  if (UPDATE_PHASE0_BASELINE) {
+    assertPhase0Baseline(filename, actual);
+    return;
+  }
+  const expected = JSON.parse(readFileSync(url, "utf8"));
+  const normalized = {
+    ...actual,
+    elements: actual.elements.map((element, index) => {
+      const baseline = expected.elements[index];
+      expect(element.id).toBe(baseline.id);
+      const addedClasses = element.classes.filter((className) => !baseline.classes.includes(className));
+      expect(addedClasses.every((className) => className.startsWith("oat-"))).toBe(true);
+      return {...element, classes: element.classes.filter((className) => baseline.classes.includes(className))};
+    }),
+  };
+  expect(normalized).toEqual(expected);
+}
+
+function assertPhase0NetworkBaseline(actual) {
+  const filename = "phase-0-network-contract.json";
+  if (UPDATE_PHASE0_BASELINE) {
+    assertPhase0Baseline(filename, actual);
+    return;
+  }
+  const expected = JSON.parse(readFileSync(phase0BaselineUrl(filename), "utf8"));
+  const stableFields = (records) => records.map(({contentLength: _contentLength, ...record}) => record);
+  expect(actual.every(({contentLength}) => contentLength > 0)).toBe(true);
+  expect(stableFields(actual)).toEqual(stableFields(expected));
+}
+
+function assertPhase0ComputedStyleBaseline(actual) {
+  const filename = "phase-0-computed-styles.json";
+  if (UPDATE_PHASE0_BASELINE) {
+    assertPhase0Baseline(filename, actual);
+    return;
+  }
+  const expected = JSON.parse(readFileSync(phase0BaselineUrl(filename), "utf8"));
+  const addedTokens = Object.keys(actual.tokens).filter((name) => !(name in expected.tokens));
+  expect(addedTokens.every((name) => name.startsWith("--oat-"))).toBe(true);
+  const normalized = {
+    ...actual,
+    tokens: Object.fromEntries(Object.keys(expected.tokens).map((name) => [name, actual.tokens[name]])),
+  };
+  expect(normalized).toEqual(expected);
+}
+
 function writePhase0Observation(filename, actual) {
   if (!UPDATE_PHASE0_BASELINE) return;
   mkdirSync(fileURLToPath(PHASE0_BASELINE_DIRECTORY), {recursive: true});
@@ -591,9 +640,9 @@ test("phase 0 DOM, style, network and resource contracts remain frozen", async (
     };
   });
 
-  assertPhase0Baseline("phase-0-dom-contract.json", domContract);
-  assertPhase0Baseline("phase-0-computed-styles.json", computedStyles);
-  assertPhase0Baseline("phase-0-network-contract.json", networkContract);
+  assertPhase0DomBaseline(domContract);
+  assertPhase0ComputedStyleBaseline(computedStyles);
+  assertPhase0NetworkBaseline(networkContract);
   assertPhase0Baseline("phase-0-resource-contract.json", {
     cycles: 5,
     modes,

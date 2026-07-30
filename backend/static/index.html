@@ -94,7 +94,7 @@
               <div class="sectionTitle">Mobility Timeline</div>
               <div class="channelAnalysisMiniTitle" id="mobilityStepLabel">Step --</div>
             </div>
-            <select id="mobilityMetric" class="miniSelect" aria-label="Mobility metric">
+            <select id="mobilityMetric" class="miniSelect oat-input oat-input--compact" aria-label="Mobility metric">
               <option value="received_power_db">Path Gain</option>
               <option value="valid_paths">Paths</option>
               <option value="max_abs_doppler_hz">Doppler</option>
@@ -103,9 +103,9 @@
           </div>
           <svg id="mobilitySeriesChart" class="tapChart mobilityChart" viewBox="0 0 420 172" role="img" aria-label="Mobility time series chart"></svg>
           <div class="mobilityPlayback">
-            <button class="miniBtn" id="btnMobilityPlay" type="button">Play</button>
+            <button class="miniBtn oat-button oat-button--compact oat-button--legacy-native-font" id="btnMobilityPlay" type="button">Play</button>
             <input id="mobilityStepSlider" type="range" min="0" max="0" step="1" value="0" aria-label="Mobility step" />
-            <select id="mobilityPlaybackSpeed" class="miniSelect" aria-label="Mobility playback speed">
+            <select id="mobilityPlaybackSpeed" class="miniSelect oat-input oat-input--compact" aria-label="Mobility playback speed">
               <option value="0.5">0.5x</option>
               <option value="1" selected>1x</option>
               <option value="2">2x</option>
@@ -490,8 +490,8 @@
             <summary class="paramGroupSummary">Rx Trajectory</summary>
             <div class="paramGroupBody">
               <div class="trajectoryActions">
-              <button class="miniBtn" id="btnMobilityAddRxPoint" type="button">Add Current Rx</button>
-              <button class="miniBtn" id="btnMobilityClearPoints" type="button">Clear</button>
+              <button class="miniBtn oat-button oat-button--compact oat-button--legacy-native-font" id="btnMobilityAddRxPoint" type="button">Add Current Rx</button>
+              <button class="miniBtn oat-button oat-button--compact oat-button--legacy-native-font" id="btnMobilityClearPoints" type="button">Clear</button>
             </div>
             <div id="mobilityWaypointList" class="waypointList"></div>
             <div class="paramGrid">
@@ -986,8 +986,8 @@
           <div class="categoryHead">
             <span>Category Visibility</span>
             <div class="categoryActions">
-              <button class="miniBtn" id="btnShowAllCategories" type="button">Show All</button>
-              <button class="miniBtn" id="btnHideHeavyCategories" type="button">Hide Heavy</button>
+              <button class="miniBtn oat-button oat-button--compact oat-button--legacy-native-font" id="btnShowAllCategories" type="button">Show All</button>
+              <button class="miniBtn oat-button oat-button--compact oat-button--legacy-native-font" id="btnHideHeavyCategories" type="button">Hide Heavy</button>
             </div>
           </div>
           <div id="categoryVisibility" class="categoryVisibility"></div>

@@ -44,7 +44,7 @@ function pathClassificationLabel(classification) {
 function buttonRow({title, meta, detail, selected, className = "", data = {}}) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `radarResultRow oat-list-card ${className}${selected ? " selected" : ""}`;
+  button.className = `radarResultRow oat-list-card oat-list-card--interactive ${className}${selected ? " selected" : ""}`;
   Object.entries(data).forEach(([key, value]) => { button.dataset[key] = value; });
   const heading = document.createElement("span");
   heading.className = "radarResultRowHead";
@@ -161,7 +161,7 @@ export function createRadarResultView({state, ui, dom, renderAll, focusTarget}) 
     if (!detections.length) {
       dom.radarDetectionCount.textContent = "0";
       dom.radarDetectionMore.classList.add("hidden");
-      const empty = document.createElement("p"); empty.className = "radarEmptyState"; empty.textContent = "No detections passed the CA-CFAR threshold."; dom.radarDetectionList.append(empty); return;
+      const empty = document.createElement("p"); empty.className = "radarEmptyState oat-empty-state"; empty.textContent = "No detections passed the CA-CFAR threshold."; dom.radarDetectionList.append(empty); return;
     }
     const targets = detections.filter((item) => item.classification === "target" || item.target_id);
     const clutter = detections.filter((item) => item.classification !== "target" && !item.target_id);
@@ -183,7 +183,7 @@ export function createRadarResultView({state, ui, dom, renderAll, focusTarget}) 
   function renderTruth(result) {
     dom.radarTruthList.replaceChildren();
     if (!result.targets.length) {
-      const empty = document.createElement("p"); empty.className = "radarEmptyState"; empty.textContent = "No targets were configured for this solve."; dom.radarTruthList.append(empty); return;
+      const empty = document.createElement("p"); empty.className = "radarEmptyState oat-empty-state"; empty.textContent = "No targets were configured for this solve."; dom.radarTruthList.append(empty); return;
     }
     result.targets.forEach((target) => dom.radarTruthList.append(buttonRow({
       title: radarTargetDisplayName(target.id), meta: radarAssetDisplayName(radar.assets, target.asset_id),
@@ -196,7 +196,7 @@ export function createRadarResultView({state, ui, dom, renderAll, focusTarget}) 
     dom.radarPathList.replaceChildren();
     if (!result.paths.length) {
       dom.radarPathCount.textContent = "0";
-      const empty = document.createElement("p"); empty.className = "radarEmptyState"; empty.textContent = "No propagation paths returned."; dom.radarPathList.append(empty); return;
+      const empty = document.createElement("p"); empty.className = "radarEmptyState oat-empty-state"; empty.textContent = "No propagation paths returned."; dom.radarPathList.append(empty); return;
     }
     const entries = visiblePathEntries(radar, result);
     dom.radarPathCount.textContent = `${entries.length} / ${result.summary.returned_path_count}${result.summary.paths_truncated ? "+" : ""}`;

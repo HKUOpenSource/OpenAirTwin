@@ -442,7 +442,9 @@
       "order": 37,
       "tag": "select",
       "classes": [
-        "miniSelect"
+        "miniSelect",
+        "oat-input",
+        "oat-input--compact"
       ],
       "attributes": {
         "aria-label": "Mobility metric"
@@ -478,7 +480,10 @@
       "order": 39,
       "tag": "button",
       "classes": [
-        "miniBtn"
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact",
+        "oat-button--legacy-native-font"
       ],
       "attributes": {
         "type": "button"
@@ -523,7 +528,9 @@
       "order": 41,
       "tag": "select",
       "classes": [
-        "miniSelect"
+        "miniSelect",
+        "oat-input",
+        "oat-input--compact"
       ],
       "attributes": {
         "aria-label": "Mobility playback speed"
@@ -2445,7 +2452,10 @@
       "order": 159,
       "tag": "button",
       "classes": [
-        "miniBtn"
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact",
+        "oat-button--legacy-native-font"
       ],
       "attributes": {
         "title": "Place Mobility Rx before adding a waypoint.",
@@ -2467,7 +2477,10 @@
       "order": 160,
       "tag": "button",
       "classes": [
-        "miniBtn"
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact",
+        "oat-button--legacy-native-font"
       ],
       "attributes": {
         "type": "button"
@@ -3944,6 +3957,7 @@
         "oat-button",
         "oat-button--compact",
         "oat-button--primary",
+        "oat-button--block",
         "radarAssetAddButton"
       ],
       "attributes": {
@@ -3968,6 +3982,7 @@
         "miniBtn",
         "oat-button",
         "oat-button--compact",
+        "oat-button--toolbar",
         "hidden"
       ],
       "attributes": {
@@ -3991,7 +4006,8 @@
       "classes": [
         "miniBtn",
         "oat-button",
-        "oat-button--compact"
+        "oat-button--compact",
+        "oat-button--toolbar"
       ],
       "attributes": {
         "type": "button"
@@ -4016,6 +4032,7 @@
         "danger",
         "oat-button",
         "oat-button--compact",
+        "oat-button--toolbar",
         "oat-button--danger"
       ],
       "attributes": {
@@ -6592,7 +6609,10 @@
       "order": 360,
       "tag": "button",
       "classes": [
-        "miniBtn"
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact",
+        "oat-button--legacy-native-font"
       ],
       "attributes": {
         "type": "button"
@@ -6613,7 +6633,10 @@
       "order": 361,
       "tag": "button",
       "classes": [
-        "miniBtn"
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact",
+        "oat-button--legacy-native-font"
       ],
       "attributes": {
         "type": "button"

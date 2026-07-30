@@ -5,6 +5,8 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
 const pythonCommand = process.env.OAT_TEST_PYTHON ?? (process.platform === "win32" ? "python" : "python3");
 const serverPort = process.env.OAT_PORT ?? "8090";
 const baseURL = `http://127.0.0.1:${serverPort}`;
+const catalogPort = process.env.OAT_UI_CATALOG_PORT ?? "8091";
+const catalogURL = `http://127.0.0.1:${catalogPort}`;
 
 export default defineConfig({
   testDir: ".",
@@ -27,11 +29,20 @@ export default defineConfig({
       ],
     },
   },
-  webServer: {
-    command: `${pythonCommand} -m backend.server`,
-    cwd: "../..",
-    url: `${baseURL}/api/health`,
-    timeout: 60_000,
-    reuseExistingServer: true,
-  },
+  webServer: [
+    {
+      command: `${pythonCommand} -m backend.server`,
+      cwd: "../..",
+      url: `${baseURL}/api/health`,
+      timeout: 60_000,
+      reuseExistingServer: true,
+    },
+    {
+      command: `${pythonCommand} tools/serve_ui_catalog.py --port ${catalogPort}`,
+      cwd: "../..",
+      url: `${catalogURL}/ui-catalog/`,
+      timeout: 30_000,
+      reuseExistingServer: true,
+    },
+  ],
 });

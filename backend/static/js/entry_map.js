@@ -150,7 +150,7 @@ function renderEntryPlaceResults(results) {
   results.forEach((result, index) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "entryPlaceResult" + (state.entry.search.selectedIndex === index ? " active" : "");
+    button.className = "entryPlaceResult oat-list-card oat-list-card--interactive" + (state.entry.search.selectedIndex === index ? " active" : "");
 
     const title = document.createElement("b");
     title.textContent = placeResultTitle(result);

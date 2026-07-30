@@ -94,7 +94,7 @@ export function createTileSelectionView({state, ui, getViewer, syncEntryOverview
     const sortedTiles = [...manifest.tiles].sort((left, right) => compareTileIds(left.id, right.id));
     for (const tile of sortedTiles) {
       const wrapper = document.createElement("label");
-      wrapper.className = "tileItem";
+      wrapper.className = "tileItem oat-check oat-list-card";
       wrapper.dataset.tileId = tile.id;
 
       const input = document.createElement("input");

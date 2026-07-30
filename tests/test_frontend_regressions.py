@@ -164,7 +164,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertTrue(important_uses[0].lstrip().startswith(".hidden"))
         components = read_static_css("components.css")
         for selector in (
-            ".oat-panel", ".oat-button", ".oat-field", ".oat-input", ".oat-check",
+            ".oat-panel", ":where(.oat-button:not(.oat-button--compact),.btn)", ".oat-field", ".oat-input", ".oat-check",
             ".oat-badge", ".oat-metric-grid", ".oat-list-card", ".oat-scroll-region",
         ):
             css_rule_body(components, selector)
@@ -698,7 +698,7 @@ class FrontendRegressionTests(unittest.TestCase):
         viewport_css = css_rule_body(css_source, ".radarAssetPreviewViewport")
         nav_css = css_rule_body(css_source, ".radarAssetNav")
         count_css = css_rule_body(css_source, ".radarAssetPreviewCount")
-        add_button_css = css_rule_body(css_source, ".radarAssetAddButton")
+        add_button_css = css_rule_body(css_source, ".oat-button--compact.oat-button--primary.oat-button--block")
 
         self.assertIn("padding:0", picker_css)
         self.assertIn("border:0", picker_css)
@@ -792,7 +792,7 @@ class FrontendRegressionTests(unittest.TestCase):
         controls_source = read_static_js("features/radar/controls.js")
         css_source = read_app_css()
         action_layout_css = css_rule_body(css_source, ".radarEditorActions")
-        action_button_css = css_rule_body(css_source, ".radarEditorActions .miniBtn")
+        action_button_css = css_rule_body(css_source, ".oat-button--toolbar")
         picking_css = css_rule_body(css_source, ".radarEditorActions #btnPickRadarTarget.picking")
 
         self.assertIn("display:grid", action_layout_css)
@@ -803,7 +803,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("background:var(--oat-", picking_css)
         self.assertIn("color:var(--oat-", picking_css)
         self.assertIn('content:"Picking in 3D"', css_rule_body(css_source, ".radarEditorActions #btnPickRadarTarget.picking::after"))
-        danger_css = css_rule_body(css_source, ".radarEditorActions .miniBtn.danger")
+        danger_css = css_rule_body(css_source, ".oat-button--toolbar.oat-button--danger")
         self.assertIn("border-color:var(--oat-", danger_css)
         self.assertIn("background:var(--oat-", danger_css)
         add_button_position = radar_source.index('id="btnAddRadarTarget"')
@@ -812,6 +812,8 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertLess(add_button_position, actions_position)
         self.assertLess(actions_position, target_list_position)
         self.assertIn('role="group" aria-label="Selected target actions"', radar_source)
+        self.assertEqual(radar_source.count("oat-button--toolbar"), 3)
+        self.assertIn("oat-button--block radarAssetAddButton", radar_source)
         self.assertIn(
             "No targets added. Choose a drone model above, then select Add Target.",
             controls_source,
@@ -1132,7 +1134,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('ui.pathSelectionSection.classList.add("hidden");', source)
         self.assertIn('ui.pathSelectionSection.classList.remove("hidden");', source)
         self.assertIn('allButton.textContent = "Show all paths";', source)
-        self.assertIn('row.className = "pathRow" + (selectedIndex === index ? " active" : "");', source)
+        self.assertIn('row.className = "pathRow oat-list-card oat-list-card--interactive" + (selectedIndex === index ? " active" : "");', source)
         self.assertIn('scrollSelectedPathRowIntoView();', source)
         self.assertNotIn('All display paths are shown in the viewer.', source)
         self.assertNotIn('function renderAllPathsDetail', source)
