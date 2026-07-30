@@ -1,0 +1,6862 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "tests/browser/feature_modes.spec.js",
+  "baseline": "tests/browser/baselines/phase-0-dom-contract.json",
+  "policy": {
+    "compatibilityValues": [
+      "required",
+      "deprecated",
+      "internal"
+    ],
+    "requiredMeaning": "ID, semantic element, control order and behavior remain compatible until a reviewed versioned contract changes them."
+  },
+  "document": {
+    "lang": "zh-CN",
+    "title": "OpenAirTwin"
+  },
+  "owners": [
+    "feature:deepmimo",
+    "feature:link",
+    "feature:mobility",
+    "feature:radar",
+    "feature:radiomap",
+    "shell:device-dock",
+    "shell:entry-map",
+    "shell:feature-registry",
+    "shell:overlay",
+    "shell:performance",
+    "shell:result-dock",
+    "shell:solver-controls",
+    "shell:viewer",
+    "shell:workbench"
+  ],
+  "elements": [
+    {
+      "id": "view",
+      "order": 0,
+      "tag": "canvas",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:viewer",
+      "compatibility": "required"
+    },
+    {
+      "id": "paramTooltipLayer",
+      "order": 1,
+      "tag": "div",
+      "classes": [
+        "paramTooltipLayer",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true",
+        "role": "tooltip"
+      },
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "paramTooltipText",
+      "order": 2,
+      "tag": "div",
+      "classes": [
+        "paramTooltipText"
+      ],
+      "attributes": {},
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkChannelSection",
+      "order": 3,
+      "tag": "div",
+      "classes": [
+        "channelAnalysisDock",
+        "oat-panel",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "shell:result-dock",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnResultDockToggle",
+      "order": 4,
+      "tag": "button",
+      "classes": [
+        "channelAnalysisHead"
+      ],
+      "attributes": {
+        "aria-controls": "channelAnalysisScroll",
+        "aria-expanded": "true",
+        "aria-label": "Collapse results panel",
+        "type": "button"
+      },
+      "text": "Link Results Path Gains & Taps Idle",
+      "disabled": false,
+      "owner": "shell:result-dock",
+      "compatibility": "required",
+      "interaction": {
+        "command": "results.dock.toggle",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "resultDockTitle",
+      "order": 5,
+      "tag": "span",
+      "classes": [
+        "sectionTitle"
+      ],
+      "attributes": {},
+      "owner": "shell:result-dock",
+      "compatibility": "required"
+    },
+    {
+      "id": "resultDockSubtitle",
+      "order": 6,
+      "tag": "span",
+      "classes": [
+        "channelAnalysisSubtitle"
+      ],
+      "attributes": {},
+      "owner": "shell:result-dock",
+      "compatibility": "required"
+    },
+    {
+      "id": "livePreviewStatus",
+      "order": 7,
+      "tag": "span",
+      "classes": [
+        "livePreviewStatus",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-live": "polite"
+      },
+      "owner": "shell:solver-controls",
+      "compatibility": "required"
+    },
+    {
+      "id": "channelAnalysisScroll",
+      "order": 8,
+      "tag": "div",
+      "classes": [
+        "channelAnalysisScroll",
+        "oat-scroll-region"
+      ],
+      "attributes": {
+        "aria-hidden": "false"
+      },
+      "owner": "shell:result-dock",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkResult",
+      "order": 9,
+      "tag": "div",
+      "classes": [
+        "linkResultSummary"
+      ],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkPower",
+      "order": 10,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkBest",
+      "order": 11,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkPaths",
+      "order": 12,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkLos",
+      "order": 13,
+      "tag": "span",
+      "classes": [
+        "pill",
+        "no",
+        "oat-badge"
+      ],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityResult",
+      "order": 14,
+      "tag": "div",
+      "classes": [
+        "linkResultSummary"
+      ],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilitySteps",
+      "order": 15,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityPowerRange",
+      "order": 16,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityDuration",
+      "order": 17,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityMaxDoppler",
+      "order": 18,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "radiomapResult",
+      "order": 19,
+      "tag": "div",
+      "classes": [
+        "linkResultSummary"
+      ],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmStatus",
+      "order": 20,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmMetric",
+      "order": 21,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmGrid",
+      "order": 22,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmMesh",
+      "order": 23,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "radiomapResolutionSection",
+      "order": 24,
+      "tag": "div",
+      "classes": [
+        "linkDockSection",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmArea",
+      "order": 25,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmCellSizeSummary",
+      "order": 26,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmSamples",
+      "order": 27,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmRange",
+      "order": 28,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmColorbarSection",
+      "order": 29,
+      "tag": "div",
+      "classes": [
+        "linkDockSection",
+        "rmColorbarSection",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmColormapLabel",
+      "order": 30,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmColorbarRange",
+      "order": 31,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmColorbar",
+      "order": 32,
+      "tag": "div",
+      "classes": [
+        "rmColorbar"
+      ],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmColorbarMin",
+      "order": 33,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmColorbarMax",
+      "order": 34,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityTimelineSection",
+      "order": 35,
+      "tag": "div",
+      "classes": [
+        "linkDockSection",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityStepLabel",
+      "order": 36,
+      "tag": "div",
+      "classes": [
+        "channelAnalysisMiniTitle"
+      ],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityMetric",
+      "order": 37,
+      "tag": "select",
+      "classes": [
+        "miniSelect"
+      ],
+      "attributes": {
+        "aria-label": "Mobility metric"
+      },
+      "defaultValue": "received_power_db",
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.timeline.metric.change",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "mobilitySeriesChart",
+      "order": 38,
+      "tag": "svg",
+      "classes": [
+        "tapChart",
+        "mobilityChart"
+      ],
+      "attributes": {
+        "aria-label": "Mobility time series chart",
+        "role": "img"
+      },
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnMobilityPlay",
+      "order": 39,
+      "tag": "button",
+      "classes": [
+        "miniBtn"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Play",
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.playback.toggle",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "mobilityStepSlider",
+      "order": 40,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "aria-label": "Mobility step",
+        "max": "0",
+        "min": "0",
+        "step": "1",
+        "type": "range"
+      },
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.timeline.seek",
+        "events": [
+          "input"
+        ]
+      }
+    },
+    {
+      "id": "mobilityPlaybackSpeed",
+      "order": 41,
+      "tag": "select",
+      "classes": [
+        "miniSelect"
+      ],
+      "attributes": {
+        "aria-label": "Mobility playback speed"
+      },
+      "defaultValue": "1",
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.playback.speed.change",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "pathSelectionSection",
+      "order": 42,
+      "tag": "div",
+      "classes": [
+        "linkDockSection",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "pathSelectionMeta",
+      "order": 43,
+      "tag": "div",
+      "classes": [
+        "pathSelectionMeta",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "pathSelectionCount",
+      "order": 44,
+      "tag": "div",
+      "classes": [
+        "channelAnalysisMiniTitle",
+        "pathSelectionCount"
+      ],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "pathButtons",
+      "order": 45,
+      "tag": "div",
+      "classes": [
+        "pathList",
+        "oat-scroll-region"
+      ],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "pathDetailSection",
+      "order": 46,
+      "tag": "div",
+      "classes": [
+        "linkDockSection",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "pathDetailTitle",
+      "order": 47,
+      "tag": "div",
+      "classes": [
+        "sectionTitle"
+      ],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "pathDetailList",
+      "order": 48,
+      "tag": "div",
+      "classes": [
+        "pathDetailList"
+      ],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkTapAnalysisSection",
+      "order": 49,
+      "tag": "div",
+      "classes": [
+        "linkDockSection",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkTapTotalPower",
+      "order": 50,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkTapPeak",
+      "order": 51,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkCirCoeffCount",
+      "order": 52,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkCirStrongest",
+      "order": 53,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkTapChart",
+      "order": 54,
+      "tag": "svg",
+      "classes": [
+        "tapChart"
+      ],
+      "attributes": {
+        "aria-label": "Power delay profile chart: x-axis Tap Index, y-axis Power in dB",
+        "role": "img"
+      },
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarResultSections",
+      "order": 55,
+      "tag": "div",
+      "classes": [
+        "radarResultSections",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarResult",
+      "order": 56,
+      "tag": "div",
+      "classes": [
+        "linkResultSummary",
+        "radarResultSummary"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarDetectionMetric",
+      "order": 57,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarPathMetric",
+      "order": 58,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarSnrMetric",
+      "order": 59,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarNoiseMetric",
+      "order": 60,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarRangeDopplerSection",
+      "order": 61,
+      "tag": "section",
+      "classes": [
+        "linkDockSection",
+        "radarChartSection"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarRdMeta",
+      "order": 62,
+      "tag": "div",
+      "classes": [
+        "channelAnalysisMiniTitle"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarRdTruncated",
+      "order": 63,
+      "tag": "span",
+      "classes": [
+        "radarSummaryBadge",
+        "oat-badge",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarRdRaw",
+      "order": 64,
+      "tag": "button",
+      "classes": [
+        "active"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Raw",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.processing.select",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "radarRdMean",
+      "order": 65,
+      "tag": "button",
+      "classes": [],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Mean-subtracted",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.processing.select",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "radarRdIdeal",
+      "order": 66,
+      "tag": "button",
+      "classes": [],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Ideal Clutter-cancelled",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.processing.select",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "radarRdProcessingHint",
+      "order": 67,
+      "tag": "p",
+      "classes": [
+        "radarProcessingHint"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarRdFocus",
+      "order": 68,
+      "tag": "button",
+      "classes": [
+        "active"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Target Detail",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.rangeDoppler.scope.select",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "radarRdFull",
+      "order": 69,
+      "tag": "button",
+      "classes": [],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Scene Overview",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.rangeDoppler.scope.select",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "radarRdHover",
+      "order": 70,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarPlotLegend",
+      "order": 71,
+      "tag": "div",
+      "classes": [
+        "radarPlotLegend"
+      ],
+      "attributes": {
+        "aria-label": "Range Doppler legend"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarRangeDopplerCanvas",
+      "order": 72,
+      "tag": "canvas",
+      "classes": [
+        "radarChart"
+      ],
+      "attributes": {
+        "aria-label": "Range Doppler heatmap"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarChartCrosshair",
+      "order": 73,
+      "tag": "div",
+      "classes": [
+        "radarChartCrosshair",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarChartTooltip",
+      "order": 74,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarRangeProfileCanvas",
+      "order": 75,
+      "tag": "canvas",
+      "classes": [
+        "radarChart",
+        "radarProfileChart"
+      ],
+      "attributes": {
+        "aria-label": "Range profile"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarDetectionSection",
+      "order": 76,
+      "tag": "section",
+      "classes": [
+        "linkDockSection"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarDetectionCount",
+      "order": 77,
+      "tag": "span",
+      "classes": [
+        "radarSummaryBadge",
+        "oat-badge"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarDetectionFilter",
+      "order": 78,
+      "tag": "select",
+      "classes": [],
+      "attributes": {
+        "aria-label": "Detection filter"
+      },
+      "defaultValue": "all",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.detections.filter",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarDetectionMore",
+      "order": 79,
+      "tag": "button",
+      "classes": [
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact",
+        "hidden"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Show all",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.detections.toggleAll",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "radarDetectionList",
+      "order": 80,
+      "tag": "div",
+      "classes": [
+        "radarResultList",
+        "radarDetectionList",
+        "oat-scroll-region"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarTruthSection",
+      "order": 81,
+      "tag": "section",
+      "classes": [
+        "linkDockSection"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarTruthList",
+      "order": 82,
+      "tag": "div",
+      "classes": [
+        "radarResultList",
+        "oat-scroll-region"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarPathSection",
+      "order": 83,
+      "tag": "section",
+      "classes": [
+        "linkDockSection"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarPathCount",
+      "order": 84,
+      "tag": "span",
+      "classes": [
+        "radarSummaryBadge",
+        "oat-badge"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarPathDisplayMode",
+      "order": 85,
+      "tag": "select",
+      "classes": [],
+      "attributes": {
+        "aria-label": "3D path display"
+      },
+      "defaultValue": "key",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.paths.displayMode.change",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarPathDisplayHint",
+      "order": 86,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarPathList",
+      "order": 87,
+      "tag": "div",
+      "classes": [
+        "radarResultList",
+        "radarPathList",
+        "oat-scroll-region"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "deepMimoDatasetTray",
+      "order": 88,
+      "tag": "div",
+      "classes": [
+        "deepMimoDatasetTray",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "feature:deepmimo",
+      "compatibility": "required"
+    },
+    {
+      "id": "deepMimoDatasetToggle",
+      "order": 89,
+      "tag": "button",
+      "classes": [
+        "deepMimoDatasetToggle"
+      ],
+      "attributes": {
+        "aria-controls": "deepMimoDatasetPanel",
+        "aria-expanded": "false",
+        "title": "DeepMIMO datasets",
+        "type": "button"
+      },
+      "text": "Datasets 0",
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.datasets.toggle",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoDatasetCount",
+      "order": 90,
+      "tag": "span",
+      "classes": [
+        "deepMimoDatasetCount"
+      ],
+      "attributes": {
+        "aria-live": "polite"
+      },
+      "owner": "feature:deepmimo",
+      "compatibility": "required"
+    },
+    {
+      "id": "deepMimoDatasetPanel",
+      "order": 91,
+      "tag": "div",
+      "classes": [
+        "deepMimoDatasetPanel",
+        "oat-panel",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "feature:deepmimo",
+      "compatibility": "required"
+    },
+    {
+      "id": "deepMimoDatasetList",
+      "order": 92,
+      "tag": "div",
+      "classes": [
+        "deepMimoDatasetList",
+        "oat-scroll-region"
+      ],
+      "attributes": {},
+      "owner": "feature:deepmimo",
+      "compatibility": "required"
+    },
+    {
+      "id": "loadingScreen",
+      "order": 93,
+      "tag": "div",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "loadingTitle",
+      "order": 94,
+      "tag": "div",
+      "classes": [
+        "loadingTitle"
+      ],
+      "attributes": {},
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "barWrap",
+      "order": 95,
+      "tag": "div",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "bar",
+      "order": 96,
+      "tag": "div",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "loadingPhase",
+      "order": 97,
+      "tag": "div",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnLoadingCancel",
+      "order": 98,
+      "tag": "button",
+      "classes": [
+        "btn",
+        "oat-button",
+        "loadingCancelBtn",
+        "hidden"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Cancel",
+      "disabled": false,
+      "owner": "shell:overlay",
+      "compatibility": "required",
+      "interaction": {
+        "command": "loading.cancel",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "appDialog",
+      "order": 99,
+      "tag": "div",
+      "classes": [
+        "appDialog",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "appDialogCard",
+      "order": 100,
+      "tag": "section",
+      "classes": [
+        "appDialogCard",
+        "oat-panel"
+      ],
+      "attributes": {
+        "aria-describedby": "appDialogMessage",
+        "aria-labelledby": "appDialogTitle",
+        "aria-modal": "true",
+        "role": "alertdialog",
+        "tabindex": "-1"
+      },
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "appDialogClose",
+      "order": 101,
+      "tag": "button",
+      "classes": [
+        "appDialogClose"
+      ],
+      "attributes": {
+        "aria-label": "Close dialog",
+        "type": "button"
+      },
+      "text": "",
+      "disabled": false,
+      "owner": "shell:overlay",
+      "compatibility": "required",
+      "interaction": {
+        "command": "dialog.dismiss",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "appDialogTitle",
+      "order": 102,
+      "tag": "h2",
+      "classes": [
+        "appDialogTitle"
+      ],
+      "attributes": {},
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "appDialogMessage",
+      "order": 103,
+      "tag": "p",
+      "classes": [
+        "appDialogMessage"
+      ],
+      "attributes": {},
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "appDialogDetail",
+      "order": 104,
+      "tag": "pre",
+      "classes": [
+        "appDialogDetail",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "shell:overlay",
+      "compatibility": "required"
+    },
+    {
+      "id": "appDialogSecondary",
+      "order": 105,
+      "tag": "button",
+      "classes": [
+        "btn",
+        "oat-button",
+        "appDialogSecondary",
+        "hidden"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Cancel",
+      "disabled": false,
+      "owner": "shell:overlay",
+      "compatibility": "required",
+      "interaction": {
+        "command": "dialog.secondary.cancel",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "appDialogPrimary",
+      "order": 106,
+      "tag": "button",
+      "classes": [
+        "btn",
+        "primary",
+        "oat-button",
+        "oat-button--primary",
+        "appDialogPrimary"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "OK",
+      "disabled": false,
+      "owner": "shell:overlay",
+      "compatibility": "required",
+      "interaction": {
+        "command": "dialog.primary.confirm",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "entryScreen",
+      "order": 107,
+      "tag": "div",
+      "classes": [
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnEntrySidebarToggle",
+      "order": 108,
+      "tag": "button",
+      "classes": [
+        "entrySidebarToggle"
+      ],
+      "attributes": {
+        "aria-expanded": "true",
+        "aria-label": "Collapse search sidebar",
+        "type": "button"
+      },
+      "text": "",
+      "disabled": false,
+      "owner": "shell:entry-map",
+      "compatibility": "required",
+      "interaction": {
+        "command": "entry.sidebar.toggle",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "entrySidebar",
+      "order": 109,
+      "tag": "section",
+      "classes": [
+        "entryIntro",
+        "oat-panel"
+      ],
+      "attributes": {},
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "entryPlaceInput",
+      "order": 110,
+      "tag": "input",
+      "classes": [
+        "entryManualInput",
+        "oat-input"
+      ],
+      "attributes": {
+        "autocomplete": "off",
+        "placeholder": "e.g. HKU, Pok Fu Lam, Central",
+        "type": "text"
+      },
+      "labels": [
+        "Place Search"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:entry-map",
+      "compatibility": "required",
+      "interaction": {
+        "command": "entry.search.submit",
+        "events": [
+          "keydown:Enter"
+        ]
+      }
+    },
+    {
+      "id": "btnEntrySearch",
+      "order": 111,
+      "tag": "button",
+      "classes": [
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Search",
+      "disabled": false,
+      "owner": "shell:entry-map",
+      "compatibility": "required",
+      "interaction": {
+        "command": "entry.search.submit",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "entrySearchHint",
+      "order": 112,
+      "tag": "div",
+      "classes": [
+        "entryManualHint"
+      ],
+      "attributes": {},
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "entryPlaceResults",
+      "order": 113,
+      "tag": "div",
+      "classes": [
+        "entryPlaceResults"
+      ],
+      "attributes": {
+        "aria-live": "polite"
+      },
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "entryMapTitle",
+      "order": 114,
+      "tag": "div",
+      "classes": [
+        "entryMapTitle"
+      ],
+      "attributes": {},
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnEntryFitMap",
+      "order": 115,
+      "tag": "button",
+      "classes": [
+        "entryIconBtn"
+      ],
+      "attributes": {
+        "aria-label": "Fit map",
+        "title": "Fit map",
+        "type": "button"
+      },
+      "text": "⌂",
+      "disabled": false,
+      "owner": "shell:entry-map",
+      "compatibility": "required",
+      "interaction": {
+        "command": "entry.map.fit",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnEntryFocusSelection",
+      "order": 116,
+      "tag": "button",
+      "classes": [
+        "entryIconBtn"
+      ],
+      "attributes": {
+        "aria-label": "Focus selected tiles",
+        "title": "Focus selected tiles",
+        "type": "button"
+      },
+      "text": "◎",
+      "disabled": true,
+      "owner": "shell:entry-map",
+      "compatibility": "required",
+      "interaction": {
+        "command": "entry.map.focusSelection",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnEntryZoomIn",
+      "order": 117,
+      "tag": "button",
+      "classes": [
+        "entryIconBtn"
+      ],
+      "attributes": {
+        "aria-label": "Zoom in",
+        "title": "Zoom into the OSM basemap and tile grid.",
+        "type": "button"
+      },
+      "text": "+",
+      "disabled": false,
+      "owner": "shell:entry-map",
+      "compatibility": "required",
+      "interaction": {
+        "command": "entry.map.zoomIn",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnEntryZoomOut",
+      "order": 118,
+      "tag": "button",
+      "classes": [
+        "entryIconBtn"
+      ],
+      "attributes": {
+        "aria-label": "Zoom out",
+        "title": "Zoom out from the OSM basemap and tile grid.",
+        "type": "button"
+      },
+      "text": "−",
+      "disabled": false,
+      "owner": "shell:entry-map",
+      "compatibility": "required",
+      "interaction": {
+        "command": "entry.map.zoomOut",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "entryMapViewport",
+      "order": 119,
+      "tag": "div",
+      "classes": [
+        "entryMapViewport"
+      ],
+      "attributes": {},
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "entryMapFigure",
+      "order": 120,
+      "tag": "div",
+      "classes": [
+        "entryMapFigure"
+      ],
+      "attributes": {},
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "entryMapScene",
+      "order": 121,
+      "tag": "div",
+      "classes": [
+        "entryMapScene",
+        "leaflet-container",
+        "leaflet-touch",
+        "leaflet-fade-anim",
+        "leaflet-grab",
+        "leaflet-touch-drag",
+        "leaflet-touch-zoom"
+      ],
+      "attributes": {
+        "tabindex": "0"
+      },
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "entryMapTooltip",
+      "order": 122,
+      "tag": "div",
+      "classes": [
+        "entryMapTooltip",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "entryMapBadgeValue",
+      "order": 123,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "entryMapBadgeDetail",
+      "order": 124,
+      "tag": "small",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnEnterScene",
+      "order": 125,
+      "tag": "button",
+      "classes": [
+        "btn",
+        "primary",
+        "oat-button",
+        "oat-button--primary",
+        "entryFooterBtn"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Load Selected Tiles",
+      "disabled": true,
+      "owner": "shell:entry-map",
+      "compatibility": "required",
+      "interaction": {
+        "command": "entry.scene.enter",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnEntryReturnScene",
+      "order": 126,
+      "tag": "button",
+      "classes": [
+        "quickIconBtn"
+      ],
+      "attributes": {
+        "aria-label": "Return to 3D",
+        "title": "Return to 3D",
+        "type": "button"
+      },
+      "text": "",
+      "disabled": true,
+      "owner": "shell:entry-map",
+      "compatibility": "required",
+      "interaction": {
+        "command": "entry.scene.return",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "panelToggle",
+      "order": 127,
+      "tag": "button",
+      "classes": [
+        "hidden"
+      ],
+      "attributes": {
+        "aria-expanded": "true",
+        "aria-label": "Collapse control sidebar",
+        "type": "button"
+      },
+      "text": "",
+      "disabled": false,
+      "owner": "shell:feature-registry",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.controls.toggle",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "ui",
+      "order": 128,
+      "tag": "div",
+      "classes": [
+        "oat-panel"
+      ],
+      "attributes": {
+        "aria-hidden": "false"
+      },
+      "owner": "shell:feature-registry",
+      "compatibility": "required"
+    },
+    {
+      "id": "uiBody",
+      "order": 129,
+      "tag": "div",
+      "classes": [
+        "oat-scroll-region"
+      ],
+      "attributes": {},
+      "owner": "shell:feature-registry",
+      "compatibility": "required"
+    },
+    {
+      "id": "modeSelector",
+      "order": 130,
+      "tag": "details",
+      "classes": [
+        "paramGroup",
+        "modeSelector"
+      ],
+      "attributes": {},
+      "open": false,
+      "owner": "shell:feature-registry",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.modeMenu.toggle",
+        "events": [
+          "toggle"
+        ]
+      }
+    },
+    {
+      "id": "modeSelectButton",
+      "order": 131,
+      "tag": "summary",
+      "classes": [
+        "paramGroupSummary",
+        "modeSelectButton"
+      ],
+      "attributes": {
+        "aria-controls": "modeMenu",
+        "aria-expanded": "false",
+        "aria-haspopup": "listbox"
+      },
+      "text": "Mode (Link Analysis)",
+      "owner": "shell:feature-registry",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.modeMenu.toggle",
+        "events": [
+          "click",
+          "keydown"
+        ]
+      }
+    },
+    {
+      "id": "modeSelectTitle",
+      "order": 132,
+      "tag": "span",
+      "classes": [
+        "modeSelectTitle"
+      ],
+      "attributes": {},
+      "owner": "shell:feature-registry",
+      "compatibility": "required"
+    },
+    {
+      "id": "modeMenu",
+      "order": 133,
+      "tag": "div",
+      "classes": [
+        "modeMenu"
+      ],
+      "attributes": {
+        "aria-label": "Analysis mode",
+        "role": "listbox"
+      },
+      "owner": "shell:feature-registry",
+      "compatibility": "required"
+    },
+    {
+      "id": "tabLink",
+      "order": 134,
+      "tag": "button",
+      "classes": [
+        "modeMenuItem",
+        "active"
+      ],
+      "attributes": {
+        "aria-selected": "true",
+        "data-mode": "link",
+        "role": "option",
+        "type": "button"
+      },
+      "text": "Link Analysis",
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.feature.activate",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "tabMobility",
+      "order": 135,
+      "tag": "button",
+      "classes": [
+        "modeMenuItem"
+      ],
+      "attributes": {
+        "aria-selected": "false",
+        "data-mode": "mobility",
+        "role": "option",
+        "type": "button"
+      },
+      "text": "Mobility Analysis",
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.feature.activate",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "tabRadiomap",
+      "order": 136,
+      "tag": "button",
+      "classes": [
+        "modeMenuItem"
+      ],
+      "attributes": {
+        "aria-selected": "false",
+        "data-mode": "radiomap",
+        "role": "option",
+        "type": "button"
+      },
+      "text": "Radio Map",
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.feature.activate",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "tabDeepMimo",
+      "order": 137,
+      "tag": "button",
+      "classes": [
+        "modeMenuItem"
+      ],
+      "attributes": {
+        "aria-selected": "false",
+        "data-mode": "deepmimo",
+        "role": "option",
+        "type": "button"
+      },
+      "text": "DeepMIMO",
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.feature.activate",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "tabRadar",
+      "order": 138,
+      "tag": "button",
+      "classes": [
+        "modeMenuItem"
+      ],
+      "attributes": {
+        "aria-selected": "false",
+        "data-mode": "radar",
+        "role": "option",
+        "type": "button"
+      },
+      "text": "Radar Sensing",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.feature.activate",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "featureModeMenuAnchor",
+      "order": 139,
+      "tag": "template",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:feature-registry",
+      "compatibility": "required"
+    },
+    {
+      "id": "tileSummary",
+      "order": 140,
+      "tag": "div",
+      "classes": [
+        "tileSummary",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "tileList",
+      "order": 141,
+      "tag": "div",
+      "classes": [
+        "tileList",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "shell:entry-map",
+      "compatibility": "required"
+    },
+    {
+      "id": "cfgFrequency",
+      "order": 142,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Carrier Frequency iRF carrier used by the ray tracer. Default 3.5 GHz; changing it alters wavelength/material response with little effect on ray count. GHz"
+      ],
+      "defaultValue": "3.5",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkBandwidthMhz",
+      "order": 143,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "min": "0.001",
+        "step": "0.01",
+        "type": "number"
+      },
+      "labels": [
+        "Bandwidth iOccupied channel bandwidth for CIR/tap sampling. Default 15.36 MHz; wider bandwidth gives finer delay resolution. MHz"
+      ],
+      "defaultValue": "15.36",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkTapFftSize",
+      "order": 144,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "min": "16",
+        "step": "16",
+        "type": "number"
+      },
+      "labels": [
+        "OFDM Carriers iNumber of OFDM frequency bins used for CIR/tap output. Default 512; larger values increase channel post-processing cost."
+      ],
+      "defaultValue": "512",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkSubcarrierSpacingKhz",
+      "order": 145,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "number"
+      },
+      "labels": [
+        "Subcarrier Spacing iDerived as bandwidth divided by OFDM carriers. Default 30 kHz; sent to the backend as Hz for CIR/taps. kHz"
+      ],
+      "defaultValue": "30.00",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkTapSubcarrierSpacing",
+      "order": 146,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "hidden"
+      },
+      "defaultValue": "30000",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.syncDerived",
+        "events": [
+          "internal"
+        ]
+      }
+    },
+    {
+      "id": "txArrayPattern",
+      "order": 147,
+      "tag": "select",
+      "classes": [],
+      "attributes": {},
+      "labels": [
+        "Tx Pattern iSionna antenna pattern used for transmitters. Options come from the backend Sionna registry. iso"
+      ],
+      "defaultValue": "iso",
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "txArrayPolarization",
+      "order": 148,
+      "tag": "select",
+      "classes": [],
+      "attributes": {},
+      "labels": [
+        "Tx Polarization iTransmit antenna polarization. Options come from the backend Sionna registry. V"
+      ],
+      "defaultValue": "V",
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "txArrayRows",
+      "order": 149,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "16",
+        "min": "1",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Tx Rows iNumber of vertical elements in the transmit PlanarArray. Backend caps the total array size."
+      ],
+      "defaultValue": "1",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "txArrayCols",
+      "order": 150,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "16",
+        "min": "1",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Tx Cols iNumber of horizontal elements in the transmit PlanarArray. Backend caps the total array size."
+      ],
+      "defaultValue": "1",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "txArrayVerticalSpacing",
+      "order": 151,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "10",
+        "min": "0.01",
+        "step": "0.01",
+        "type": "number"
+      },
+      "labels": [
+        "Tx V Spacing iVertical element spacing relative to the carrier wavelength. Default 0.5. lambda"
+      ],
+      "defaultValue": "0.5",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "txArrayHorizontalSpacing",
+      "order": 152,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "10",
+        "min": "0.01",
+        "step": "0.01",
+        "type": "number"
+      },
+      "labels": [
+        "Tx H Spacing iHorizontal element spacing relative to the carrier wavelength. Default 0.5. lambda"
+      ],
+      "defaultValue": "0.5",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rxArrayPattern",
+      "order": 153,
+      "tag": "select",
+      "classes": [],
+      "attributes": {},
+      "labels": [
+        "Rx Pattern iSionna antenna pattern used for link receivers. Options come from the backend Sionna registry. iso"
+      ],
+      "defaultValue": "iso",
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rxArrayPolarization",
+      "order": 154,
+      "tag": "select",
+      "classes": [],
+      "attributes": {},
+      "labels": [
+        "Rx Polarization iReceiver antenna polarization for link solves. Radio maps only use the Tx array. V"
+      ],
+      "defaultValue": "V",
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rxArrayRows",
+      "order": 155,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "16",
+        "min": "1",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Rx Rows iNumber of vertical elements in the receiver PlanarArray."
+      ],
+      "defaultValue": "1",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rxArrayCols",
+      "order": 156,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "16",
+        "min": "1",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Rx Cols iNumber of horizontal elements in the receiver PlanarArray."
+      ],
+      "defaultValue": "1",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rxArrayVerticalSpacing",
+      "order": 157,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "10",
+        "min": "0.01",
+        "step": "0.01",
+        "type": "number"
+      },
+      "labels": [
+        "Rx V Spacing iVertical receiver element spacing relative to the carrier wavelength. Default 0.5. lambda"
+      ],
+      "defaultValue": "0.5",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rxArrayHorizontalSpacing",
+      "order": 158,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "10",
+        "min": "0.01",
+        "step": "0.01",
+        "type": "number"
+      },
+      "labels": [
+        "Rx H Spacing iHorizontal receiver element spacing relative to the carrier wavelength. Default 0.5. lambda"
+      ],
+      "defaultValue": "0.5",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "btnMobilityAddRxPoint",
+      "order": 159,
+      "tag": "button",
+      "classes": [
+        "miniBtn"
+      ],
+      "attributes": {
+        "title": "Place Mobility Rx before adding a waypoint.",
+        "type": "button"
+      },
+      "text": "Add Current Rx",
+      "disabled": true,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.waypoint.addCurrentRx",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnMobilityClearPoints",
+      "order": 160,
+      "tag": "button",
+      "classes": [
+        "miniBtn"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Clear",
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.waypoint.clear",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "mobilityWaypointList",
+      "order": 161,
+      "tag": "div",
+      "classes": [
+        "waypointList"
+      ],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityVelocity",
+      "order": 162,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "30",
+        "min": "0.1",
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Velocity m/s"
+      ],
+      "defaultValue": "1.5",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "mobilityTimeStep",
+      "order": 163,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "10",
+        "min": "0.1",
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Time Step s"
+      ],
+      "defaultValue": "1.0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "mobilityMaxSteps",
+      "order": 164,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "10000",
+        "min": "2",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Max Steps steps"
+      ],
+      "defaultValue": "1000",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "mobilityEstimate",
+      "order": 165,
+      "tag": "div",
+      "classes": [
+        "mobilityEstimate"
+      ],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkSamplesPerSrc",
+      "order": 166,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "1000000",
+        "min": "1",
+        "step": "1000",
+        "type": "number"
+      },
+      "labels": [
+        "Samples / Source iMonte Carlo rays per transmitter. Default 30000; higher values reduce noise but scale runtime directly."
+      ],
+      "defaultValue": "30000",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmSamplesPerTx",
+      "order": 167,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "2000000",
+        "min": "1",
+        "step": "1000",
+        "type": "number"
+      },
+      "labels": [
+        "Samples / Tx iBase Monte Carlo samples per transmitter for Radio Map. Effective samples scale with the terrain patch subdivision."
+      ],
+      "defaultValue": "1000000",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkMaxNumPaths",
+      "order": 168,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "1000000",
+        "min": "1",
+        "step": "1000",
+        "type": "number"
+      },
+      "labels": [
+        "Max Paths / Source iUpper bound on retained paths per transmitter. Default 1000000; lowering it protects memory in dense scenes."
+      ],
+      "defaultValue": "1000000",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "cfgMaxDepth",
+      "order": 169,
+      "tag": "select",
+      "classes": [],
+      "attributes": {},
+      "labels": [
+        "Max Depth iMaximum interaction depth for paths. Default 4; each extra depth can multiply search cost. 2 3 4 5 6"
+      ],
+      "defaultValue": "4",
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "cfgSeed",
+      "order": 170,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "min": "0",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Seed iRandom seed for repeatable sampling. Default 42; change it to test solver variance."
+      ],
+      "defaultValue": "42",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkSyntheticArray",
+      "order": 171,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Synthetic Array iUses a synthetic antenna array approximation. Default off; can reduce geometric work for array studies."
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "cfgLos",
+      "order": 172,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "LoS iDirect transmitter-to-receiver paths. Default on; low extra cost and important as a reference component."
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "cfgSpecular",
+      "order": 173,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Specular iMirror-like reflections from surfaces. Default on; cost grows with max depth and samples per source."
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "cfgDiffuse",
+      "order": 174,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Diffuse iScattered reflection energy from rough surfaces. Default off; can add variance and solver time."
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "cfgRefraction",
+      "order": 175,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Refraction iTransmission through materials. Default on; useful around glass and indoor boundaries."
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkDiffraction",
+      "order": 176,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Diffraction iBending around wedges and edges. Default off; improves NLoS modeling but increases PathSolver work."
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkEdgeDiffraction",
+      "order": 177,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Edge Diffraction iExplicit edge interaction search for diffracted paths. Default off; enable only when edge effects matter."
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkDiffractionLitRegion",
+      "order": 178,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Diffraction Lit Region iIncludes lit-region diffraction contributions. Default off; can add paths near shadow boundaries."
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkComputeTaps",
+      "order": 179,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Compute Channel Impulse Response (CIR) iRequests compact channel-tap summaries after path solving. Default off; enables the right-side Power Delay Profile section."
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkTapLMin",
+      "order": 180,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Tap l_min iFirst discrete tap index to report. Default 0; keep the range tight for fast channel post-processing."
+      ],
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": true,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkTapLMax",
+      "order": 181,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Tap l_max iLast discrete tap index to report. Default 100; larger ranges increase response size and work."
+      ],
+      "defaultValue": "100",
+      "defaultChecked": false,
+      "disabled": true,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "livePreviewEnabled",
+      "order": 182,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Enable Live Preview iRuns low-cost previews while moving devices, then a final solve after movement stops. Default off to protect shared GPU time."
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "livePreviewLinkSamples",
+      "order": 183,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "1000000",
+        "min": "1",
+        "step": "100",
+        "type": "number"
+      },
+      "labels": [
+        "Preview Samples / Source iLow-sample path solve used while dragging Link Tx/Rx."
+      ],
+      "defaultValue": "1000",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "livePreviewPathsDelay",
+      "order": 184,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "10",
+        "min": "0",
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Paths Delay iMinimum seconds between path previews and idle delay before the final solve. s"
+      ],
+      "defaultValue": "0.8",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "shell:solver-controls",
+      "compatibility": "required",
+      "interaction": {
+        "command": "solver.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmSizeX",
+      "order": 185,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Patch Size X iRadio-map width in scene meters. Default 160 m; larger patches increase cell count. m"
+      ],
+      "defaultValue": "160.0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmSizeY",
+      "order": 186,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Patch Size Y iRadio-map depth in scene meters. Default 160 m; larger patches increase solve time. m"
+      ],
+      "defaultValue": "160.0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmHeightOffset",
+      "order": 187,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Height Offset iSampling height above terrain. Default 1.5 m; useful for receiver-height studies. m"
+      ],
+      "defaultValue": "1.5",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmCellSize",
+      "order": 188,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "100",
+        "min": "0.01",
+        "placeholder": "Auto",
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Cell Size iOptional XY grid size in meters. Generates a terrain-following measurement grid; leave blank for Auto Density Level. m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmDensityLevel",
+      "order": 189,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "3",
+        "min": "1",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Density Level iAuto resolution fallback from 1 to 3. Ignored when Cell Size is set."
+      ],
+      "defaultValue": "2",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmColormap",
+      "order": 190,
+      "tag": "select",
+      "classes": [],
+      "attributes": {},
+      "labels": [
+        "Colormap iDisplay color scale for the radio-map overlay and result colorbar. viridis plasma turbo jet"
+      ],
+      "defaultValue": "jet",
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmColorMin",
+      "order": 191,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Color Min iLower display bound for radio-map coloring. Default -140 dB; display-only, no solver cost. dB"
+      ],
+      "defaultValue": "-140",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmColorMax",
+      "order": 192,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Color Max iUpper display bound for radio-map coloring. Default -80 dB; display-only, no solver cost. dB"
+      ],
+      "defaultValue": "-80",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoScenarioName",
+      "order": 193,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "text"
+      },
+      "labels": [
+        "Scenario Name iDataset folder/name used in the DeepMIMO export. Unsafe path characters are sanitized before packaging."
+      ],
+      "defaultValue": "hku_deepmimo_roi",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoRoiCenterX",
+      "order": 194,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "ROI Center X iROI rectangle center X coordinate in the local scene frame. Updated when you draw or edit the ROI. m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoRoiCenterY",
+      "order": 195,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "ROI Center Y iROI rectangle center Y coordinate in the local scene frame. Updated when you draw or edit the ROI. m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoRoiWidth",
+      "order": 196,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "min": "0.25",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "ROI Width iRectangle span along local X. Larger areas create more receiver candidates and longer exports. m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoRoiLength",
+      "order": 197,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "min": "0.25",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "ROI Length iRectangle span along local Y. Larger areas create more receiver candidates and longer exports. m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoGridSpacing",
+      "order": 198,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "100",
+        "min": "0.25",
+        "step": "0.5",
+        "type": "number"
+      },
+      "labels": [
+        "Rx Spacing iDistance between generated receiver grid points. Smaller spacing creates denser datasets and higher runtime. m"
+      ],
+      "defaultValue": "2.0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoRxHeight",
+      "order": 199,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "100",
+        "min": "0",
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Rx Height iReceiver height above the sampled terrain surface. The ROI footprint controls XY only. m"
+      ],
+      "defaultValue": "1.5",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoMaxReceivers",
+      "order": 200,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "200000",
+        "min": "1",
+        "step": "1000",
+        "type": "number"
+      },
+      "labels": [
+        "Max Receivers iSafety cap for generated receiver candidates. Increase only when the Rx Candidates count is intentional."
+      ],
+      "defaultValue": "30000",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoChunkSize",
+      "order": 201,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "8192",
+        "min": "1",
+        "step": "256",
+        "type": "number"
+      },
+      "labels": [
+        "Chunk Size iReceivers traced per worker batch. Larger chunks reduce overhead but use more memory."
+      ],
+      "defaultValue": "1024",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoSamplesPerSrc",
+      "order": 202,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "1000000",
+        "min": "1",
+        "step": "1000",
+        "type": "number"
+      },
+      "labels": [
+        "Samples / Source iMonte Carlo rays per transmitter for each chunk. Higher values reduce noise and scale runtime."
+      ],
+      "defaultValue": "30000",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoMaxPaths",
+      "order": 203,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "1000000",
+        "min": "1",
+        "step": "1000",
+        "type": "number"
+      },
+      "labels": [
+        "Max Paths / Source iUpper bound on paths retained per solve. Higher values may preserve more multipath but use more memory."
+      ],
+      "defaultValue": "1000000",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoRxCandidates",
+      "order": 204,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "aria-readonly": "true",
+        "tabindex": "-1",
+        "type": "text"
+      },
+      "labels": [
+        "Rx Candidates iRead-only estimate of receiver grid points before building filtering."
+      ],
+      "defaultValue": "--",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoFilterBuildings",
+      "order": 205,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Filter building footprints iDrops receiver candidates inside building footprint boxes before terrain projection."
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "featureParameterAnchor",
+      "order": 206,
+      "tag": "template",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:feature-registry",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkPanel",
+      "order": 207,
+      "tag": "section",
+      "classes": [
+        "modePanel"
+      ],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityPanel",
+      "order": 208,
+      "tag": "section",
+      "classes": [
+        "modePanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "radiomapPanel",
+      "order": 209,
+      "tag": "section",
+      "classes": [
+        "modePanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "deepmimoPanel",
+      "order": 210,
+      "tag": "section",
+      "classes": [
+        "modePanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:deepmimo",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarPanel",
+      "order": 211,
+      "tag": "section",
+      "classes": [
+        "modePanel",
+        "radarOnlyParams",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-label": "Radar sensing configuration"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarJobBar",
+      "order": 212,
+      "tag": "div",
+      "classes": [
+        "radarJobBar",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarJobStatus",
+      "order": 213,
+      "tag": "span",
+      "classes": [
+        "radarStatusPill",
+        "status-idle"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarJobMessage",
+      "order": 214,
+      "tag": "strong",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarJobProgress",
+      "order": 215,
+      "tag": "progress",
+      "classes": [],
+      "attributes": {
+        "aria-label": "Radar task progress",
+        "max": "1"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnCancelRadar",
+      "order": 216,
+      "tag": "button",
+      "classes": [
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact",
+        "hidden"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Cancel",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.job.cancel",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnRetryRadar",
+      "order": 217,
+      "tag": "button",
+      "classes": [
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact",
+        "hidden"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Retry",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.job.retry",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "radarGeometryGroup",
+      "order": 218,
+      "tag": "details",
+      "classes": [
+        "paramGroup",
+        "radarGroup"
+      ],
+      "attributes": {},
+      "open": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.group.toggle",
+        "events": [
+          "toggle"
+        ]
+      }
+    },
+    {
+      "id": "radarModeMonostatic",
+      "order": 219,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "name": "radarMode",
+        "type": "radio"
+      },
+      "labels": [
+        "Monostatic"
+      ],
+      "defaultValue": "monostatic",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarModeBistatic",
+      "order": 220,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "name": "radarMode",
+        "type": "radio"
+      },
+      "labels": [
+        "Bistatic"
+      ],
+      "defaultValue": "bistatic",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarModeHint",
+      "order": 221,
+      "tag": "p",
+      "classes": [
+        "radarHint"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarTargetsGroup",
+      "order": 222,
+      "tag": "details",
+      "classes": [
+        "paramGroup",
+        "radarGroup"
+      ],
+      "attributes": {},
+      "open": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.group.toggle",
+        "events": [
+          "toggle"
+        ]
+      }
+    },
+    {
+      "id": "radarTargetCount",
+      "order": 223,
+      "tag": "span",
+      "classes": [
+        "radarSummaryBadge",
+        "oat-badge"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarAssetPicker",
+      "order": 224,
+      "tag": "div",
+      "classes": [
+        "radarAssetPicker"
+      ],
+      "attributes": {
+        "aria-label": "New target model"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarAssetPreviewCanvas",
+      "order": 225,
+      "tag": "canvas",
+      "classes": [
+        "radarAssetPreviewCanvas"
+      ],
+      "attributes": {
+        "aria-label": "Drone model preview unavailable",
+        "role": "img"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarAssetPreviewStatus",
+      "order": 226,
+      "tag": "div",
+      "classes": [
+        "radarAssetPreviewStatus"
+      ],
+      "attributes": {
+        "role": "status"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnRadarAssetPrevious",
+      "order": 227,
+      "tag": "button",
+      "classes": [
+        "radarAssetNav",
+        "previous"
+      ],
+      "attributes": {
+        "aria-label": "Previous drone model",
+        "type": "button"
+      },
+      "text": "",
+      "disabled": true,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.asset.previous",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnRadarAssetNext",
+      "order": 228,
+      "tag": "button",
+      "classes": [
+        "radarAssetNav",
+        "next"
+      ],
+      "attributes": {
+        "aria-label": "Next drone model",
+        "type": "button"
+      },
+      "text": "",
+      "disabled": true,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.asset.next",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "radarAssetPreviewName",
+      "order": 229,
+      "tag": "strong",
+      "classes": [],
+      "attributes": {
+        "aria-live": "polite"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarAssetPreviewCount",
+      "order": 230,
+      "tag": "span",
+      "classes": [
+        "radarAssetPreviewCount"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnAddRadarTarget",
+      "order": 231,
+      "tag": "button",
+      "classes": [
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact",
+        "oat-button--primary",
+        "radarAssetAddButton"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Add Target",
+      "disabled": true,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.target.add",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnPickRadarTarget",
+      "order": 232,
+      "tag": "button",
+      "classes": [
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact",
+        "hidden"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Pick in 3D",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.target.pick",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnFocusRadarTarget",
+      "order": 233,
+      "tag": "button",
+      "classes": [
+        "miniBtn",
+        "oat-button",
+        "oat-button--compact"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Focus Target",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.target.focus",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnRemoveRadarTarget",
+      "order": 234,
+      "tag": "button",
+      "classes": [
+        "miniBtn",
+        "danger",
+        "oat-button",
+        "oat-button--compact",
+        "oat-button--danger"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Remove Target",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.target.remove",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "radarAssetPickerHint",
+      "order": 235,
+      "tag": "p",
+      "classes": [
+        "radarAssetPickerHint"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarTargetList",
+      "order": 236,
+      "tag": "div",
+      "classes": [
+        "radarTargetList",
+        "oat-scroll-region"
+      ],
+      "attributes": {
+        "aria-label": "Radar targets",
+        "role": "listbox"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarTargetEditor",
+      "order": 237,
+      "tag": "div",
+      "classes": [
+        "radarTargetEditor"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarEditorTitle",
+      "order": 238,
+      "tag": "strong",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarEditorAssetName",
+      "order": 239,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarTargetAsset",
+      "order": 240,
+      "tag": "select",
+      "classes": [],
+      "attributes": {},
+      "labels": [
+        "Drone Model"
+      ],
+      "defaultValue": "",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTargetX",
+      "order": 241,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "X m"
+      ],
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTargetY",
+      "order": 242,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Y m"
+      ],
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTargetZ",
+      "order": 243,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Z m"
+      ],
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTargetRoll",
+      "order": 244,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Roll °"
+      ],
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTargetPitch",
+      "order": 245,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Pitch °"
+      ],
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTargetYaw",
+      "order": 246,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "aria-readonly": "true",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "YawiAutomatically follows the X–Y motion direction. °"
+      ],
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTargetSpeed",
+      "order": 247,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "500",
+        "min": "0",
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Speed m/s"
+      ],
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTargetDirection",
+      "order": 248,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "360",
+        "min": "-180",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Direction °"
+      ],
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTargetClimb",
+      "order": 249,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "90",
+        "min": "-90",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Climb °"
+      ],
+      "defaultValue": "0",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarVelocityVectorPreview",
+      "order": 250,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarTargetRcs",
+      "order": 251,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "1000000",
+        "min": "0.000001",
+        "step": "0.001",
+        "type": "number"
+      },
+      "labels": [
+        "Effective RCSiEffective radar cross section used to scale the target echo power. m²"
+      ],
+      "defaultValue": "0.01",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarWaveformGroup",
+      "order": 252,
+      "tag": "details",
+      "classes": [
+        "paramGroup",
+        "radarGroup"
+      ],
+      "attributes": {},
+      "open": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.group.toggle",
+        "events": [
+          "toggle"
+        ]
+      }
+    },
+    {
+      "id": "radarCarrierFrequency",
+      "order": 253,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "300",
+        "min": "0.1",
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Carrier FrequencyiRF carrier used for wavelength, propagation, and Doppler calculations. GHz"
+      ],
+      "defaultValue": "5.8",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarBandwidth",
+      "order": 254,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "min": "0.001",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "BandwidthiOccupied OFDM bandwidth. Wider bandwidth improves equivalent range resolution. MHz"
+      ],
+      "defaultValue": "128",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarNumSubcarriers",
+      "order": 255,
+      "tag": "select",
+      "classes": [],
+      "attributes": {},
+      "labels": [
+        "OFDM SubcarriersiNumber of frequency bins in each OFDM symbol. Together with bandwidth, this sets subcarrier spacing.16326412825651210242048"
+      ],
+      "defaultValue": "1024",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarNumSymbols",
+      "order": 256,
+      "tag": "select",
+      "classes": [],
+      "attributes": {},
+      "labels": [
+        "OFDM SymbolsiNumber of slow-time symbols used for Doppler processing. More symbols improve Doppler resolution and increase processing cost.81632641282565121024"
+      ],
+      "defaultValue": "1024",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTxPower",
+      "order": 257,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "100",
+        "min": "-100",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Tx PoweriTotal transmitted radar power used in the received-power and SNR calculation. dBm"
+      ],
+      "defaultValue": "30",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarNoiseFigure",
+      "order": 258,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "100",
+        "min": "0",
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Noise FigureiReceiver noise figure added to thermal noise when calculating the detection SNR. dB"
+      ],
+      "defaultValue": "7",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarSystemLoss",
+      "order": 259,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "100",
+        "min": "0",
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "System LossiAggregate implementation and hardware loss applied to the received signal. dB"
+      ],
+      "defaultValue": "3",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarNoiseTemperature",
+      "order": 260,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "1000",
+        "min": "1",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Noise TemperatureiSystem noise temperature used to calculate thermal noise power. K"
+      ],
+      "defaultValue": "290",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarDirectPathCancellation",
+      "order": 261,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Cancel known direct Tx–Rx leakageiRemoves the modeled direct transmitter-to-receiver path before OFDM processing so it does not mask weaker target echoes."
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarRangeResolutionPreview",
+      "order": 262,
+      "tag": "b",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarDopplerResolutionPreview",
+      "order": 263,
+      "tag": "b",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarVelocityResolutionPreview",
+      "order": 264,
+      "tag": "b",
+      "classes": [],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarCfarGroup",
+      "order": 265,
+      "tag": "details",
+      "classes": [
+        "paramGroup",
+        "radarGroup"
+      ],
+      "attributes": {},
+      "open": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.group.toggle",
+        "events": [
+          "toggle"
+        ]
+      }
+    },
+    {
+      "id": "radarCfarEnabled",
+      "order": 266,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Enable CA-CFAR detections"
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarCfarGuardRange",
+      "order": 267,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "64",
+        "min": "0",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Range Guard CellsiRange cells excluded around the cell under test so target energy does not bias the noise estimate."
+      ],
+      "defaultValue": "1",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarCfarGuardDoppler",
+      "order": 268,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "64",
+        "min": "0",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Doppler Guard CellsiDoppler cells excluded around the cell under test."
+      ],
+      "defaultValue": "1",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarCfarTrainingRange",
+      "order": 269,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "128",
+        "min": "1",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Range Training CellsiRange cells sampled on each side to estimate the local clutter and noise level."
+      ],
+      "defaultValue": "2",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarCfarTrainingDoppler",
+      "order": 270,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "128",
+        "min": "1",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Doppler Training CellsiDoppler cells sampled on each side to estimate the local clutter and noise level."
+      ],
+      "defaultValue": "4",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarCfarPfa",
+      "order": 271,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "0.1",
+        "min": "1e-12",
+        "step": "1e-8",
+        "type": "number"
+      },
+      "labels": [
+        "False-alarm Probability (Pfa)iDesired probability of false alarm used to derive the CA-CFAR detection threshold."
+      ],
+      "defaultValue": "1e-8",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarPropagationGroup",
+      "order": 272,
+      "tag": "details",
+      "classes": [
+        "paramGroup",
+        "radarGroup"
+      ],
+      "attributes": {},
+      "open": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "workbench.group.toggle",
+        "events": [
+          "toggle"
+        ]
+      }
+    },
+    {
+      "id": "radarSamplesPerSrc",
+      "order": 273,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "1000000",
+        "min": "1",
+        "step": "256",
+        "type": "number"
+      },
+      "labels": [
+        "Samples / SourceiMonte Carlo rays launched per source. Higher values reduce sampling noise and increase runtime."
+      ],
+      "defaultValue": "65536",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarMaxPaths",
+      "order": 274,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "1000000",
+        "min": "1",
+        "step": "256",
+        "type": "number"
+      },
+      "labels": [
+        "Max Paths / SourceiMaximum number of propagation paths retained per source."
+      ],
+      "defaultValue": "4096",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarMaxDepth",
+      "order": 275,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "20",
+        "min": "0",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Max DepthiMaximum number of propagation interactions allowed for each path."
+      ],
+      "defaultValue": "2",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarSeed",
+      "order": 276,
+      "tag": "input",
+      "classes": [
+        "oat-input"
+      ],
+      "attributes": {
+        "max": "2147483647",
+        "min": "0",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "SeediRandom seed for repeatable ray sampling and clutter results."
+      ],
+      "defaultValue": "42",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarLos",
+      "order": 277,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "LoSiIncludes unobstructed propagation paths between Radar devices and scene objects."
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarSpecular",
+      "order": 278,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "SpeculariIncludes mirror-like reflections from scene surfaces."
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarDiffuse",
+      "order": 279,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "DiffuseiIncludes rough-surface scattering used to model environmental clutter."
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarRefraction",
+      "order": 280,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "RefractioniIncludes transmission through supported scene materials."
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarDiffraction",
+      "order": 281,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "DiffractioniIncludes bending around wedges and edges. This can improve NLoS coverage and increase solve time."
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarSyntheticArray",
+      "order": 282,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Synthetic ArrayiUses a synthetic-array approximation for array studies."
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarInputError",
+      "order": 283,
+      "tag": "p",
+      "classes": [
+        "radarInputError",
+        "hidden"
+      ],
+      "attributes": {
+        "role": "alert"
+      },
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "featurePanelAnchor",
+      "order": 284,
+      "tag": "template",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:feature-registry",
+      "compatibility": "required"
+    },
+    {
+      "id": "deviceDock",
+      "order": 285,
+      "tag": "div",
+      "classes": [
+        "deviceDock",
+        "oat-panel",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "shell:device-dock",
+      "compatibility": "required"
+    },
+    {
+      "id": "devicePrecisionPanel",
+      "order": 286,
+      "tag": "div",
+      "classes": [
+        "devicePrecisionPanel",
+        "deviceCompactBar",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "shell:device-dock",
+      "compatibility": "required"
+    },
+    {
+      "id": "devicePrecisionTitle",
+      "order": 287,
+      "tag": "div",
+      "classes": [
+        "devicePrecisionTitle"
+      ],
+      "attributes": {},
+      "owner": "shell:device-dock",
+      "compatibility": "required"
+    },
+    {
+      "id": "hintText",
+      "order": 288,
+      "tag": "div",
+      "classes": [
+        "devicePrecisionStatus"
+      ],
+      "attributes": {
+        "aria-live": "polite"
+      },
+      "owner": "shell:device-dock",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkTxDeviceCard",
+      "order": 289,
+      "tag": "section",
+      "classes": [
+        "deviceCoordPanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkTxX",
+      "order": 290,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "X m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkTxY",
+      "order": 291,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Y m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkTxZ",
+      "order": 292,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Z m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkRxDeviceCard",
+      "order": 293,
+      "tag": "section",
+      "classes": [
+        "deviceCoordPanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkRxX",
+      "order": 294,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "X m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkRxY",
+      "order": 295,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Y m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "linkRxZ",
+      "order": 296,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Z m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "mobilityTxDeviceCard",
+      "order": 297,
+      "tag": "section",
+      "classes": [
+        "deviceCoordPanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityTxX",
+      "order": 298,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "X m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "mobilityTxY",
+      "order": 299,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Y m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "mobilityTxZ",
+      "order": 300,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Z m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "mobilityRxDeviceCard",
+      "order": 301,
+      "tag": "section",
+      "classes": [
+        "deviceCoordPanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:mobility",
+      "compatibility": "required"
+    },
+    {
+      "id": "mobilityRxX",
+      "order": 302,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "X m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "mobilityRxY",
+      "order": 303,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Y m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "mobilityRxZ",
+      "order": 304,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Z m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmTxDeviceCard",
+      "order": 305,
+      "tag": "section",
+      "classes": [
+        "deviceCoordPanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:radiomap",
+      "compatibility": "required"
+    },
+    {
+      "id": "rmTxX",
+      "order": 306,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "X m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmTxY",
+      "order": 307,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Y m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "rmTxZ",
+      "order": 308,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Z m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoTxDeviceCard",
+      "order": 309,
+      "tag": "section",
+      "classes": [
+        "deviceCoordPanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:deepmimo",
+      "compatibility": "required"
+    },
+    {
+      "id": "deepMimoTxX",
+      "order": 310,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "X m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoTxY",
+      "order": 311,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Y m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deepMimoTxZ",
+      "order": 312,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1.0",
+        "type": "number"
+      },
+      "labels": [
+        "Z m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTxDeviceCard",
+      "order": 313,
+      "tag": "section",
+      "classes": [
+        "deviceCoordPanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarTxX",
+      "order": 314,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "X m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTxY",
+      "order": 315,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Y m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarTxZ",
+      "order": 316,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Z m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarRxDeviceCard",
+      "order": 317,
+      "tag": "section",
+      "classes": [
+        "deviceCoordPanel",
+        "hidden"
+      ],
+      "attributes": {},
+      "owner": "feature:radar",
+      "compatibility": "required"
+    },
+    {
+      "id": "radarRxX",
+      "order": 318,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "X m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarRxY",
+      "order": 319,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Y m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "radarRxZ",
+      "order": 320,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "placeholder": "—",
+        "step": "1",
+        "type": "number"
+      },
+      "labels": [
+        "Z m"
+      ],
+      "defaultValue": "",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "featureDeviceCardAnchor",
+      "order": 321,
+      "tag": "template",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:feature-registry",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkSurfaceClearanceField",
+      "order": 322,
+      "tag": "label",
+      "classes": [
+        "deviceClearanceField",
+        "hidden"
+      ],
+      "attributes": {
+        "for": "linkSurfaceClearance"
+      },
+      "owner": "feature:link",
+      "compatibility": "required"
+    },
+    {
+      "id": "linkSurfaceClearance",
+      "order": 323,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "max": "50",
+        "min": "0",
+        "step": "0.1",
+        "type": "number"
+      },
+      "labels": [
+        "Clearance iDistance from the picked surface for the active mode device. Applies to the next click or drag placement only. m"
+      ],
+      "defaultValue": "1.5",
+      "defaultChecked": false,
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.configuration.update",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "deviceActionBar",
+      "order": 324,
+      "tag": "div",
+      "classes": [
+        "deviceActionBar"
+      ],
+      "attributes": {
+        "aria-label": "Device controls",
+        "role": "group"
+      },
+      "owner": "shell:device-dock",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnPickLinkTx",
+      "order": 325,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn"
+      ],
+      "attributes": {
+        "aria-label": "Pick link transmitter",
+        "type": "button"
+      },
+      "text": "Tx",
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.device.pickTx",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnPickLinkRx",
+      "order": 326,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn"
+      ],
+      "attributes": {
+        "aria-label": "Pick link receiver",
+        "type": "button"
+      },
+      "text": "Rx",
+      "disabled": false,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.device.pickRx",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnPickMobilityTx",
+      "order": 327,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-label": "Pick mobility transmitter",
+        "type": "button"
+      },
+      "text": "Tx",
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.device.pickTx",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnPickMobilityRx",
+      "order": 328,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-label": "Pick mobility receiver",
+        "type": "button"
+      },
+      "text": "Rx",
+      "disabled": false,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.device.pickRx",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnPickRmTx",
+      "order": 329,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-label": "Pick radio map transmitter",
+        "type": "button"
+      },
+      "text": "Tx",
+      "disabled": false,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.device.pickTx",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnDeepMimoPickTx",
+      "order": 330,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-label": "Pick DeepMIMO transmitter",
+        "type": "button"
+      },
+      "text": "Tx",
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.device.pickTx",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnDeepMimoPickRoi",
+      "order": 331,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-label": "Draw DeepMIMO ROI",
+        "type": "button"
+      },
+      "text": "Draw ROI",
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.roi.pick",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnDeepMimoClearRoi",
+      "order": 332,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-label": "Clear DeepMIMO ROI",
+        "type": "button"
+      },
+      "text": "Clear ROI",
+      "disabled": false,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.roi.clear",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnOrbitTx",
+      "order": 333,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn"
+      ],
+      "attributes": {
+        "aria-label": "Orbit around transmitter",
+        "aria-pressed": "false",
+        "title": "Place Tx before orbiting.",
+        "type": "button"
+      },
+      "text": "Orbit",
+      "disabled": true,
+      "owner": "shell:device-dock",
+      "compatibility": "required",
+      "interaction": {
+        "command": "viewer.txOrbit.toggle",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnSolveLink",
+      "order": 334,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "solve"
+      ],
+      "attributes": {
+        "title": "Place Link Tx and Rx before solving the link.",
+        "type": "button"
+      },
+      "text": "Solve Link",
+      "disabled": true,
+      "owner": "feature:link",
+      "compatibility": "required",
+      "interaction": {
+        "command": "link.solve.run",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnRunMobility",
+      "order": 335,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "solve",
+        "hidden"
+      ],
+      "attributes": {
+        "title": "Place Mobility Tx before running mobility.",
+        "type": "button"
+      },
+      "text": "Run Mobility",
+      "disabled": true,
+      "owner": "feature:mobility",
+      "compatibility": "required",
+      "interaction": {
+        "command": "mobility.solve.run",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnRunRadiomap",
+      "order": 336,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "solve",
+        "hidden"
+      ],
+      "attributes": {
+        "title": "Place Radio Map Tx before running the radio map.",
+        "type": "button"
+      },
+      "text": "Run Map",
+      "disabled": true,
+      "owner": "feature:radiomap",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radiomap.solve.run",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnRunDeepMimo",
+      "order": 337,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "solve",
+        "hidden"
+      ],
+      "attributes": {
+        "title": "Place DeepMIMO Tx before exporting data.",
+        "type": "button"
+      },
+      "text": "Export Data",
+      "disabled": true,
+      "owner": "feature:deepmimo",
+      "compatibility": "required",
+      "interaction": {
+        "command": "deepmimo.export.run",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnPickRadarTx",
+      "order": 338,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "radarDevicePick",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-label": "Pick radar transmitter",
+        "type": "button"
+      },
+      "text": "Tx",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.device.pickTx",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnPickRadarRx",
+      "order": 339,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "radarDevicePick",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-label": "Pick radar receiver",
+        "type": "button"
+      },
+      "text": "Rx",
+      "disabled": false,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.device.pickRx",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnSolveRadar",
+      "order": 340,
+      "tag": "button",
+      "classes": [
+        "deviceActionBtn",
+        "solve",
+        "radarDeviceRun",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-busy": "false",
+        "title": "Place Radar Tx and Rx before running sensing.",
+        "type": "button"
+      },
+      "text": "Run Radar",
+      "disabled": true,
+      "owner": "feature:radar",
+      "compatibility": "required",
+      "interaction": {
+        "command": "radar.solve.run",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "featureDeviceActionAnchor",
+      "order": 341,
+      "tag": "template",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:feature-registry",
+      "compatibility": "required"
+    },
+    {
+      "id": "sceneQuickBar",
+      "order": 342,
+      "tag": "div",
+      "classes": [
+        "sceneQuickBar",
+        "hidden"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "shell:feature-registry",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnOpenTileIndex",
+      "order": 343,
+      "tag": "button",
+      "classes": [
+        "quickIconBtn"
+      ],
+      "attributes": {
+        "aria-label": "Choose tiles on map",
+        "title": "Choose tiles on map",
+        "type": "button"
+      },
+      "text": "",
+      "disabled": false,
+      "owner": "shell:entry-map",
+      "compatibility": "required",
+      "interaction": {
+        "command": "entry.scene.open",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "performanceDock",
+      "order": 344,
+      "tag": "div",
+      "classes": [
+        "performanceDock",
+        "oat-panel",
+        "hidden",
+        "collapsed"
+      ],
+      "attributes": {
+        "aria-hidden": "true"
+      },
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnPerformanceDockToggle",
+      "order": 345,
+      "tag": "button",
+      "classes": [
+        "performanceDockHead"
+      ],
+      "attributes": {
+        "aria-expanded": "false",
+        "aria-label": "Expand performance panel",
+        "type": "button"
+      },
+      "text": "Performance FPS-- DPR1.00 Load0/0",
+      "disabled": false,
+      "owner": "shell:performance",
+      "compatibility": "required",
+      "interaction": {
+        "command": "performance.dock.toggle",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "perfSummaryFps",
+      "order": 346,
+      "tag": "i",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "perfSummaryDpr",
+      "order": 347,
+      "tag": "i",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "perfSummaryLoaded",
+      "order": 348,
+      "tag": "i",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "perfModeAuto",
+      "order": 349,
+      "tag": "button",
+      "classes": [
+        "perfModeBtn",
+        "active"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Auto",
+      "disabled": false,
+      "owner": "shell:performance",
+      "compatibility": "required",
+      "interaction": {
+        "command": "performance.mode.select",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "perfModeQuality",
+      "order": 350,
+      "tag": "button",
+      "classes": [
+        "perfModeBtn"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Quality",
+      "disabled": false,
+      "owner": "shell:performance",
+      "compatibility": "required",
+      "interaction": {
+        "command": "performance.mode.select",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "perfModeFast",
+      "order": 351,
+      "tag": "button",
+      "classes": [
+        "perfModeBtn"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Fast",
+      "disabled": false,
+      "owner": "shell:performance",
+      "compatibility": "required",
+      "interaction": {
+        "command": "performance.mode.select",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "perfLightMaterials",
+      "order": 352,
+      "tag": "input",
+      "classes": [],
+      "attributes": {
+        "type": "checkbox"
+      },
+      "labels": [
+        "Lightweight materials"
+      ],
+      "defaultValue": "",
+      "defaultChecked": true,
+      "disabled": false,
+      "owner": "shell:performance",
+      "compatibility": "required",
+      "interaction": {
+        "command": "performance.materials.toggle",
+        "events": [
+          "change"
+        ]
+      }
+    },
+    {
+      "id": "perfHud",
+      "order": 353,
+      "tag": "div",
+      "classes": [
+        "perfHud"
+      ],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "perfFps",
+      "order": 354,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "perfDpr",
+      "order": 355,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "perfDrawCalls",
+      "order": 356,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "perfTriangles",
+      "order": 357,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "perfFaces",
+      "order": 358,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "perfLoaded",
+      "order": 359,
+      "tag": "span",
+      "classes": [],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    },
+    {
+      "id": "btnShowAllCategories",
+      "order": 360,
+      "tag": "button",
+      "classes": [
+        "miniBtn"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Show All",
+      "disabled": false,
+      "owner": "shell:performance",
+      "compatibility": "required",
+      "interaction": {
+        "command": "performance.categories.showAll",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "btnHideHeavyCategories",
+      "order": 361,
+      "tag": "button",
+      "classes": [
+        "miniBtn"
+      ],
+      "attributes": {
+        "type": "button"
+      },
+      "text": "Hide Heavy",
+      "disabled": false,
+      "owner": "shell:performance",
+      "compatibility": "required",
+      "interaction": {
+        "command": "performance.categories.hideHeavy",
+        "events": [
+          "click"
+        ]
+      }
+    },
+    {
+      "id": "categoryVisibility",
+      "order": 362,
+      "tag": "div",
+      "classes": [
+        "categoryVisibility"
+      ],
+      "attributes": {},
+      "owner": "shell:performance",
+      "compatibility": "required"
+    }
+  ],
+  "dynamicInteractions": [
+    {
+      "command": "dialog.dismiss",
+      "events": [
+        "click:backdrop",
+        "keydown:Escape"
+      ],
+      "owner": "shell:overlay",
+      "selector": "#appDialog"
+    },
+    {
+      "command": "deepmimo.dataset.cancel",
+      "events": [
+        "click"
+      ],
+      "owner": "feature:deepmimo",
+      "selector": "#deepMimoDatasetList [data-command='cancel']"
+    },
+    {
+      "command": "deepmimo.dataset.download",
+      "events": [
+        "click"
+      ],
+      "owner": "feature:deepmimo",
+      "selector": "#deepMimoDatasetList a[download]"
+    },
+    {
+      "command": "entry.map.panZoom",
+      "events": [
+        "pointer",
+        "wheel",
+        "keyboard"
+      ],
+      "owner": "shell:entry-map",
+      "selector": "#entryMapViewport .leaflet-container"
+    },
+    {
+      "command": "entry.place.select",
+      "events": [
+        "click"
+      ],
+      "owner": "shell:entry-map",
+      "selector": "#entryPlaceResults button"
+    },
+    {
+      "command": "entry.tile.inspect",
+      "events": [
+        "pointerenter",
+        "pointerleave"
+      ],
+      "owner": "shell:entry-map",
+      "selector": "#entryMapScene [data-tile-id]"
+    },
+    {
+      "command": "entry.tile.select",
+      "events": [
+        "click",
+        "keydown"
+      ],
+      "owner": "shell:entry-map",
+      "selector": "#entryMapScene [data-tile-id]"
+    },
+    {
+      "command": "entry.tile.toggle",
+      "events": [
+        "change"
+      ],
+      "owner": "shell:entry-map",
+      "selector": "#tileList input[type='checkbox']"
+    },
+    {
+      "command": "link.path.select",
+      "events": [
+        "click"
+      ],
+      "owner": "feature:link",
+      "selector": "#pathButtons button"
+    },
+    {
+      "command": "mobility.waypoint.addCurrentRx",
+      "events": [
+        "keydown:Enter"
+      ],
+      "owner": "feature:mobility",
+      "selector": "window"
+    },
+    {
+      "command": "mobility.waypoint.deleteSelected",
+      "events": [
+        "keydown:Delete"
+      ],
+      "owner": "feature:mobility",
+      "selector": "window"
+    },
+    {
+      "command": "mobility.timeline.inspect",
+      "events": [
+        "pointermove",
+        "pointerleave"
+      ],
+      "owner": "feature:mobility",
+      "selector": "#mobilitySeriesChart"
+    },
+    {
+      "command": "mobility.waypoint.remove",
+      "events": [
+        "click"
+      ],
+      "owner": "feature:mobility",
+      "selector": "#mobilityWaypointList button"
+    },
+    {
+      "command": "mobility.waypoint.select",
+      "events": [
+        "click"
+      ],
+      "owner": "feature:mobility",
+      "selector": "#mobilityWaypointList .waypointItem"
+    },
+    {
+      "command": "performance.category.toggle",
+      "events": [
+        "change"
+      ],
+      "owner": "shell:performance",
+      "selector": "#categoryVisibility input[type='checkbox']"
+    },
+    {
+      "command": "parameter.tooltip.inspect",
+      "events": [
+        "pointerenter",
+        "pointerleave",
+        "focus",
+        "blur",
+        "keydown:Escape"
+      ],
+      "owner": "shell:overlay",
+      "selector": "[data-tooltip]"
+    },
+    {
+      "command": "radar.chart.inspect",
+      "events": [
+        "pointermove",
+        "pointerleave"
+      ],
+      "owner": "feature:radar",
+      "selector": "#radarRangeDopplerCanvas"
+    },
+    {
+      "command": "radar.detection.select",
+      "events": [
+        "click"
+      ],
+      "owner": "feature:radar",
+      "selector": "#radarDetectionList [data-detection-id]"
+    },
+    {
+      "command": "radar.path.select",
+      "events": [
+        "click"
+      ],
+      "owner": "feature:radar",
+      "selector": "#radarPathList [data-path-index]"
+    },
+    {
+      "command": "radar.rangeDoppler.select",
+      "events": [
+        "click"
+      ],
+      "owner": "feature:radar",
+      "selector": "#radarRangeDopplerCanvas"
+    },
+    {
+      "command": "radar.target.select",
+      "events": [
+        "click"
+      ],
+      "owner": "feature:radar",
+      "selector": "#radarTargetList [data-target-id]"
+    },
+    {
+      "command": "radar.truth.select",
+      "events": [
+        "click"
+      ],
+      "owner": "feature:radar",
+      "selector": "#radarTruthList [data-target-id]"
+    },
+    {
+      "command": "viewer.camera.navigate",
+      "events": [
+        "pointer",
+        "wheel",
+        "keyboard"
+      ],
+      "owner": "shell:viewer",
+      "selector": "#view"
+    },
+    {
+      "command": "viewer.device.pick",
+      "events": [
+        "pointerdown",
+        "pointerup",
+        "keydown:Escape"
+      ],
+      "owner": "shell:viewer",
+      "selector": "#view"
+    },
+    {
+      "command": "workbench.transient.dismiss",
+      "events": [
+        "click:outside",
+        "keydown:Escape"
+      ],
+      "owner": "shell:workbench",
+      "selector": "document"
+    }
+  ]
+}

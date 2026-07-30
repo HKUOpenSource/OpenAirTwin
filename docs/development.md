@@ -99,6 +99,25 @@ supported reference sizes. Do not regenerate these artifacts during component
 or framework work unless the contract change is explicit, reviewed and listed
 in that phase's fidelity evidence.
 
+Phase 1 UI work is contract-first. Before implementing or changing a reusable
+component, read [`ui/component-contracts.md`](ui/component-contracts.md), map
+every user action to a named command in
+[`ui/interaction-contracts.md`](ui/interaction-contracts.md), and preserve the
+browser-generated [`ui/dom-compatibility-contract.json`](ui/dom-compatibility-contract.json).
+Command-style DOM and runtime inline styles are a closed allowlist documented in
+[`ui/imperative-ui-exceptions.md`](ui/imperative-ui-exceptions.md). Framework
+and component-library decisions are recorded under `docs/adr/`.
+
+When the existing DOM intentionally changes, regenerate the Phase 1 contract
+with the real browser and review the diff; never edit the generated JSON by
+hand:
+
+```bash
+cd tests/browser
+OAT_TEST_PYTHON=.venv/bin/python OAT_UPDATE_PHASE1_CONTRACT=1 \
+  npx playwright test feature_modes.spec.js --grep "phase 1 DOM ownership"
+```
+
 ### Backend
 
 Backend Features live under `backend/features/`. A Feature defines its service
@@ -129,19 +148,22 @@ dependencies, picking targets and scene output. Then:
 
 1. Create `backend/static/js/features/<feature-id>/` with state, transport,
    runtime/controller integration and renderer modules.
-2. Render into existing shell anchors without adding CSS-affecting wrapper
+2. Define the Feature View Model and named Commands, then map its UI to the
+   public component contract before writing markup.
+3. Render into existing shell anchors without adding CSS-affecting wrapper
    elements unless the UI change is intentional.
-3. Register picking targets through the shared picking registry.
-4. Render scene output through Feature-owned viewer layers and common
+4. Register picking targets through the shared picking registry.
+5. Render scene output through Feature-owned viewer layers and common
    primitives. Use a custom renderer only when the common primitives are
    insufficient.
-5. Add a backend module under `backend/features/` and declare its service,
+6. Add a backend module under `backend/features/` and declare its service,
    routes and shared resources.
-6. Use the common in-process job manager for ordinary queued work. Use a
+7. Use the common in-process job manager for ordinary queued work. Use a
    dedicated subprocess manager only when process isolation or downloadable
    artifacts require it.
-7. Add the frontend and backend definitions to their catalogs.
-8. Add protocol, lifecycle, isolation and visual regression tests.
+8. Add the frontend and backend definitions to their catalogs.
+9. Add protocol, lifecycle, isolation and visual regression tests, then update
+   the generated DOM/interaction contract.
 
 Do not access a sibling Feature's DOM, state object or viewer layer directly.
 Cross-Feature domain reuse should be exposed as an explicit capability, as

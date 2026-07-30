@@ -3,8 +3,12 @@ import {fileURLToPath} from "node:url";
 
 import {expect, test} from "@playwright/test";
 
+import {buildPhase1DomCompatibilityContract} from "./phase1_contracts.js";
+
 const PHASE0_BASELINE_DIRECTORY = new URL("./baselines/", import.meta.url);
 const UPDATE_PHASE0_BASELINE = process.env.OAT_UPDATE_PHASE0_BASELINE === "1";
+const PHASE1_DOM_CONTRACT = new URL("../../docs/ui/dom-compatibility-contract.json", import.meta.url);
+const UPDATE_PHASE1_CONTRACT = process.env.OAT_UPDATE_PHASE1_CONTRACT === "1";
 
 function phase0BaselineUrl(filename) {
   return new URL(filename, PHASE0_BASELINE_DIRECTORY);
@@ -23,6 +27,14 @@ function writePhase0Observation(filename, actual) {
   if (!UPDATE_PHASE0_BASELINE) return;
   mkdirSync(fileURLToPath(PHASE0_BASELINE_DIRECTORY), {recursive: true});
   writeFileSync(phase0BaselineUrl(filename), `${JSON.stringify(actual, null, 2)}\n`, "utf8");
+}
+
+function assertPhase1DomContract(actual) {
+  if (UPDATE_PHASE1_CONTRACT) {
+    mkdirSync(fileURLToPath(new URL("../../docs/ui/", import.meta.url)), {recursive: true});
+    writeFileSync(PHASE1_DOM_CONTRACT, `${JSON.stringify(actual, null, 2)}\n`, "utf8");
+  }
+  expect(actual).toEqual(JSON.parse(readFileSync(PHASE1_DOM_CONTRACT, "utf8")));
 }
 
 const RT_CAPABILITIES = {
@@ -595,6 +607,18 @@ test("phase 0 DOM, style, network and resource contracts remain frozen", async (
     runtime: runtimeObservation,
     uiReadyWallMs,
   });
+});
+
+test("phase 1 DOM ownership and interaction commands remain explicit", async ({page}) => {
+  await openDeterministicApp(page);
+  const phase0Contract = await capturePhase0DomContract(page);
+  const contract = buildPhase1DomCompatibilityContract(phase0Contract);
+  expect(contract.elements).toHaveLength(phase0Contract.elements.length);
+  expect(contract.elements.every(({owner, compatibility}) => owner && compatibility === "required")).toBe(true);
+  expect(contract.elements
+    .filter(({tag}) => ["button", "details", "input", "select", "summary", "textarea"].includes(tag))
+    .every(({interaction}) => interaction?.command && interaction?.events?.length)).toBe(true);
+  assertPhase1DomContract(contract);
 });
 
 test("phase 0 full workbench desktop snapshots stay stable", async ({page}) => {

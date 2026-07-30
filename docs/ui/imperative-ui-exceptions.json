@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "scope": "backend/static/js excluding radar-demo.js",
+  "policy": "closed-allowlist",
+  "imperativeDomFiles": [
+    "backend/static/js/app.js",
+    "backend/static/js/controllers/device_picking_controller.js",
+    "backend/static/js/core/feature_registry.js",
+    "backend/static/js/dom_refs.js",
+    "backend/static/js/entry_map.js",
+    "backend/static/js/features/radar/controls.js",
+    "backend/static/js/features/radar/renderer.js",
+    "backend/static/js/features/radar/runtime.js",
+    "backend/static/js/performance_panel.js",
+    "backend/static/js/scene_render_state.js",
+    "backend/static/js/solver_controls.js",
+    "backend/static/js/ui/deepmimo_dataset_view.js",
+    "backend/static/js/ui/link_result_view.js",
+    "backend/static/js/ui/mobility_result_view.js",
+    "backend/static/js/ui/radar_result_view.js",
+    "backend/static/js/ui/result_formatters.js",
+    "backend/static/js/ui/tile_selection_view.js"
+  ],
+  "inlineRuntimeStyleFiles": [
+    "backend/static/js/app.js",
+    "backend/static/js/controllers/scene_loader_controller.js",
+    "backend/static/js/entry_map.js",
+    "backend/static/js/features/radar/renderer.js",
+    "backend/static/js/param_tooltips.js",
+    "backend/static/js/performance_panel.js",
+    "backend/static/js/scene_render_state.js",
+    "backend/static/js/ui/link_result_view.js",
+    "backend/static/js/ui/loading_overlay_controller.js",
+    "backend/static/js/ui/mobility_result_view.js",
+    "backend/static/js/ui/radar_result_view.js",
+    "backend/static/js/ui/radiomap_result_view.js",
+    "backend/static/js/viewer.js"
+  ],
+  "runtimeCustomProperties": [
+    "--analysis-dock-bottom-reserve",
+    "--param-tooltip-arrow-left",
+    "--radar-crosshair-x",
+    "--radar-crosshair-y",
+    "--radar-legend-clutter-color",
+    "--radar-legend-target-color",
+    "--radar-legend-unassociated-detection-color",
+    "--radar-legend-unassociated-target-color",
+    "--radar-target-label-accent",
+    "--radar-target-label-scale"
+  ]
+}
