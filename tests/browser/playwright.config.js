@@ -31,18 +31,18 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `${pythonCommand} -m backend.server`,
+      command: `${pythonCommand} tools/run_production_server.py`,
       cwd: "../..",
       url: `${baseURL}/api/health`,
       timeout: 60_000,
-      reuseExistingServer: true,
+      reuseExistingServer: process.env.OAT_REUSE_TEST_SERVER === "1",
     },
     {
       command: `${pythonCommand} tools/serve_ui_catalog.py --port ${catalogPort}`,
       cwd: "../..",
       url: `${catalogURL}/ui-catalog/`,
       timeout: 30_000,
-      reuseExistingServer: true,
+      reuseExistingServer: process.env.OAT_REUSE_TEST_SERVER === "1",
     },
   ],
 });

@@ -53,6 +53,13 @@ function assertPhase0NetworkBaseline(actual) {
   const expected = JSON.parse(readFileSync(phase0BaselineUrl(filename), "utf8"));
   const stableFields = (records) => records.map(({contentLength: _contentLength, ...record}) => record);
   expect(actual.every(({contentLength}) => contentLength > 0)).toBe(true);
+  if (actual.some(({path}) => path.startsWith("/workbench/assets/"))) {
+    expect(actual.every(({status}) => status === 200)).toBe(true);
+    expect(actual.some(({path}) => /^\/workbench\/assets\/css\/.+-[A-Za-z0-9_-]{8,}\.css$/.test(path))).toBe(true);
+    expect(actual.some(({path}) => /^\/workbench\/assets\/.+-[A-Za-z0-9_-]{8,}\.js$/.test(path))).toBe(true);
+    expect(actual.every(({path}) => !path.startsWith("/css/") && !path.startsWith("/js/"))).toBe(true);
+    return;
+  }
   expect(stableFields(actual)).toEqual(stableFields(expected));
 }
 
@@ -516,13 +523,18 @@ test("core CSS modules load in order and expose the desktop computed-style contr
   const cssResponses = [];
   page.on("response", (response) => {
     const url = new URL(response.url());
-    if (url.pathname.startsWith("/css/")) cssResponses.push({path: url.pathname, status: response.status()});
+    if (url.pathname.startsWith("/css/") || url.pathname.startsWith("/workbench/assets/css/")) {
+      cssResponses.push({path: url.pathname, status: response.status()});
+    }
   });
   await openDeterministicApp(page);
 
   const architecture = await page.evaluate(() => {
     const sheets = [...document.styleSheets]
-      .filter((sheet) => new URL(sheet.href).pathname.startsWith("/css/"));
+      .filter((sheet) => {
+        const path = new URL(sheet.href).pathname;
+        return path.startsWith("/css/") || path.startsWith("/workbench/assets/css/");
+      });
     const style = (selector) => getComputedStyle(document.querySelector(selector));
     return {
       sheets: sheets.map((sheet) => ({
@@ -539,11 +551,26 @@ test("core CSS modules load in order and expose the desktop computed-style contr
     "/css/tokens.css", "/css/base.css", "/css/components.css", "/css/shell.css",
     "/css/entry-map.css", "/css/results.css", "/css/radar.css",
   ];
-  expect(cssResponses.sort((left, right) => left.path.localeCompare(right.path)))
-    .toEqual(expectedPaths.map((path) => ({path, status: 200})).sort((left, right) => left.path.localeCompare(right.path)));
-  expect(architecture.sheets.map(({path}) => path)).toEqual(expectedPaths);
+  const sourceName = (path) => {
+    if (path.startsWith("/css/")) return path.slice("/css/".length);
+    const match = path.match(/^\/workbench\/assets\/css\/(.+)-[A-Za-z0-9_-]{8,}\.css$/);
+    return match ? `${match[1]}.css` : path;
+  };
+  const expectedNames = expectedPaths.map((path) => path.slice("/css/".length));
+  expect(cssResponses.every(({status}) => status === 200)).toBe(true);
+  expect(cssResponses.map(({path}) => sourceName(path)).sort()).toEqual([...expectedNames].sort());
+  expect(architecture.sheets.map(({path}) => sourceName(path))).toEqual(expectedNames);
   expect(architecture.sheets.every(({rules}) => rules.length > 0)).toBe(true);
-  expect(architecture.sheets[0].rules[0]).toContain("@layer reset, tokens, base, components, layout, features, utilities");
+  const layerRules = architecture.sheets.map(({rules}) => rules.find((rule) => rule.startsWith("@layer ")));
+  expect(layerRules[0]).toContain("@layer reset, tokens, base, components, layout, features, utilities");
+  expect(layerRules.slice(1)).toEqual([
+      expect.stringContaining("@layer reset"),
+      expect.stringContaining("@layer components"),
+      expect.stringContaining("@layer layout"),
+      expect.stringContaining("@layer features"),
+      expect.stringContaining("@layer features"),
+      expect.stringContaining("@layer features"),
+  ]);
   expect(architecture).toMatchObject({
     controlWidth: "430px",
     controlRadius: "18px",
@@ -557,7 +584,7 @@ test("phase 0 DOM, style, network and resource contracts remain frozen", async (
   const responseRecords = [];
   page.on("response", (response) => {
     const url = new URL(response.url());
-    const isUiResource = ["/css/", "/js/", "/lib/"].some((prefix) => url.pathname.startsWith(prefix))
+    const isUiResource = ["/css/", "/js/", "/lib/", "/workbench/assets/"].some((prefix) => url.pathname.startsWith(prefix))
       || url.pathname === "/assets/openairtwin_logo.png"
       || url.pathname === "/assets/radar/drones/manifest.json";
     if (!isUiResource) return;

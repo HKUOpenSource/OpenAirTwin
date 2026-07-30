@@ -377,6 +377,8 @@ Leaflet、Three.js 标签层、SVG/Canvas 和明确登记的兼容适配器可�
 
 ### Phase 3：先引入生产前端工具链，不改变 UI
 
+> 执行状态：已完成（2026-07-30）。生产构建、Python 静态资源集成、开发命令、发布校验和生产浏览器回归均已落地；未引入 React，产品 DOM、交互、computed style 与视觉快照保持原基线。
+
 交付物：
 
 - 创建 `workbench/`；
@@ -397,6 +399,18 @@ Leaflet、Three.js 标签层、SVG/Canvas 和明确登记的兼容适配器可�
 - 发布包只需 Python 即可启动；
 - Clean Clone 能按文档完成 install、test、build 和 run；
 - Cache Header 不会导致新旧 Bundle 混用。
+
+实现记录：
+
+- `workbench/package-lock.json` 精确锁定 Node 工具依赖，支持 `npm ci` 可重复安装；
+- `npm run dev` 同时启动 Python API 与 Vite，默认入口为 `http://127.0.0.1:5173/workbench/`，`/api` 由 Vite 代理；
+- `npm run check` 依次执行 strict TypeScript、ESLint、Stylelint 和 Prettier 检查；
+- `npm run build` 输出带内容哈希的 JS、CSS 和图片资源、Vite manifest 及兼容 Import Map，并执行独立产物校验；
+- 生产构建保留现有 ES Module 边界，旧 `/js/*.js` 及带 `?v=` 的模块 URL 映射到同一个哈希模块，避免重复状态实例；
+- CSS 不执行会改写 token 文本值的压缩，以维持 Phase 0 computed-style 严格合同；其余生产资源保持 Vite 优化与内容哈希；
+- `OAT_REQUIRE_WORKBENCH_BUILD=1` 或 `tools/run_production_server.py` 强制 Python 只使用已验证的生产构建；缺失或损坏时启动失败；
+- HTML 使用 `no-store`，哈希资源使用 `public, max-age=31536000, immutable`，manifest、Source Map、非哈希路径和目录穿越请求不对外提供；
+- `backend/static/workbench/` 为可再生构建产物，不提交 Git；发布流水线必须先执行 `npm ci && npm run build`，再打包该目录。
 
 ### Phase 4：建立 React 基础与兼容桥
 
@@ -703,14 +717,12 @@ ui-cleanup: 删除 Legacy Renderer 和兼容路径
 ui-release: 加固、文档、打包并验证 Release Candidate
 ```
 
-## 14. 第一个执行工作包
+## 14. 下一执行工作包
 
-下一项开发任务只执行 Phase 0：
+下一项开发任务只执行 Phase 4：
 
-1. 审查并提交当前 CSS 重构。
-2. 生成 DOM、交互、computed style、截图、网络、性能和资源基线。
-3. 不增加 React 依赖。
-4. 不改变任何 UI 功能或视觉。
-5. 以干净工作区和完整测试通过作为结束条件。
-
-只有在 Phase 0 基线不可变并可回归后，才能开始 Phase 1 的组件合同建设。
+1. 固定 React、React DOM 与 Vite React Plugin 版本，并记录 License 和 Bundle 基线。
+2. 建立 AppProviders、Error Boundary、Root Lifecycle 和 External Store Adapter，不接管生产 UI 子树。
+3. 使用 Phase 2 合同实现类型化 React Primitive，并在组件目录中与 Native 实现逐项对比。
+4. 保持现有 Feature Controller、Transport、DOM ID、操作逻辑、computed style 和视觉快照不变。
+5. 只有组件等价、生命周期清理和完整生产 Build 回归全部通过后，才允许进入 Phase 5。

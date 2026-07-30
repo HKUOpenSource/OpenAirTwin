@@ -8,6 +8,14 @@ import sys
 BACKEND_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = BACKEND_ROOT.parent
 STATIC_ROOT = BACKEND_ROOT / "static"
+WORKBENCH_DIST_ROOT = (
+    Path(os.environ["OAT_WORKBENCH_DIST_ROOT"]).expanduser().resolve()
+    if os.environ.get("OAT_WORKBENCH_DIST_ROOT")
+    else None
+)
+REQUIRE_WORKBENCH_BUILD = os.environ.get("OAT_REQUIRE_WORKBENCH_BUILD", "0").strip().lower() in {
+    "1", "true", "yes", "on",
+}
 SCENE_ROOT = Path(os.environ.get("OAT_SCENE_ROOT", str(PROJECT_ROOT / "scene"))).expanduser()
 MESH_ROOT = SCENE_ROOT / "meshes"
 BUNDLE_ROOT = SCENE_ROOT / "cache" / "render_bundles"

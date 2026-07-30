@@ -654,7 +654,7 @@ class FrontendRegressionTests(unittest.TestCase):
             self.assertIn(property_name, ui_body_css)
         self.assertIn("width:", css_rule_body(css_source, "#uiBody::-webkit-scrollbar"))
         self.assertIn("background-clip:content-box", css_source)
-        self.assertIn('src="/js/app.js?v=20260723-radar-shared-groups"', html)
+        self.assertIn('src="/js/app.js"', html)
 
     def test_radar_derived_metric_labels_use_consistent_two_line_titles(self) -> None:
         radar_source = read_static_js("features/radar/index.js")
