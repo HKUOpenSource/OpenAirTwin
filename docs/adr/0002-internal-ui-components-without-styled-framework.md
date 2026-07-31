@@ -1,28 +1,28 @@
-# ADR 0002：采用内部组件库，不采用带样式第三方组件框架
+# ADR 0002: Use an Internal Component Library Without a Styled Third-Party Framework
 
-- 状态：已接受
-- 日期：2026-07-30
-- 决策范围：核心桌面工作台组件与样式
+- Status: Accepted
+- Date: 2026-07-30
+- Decision scope: Core desktop workbench components and styles
 
-## 背景
+## Context
 
-OpenAirTwin 必须保持现有控件密度、DOM ID、元素语义、键盘/焦点行为、`1440x900` 像素基线和 `1280x720` 布局。MUI、Ant Design、Bootstrap 等带样式组件框架通常引入自己的 DOM 包装、尺寸、状态样式和主题层，会扩大等价验证成本。
+OpenAirTwin must preserve the existing control density, DOM IDs, element semantics, keyboard and focus behavior, the `1440x900` pixel baseline, and the `1280x720` layout. Styled component frameworks such as MUI, Ant Design, and Bootstrap usually introduce their own DOM wrappers, dimensions, state styling, and theme layer, which would increase the cost of proving fidelity.
 
-## 决策
+## Decision
 
-建设内部 OpenAirTwin 组件层，复用现有七个 CSS 模块、Cascade Layers 和 `--oat-*` Token。组件 API 只暴露语义 variant，不允许任意视觉值。公共组件合同以 `docs/ui/component-contracts.md` 为准。
+Maintain an internal OpenAirTwin component layer that reuses the seven existing CSS modules, Cascade Layers, and `--oat-*` tokens. Component APIs expose semantic variants only and do not accept arbitrary visual values. `docs/ui/component-contracts.md` is the authority for shared component contracts.
 
-默认不引入 headless 组件库。单个复杂组件只有在 DOM、ARIA、键盘、焦点、生命周期、bundle 和视觉等价均有测试证据时，才允许通过独立 ADR 引入。Lucide 等纯图标资产可在集中图标合同建立后单独评估，不属于组件框架授权。
+No headless component library is introduced by default. A complex component may adopt one only through a separate ADR backed by DOM, ARIA, keyboard, focus, lifecycle, bundle, and visual-equivalence tests. Pure icon assets such as Lucide may be evaluated separately after a centralized icon contract exists; that does not authorize a component framework.
 
-## 后果
+## Consequences
 
-- 能严格复用现有视觉和行为，不产生第三方主题与 Token 双重事实来源。
-- 团队需自行维护组件状态、可访问性、目录和测试矩阵。
-- 新 Feature 必须先组合公共组件；领域组件不得覆盖公共核心几何。
-- Phase 2 先在原生 UI 中证明组件合同，Phase 4 才实现 React 组件。
+- Existing visuals and behavior can be reused exactly without creating two sources of truth between a third-party theme and project tokens.
+- The project must maintain component states, accessibility, the catalog, and the test matrix itself.
+- New features must compose shared components first; domain components may not override shared core geometry.
+- Phase 2 proved the component contracts in the native UI before Phase 4 implemented the React components.
 
-## 未采用方案
+## Rejected Alternatives
 
-- 带样式组件框架：DOM 与视觉偏差风险高。
-- Utility-first CSS 重写：会绕过当前 Token/Layer 归属并产生 class 级视觉 API。
-- CSS-in-JS：增加运行时和样式注入顺序，破坏原生 CSS 合同。
+- Styled component frameworks: high risk of DOM and visual drift.
+- Utility-first CSS rewrite: it would bypass current token and layer ownership and create a class-level visual API.
+- CSS-in-JS: it would add runtime and style-injection ordering and break the native CSS contract.

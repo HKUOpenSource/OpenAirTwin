@@ -161,9 +161,9 @@ def test_phase1_adrs_are_accepted_and_development_guide_links_contracts() -> Non
         "0002-internal-ui-components-without-styled-framework.md",
     ):
         source = (PROJECT_ROOT / "docs" / "adr" / name).read_text(encoding="utf-8")
-        assert "- 状态：已接受" in source
-        assert "## 决策" in source
-        assert "## 后果" in source
+        assert "- Status: Accepted" in source
+        assert "## Decision" in source
+        assert "## Consequences" in source
 
     development = (PROJECT_ROOT / "docs" / "development.md").read_text(encoding="utf-8")
     for target in (

@@ -1,127 +1,127 @@
-# OpenAirTwin UI 组件合同
+# OpenAirTwin UI Component Contract
 
-> 状态：Phase 8 生产合同；工作台由单一 React `app-shell` Root 所有
+> Status: Phase 8 production contract; the workbench is owned by one React `app-shell` root
 >
-> 范围：核心桌面工作台，`1280x720` 及以上
+> Scope: Core desktop workbench at `1280x720` and larger
 >
-> 视觉基准：`1440x900`，本合同不授权任何视觉变化
+> Visual reference: `1440x900`; this contract authorizes no visual changes
 
-## 1. 合同规则
+## 1. Contract Rules
 
-1. 一个 DOM 子树只有一个渲染所有者；公共组件、Feature 组件和命令式引擎不可同时修改同一子树。
-2. 公共组件只接收语义属性和稳定 `id`，禁止接收任意颜色、间距、圆角、阴影或 z-index。
-3. 组件只渲染 View Model 并发出 Command，不读取全局状态、不调用 REST、不访问兄弟 Feature DOM。
-4. `id`、元素语义、标签、顺序、ARIA、键盘行为和焦点行为由 [DOM 兼容合同](dom-compatibility-contract.json) 冻结。
-5. 组件几何由公共 CSS 类和 `--oat-*` Token 所有；Feature CSS 只能表达领域独有结构。
-6. 所有公共组件必须覆盖 default、hover、focus-visible、disabled；可操作组件按需覆盖 active、pressed、busy、invalid、selected 和 empty。
-7. Controlled 字段的值来自 Feature 快照，变更只通过命名 Command 提交；不得在渲染阶段回写状态。
+1. A DOM subtree has exactly one rendering owner. Shared components, feature components, and imperative engines may not mutate the same subtree.
+2. Shared components accept semantic properties and stable `id` values only. They may not accept arbitrary colors, spacing, radii, shadows, or z-index values.
+3. Components render view models and emit commands. They do not read global state, call REST endpoints, or access sibling feature DOM.
+4. The [DOM compatibility contract](dom-compatibility-contract.json) freezes IDs, element semantics, labels, order, ARIA, keyboard behavior, and focus behavior.
+5. Shared CSS classes and `--oat-*` tokens own component geometry. Feature CSS may express domain-specific structure only.
+6. Every shared component covers default, hover, focus-visible, and disabled states. Interactive components cover active, pressed, busy, invalid, selected, and empty states when applicable.
+7. Controlled field values come from feature snapshots and changes are submitted only through named commands. Rendering may not write values back to state.
 
-## 2. 公共组件 API
+## 2. Shared Component API
 
-| 组件 | 必需属性 | 可选语义属性 | DOM 与行为合同 | CSS 所有者 |
+| Component | Required properties | Optional semantic properties | DOM and behavior contract | CSS owner |
 | --- | --- | --- | --- | --- |
-| `Button` | `id`, `label`, `command` | `variant=default|primary|danger`, `size=default|compact`, `busy`, `disabled`, `pressed`, `icon` | 原生 `button[type=button]`；busy 时 disabled 且 `aria-busy=true`；图标 `aria-hidden` | `components.css` |
-| `IconButton` | `id`, `label`, `command`, `icon` | `pressed`, `disabled`, `danger` | 原生 button；必须有 accessible name；稳定方形几何 | `components.css` |
-| `ButtonGroup` | `label`, `children` | `orientation` | `role=group`；不吞掉子按钮焦点 | `components.css` |
-| `Field` | `id`, `label`, `control` | `unit`, `help`, `error`, `disabled`, `readOnly` | `label[for]` 与 control ID 精确关联；错误使用 `aria-describedby`/`aria-invalid` | `components.css` |
-| `NumberField` | `id`, `label`, `value`, `command` | `min`, `max`, `step`, `unit`, `disabled`, `readOnly` | 原生 number input；不改变当前解析、提交和失效时机 | `components.css` |
-| `TextField` | `id`, `label`, `value`, `command` | `placeholder`, `autocomplete`, `disabled`, `readOnly` | 原生 text input；Enter 行为由显式 Command 定义 | `components.css` |
-| `SelectField` | `id`, `label`, `value`, `options`, `command` | `disabled`, `help` | 原生 select；option 顺序和值保持兼容 | `components.css` |
-| `UnitInput` | `field`, `unit` | `compact` | Unit 是字段结构的一部分，不进入输入 value | `components.css` |
-| `Checkbox` | `id`, `label`, `checked`, `command` | `mixed`, `disabled` | 原生 checkbox；label 点击和 Space 保持浏览器行为 | `components.css` |
-| `RadioGroup` | `name`, `label`, `value`, `options`, `command` | `disabled` | fieldset/legend 或等价 group 语义；方向键行为不弱化 | `components.css` |
-| `RangeInput` | `id`, `label`, `value`, `command` | `min`, `max`, `step`, `disabled` | 原生 range；`input` 事件实时提交 | `components.css` |
-| `Panel` | `id`, `children` | `surface`, `hidden`, `ariaLabel` | 不增加影响选择器和几何的意外 wrapper；ID 可透传 | `components.css` |
-| `PanelHeader` | `title` | `subtitle`, `actions` | 标题和操作顺序固定；操作区不抢标题 accessible name | `components.css` |
-| `CollapsibleGroup` | `id`, `summary`, `children` | `open`, `command` | 原生 details/summary；Enter、Space 和 toggle 语义保留 | `components.css` |
-| `ScrollRegion` | `id`, `children` | `label`, `tabIndex` | 保留内部滚动边界、滚动位置和统一 scrollbar | `components.css` |
-| `Badge` / `StatusBadge` | `label`, `tone` | `live`, `busy` | tone 仅为 neutral/success/warning/error；实时状态使用合适 live 语义 | `components.css` |
-| `Progress` | `value`, `label` | `max`, `indeterminate` | 原生 progress 或等价 progressbar；值和 busy 状态同步 | `components.css` |
-| `MetricGrid` / `Metric` | `items` | `dense` | label/value 顺序稳定；数值更新不改变网格几何 | `components.css`, `results.css` |
-| `ListCard` | `title`, `meta` | `detail`, `selected`, `command`, `tone` | 可选时使用 button；selected 可访问且不只靠颜色 | `components.css`, `results.css` |
-| `EmptyState` | `message` | `action` | 不嵌套额外 Panel；容器高度不因 loading text 抖动 | `components.css`, `results.css` |
-| `Dialog` | `id`, `title`, `open`, `actions` | `variant`, `detail`, `onDismiss` | 保持 focus trap、Escape、backdrop、关闭后焦点恢复 | `shell.css` |
-| `Tooltip` | `content`, `anchor` | `placement` | hover/focus 可达；Escape、scroll、resize 关闭；不接管业务点击 | `shell.css` |
-| `LoadingOverlay` | `title`, `message`, `progress` | `cancellable` | 模态 busy 状态；取消 Command 仅在可取消时启用 | `shell.css` |
-| `ChartFrame` | `id`, `title`, `host` | `legend`, `tooltip`, `empty`, `loading` | Canvas/SVG 引擎拥有 host 内部；普通组件更新不重建引擎 | `results.css`, `radar.css` |
+| `Button` | `id`, `label`, `command` | `variant=default|primary|danger`, `size=default|compact`, `busy`, `disabled`, `pressed`, `icon` | Native `button[type=button]`; busy is disabled with `aria-busy=true`; icons use `aria-hidden` | `components.css` |
+| `IconButton` | `id`, `label`, `command`, `icon` | `pressed`, `disabled`, `danger` | Native button with an accessible name and stable square geometry | `components.css` |
+| `ButtonGroup` | `label`, `children` | `orientation` | `role=group`; does not intercept child-button focus | `components.css` |
+| `Field` | `id`, `label`, `control` | `unit`, `help`, `error`, `disabled`, `readOnly` | `label[for]` exactly matches the control ID; errors use `aria-describedby` and `aria-invalid` | `components.css` |
+| `NumberField` | `id`, `label`, `value`, `command` | `min`, `max`, `step`, `unit`, `disabled`, `readOnly` | Native number input; preserves current parsing, commit, and invalidation timing | `components.css` |
+| `TextField` | `id`, `label`, `value`, `command` | `placeholder`, `autocomplete`, `disabled`, `readOnly` | Native text input; an explicit command defines Enter behavior | `components.css` |
+| `SelectField` | `id`, `label`, `value`, `options`, `command` | `disabled`, `help` | Native select; option order and values remain compatible | `components.css` |
+| `UnitInput` | `field`, `unit` | `compact` | The unit is part of the field structure and never part of the input value | `components.css` |
+| `Checkbox` | `id`, `label`, `checked`, `command` | `mixed`, `disabled` | Native checkbox; label click and Space retain browser behavior | `components.css` |
+| `RadioGroup` | `name`, `label`, `value`, `options`, `command` | `disabled` | Fieldset and legend or equivalent group semantics; arrow-key behavior is preserved | `components.css` |
+| `RangeInput` | `id`, `label`, `value`, `command` | `min`, `max`, `step`, `disabled` | Native range input; the `input` event commits in real time | `components.css` |
+| `Panel` | `id`, `children` | `surface`, `hidden`, `ariaLabel` | Adds no unexpected wrapper that changes selectors or geometry; passes the ID through | `components.css` |
+| `PanelHeader` | `title` | `subtitle`, `actions` | Title and action order remain stable; actions do not take over the title's accessible name | `components.css` |
+| `CollapsibleGroup` | `id`, `summary`, `children` | `open`, `command` | Native details and summary; preserves Enter, Space, and toggle semantics | `components.css` |
+| `ScrollRegion` | `id`, `children` | `label`, `tabIndex` | Preserves the internal scroll boundary, scroll position, and shared scrollbar | `components.css` |
+| `Badge` / `StatusBadge` | `label`, `tone` | `live`, `busy` | Tone is limited to neutral, success, warning, and error; live status uses suitable live-region semantics | `components.css` |
+| `Progress` | `value`, `label` | `max`, `indeterminate` | Native progress or equivalent progressbar; value and busy state remain synchronized | `components.css` |
+| `MetricGrid` / `Metric` | `items` | `dense` | Stable label and value order; numeric updates do not change grid geometry | `components.css`, `results.css` |
+| `ListCard` | `title`, `meta` | `detail`, `selected`, `command`, `tone` | Selectable cards use buttons; selection is accessible and not color-only | `components.css`, `results.css` |
+| `EmptyState` | `message` | `action` | Does not nest another panel; loading text does not resize the container | `components.css`, `results.css` |
+| `Dialog` | `id`, `title`, `open`, `actions` | `variant`, `detail`, `onDismiss` | Preserves focus trap, Escape, backdrop, and focus restoration after close | `shell.css` |
+| `Tooltip` | `content`, `anchor` | `placement` | Available through hover and focus; closes on Escape, scroll, and resize; does not own business clicks | `shell.css` |
+| `LoadingOverlay` | `title`, `message`, `progress` | `cancellable` | Modal busy state; cancel command is enabled only while cancellation is available | `shell.css` |
+| `ChartFrame` | `id`, `title`, `host` | `legend`, `tooltip`, `empty`, `loading` | Canvas or SVG engine owns the host interior; ordinary component updates do not rebuild the engine | `results.css`, `radar.css` |
 
-### 2.1 Phase 2 原生类映射
+### 2.1 Phase 2 Native Class Mapping
 
-当前原生实现以 [component-manifest.json](component-manifest.json) 为机器可读事实来源，并由 `tools/ui-catalog/index.html` 展示全部公开 Variant 和状态。公共类包括：
+[component-manifest.json](component-manifest.json) is the machine-readable authority for the native implementation, and `tools/ui-catalog/index.html` displays every public variant and state. Shared classes include:
 
-- 结构：`oat-panel`、`oat-panel__header`、`oat-panel__title`；
-- 操作：`oat-button`、`oat-button-group` 及 `--primary / --compact / --icon / --danger / --block / --toolbar`；
-- 字段：`oat-field`、`oat-input`、`oat-input--compact`、`oat-check`；
-- 数据：`oat-badge`、`oat-metric-grid`、`oat-list-card`、`oat-empty-state`；
-- 基础设施：`oat-scroll-region`、`oat-icon`。
+- Structure: `oat-panel`, `oat-panel__header`, and `oat-panel__title`.
+- Actions: `oat-button`, `oat-button-group`, and `--primary / --compact / --icon / --danger / --block / --toolbar`.
+- Fields: `oat-field`, `oat-input`, `oat-input--compact`, and `oat-check`.
+- Data: `oat-badge`, `oat-metric-grid`, `oat-list-card`, and `oat-empty-state`.
+- Infrastructure: `oat-scroll-region` and `oat-icon`.
 
-Phase 8 已删除 `.btn`、`.miniBtn`、`.miniSelect`、`.primary`、`.danger` 和内部兼容字体类。生产 UI 只能使用公共 `oat-*` 类；Feature 不能再定义或复制按钮、字段和列表卡的核心几何。
+Phase 8 removed `.btn`, `.miniBtn`, `.miniSelect`, `.primary`, `.danger`, and the internal compatibility font class. Production UI may use only shared `oat-*` classes. Features may no longer define or duplicate core button, field, or list-card geometry.
 
-### 2.2 Phase 8 React 实现与生产边界
+### 2.2 Phase 8 React Implementation and Production Boundary
 
-类型化 React Primitive 位于 `workbench/src/design-system/components/`，并继续输出 2.1 节的同一组 `oat-*` class。机器清单中的 `reactSource` 是每个公共组件的唯一 React 源码位置；禁止为 Feature 复制 Primitive 或建立 Barrel 入口。
+Typed React primitives live in `workbench/src/design-system/components/` and continue to emit the same `oat-*` classes from section 2.1. The machine manifest's `reactSource` is the sole React source location for each shared component. Features may not copy primitives or establish a barrel entry point.
 
-React 组件遵循以下边界：
+React components observe these boundaries:
 
-- `Button`、字段、Checkbox 和可选 ListCard 只发送 `UiCommand`，不接收或传递 HTMLElement/Event；
-- 字段 value 来自 Props，输入变更通过 Command Factory 返回最小 payload；
-- `AppProviders` 只注入 Command Dispatcher 和错误上报，不成为第二个 Feature 状态源；
-- Feature 状态通过 `ObservableStateAdapter` 和 `useSyncExternalStore` 暴露稳定快照；
-- Root 只能挂载到空容器，由 `ReactRootRegistry` 统一 Unmount、Cleanup 和恢复焦点；
-- 组件异常由 Error Boundary 显示公共错误面板，并通过 Root Error Hook 进入宿主错误路径；
-- `className` 只用于领域布局组合，禁止传入任意 inline style 或设计值；
-- 当前 `component-manifest.json` 的 `productionOwner` 为 `react`，唯一生产 Root 与边界均为 `app-shell`；旧的四个生产 Root 已退出生产入口。
-- `ShellLayout` 与 `ControlSurface` 是显式 JSX 组件树，在一个 React Root 内组合 Control、Device、Result 与 DeepMIMO Dataset 子树；生产入口不解析或注入 HTML Template，普通布局禁止使用 Portal。
-- Leaflet、Three.js、Canvas/SVG 图表仍是命令式 Adapter，只拥有 React 提供的稳定 Host 内部；普通 Shell 或 ViewModel 更新不得替换 `#view`、Map Host 或图表 Host。
-- Shell 的 Document/Window Handler、Performance Interval 和命名 Command 路由由 `AppShell` 生命周期持有；Feature、Map、Viewer 与 Controller 必须在 Page/Feature dispose 中释放资源。
-- `Filter` 与 `ChartFrame` 位于 `ResultData.tsx`，与 `MetricGrid`、`ListCard`、`EmptyState` 一起构成结果区公共组件集合。
-- React 结果边界只接收类型化 ViewModel 并发送冻结 Command；图表 Adapter 只能写入登记的 SVG/Canvas host。
-- `ControlledField` 保留原生 input/select 的 ID、name、默认值、min/max/step、提交时机和浏览器键盘语义。文本与数字输入在 `input` 时更新草稿，在 `blur` 或兼容原生 `change` 时提交；checkbox、radio 和 select 立即提交。
-- `ControlCollections` 是 Mobility waypoint 与 Radar target 列表的唯一 DOM 所有者。Feature runtime 只处理 `workbench.control.*` Command 和领域状态，不创建列表节点。
-- `control-surface-model`、`result-dock-model`、`deepmimo-dataset-model` 和 `shell-ui-model` 提供唯一类型化快照/API。Controller 可通过登记的稳定 Ref 读取原生字段以保持领域解析，但不得创建、替换或绑定 React 所有的普通 UI 子节点。
+- `Button`, fields, Checkbox, and selectable ListCard emit only `UiCommand` objects and never accept or pass HTMLElement or Event objects.
+- Field values come from props; input changes return the smallest payload through command factories.
+- `AppProviders` injects only command dispatch and error reporting. It does not become a second feature-state source.
+- Feature state exposes stable snapshots through `ObservableStateAdapter` and `useSyncExternalStore`.
+- Roots mount only into empty containers and `ReactRootRegistry` owns unmount, cleanup, and focus restoration.
+- Component exceptions render the shared error panel through an Error Boundary and enter the host error path through the root error hook.
+- `className` is only for domain layout composition. Arbitrary inline styles and design values are prohibited.
+- `component-manifest.json` declares `productionOwner` as `react`. The sole production root and boundary are both `app-shell`; the previous four production roots are retired.
+- `ShellLayout` and `ControlSurface` are explicit JSX trees in one React root, composing the Control, Device, Result, and DeepMIMO Dataset subtrees. The production entry does not parse or inject HTML templates, and ordinary layout may not use portals.
+- Leaflet, Three.js, and Canvas or SVG charts remain imperative adapters that own only the interior of stable React-provided hosts. Ordinary Shell or view-model updates may not replace `#view`, the map host, or chart hosts.
+- `AppShell` lifecycle owns Shell document and window handlers, the performance interval, and named command routing. Features, the map, the Viewer, and Controllers must release their resources during page or feature disposal.
+- `Filter` and `ChartFrame` live in `ResultData.tsx`; together with `MetricGrid`, `ListCard`, and `EmptyState`, they form the shared result-component set.
+- The React result boundary accepts typed view models and emits frozen commands only. Chart adapters may write only inside registered SVG or Canvas hosts.
+- `ControlledField` preserves native input and select IDs, names, defaults, min/max/step, commit timing, and browser keyboard semantics. Text and number inputs update their draft on `input` and commit on `blur` or compatible native `change`; checkboxes, radio controls, and selects commit immediately.
+- `ControlCollections` is the sole DOM owner of Mobility waypoints and Radar targets. Feature runtimes handle only `workbench.control.*` commands and domain state; they do not create list nodes.
+- `control-surface-model`, `result-dock-model`, `deepmimo-dataset-model`, and `shell-ui-model` provide the sole typed snapshots and APIs. Controllers may read registered stable native-field references for domain parsing, but may not create, replace, or bind ordinary React-owned UI descendants.
 
-开发目录在同一页面渲染 Native 与 React 两列，逐项验证 DOM 状态和 computed style。该目录只由 Vite 开发服务提供，不属于生产入口或发布 Bundle。
+The development catalog renders native and React columns on one page to compare DOM state and computed styles item by item. Vite development service exposes the catalog; it is not part of the production entry or release bundle.
 
-## 3. 工作台组合组件
+## 3. Workbench Composite Components
 
-| 组件 | 当前实例 | 唯一所有者 | 允许组合 |
+| Component | Current instance | Sole owner | Allowed composition |
 | --- | --- | --- | --- |
-| `ControlPanel` | `#ui` | `react:app-shell`；Controller 只读/同步已登记 Ref | PanelHeader、ModeSelector、ScrollRegion、FeaturePanel |
-| `ModeSelector` | `#modeSelector` | `react:app-shell` | CollapsibleGroup、Feature mode buttons |
-| `DeviceDock` / `DeviceCard` | `#deviceDock` 与五模式设备卡 | `react:app-shell` | Field、IconButton、ButtonGroup |
-| `ResultDock` | `#linkChannelSection` | `react:app-shell` | FeatureResult、ScrollRegion、PanelHeader |
-| `PerformanceDock` | `#performanceDock` | `react:app-shell`；Viewer Adapter 执行领域副作用 | Badge、MetricGrid、Checkbox、ButtonGroup |
-| `EntryMap` | `#entryScreen` | `react:app-shell`；Leaflet Adapter 独占 `#entryMap` 内部 | Search、Map host、Tile list、Primary action |
-| `AppDialog` | `#appDialog` | `react:app-shell`；Dialog Controller 保持队列和 Focus Trap | Dialog |
-| `ParameterTooltip` | `#paramTooltipLayer` | `react:app-shell`；Tooltip Adapter 负责运行时定位 | Tooltip |
+| `ControlPanel` | `#ui` | `react:app-shell`; Controllers only read or synchronize registered references | PanelHeader, ModeSelector, ScrollRegion, FeaturePanel |
+| `ModeSelector` | `#modeSelector` | `react:app-shell` | CollapsibleGroup, feature-mode buttons |
+| `DeviceDock` / `DeviceCard` | `#deviceDock` and five mode device cards | `react:app-shell` | Field, IconButton, ButtonGroup |
+| `ResultDock` | `#linkChannelSection` | `react:app-shell` | FeatureResult, ScrollRegion, PanelHeader |
+| `PerformanceDock` | `#performanceDock` | `react:app-shell`; Viewer adapter performs domain side effects | Badge, MetricGrid, Checkbox, ButtonGroup |
+| `EntryMap` | `#entryScreen` | `react:app-shell`; Leaflet adapter exclusively owns the interior of `#entryMap` | Search, map host, tile list, primary action |
+| `AppDialog` | `#appDialog` | `react:app-shell`; Dialog Controller retains its queue and focus trap | Dialog |
+| `ParameterTooltip` | `#paramTooltipLayer` | `react:app-shell`; Tooltip adapter owns runtime positioning | Tooltip |
 
-## 4. 重复模式归属
+## 4. Repeated Pattern Ownership
 
-| 生产模式 | 公共组件归属 | 当前 Feature 使用方 |
+| Production pattern | Shared component owner | Current consumers |
 | --- | --- | --- |
-| 普通、主、紧凑、图标、危险按钮 | `Button` / `IconButton` | 全部五个 Feature、Entry、Dialog、Performance |
-| label + input/select + unit/help | `Field` 与类型化字段 | 全部五个 Feature、共享 Solver、设备精度编辑 |
-| checkbox/radio/range | `Checkbox` / `RadioGroup` / `RangeInput` | Link、Mobility、Radio Map、DeepMIMO、Radar、Performance |
-| 折叠参数组 | `CollapsibleGroup` | 共享 Solver、Radar Geometry/Targets/Waveform/CFAR/Propagation |
-| 状态徽章和进度 | `StatusBadge` / `Progress` | Loading、Live Preview、Radar Job、DeepMIMO Dataset |
-| 指标网格 | `MetricGrid` | Link、Mobility、Radio Map、Radar、Performance |
-| 可选结果行 | `ListCard` | Link paths、Mobility waypoints、DeepMIMO datasets、Radar targets/detections/truth/paths |
-| 空、加载、失败、取消、重试 | `EmptyState` + Status + Button | 所有异步 Feature 与结果区 |
-| 图表外壳、图例、tooltip | `ChartFrame` / `Legend` / `ChartTooltip` | Link taps、Mobility timeline、Radio Map colorbar、Radar charts |
-| 面板和滚动边界 | `Panel` / `ScrollRegion` | 控制栏、结果栏、设备栏、性能栏、Dialog、数据集面板 |
+| Default, primary, compact, icon, and danger buttons | `Button` / `IconButton` | All five features, Entry, Dialog, Performance |
+| Label plus input or select plus unit or help | `Field` and typed fields | All five features, shared Solver, device precision editing |
+| Checkbox, radio, and range | `Checkbox` / `RadioGroup` / `RangeInput` | Link, Mobility, Radio Map, DeepMIMO, Radar, Performance |
+| Collapsible parameter group | `CollapsibleGroup` | Shared Solver, Radar Geometry, Targets, Waveform, CFAR, Propagation |
+| Status badge and progress | `StatusBadge` / `Progress` | Loading, Live Preview, Radar Job, DeepMIMO Dataset |
+| Metric grid | `MetricGrid` | Link, Mobility, Radio Map, Radar, Performance |
+| Selectable result row | `ListCard` | Link paths, Mobility waypoints, DeepMIMO datasets, Radar targets, detections, truth, and paths |
+| Empty, loading, failed, cancelled, and retry states | `EmptyState` plus Status and Button | Every asynchronous feature and result region |
+| Chart shell, legend, and tooltip | `ChartFrame` / `Legend` / `ChartTooltip` | Link taps, Mobility timeline, Radio Map colorbar, Radar charts |
+| Panel and scroll boundary | `Panel` / `ScrollRegion` | Control, Result, Device, Performance, Dialog, Dataset panels |
 
-## 5. Feature 专属组件
+## 5. Feature-Specific Components
 
-以下模式不能因视觉相似被错误合并，其领域语义由 Feature 独占：
+The following patterns must not be merged merely because they look similar. Their domain semantics remain feature-owned:
 
-- Link：路径选择与 CIR/Tap 详情 View Model。
-- Mobility：Waypoint 编辑、时间轴播放状态和轨迹采样 View Model。
-- Radio Map：网格/网格面统计、领域 colormap 与色标范围。
-- DeepMIMO：ROI、接收点估计、Dataset Job 和下载生命周期。
-- Radar：目标/资产编辑器、波形、CFAR、Range-Doppler、检测/真值/路径关联和 3D 标签层。
+- Link: path selection and CIR or tap-detail view models.
+- Mobility: waypoint editing, timeline playback state, and trajectory-sampling view models.
+- Radio Map: grid and mesh statistics, domain colormap, and scale range.
+- DeepMIMO: ROI, receiver-count estimation, Dataset Job, and download lifecycle.
+- Radar: target and asset editors, waveform, CFAR, Range-Doppler, detection/truth/path association, and the 3D label layer.
 
-Feature 专属组件仍必须组合公共 Button、Field、Badge、Metric、ListCard、ScrollRegion 和 ChartFrame，不能复制其核心几何或状态样式。
+Feature-specific components must still compose shared Button, Field, Badge, Metric, ListCard, ScrollRegion, and ChartFrame components. They may not duplicate shared core geometry or state styling.
 
-## 6. 变更与验收
+## 6. Change and Acceptance Process
 
-新增 UI 前必须先更新机器可读组件清单和原生组件目录，再在本文件登记公共组件或 Feature 专属理由，并在 [交互合同](interaction-contracts.md) 登记 Command。任何未归属 ID、未命名用户操作、跨所有者 DOM 写入、未登记 inline style 或未说明的重复组件实现都会阻断后续阶段。
+Before adding UI, update the machine-readable component manifest and native component catalog. Then register either the shared component or the reason for feature-specific ownership in this file, and register its command in the [interaction contract](interaction-contracts.md). An unowned ID, unnamed user operation, cross-owner DOM mutation, unregistered inline style, or unexplained duplicate component blocks acceptance.

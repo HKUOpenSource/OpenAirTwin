@@ -250,7 +250,7 @@ function buildEntryPlaceSearchUrl(query) {
   url.searchParams.set("countrycodes", NOMINATIM_HK_COUNTRYCODES);
   url.searchParams.set("viewbox", entrySearchViewbox());
   url.searchParams.set("bounded", "1");
-  url.searchParams.set("accept-language", "en,zh-HK,zh");
+  url.searchParams.set("accept-language", "en");
   return url;
 }
 

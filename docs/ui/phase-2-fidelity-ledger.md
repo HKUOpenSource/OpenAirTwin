@@ -1,24 +1,24 @@
-# Phase 2 UI 等价性记录
+# Phase 2 UI Fidelity Ledger
 
-> 目标：标准化现有原生 UI 组件，不改变功能、操作逻辑、视觉效果或布局。
+> Objective: Standardize the existing native UI components without changing functionality, interaction logic, visuals, or layout.
 
-## 允许的源码变化
+## Allowed Source Changes
 
-- 生产节点仅新增 `oat-*` 公共类，旧 ID、语义类、标签、属性和顺序保持不变。
-- `.btn`、`.miniBtn`、`.miniSelect` 作为公共规则的临时 Alias，不再保有独立组件实现。
-- Radar 按钮核心几何移入公共 modifier，Feature 文件仅保留目标编辑器领域布局和 picking 状态。
-- SVG 图标的现有尺寸和描边值一对一迁移为 Token。
-- 开发专用组件目录不由生产服务器提供，也不进入生产资源请求集合。
+- Production nodes gain shared `oat-*` classes only; existing IDs, semantic classes, tags, attributes, and order remain unchanged.
+- `.btn`, `.miniBtn`, and `.miniSelect` become temporary aliases of shared rules and no longer own separate component implementations.
+- Core Radar button geometry moves to shared modifiers; the feature stylesheet retains only target-editor domain layout and picking states.
+- Existing SVG icon sizes and stroke values map one-to-one to tokens.
+- The development-only component catalog is not served by the production server and is absent from the production request set.
 
-## 不允许的变化
+## Prohibited Changes
 
-- 不更新 Phase 0 产品视觉快照或 computed-style 基线。
-- 不改变 REST、Feature Registry、DOM ID、文案、焦点顺序和用户操作步骤。
-- 不改变 `1440x900` 产品布局；`1280x720` 仍满足不重叠合同。
+- Do not update Phase 0 product visual snapshots or computed-style baselines.
+- Do not change REST contracts, the Feature Registry, DOM IDs, copy, focus order, or user workflow steps.
+- Do not change the `1440x900` product layout; `1280x720` must continue to satisfy the non-overlap contract.
 
-## 验证证据
+## Verification Evidence
 
-- Phase 0 DOM 比较只允许新增 `oat-*` 类，其余历史字段严格相等。
-- Phase 0 网络比较继续严格校验路径、状态、类型和资源类型；源码长度变化由 Git diff 和本记录审查，不作为运行时接口。
-- 组件目录检查公共 Variant、状态、可访问名称和纯公共组件测试 Feature。
-- 产品 Playwright 截图使用既有基线且禁止更新。
+- Phase 0 DOM comparison permits only added `oat-*` classes; all other historical fields remain strictly equal.
+- Phase 0 network comparison continues to verify paths, status, MIME type, and resource type. Source length changes are reviewed through the Git diff and this ledger, not treated as a runtime interface.
+- The component catalog checks shared variants, states, accessible names, and a feature composed only from shared components.
+- Product Playwright screenshots use the existing baselines and may not be updated.

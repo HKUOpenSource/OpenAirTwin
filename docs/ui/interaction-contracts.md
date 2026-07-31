@@ -1,92 +1,92 @@
-# OpenAirTwin UI 交互合同
+# OpenAirTwin UI Interaction Contract
 
-> 状态：Phase 8 生产合同。本文定义行为语义；逐控件的机器映射位于 `dom-compatibility-contract.json` 的 `interaction` 字段。
+> Status: Phase 8 production contract. This document defines behavior semantics; per-control machine mappings are stored in the `interaction` fields of `dom-compatibility-contract.json`.
 
-## 1. Command 规则
+## 1. Command Rules
 
-- 命名格式为 `<owner>.<subject>.<verb>`；同一业务动作只有一个名称。
-- Command 包含业务意图和最小 payload，不传 HTMLElement、Event 或可变全局对象。
-- 组件发出 Command；Feature Controller/Service 执行副作用；View Model 更新后重新渲染。
-- 异步 Command 必须定义 idle、busy、success、empty、cancelled、error、retry 和 stale-response 行为。
-- busy 期间提交按钮 disabled 且 `aria-busy=true`；失败后恢复可操作状态并进入现有可见错误路径。
-- Feature 切换会取消 Live Preview、停止 Tx Orbit、清理 picking 和 transient UI；不得显示上一 Feature 结果。
+- Names use `<owner>.<subject>.<verb>`; one business action has exactly one name.
+- Commands contain business intent and a minimal payload. They never carry HTMLElement, Event, or mutable global objects.
+- Components emit commands; feature Controllers and services perform side effects; rendering follows the updated view model.
+- Asynchronous commands define idle, busy, success, empty, cancelled, error, retry, and stale-response behavior.
+- While busy, submit buttons are disabled with `aria-busy=true`. A failure restores operability and enters the existing visible error path.
+- Feature switching cancels Live Preview, stops Tx Orbit, and clears picking and transient UI. A feature must never show another feature's results.
 
-### 1.1 Phase 6 控件 Command Envelope
+### 1.1 Phase 6 Control Command Envelope
 
-React 控件边界只发出以下类型化基础 Command，由 App/Feature runtime 路由到本文件定义的领域命令；它们不替代领域语义：
+The React control boundary emits only these typed base commands. App and feature runtimes route them to the domain commands in this document; they do not replace domain semantics:
 
-| Command | Payload | 提交时机 |
+| Command | Payload | Commit timing |
 | --- | --- | --- |
-| `workbench.control.draft` | `{controlId, value}` | number/text 的原生 `input`，仅保持受控值与焦点 |
-| `workbench.control.commit` | `{controlId, value, checked?}` | number/text 的 blur 或原生 `change`；select/checkbox/radio 的 change |
-| `workbench.control.action` | `{actionId, value?}` | Button、动态 ListCard 和设备操作激活 |
-| `workbench.control.group.toggle` | `{controlId, open}` | 有 ID 的 details 原生 toggle |
+| `workbench.control.draft` | `{controlId, value}` | Native `input` for number and text fields; preserves controlled value and focus only |
+| `workbench.control.commit` | `{controlId, value, checked?}` | Blur or native `change` for number and text; `change` for select, checkbox, and radio |
+| `workbench.control.action` | `{actionId, value?}` | Button, dynamic ListCard, and device action activation |
+| `workbench.control.group.toggle` | `{controlId, open}` | Native `toggle` for details elements with IDs |
 
-同一 radio `name` 的 checked 更新必须在一个快照内原子完成。Solver 按钮的 busy 集合按 `actionId` 去重，重复提交是 no-op，成功或失败都必须清除 disabled/`aria-busy`。Controller 可以通过登记的稳定 Ref 读取 HTMLElement 以完成领域解析和 Viewer 同步，但不得再为 React 所有字段或按钮绑定 click/change 监听。
+Checked updates for one radio `name` must be atomic within a snapshot. Solver button busy state is deduplicated by `actionId`; duplicate submission is a no-op, and both success and failure must clear disabled and `aria-busy`. A Controller may read HTMLElement values through registered stable references for domain parsing and Viewer synchronization, but it may not bind click or change listeners to React-owned fields or buttons.
 
-## 2. Shell 与入口命令
+## 2. Shell and Entry Commands
 
-下表命令由单一 `app-shell` CommandBus 发出。Shell 不再直接为按钮、checkbox、Mode 或动态地点结果注册分散监听；Leaflet、Three.js 与 Feature Adapter 接收命令后执行领域副作用。
+One `app-shell` CommandBus emits the following commands. The Shell no longer registers scattered listeners directly on buttons, checkboxes, mode controls, or dynamic place results. Leaflet, Three.js, and feature adapters perform the domain side effects.
 
-| 命令族 | 触发方式 | 行为和焦点合同 |
+| Command family | Trigger | Behavior and focus contract |
 | --- | --- | --- |
-| `workbench.mode.select` | Mode 按钮 click/键盘激活 | 关闭菜单和 tooltip，清理临时状态，按 Registry 生命周期切换；焦点留在激活按钮；连续点击按触发顺序同步可观察 |
-| `workbench.mode.toggle` | details/summary click、Enter、Space | `open` 与 `aria-expanded` 同步；外部 click 和 Escape 关闭 |
-| `workbench.controls.toggle` | Panel toggle click | 保持滚动容器和已展开参数组状态；隐藏 tooltip |
-| `entry.sidebar.toggle` | icon button click | 展开后 120ms 将焦点移到搜索框；折叠后焦点保留在按钮 |
-| `entry.search.submit` | Search click 或输入框 Enter | Shift+Enter 不提交；搜索失败显示现有状态，不清除已有选择 |
-| `entry.place.select` | 动态结果按钮 click/键盘 | 更新地图焦点与选择，不绕过 Tile 合同 |
-| `entry.map.fit/focusSelection/zoomIn/zoomOut/panZoom` | 地图按钮、pointer、wheel、keyboard | Leaflet 保持唯一 Map 实例；无选择时 focusSelection 是 no-op |
-| `entry.tile.select/toggle` | 地图 Tile 或列表 checkbox | 地图和列表保持同一选择源，Tile 次序稳定 |
-| `entry.scene.enter` | 主按钮 click | 清除 picking，进入 busy；成功进入 Viewer，失败恢复并弹出错误 Dialog |
-| `entry.scene.open/return` | quick bar/返回按钮 | 切换 Entry 与 Scene，不重建已加载 Viewer |
-| `results.dock.toggle` | Result header click/键盘 | expanded、reserve、内部滚动和结果选择保持一致 |
-| `performance.*` | Dock、模式、checkbox、类别按钮和动态类别 checkbox | 同步 Viewer 模式；`performance.category.toggle` 只更新对应场景类别，不改变 Feature 状态或结果 |
-| `dialog.*` | primary/secondary/close/backdrop/Escape | 保持 focus trap；关闭后将焦点还给打开者；异步动作不得重复提交 |
-| `loading.cancel` | Cancel click | 仅取消当前可取消任务；隐藏前清理 busy 与 progress 状态 |
-| `parameter.tooltip.inspect` | 参数 hover/focus/Escape | hover 与 focus 信息一致；离开、失焦、Escape、scroll 或 resize 时关闭，不移动焦点 |
+| `workbench.mode.select` | Mode button click or keyboard activation | Closes the menu and tooltip, clears transient state, and switches through Registry lifecycle; focus stays on the active button; consecutive clicks remain synchronously observable in trigger order |
+| `workbench.mode.toggle` | Details/summary click, Enter, or Space | Keeps `open` and `aria-expanded` synchronized; outside click and Escape close it |
+| `workbench.controls.toggle` | Panel-toggle click | Preserves scroll container and expanded parameter-group state; hides the tooltip |
+| `entry.sidebar.toggle` | Icon-button click | After expansion, moves focus to search after 120 ms; after collapse, keeps focus on the button |
+| `entry.search.submit` | Search click or input Enter | Shift+Enter does not submit; search failure shows the existing state and retains current selection |
+| `entry.place.select` | Dynamic result-button click or keyboard activation | Updates map focus and selection without bypassing the tile contract |
+| `entry.map.fit/focusSelection/zoomIn/zoomOut/panZoom` | Map button, pointer, wheel, or keyboard | Leaflet retains one map instance; focusSelection is a no-op when there is no selection |
+| `entry.tile.select/toggle` | Map tile or list checkbox | Map and list share one selection source and stable tile ordering |
+| `entry.scene.enter` | Primary-button click | Clears picking and enters busy state; success opens the Viewer; failure restores state and opens the error dialog |
+| `entry.scene.open/return` | Quick bar or return button | Switches between Entry and Scene without rebuilding the loaded Viewer |
+| `results.dock.toggle` | Result-header click or keyboard activation | Preserves expanded state, reserve space, internal scrolling, and result selection |
+| `performance.*` | Dock, mode, checkbox, category button, or dynamic category checkbox | Synchronizes Viewer mode; `performance.category.toggle` updates only the corresponding scene category and does not change feature state or results |
+| `dialog.*` | Primary, secondary, close, backdrop, or Escape | Preserves focus trap and returns focus to the opener; asynchronous actions cannot submit twice |
+| `loading.cancel` | Cancel click | Cancels only the current cancellable operation and clears busy and progress state before hiding |
+| `parameter.tooltip.inspect` | Parameter hover, focus, or Escape | Hover and focus reveal the same information; pointer leave, blur, Escape, scroll, or resize closes without moving focus |
 
-## 3. 共享 Solver 与 Viewer 命令
+## 3. Shared Solver and Viewer Commands
 
-| 命令 | 输入 | 合同 |
+| Command | Input | Contract |
 | --- | --- | --- |
-| `solver.configuration.update` | `{controlId, value}` | 发布对应 setting，失效相关结果并重绘；保持现有数值解析和默认值 |
-| `device.position.update` | `{targetId, axis, value}` | 更新当前 Feature 设备位置；禁止写入非激活 Feature |
-| `<feature>.device.pickTx/pickRx` | picking button 或 Canvas pointer | 再次触发关闭；Escape 取消；成功后同步 precision 字段和场景 |
-| `viewer.device.pick` | Canvas pointerdown/up | 超过拖动阈值时不执行 pick；Pointer Capture 必须释放 |
-| `viewer.camera.navigate` | pointer/wheel/keyboard | 只修改 Camera/Controls；不得触发字段或结果 Command |
-| `viewer.txOrbit.toggle` | Orbit button | 保持 pressed/active 状态；Feature 切换、picking 或 Escape 时停止 |
-| `workbench.group.toggle` | details/summary | 原生键盘语义；展开状态不因无关渲染重置 |
-| `workbench.transient.dismiss` | 外部 click 或 Escape | 关闭 Mode menu、tooltip 和 Feature 临时 UI，不取消已提交 Job |
+| `solver.configuration.update` | `{controlId, value}` | Publishes the corresponding setting, invalidates relevant results, and redraws while preserving current parsing and defaults |
+| `device.position.update` | `{targetId, axis, value}` | Updates a device position for the active feature only |
+| `<feature>.device.pickTx/pickRx` | Picking button or Canvas pointer | A second trigger disables picking; Escape cancels; success synchronizes precision fields and the scene |
+| `viewer.device.pick` | Canvas pointerdown and pointerup | Does not pick after exceeding the drag threshold; Pointer Capture must be released |
+| `viewer.camera.navigate` | Pointer, wheel, or keyboard | Modifies Camera or Controls only; it must not emit field or result commands |
+| `viewer.txOrbit.toggle` | Orbit button | Preserves pressed and active state; feature switch, picking, or Escape stops orbit |
+| `workbench.group.toggle` | Details/summary | Preserves native keyboard semantics; unrelated rendering does not reset expansion |
+| `workbench.transient.dismiss` | Outside click or Escape | Closes the mode menu, tooltip, and feature transient UI without cancelling a submitted job |
 
-## 4. Feature 命令
+## 4. Feature Commands
 
-| Feature | 配置命令 | 运行与结果命令 |
+| Feature | Configuration commands | Run and result commands |
 | --- | --- | --- |
-| Link | `link.configuration.update`、`link.configuration.syncDerived` | `link.solve.run`、`link.path.select` |
-| Mobility | `mobility.configuration.update`、`mobility.waypoint.addCurrentRx/select/remove/deleteSelected/clear` | `mobility.solve.run`、`mobility.playback.toggle/speed.change`、`mobility.timeline.seek/metric.change/inspect` |
-| Radio Map | `radiomap.configuration.update` | `radiomap.solve.run`；领域 colormap 由 Feature palette 管理 |
-| DeepMIMO | `deepmimo.configuration.update`、`deepmimo.roi.pick/clear` | `deepmimo.export.run`、`deepmimo.datasets.toggle`、`deepmimo.dataset.cancel/download` |
-| Radar | `radar.configuration.update`、`radar.asset.previous/next`、`radar.target.add/select/pick/focus/remove` | `radar.solve.run`、`radar.job.cancel/retry`、`radar.processing.select`、`radar.rangeDoppler.scope.select/select`、`radar.detections.filter/toggleAll/select`、`radar.truth.select`、`radar.path.select`、`radar.paths.displayMode.change` |
+| Link | `link.configuration.update`, `link.configuration.syncDerived` | `link.solve.run`, `link.path.select` |
+| Mobility | `mobility.configuration.update`, `mobility.waypoint.addCurrentRx/select/remove/deleteSelected/clear` | `mobility.solve.run`, `mobility.playback.toggle/speed.change`, `mobility.timeline.seek/metric.change/inspect` |
+| Radio Map | `radiomap.configuration.update` | `radiomap.solve.run`; the feature palette owns the domain colormap |
+| DeepMIMO | `deepmimo.configuration.update`, `deepmimo.roi.pick/clear` | `deepmimo.export.run`, `deepmimo.datasets.toggle`, `deepmimo.dataset.cancel/download` |
+| Radar | `radar.configuration.update`, `radar.asset.previous/next`, `radar.target.add/select/pick/focus/remove` | `radar.solve.run`, `radar.job.cancel/retry`, `radar.processing.select`, `radar.rangeDoppler.scope.select/select`, `radar.detections.filter/toggleAll/select`, `radar.truth.select`, `radar.path.select`, `radar.paths.displayMode.change` |
 
-## 5. 鼠标、键盘与焦点
+## 5. Pointer, Keyboard, and Focus
 
-- 原生 button、input、select、details/summary 行为是最低合同，组件不得用 div 模拟。
-- Tab 顺序继续跟随冻结 DOM 顺序；隐藏子树不可获得焦点。
-- Enter/Space 激活按钮和 summary；方向键保留原生 radio、range、select 行为。
-- Escape 的优先级为：当前 Dialog/Tooltip/Mode/Feature transient -> Picking/precision -> Viewer movement。
-- hover-only 信息必须同时可由 focus 获得；tooltip 关闭不得移动焦点。
-- 动态 ListCard 选中后保留清晰 selected 状态；刷新列表时尽可能恢复同一业务 ID 的焦点。
+- Native button, input, select, details, and summary behavior is the minimum contract; components may not simulate them with div elements.
+- Tab order follows the frozen DOM order; hidden subtrees cannot receive focus.
+- Enter and Space activate buttons and summary elements. Arrow keys retain native radio, range, and select behavior.
+- Escape priority is current Dialog, Tooltip, Mode, or feature transient; then Picking or precision edit; then Viewer movement.
+- Hover-only information must also be available through focus, and tooltip closure must not move focus.
+- A selected dynamic ListCard retains a clear selected state. List refresh should restore focus for the same business ID when possible.
 
-## 6. 异步、取消和重试
+## 6. Asynchronous Operations, Cancellation, and Retry
 
-1. 提交时记录 Feature、scene generation 和请求身份；旧响应不得覆盖新状态。
-2. busy 期间禁止重复提交，但 Cancel 和允许的导航仍可操作。
-3. Cancel 必须进入明确 terminal 状态并停止轮询；不得伪装为 error。
-4. Retry 使用当前表单快照重新提交，不能复用已失效的请求对象。
-5. Feature 切换期间 Job 可以按现有领域规则继续或取消，但回调只能更新其所有者状态。
-6. 所有 timer、listener、subscription 和 pending animation 在 `dispose()` 释放。
+1. Submission records the feature, scene generation, and request identity. An older response may not overwrite newer state.
+2. Busy state prevents duplicate submission while Cancel and permitted navigation remain available.
+3. Cancel enters an explicit terminal state and stops polling; it must not masquerade as an error.
+4. Retry submits the current form snapshot and does not reuse an invalidated request object.
+5. A job may continue or cancel during feature switch according to existing domain rules, but its callbacks may update only owner state.
+6. Every timer, listener, subscription, and pending animation is released by `dispose()`.
 
-## 7. 机器覆盖
+## 7. Machine Coverage
 
-浏览器测试从实际页面生成 363 个带 ID 元素的合同。所有 button、input、select、textarea、details 和 summary 必须含命名 `interaction.command`；动态列表、Leaflet、Canvas、Viewer 和全局 dismiss 操作登记在 `dynamicInteractions`。新增可操作控件若没有 Command，合同生成会失败。
+Browser tests generate a contract for 363 elements with IDs from the real page. Every button, input, select, textarea, details, and summary element must have a named `interaction.command`. Dynamic lists, Leaflet, Canvas, Viewer, and global-dismiss actions are registered in `dynamicInteractions`. Contract generation fails when a new interactive control has no command.

@@ -1,132 +1,132 @@
-# OpenAirTwin UI Phase 0 基线
+# OpenAirTwin UI Phase 0 Baseline
 
-> 状态：已冻结
-> 日期：2026-07-30
-> 适用范围：核心桌面工作台
-> 视觉参考：`1440x900`
-> 最小支持视口：`1280x720`
+> Status: Frozen
+> Date: 2026-07-30
+> Scope: Core desktop workbench
+> Visual reference: `1440x900`
+> Minimum supported viewport: `1280x720`
 
-## 1. 基线目的
+## 1. Purpose
 
-本基线用于保护后续组件标准化和 React 迁移。它记录当前可发布工作台的 DOM、样式、网络、资源和视觉行为，使后续迁移可以证明“实现发生变化，但功能、操作逻辑、视觉效果和样式没有变化”。
+This baseline protects the later component-standardization and React migration work. It records the DOM, styles, network traffic, resources, and visual behavior of the releasable workbench so later migrations can prove that implementation changed while functionality, interaction logic, visuals, and styling did not.
 
-基线不是新的设计稿，也不是允许更新视觉差异的理由。除非任务本身明确批准了产品可见变化，否则基线差异必须先作为回归处理。
+The baseline is not a new design specification and does not authorize visual differences. Unless a task explicitly approves a user-visible product change, a baseline difference must first be treated as a regression.
 
-## 2. 已冻结的证据
+## 2. Frozen Evidence
 
-### 2.1 机器可比较合同
+### 2.1 Machine-Comparable Contracts
 
-以下文件由 Playwright 的确定性工作台 Fixture 生成并在普通测试中严格比较：
+The deterministic Playwright workbench fixture generates the following files and ordinary test runs compare them strictly:
 
 - `tests/browser/baselines/phase-0-dom-contract.json`
-  - 按文档顺序记录全部带 ID 的节点；
-  - 记录 Tag、Class、Role、ARIA、模式数据、Label、默认值、Checked、Disabled 和 Details Open 状态；
-  - 用于保护现有 DOM ID、可访问性关系、控件顺序和默认状态。
+  - Records every element with an ID in document order.
+  - Records tag, class, role, ARIA, mode data, label, default value, checked, disabled, and details-open state.
+  - Protects existing DOM IDs, accessibility relationships, control order, and default state.
 - `tests/browser/baselines/phase-0-computed-styles.json`
-  - 记录全部 `--oat-*` Token 的浏览器最终值；
-  - 记录 Panel、Button、Input、Checkbox、Badge、折叠组、Scroll Region、Device Dock、Result Dock、Performance Dock、Dialog、Entry Panel 和 Radar Field 的代表 computed style；
-  - 用于发现 Cascade、Token、字体、边框、间距、尺寸、滚动和层级漂移。
+  - Records the browser-resolved value of every `--oat-*` token.
+  - Records representative computed styles for panels, buttons, inputs, checkboxes, badges, collapsible groups, scroll regions, the Device Dock, Result Dock, Performance Dock, dialog, Entry Panel, and Radar fields.
+  - Detects drift in cascade, tokens, typography, borders, spacing, dimensions, scrolling, and stacking.
 - `tests/browser/baselines/phase-0-network-contract.json`
-  - 记录首次场景初始化加载的第一方 CSS、JS、Library 和关键 UI Asset；
-  - 记录 Path、Status、Resource Type、Content Type 和 Content Length；
-  - 用于发现缺失资源、意外依赖和未审查的传输增长。
+  - Records first-party CSS, JavaScript, libraries, and key UI assets loaded during initial scene setup.
+  - Records path, status, resource type, content type, and content length.
+  - Detects missing resources, unexpected dependencies, and unreviewed transfer growth.
 - `tests/browser/baselines/phase-0-resource-contract.json`
-  - 预热全部五个 Feature 后连续执行五轮模式循环；
-  - 要求 Active Interval、Canvas、DOM Node、Frame Listener、Listener Registration 和 Radar Label Element 的增长全部为 0。
+  - Warms all five features and then executes five consecutive mode cycles.
+  - Requires zero growth in active intervals, canvases, DOM nodes, frame listeners, listener registrations, and Radar label elements.
 
-### 2.2 运行环境观测
+### 2.2 Runtime Observation
 
-`tests/browser/baselines/phase-0-runtime-observation.json` 保存一次基线环境观测，不作为逐字节性能断言：
+`tests/browser/baselines/phase-0-runtime-observation.json` stores one observation of the baseline environment. It is not a byte-for-byte performance assertion:
 
-- Playwright Browser：Chromium；
-- Browser UA：Headless Chrome 146；
-- 平台：macOS / MacIntel；
-- 视口：`1440x900`；
-- UI Ready Wall Time：152 ms；
-- DOM Complete：90.4 ms；
-- First Contentful Paint：768 ms；
-- Resource Count：101；
-- Encoded Body：18,133,972 bytes；
-- Transfer：18,163,672 bytes；
-- 五轮 Feature 循环前后：1 个 Active Interval、4 个 Canvas、1,396 个 DOM Node、274 次 Listener Registration，均无增长。
+- Playwright browser: Chromium
+- Browser UA: Headless Chrome 146
+- Platform: macOS / MacIntel
+- Viewport: `1440x900`
+- UI Ready wall time: 152 ms
+- DOM Complete: 90.4 ms
+- First Contentful Paint: 768 ms
+- Resource count: 101
+- Encoded body: 18,133,972 bytes
+- Transfer: 18,163,672 bytes
+- Before and after five feature cycles: 1 active interval, 4 canvases, 1,396 DOM nodes, and 274 listener registrations, with zero growth in every measure
 
-这些时间和 Heap 数据会受到设备、Browser Build、缓存和测试调度影响。Phase 3 建立构建性能预算时，应在相同环境重复采样并使用中位数，不能把单次观测直接作为跨机器硬阈值。
+Timing and heap data vary with hardware, browser build, cache state, and test scheduling. Performance budgets must repeat samples in the same environment and use the median instead of treating a single observation as a cross-machine hard threshold.
 
-### 2.3 视觉快照
+### 2.3 Visual Snapshots
 
-新增：
+Added:
 
-- `workbench-shell-1440-darwin.png`：展开 Performance Dock 的完整 `1440x900` 工作台；
-- `workbench-shell-1280-darwin.png`：默认折叠 Performance Dock 的完整 `1280x720` 工作台；
-- `performance-dock-expanded-darwin.png`：展开状态的 Performance Dock 组件。
+- `workbench-shell-1440-darwin.png`: Complete `1440x900` workbench with the Performance Dock expanded.
+- `workbench-shell-1280-darwin.png`: Complete `1280x720` workbench with the Performance Dock collapsed by default.
+- `performance-dock-expanded-darwin.png`: Expanded Performance Dock component.
 
-继续保留且未更新：
+Retained without updates:
 
-- Link、Mobility、Radio Map、DeepMIMO 和 Radar 五个控制栏快照；
-- Radar Result Dock 快照；
-- Radar Target Label 快照。
+- Control-panel snapshots for Link, Mobility, Radio Map, DeepMIMO, and Radar.
+- Radar Result Dock snapshot.
+- Radar target-label snapshot.
 
-完整工作台快照使用稳定 Viewer Stub，避免持续 WebGL Frame 的亚像素噪声覆盖 UI 回归信号。真实 Viewer、WebGL、Asset、Layer、Radar Target 与 Canvas Chart 仍由现有浏览器测试单独验证。
+The complete-workbench snapshots use a stable Viewer stub so continuous WebGL frames do not obscure UI regression signals with subpixel noise. Existing browser tests continue to verify the real Viewer, WebGL, assets, layers, Radar targets, and Canvas charts separately.
 
-`1280x720` 整屏基线额外断言：
+The `1280x720` full-screen baseline also asserts that:
 
-- Control Panel 与 Result Dock 不重叠；
-- Control Panel 与 Device Dock 不重叠；
-- Result Dock 与 Device Dock 不重叠；
-- 默认折叠 Performance Dock 不与 Result/Device Dock 重叠；
-- Device Dock 完整位于视口内。
+- The Control Panel and Result Dock do not overlap.
+- The Control Panel and Device Dock do not overlap.
+- The Result Dock and Device Dock do not overlap.
+- The collapsed Performance Dock does not overlap the Result or Device Dock.
+- The Device Dock is entirely within the viewport.
 
-## 3. 浏览器支持记录
+## 3. Browser Support Record
 
-Phase 0 保持当前已有支持范围，不扩大兼容承诺：
+Phase 0 preserves the existing support scope and does not broaden compatibility commitments:
 
-- 桌面 Chromium / Google Chrome；
-- macOS 视觉快照由本机 Google Chrome/Chromium 路径执行；
-- CI 使用 Playwright Chromium 执行非平台像素相关合同；
-- 不支持小于 `1280x720` 的核心工作台；
-- Firefox、Safari 和移动端不在本阶段发布合同中；
-- 教程网站继续使用独立的响应式和浏览器测试体系。
+- Desktop Chromium and Google Chrome.
+- macOS visual snapshots run through the local Google Chrome or Chromium path.
+- CI uses Playwright Chromium for contracts that are independent of platform pixel rendering.
+- The core workbench does not support viewports smaller than `1280x720`.
+- Firefox, Safari, and mobile are outside this release contract.
+- The tutorial website retains its separate responsive and browser test system.
 
-## 4. 更新与审查规则
+## 4. Update and Review Rules
 
-普通验证命令：
+Normal verification command:
 
 ```bash
 cd tests/browser
 npx playwright test --grep "phase 0"
 ```
 
-只有在明确审查基线变更时，才允许运行：
+Run the following only when a baseline change has been explicitly reviewed:
 
 ```bash
 cd tests/browser
 OAT_UPDATE_PHASE0_BASELINE=1 npx playwright test --grep "phase 0" --update-snapshots
 ```
 
-更新前必须完成：
+Before updating a baseline:
 
-1. 说明为什么旧合同不再适用；
-2. 检查 DOM ID、ARIA、默认值和控件顺序差异；
-3. 检查 Token 与 computed style 差异；
-4. 检查网络新增、删除和体积变化；
-5. 用图像查看器人工检查每张新旧快照；
-6. 确认资源增长仍为 0；
-7. 在 PR 或阶段证据报告中列出全部有意差异；
-8. 运行完整 Python 与 Playwright 测试，而不是只运行基线测试。
+1. Explain why the old contract no longer applies.
+2. Inspect differences in DOM IDs, ARIA, default values, and control order.
+3. Inspect token and computed-style differences.
+4. Inspect added, removed, and resized network resources.
+5. Compare every old and new snapshot in an image viewer.
+6. Confirm that resource growth remains zero.
+7. List every intentional difference in the pull request or phase evidence report.
+8. Run the complete Python and Playwright suites, not only the baseline tests.
 
-禁止仅因为 React、Vite、TypeScript、DOM Factory 或组件实现变化就更新基线。实现变化必须先证明产品合同等价；只有基础设施导致的已解释网络路径变化可以在对应迁移阶段单独审查。
+Do not update the baseline merely because the implementation changed to React, Vite, TypeScript, a DOM factory, or components. An implementation change must first prove product-contract equivalence. Only explained network-path changes caused by infrastructure may be reviewed separately in the corresponding migration phase.
 
-## 5. Phase 0 完成门槛
+## 5. Phase 0 Completion Gate
 
-- [x] 七文件 CSS 架构和 `--oat-*` Token 合同已建立。
-- [x] `1440x900` 现有视觉快照未更新。
-- [x] 新增 `1440x900` 与 `1280x720` 完整工作台快照。
-- [x] DOM、computed style、网络和资源合同已版本化。
-- [x] 五轮完整 Feature 切换资源增长为 0。
-- [x] 浏览器支持范围已记录。
-- [x] 完整 Python 测试通过：303 passed，4 skipped。
-- [x] 完整 Playwright 测试通过：19 passed。
-- [x] 应用内浏览器真实页面与交互验证通过，Console 无 warning/error。
-- [x] 最终 Diff 审查通过并创建 Phase 0 提交。
+- [x] The seven-file CSS architecture and `--oat-*` token contract are established.
+- [x] Existing `1440x900` visual snapshots were not updated.
+- [x] Complete `1440x900` and `1280x720` workbench snapshots were added.
+- [x] DOM, computed-style, network, and resource contracts are versioned.
+- [x] Five complete feature cycles produce zero resource growth.
+- [x] Browser support scope is documented.
+- [x] Complete Python suite passed: 303 passed, 4 skipped.
+- [x] Complete Playwright suite passed: 19 passed.
+- [x] The real page and interaction flow passed in-app browser verification with no console warning or error.
+- [x] The final diff was reviewed and the Phase 0 commit was created.
 
-Phase 0 的合同、验证证据与提交范围已完成最终核对。
+The Phase 0 contracts, verification evidence, and commit scope have received final review.

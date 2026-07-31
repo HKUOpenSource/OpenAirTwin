@@ -1,25 +1,25 @@
-# 命令式 UI 与 Inline Runtime Style 例外
+# Imperative UI and Inline Runtime Style Exceptions
 
-机器可读清单位于 [imperative-ui-exceptions.json](imperative-ui-exceptions.json)。清单是 allowlist，不是推荐 API；新增文件或操作必须先说明唯一所有者、理由、清理路径和删除条件。
+The machine-readable registry is [imperative-ui-exceptions.json](imperative-ui-exceptions.json). It is an allowlist, not a recommended API. A new file or operation must first document its sole owner, rationale, cleanup path, and removal condition.
 
-## 允许边界
+## Allowed Boundaries
 
-| 类别 | 所有者 | 允许原因 | 生命周期/删除条件 |
+| Category | Owner | Rationale | Lifecycle or removal condition |
 | --- | --- | --- | --- |
-| Leaflet Entry Map | `shell:entry-map` | Leaflet 必须命令式管理 Pane、Marker、Tooltip 和 Map host | React 只拥有 host；Map adapter dispose 清理 |
-| Three.js Viewer 与 picking | `shell:viewer` | WebGL Canvas、Controls、Pointer Capture 和 Scene graph 是命令式引擎 | React 只拥有稳定 Canvas host；Viewer dispose 清理 |
-| Canvas/SVG 图表 | 各 Feature | 像素绘制、crosshair 和 tooltip 坐标由图表布局实时计算 | Chart adapter dispose；迁移后仍可保留受控 host |
-| Radar 3D 标签/connector | `feature:radar` | 标签投影、遮挡、缩放、颜色和连接线逐帧变化 | Feature deactivate/dispose 删除 layer 和 frame listener |
-| 动态几何 style | Shell/Feature owner | left/top/width/transform、reserve、进度和领域色板属于运行时输入 | 仅允许清单中的文件；静态设计值必须使用 CSS Token |
+| Leaflet Entry Map | `shell:entry-map` | Leaflet must manage panes, markers, tooltips, and the map host imperatively | React owns only the host; map adapter disposal performs cleanup |
+| Three.js Viewer and picking | `shell:viewer` | WebGL canvas, controls, pointer capture, and the scene graph are imperative engines | React owns only the stable canvas host; Viewer disposal performs cleanup |
+| Canvas and SVG charts | Each feature | Pixel drawing, crosshairs, and tooltip coordinates are calculated from live chart layout | Chart adapter disposal; a controlled host may remain after migration |
+| Radar 3D labels and connectors | `feature:radar` | Label projection, occlusion, scaling, color, and connector lines change every frame | Feature deactivate/dispose removes the layer and frame listener |
+| Dynamic geometry styles | Shell or feature owner | `left`, `top`, `width`, `transform`, reserve space, progress, and domain palettes are runtime inputs | Only registered files are allowed; static design values must use CSS tokens |
 
-## Runtime Style 分类
+## Runtime Style Categories
 
-- 布局坐标：tooltip、Radar label/crosshair、Canvas tooltip。
-- 进度与显隐：Loading、Entry/Scene 状态。
-- 动态 reserve：`--analysis-dock-bottom-reserve`。
-- 领域数据色：Radio Map gradient、Radar target/detection/clutter palette。
-- 引擎属性：Leaflet pane z-index/pointer-events、Viewer cursor。
+- Layout coordinates: tooltips, Radar labels and crosshairs, and Canvas tooltips.
+- Progress and visibility: loading and Entry/Scene states.
+- Dynamic reserve: `--analysis-dock-bottom-reserve`.
+- Domain data colors: Radio Map gradients and Radar target, detection, and clutter palettes.
+- Engine properties: Leaflet pane z-index and pointer events, and the Viewer cursor.
 
-禁止通过 inline style 写入静态颜色、间距、字号、圆角、阴影、控件高度或任意 z-index。Leaflet pane z-index 是第三方引擎配置例外，不是设计系统层级。
+Inline styles may not set static colors, spacing, font sizes, radii, shadows, control heights, or arbitrary z-index values. Leaflet pane z-index is a third-party engine configuration exception, not a design-system layer.
 
-Phase 8 后，普通 Shell、控件、设备、动态地点、Tile、性能类别和结果行均由 React 组件渲染。清单中的命令式 DOM 文件只能操作 Leaflet host、Radar 投影标签或 SVG/Canvas 图表内部，不能创建普通应用 UI。
+After Phase 8, normal Shell, control, device, dynamic place, tile, performance-category, and result-row UI is rendered by React components. Imperative DOM files in the registry may operate only inside Leaflet hosts, Radar projected labels, or SVG and Canvas charts; they may not create normal application UI.

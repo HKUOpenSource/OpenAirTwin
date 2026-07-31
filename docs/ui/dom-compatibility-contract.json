@@ -28,7 +28,7 @@
     "requiredMeaning": "ID, semantic element, control order and behavior remain compatible until a reviewed versioned contract changes them."
   },
   "document": {
-    "lang": "zh-CN",
+  "lang": "en",
     "title": "OpenAirTwin"
   },
   "owners": [
