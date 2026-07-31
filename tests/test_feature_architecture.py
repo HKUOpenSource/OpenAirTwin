@@ -108,10 +108,12 @@ def test_rt_job_features_share_generic_manager() -> None:
 
 def test_frontend_core_entry_is_catalog_driven() -> None:
     app_source = (PROJECT_ROOT / "backend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    registry_source = (PROJECT_ROOT / "backend" / "static" / "js" / "core" / "feature_registry.js").read_text(encoding="utf-8")
     scene_source = (PROJECT_ROOT / "backend" / "static" / "js" / "scene_render_state.js").read_text(encoding="utf-8")
     catalog_source = (PROJECT_ROOT / "backend" / "static" / "js" / "features" / "feature_catalog.js").read_text(encoding="utf-8")
     assert "featureRegistry.definitions()" in app_source
-    assert "featureRegistry.mountTemplates(document)" in app_source
+    assert "mountTemplates" not in app_source
+    assert "templateFragments" not in registry_source
     assert "features.definitions()" in scene_source
     for feature_id in ("link", "mobility", "radiomap", "deepmimo", "radar"):
         assert f'"{feature_id}"' not in app_source

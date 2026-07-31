@@ -4,7 +4,6 @@ export type SettingId = string;
 export type UiRefName = string;
 export type UiRef<TElement extends Element = HTMLElement> = TElement | null;
 export type UiRefMap = Readonly<Record<UiRefName, UiRef<Element>>>;
-export type TemplateFragments = Readonly<Record<string, string>>;
 
 export interface UiViewModel {
   readonly status: "idle" | "loading" | "success" | "empty" | "cancelled" | "error" | "stale";
@@ -115,7 +114,6 @@ export interface FeatureDefinition<
   ) => TLifecycle;
   readonly createRefs?: (context: FeatureRefContext) => UiRefMap;
   readonly queryDom?: (root: Document) => UiRefMap;
-  readonly templateFragments: TemplateFragments;
   readonly dependencies: readonly CapabilityId[];
   readonly provides: readonly CapabilityId[];
   readonly settingsDependencies: readonly SettingId[];

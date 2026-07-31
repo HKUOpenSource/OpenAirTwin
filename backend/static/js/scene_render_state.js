@@ -61,7 +61,7 @@ export function createSceneRenderStateController(context) {
       viewerRef.modulePromise = import("/js/viewer.js?v=20260722-radar-screen-labels");
     }
     const {Viewer} = await viewerRef.modulePromise;
-    const realViewer = new Viewer(document.getElementById("view"));
+    const realViewer = new Viewer(ui.view);
     realViewer.__ready = true;
     viewerRef.current = realViewer;
     applyPerformanceSettingsToViewer();
@@ -97,9 +97,14 @@ function hideOverlay(owner = null, force = false) {
   return loadingOverlay.hideOverlay(owner, force);
 }
 
+function cancelOverlay() {
+  return loadingOverlay.cancel();
+}
+
 const tileSelectionView = createTileSelectionView({
   state,
   ui,
+  shellUi: context.featureServices.shellUi,
   getViewer,
   syncEntryOverviewUi,
 });
@@ -289,7 +294,7 @@ function renderAll() {
   syncPerformanceUi();
   syncResultDockUi();
   features.render(context);
-  context.featureServices.controls?.refreshFromDom(state.mode);
+  context.featureServices.controls?.syncFromAdapters(state.mode);
 }
 
 async function waitForRtSceneSelection(generation, tileIds) {
@@ -317,6 +322,7 @@ async function loadScene() {
 
   return {
     setProgress,
+    cancelOverlay,
     showOverlay,
     hideOverlay,
     ensureViewer,
@@ -334,5 +340,8 @@ async function loadScene() {
     toggleTileChecked,
     enterScene,
     loadScene,
+    dispose() {
+      loadingOverlay.dispose();
+    },
   };
 }

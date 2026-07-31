@@ -27,9 +27,6 @@ export function createLoadingOverlayController({
   }
 
   function clearOverlayCancel() {
-    if (overlayCancelHandler && ui.btnLoadingCancel) {
-      ui.btnLoadingCancel.removeEventListener("click", overlayCancelHandler);
-    }
     overlayCancelHandler = null;
     if (ui.btnLoadingCancel) {
       ui.btnLoadingCancel.classList.add("hidden");
@@ -64,7 +61,6 @@ export function createLoadingOverlayController({
       ui.btnLoadingCancel.textContent = cancelLabel || "Cancel";
       ui.btnLoadingCancel.classList.remove("hidden");
       overlayCancelHandler = onCancel;
-      ui.btnLoadingCancel.addEventListener("click", overlayCancelHandler);
     }
     ui.loadingScreen.style.display = "flex";
     onShow();
@@ -89,6 +85,13 @@ export function createLoadingOverlayController({
   }
 
   return {
+    cancel() {
+      return overlayCancelHandler?.();
+    },
+    dispose() {
+      overlayOwner = null;
+      clearOverlayCancel();
+    },
     setProgress,
     showOverlay,
     hideOverlay,

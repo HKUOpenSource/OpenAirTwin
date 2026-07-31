@@ -18,7 +18,6 @@ export interface FilterProps {
   readonly commandName: string;
   readonly featureId: string;
   readonly className?: string;
-  readonly legacyBare?: boolean;
 }
 
 export function Filter({
@@ -30,7 +29,6 @@ export function Filter({
   commandName,
   featureId,
   className,
-  legacyBare = false,
 }: FilterProps) {
   const dispatch = useUiCommand();
   const selectRef = useRef<HTMLSelectElement>(null);
@@ -46,11 +44,7 @@ export function Filter({
     <select
       ref={selectRef}
       id={id}
-      className={classNames(
-        className,
-        !legacyBare && "oat-input",
-        !legacyBare && "oat-input--compact",
-      )}
+      className={classNames(className, "oat-input", "oat-input--compact")}
       aria-label={ariaLabel}
       value={value}
       onChange={(event) => {

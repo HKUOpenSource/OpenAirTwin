@@ -31,6 +31,7 @@ import {
 
 export function createEntryMapController(context) {
   const {state, entryMap, ui, viewerRef} = context;
+  const shellUi = context.featureServices.shellUi;
   const {createTileDownloadJob, getTileDownloadJob, cancelTileDownloadJob, getManifest} = context.api;
   const getViewer = () => viewerRef.current;
   const scene = () => context.controllers.scene;
@@ -140,30 +141,18 @@ function placeResultMeta(result) {
 function clearEntryPlaceResults() {
   state.entry.search.results = [];
   state.entry.search.selectedIndex = -1;
-  ui.entryPlaceResults.replaceChildren();
+  shellUi.updateEntryPlaces([]);
 }
 
 function renderEntryPlaceResults(results) {
-  ui.entryPlaceResults.replaceChildren();
   state.entry.search.results = results;
-
-  results.forEach((result, index) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "entryPlaceResult oat-list-card oat-list-card--interactive" + (state.entry.search.selectedIndex === index ? " active" : "");
-
-    const title = document.createElement("b");
-    title.textContent = placeResultTitle(result);
-    const detail = document.createElement("span");
-    detail.textContent = placeResultDetail(result);
-    const meta = document.createElement("div");
-    meta.className = "entryPlaceMeta";
-    meta.textContent = placeResultMeta(result);
-
-    button.append(title, detail, meta);
-    button.addEventListener("click", () => focusEntryPlaceResult(index));
-    ui.entryPlaceResults.appendChild(button);
-  });
+  shellUi.updateEntryPlaces(results.map((result, index) => ({
+    index,
+    title: placeResultTitle(result),
+    detail: placeResultDetail(result),
+    meta: placeResultMeta(result),
+    active: state.entry.search.selectedIndex === index,
+  })));
 }
 
 function clearEntrySearchFocus() {
@@ -417,14 +406,13 @@ function focusEntryMapTiles(tileIds) {
 
 function setEntryMapTooltipContent(parts) {
   const tooltip = ui.entryMapTooltip;
-  tooltip.replaceChildren();
-  const title = document.createElement("strong");
+  const title = tooltip.querySelector("[data-entry-tooltip-title]");
+  const lineBreak = tooltip.querySelector("[data-entry-tooltip-break]");
+  const body = tooltip.querySelector("[data-entry-tooltip-body]");
   title.textContent = parts.title;
-  tooltip.appendChild(title);
-  if (parts.body) {
-    tooltip.appendChild(document.createElement("br"));
-    tooltip.appendChild(document.createTextNode(parts.body));
-  }
+  body.textContent = parts.body || "";
+  lineBreak.classList.toggle("hidden", !parts.body);
+  body.classList.toggle("hidden", !parts.body);
 }
 
 function showEntryMapTooltip(clientX, clientY, parts) {
@@ -952,8 +940,27 @@ function renderEntryOverview() {
     syncEntrySidebarUi,
     syncEntryOverviewUi,
     runEntryPlaceSearch,
+    focusEntryPlaceResult,
     fitEntryMapToView,
     focusEntryMapTiles,
     hideEntryMapTooltip,
+    dispose() {
+      if (entryMap.fallbackTimer) {
+        window.clearTimeout(entryMap.fallbackTimer);
+        entryMap.fallbackTimer = null;
+      }
+      clearEntrySearchFocus();
+      entryMap.map?.off();
+      entryMap.map?.remove();
+      entryMap.map = null;
+      entryMap.tileLayer = null;
+      entryMap.fallbackLayer = null;
+      entryMap.tileLayerGroup = null;
+      entryMap.tileRenderer = null;
+      entryMap.tilesById.clear();
+      entryMap.initialized = false;
+      entryMap.fittedOnce = false;
+      entryMap.hoveredTileId = null;
+    },
   };
 }

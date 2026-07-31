@@ -8,6 +8,14 @@ import unittest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_JS_ROOT = PROJECT_ROOT / "backend" / "static" / "js"
 STATIC_HTML = PROJECT_ROOT / "backend" / "static" / "index.html"
+REACT_UI_SOURCES = (
+    PROJECT_ROOT / "workbench" / "src" / "app-shell" / "AppShell.tsx",
+    PROJECT_ROOT / "workbench" / "src" / "app-shell" / "ShellLayout.tsx",
+    PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "ControlSurface.tsx",
+    PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "ControlCollections.tsx",
+    PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx",
+    PROJECT_ROOT / "workbench" / "src" / "features" / "deepmimo" / "DeepMimoDatasetTray.tsx",
+)
 STATIC_CSS_ROOT = PROJECT_ROOT / "backend" / "static" / "css"
 APP_CSS_FILES = (
     "tokens.css",
@@ -50,7 +58,42 @@ def css_rule_body(source: str, selector: str) -> str:
 
 
 def read_static_html() -> str:
-    return STATIC_HTML.read_text(encoding="utf-8")
+    static_html = STATIC_HTML.read_text(encoding="utf-8")
+    react_source = "\n".join(path.read_text(encoding="utf-8") for path in REACT_UI_SOURCES)
+    source = f"{static_html}\n{react_source}".replace("className=", "class=").replace("htmlFor=", "for=")
+    source = source.replace("<br />", "<br/>")
+    jsx_text_normalized = re.sub(r'\{\s*"([^"{}]*)"\s*\}', r"\1", react_source)
+    jsx_text_normalized = (
+        jsx_text_normalized.replace("<br />", "<br/>")
+        .replace("className=", "class=")
+        .replace("htmlFor=", "for=")
+        .replace("tabIndex=", "tabindex=")
+        .replace('tabindex={0}', 'tabindex="0"')
+    )
+    whitespace_normalized = re.sub(r"\s+", " ", jsx_text_normalized)
+    whitespace_normalized = re.sub(r">\s+", ">", whitespace_normalized)
+    whitespace_normalized = re.sub(r"\s+<", "<", whitespace_normalized)
+    return f"{static_html}\n{whitespace_normalized}"
+
+
+def control_field_contract(control_id: str) -> str:
+    source = (PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "ControlSurface.tsx").read_text(
+        encoding="utf-8",
+    )
+    match = re.search(
+        rf'<SurfaceField\s+id="{re.escape(control_id)}"\s+initial=\{{\{{(.*?)\}}\}}\s+snapshot=',
+        source,
+        re.DOTALL,
+    )
+    if match is None:
+        raise AssertionError(f"Missing typed field contract: {control_id}")
+    return match.group(1)
+
+
+def read_control_surface() -> str:
+    return (PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "ControlSurface.tsx").read_text(
+        encoding="utf-8",
+    )
 
 
 def exported_controller_methods(source: str, factory_name: str) -> set[str]:
@@ -164,7 +207,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertTrue(important_uses[0].lstrip().startswith(".hidden"))
         components = read_static_css("components.css")
         for selector in (
-            ".oat-panel", ":where(.oat-button:not(.oat-button--compact),.btn)", ".oat-field", ".oat-input", ".oat-check",
+            ".oat-panel", ".oat-button:not(.oat-button--compact)", ".oat-field", ".oat-input", ".oat-check",
             ".oat-badge", ".oat-metric-grid", ".oat-list-card", ".oat-scroll-region",
         ):
             css_rule_body(components, selector)
@@ -236,6 +279,7 @@ class FrontendRegressionTests(unittest.TestCase):
             scene_methods,
             {
                 "setProgress",
+                "cancelOverlay",
                 "showOverlay",
                 "hideOverlay",
                 "ensureViewer",
@@ -256,17 +300,23 @@ class FrontendRegressionTests(unittest.TestCase):
             },
         )
 
-    def test_dom_refs_get_element_by_id_targets_exist_in_index_html(self) -> None:
+    def test_dom_ref_adapter_targets_exist_in_react_ui_sources(self) -> None:
         dom_source = read_static_js("dom_refs.js")
         html = read_static_html()
 
-        referenced_ids = set(re.findall(r'document\.getElementById\(["\']([^"\']+)["\']\)', dom_source))
+        referenced_ids = {
+            value
+            for value in re.findall(r'^\s*[A-Za-z0-9_]+: "([^"]+)",$', dom_source, re.MULTILINE)
+            if not value.startswith(".")
+        }
         html_ids = set(re.findall(r'\bid=["\']([^"\']+)["\']', html))
 
         self.assertTrue(referenced_ids)
+        self.assertNotIn("document.getElementById", dom_source)
+        self.assertNotIn("document.querySelector", dom_source)
         self.assertFalse(
             sorted(referenced_ids - html_ids),
-            "dom_refs.js references DOM ids missing from backend/static/index.html",
+            "dom_refs.js references DOM ids missing from the React UI sources",
         )
 
     def test_app_dialog_controller_replaces_native_browser_popups(self) -> None:
@@ -291,10 +341,13 @@ class FrontendRegressionTests(unittest.TestCase):
             "appDialogClose",
         ]:
             self.assertIn(f'id="{element_id}"', html)
-            self.assertIn(f'document.getElementById("{element_id}")', dom_source)
+            self.assertIn(f'"{element_id}"', dom_source)
 
         self.assertIn("createAppDialogController(context)", app_source)
-        self.assertIn("context.controllers.dialogs = dialogController;", app_source)
+        self.assertIn("dialogs: dialogController,", app_source)
+        self.assertIn('command.name === "dialog.primary"', app_source)
+        self.assertIn("dialogController.confirmActiveDialog()", app_source)
+        self.assertIn("dialogController?.dispose?.();", app_source)
         self.assertIn("dialogController.alert({", app_source)
         for title in [
             '"Startup Failed"',
@@ -503,7 +556,7 @@ class FrontendRegressionTests(unittest.TestCase):
         source = read_static_js("entry_map.js")
         api_source = read_static_js("api.js")
         app_source = read_static_js("app.js")
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
 
         self.assertIn('requestJson("/assets/open3dhk_tile_coverage.json")', api_source)
         self.assertIn("state.entry.coverage = await getOpen3dHkTileCoverage();", app_source)
@@ -552,11 +605,14 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("rtSceneReadyForSelection(status, tileIds)", source)
 
     def test_scene_mode_selector_replaces_low_value_stats(self) -> None:
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
         css_source = read_app_css()
         app_source = read_frontend_js_modules()
         dom_source = read_static_js("dom_refs.js")
         scene_source = read_frontend_js_modules()
+        app_shell_source = (
+            PROJECT_ROOT / "workbench" / "src" / "app-shell" / "AppShell.tsx"
+        ).read_text(encoding="utf-8")
 
         self.assertNotIn('id="stSceneMeshes"', html)
         self.assertNotIn('id="stLoadedMeshes"', html)
@@ -580,21 +636,22 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("width:100%", css_rule_body(css_source, ".modeSelectButton"))
         self.assertIn(".modeMenuDot", css_source)
         self.assertIn(".modeMenuItem.active", css_source)
-        self.assertIn('modeSelector: document.getElementById("modeSelector")', dom_source)
-        self.assertIn('modeSelectButton: document.getElementById("modeSelectButton")', dom_source)
-        self.assertIn('modeMenu: document.getElementById("modeMenu")', dom_source)
+        self.assertIn('modeSelector: "modeSelector"', dom_source)
+        self.assertIn('modeSelectButton: "modeSelectButton"', dom_source)
+        self.assertIn('modeMenu: "modeMenu"', dom_source)
         self.assertNotIn("modeSelectDescription", dom_source)
         self.assertNotIn("stSceneMeshes", dom_source)
         self.assertNotIn("syncSceneStats", scene_source)
         self.assertIn('ui.modeSelectTitle.textContent = `Mode (${activeFeature.title})`;', scene_source)
         self.assertIn("const activeFeature = features.get(state.mode) || definitions[0];", scene_source)
         self.assertNotIn("activeFeature.description", scene_source)
-        self.assertIn('ui.modeSelector.addEventListener("toggle"', app_source)
+        self.assertIn('addEventListener("toggle", handleToggle, true)', app_shell_source)
+        self.assertIn('command("workbench.mode.toggle"', app_shell_source)
         self.assertIn("ui.modeSelector.open = open;", app_source)
         self.assertIn('event.key === "Escape"', app_source)
 
     def test_research_parameters_are_collapsible_without_outer_card(self) -> None:
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
         css_source = read_app_css()
 
         self.assertNotIn("Research Parameters", html)
@@ -662,8 +719,8 @@ class FrontendRegressionTests(unittest.TestCase):
         radar_input_css = css_rule_body(css_source, ".radarCheck>input")
 
         self.assertEqual(len(re.findall(r'class="radarCheck(?:\s[^\"]*)?"', radar_source)), 8)
-        self.assertIn('id="radarDirectPathCancellation" type="checkbox"', radar_source)
-        self.assertIn('id="radarCfarEnabled" type="checkbox"', radar_source)
+        self.assertIn('kind: "checkbox"', control_field_contract("radarDirectPathCancellation"))
+        self.assertIn('kind: "checkbox"', control_field_contract("radarCfarEnabled"))
         for declaration in ("width:", "min-height:", "align-items:", "padding:", "border:", "border-radius:", "background:", "font-size:"):
             self.assertIn(declaration, radar_check_css)
         self.assertIn("width:14px", radar_input_css)
@@ -672,17 +729,12 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("margin-top:", css_rule_body(css_source, ".radarCheck + .radarFieldGrid"))
 
     def test_radar_groups_start_collapsed_and_share_the_standard_chevron(self) -> None:
-        radar_source = read_static_html()
-        radar_source = radar_source[
-            radar_source.index('<section id="radarPanel"'):
-            radar_source.index('<div id="deviceDock"')
-        ]
+        radar_source = read_control_surface()
         css_source = read_app_css()
-        self.assertEqual(radar_source.count('class="paramGroup radarGroup"'), 5)
-        self.assertEqual(radar_source.count('class="paramGroupSummary"'), 5)
-        self.assertEqual(radar_source.count('class="paramGroupBody radarGroupBody"'), 5)
-        self.assertNotIn('class="paramGroup radarGroup" open', radar_source)
-        self.assertIn('<summary class="paramGroupSummary">OFDM Waveform</summary>', radar_source)
+        self.assertEqual(radar_source.count('staticProps={{ className: "paramGroup radarGroup" }}'), 5)
+        self.assertEqual(radar_source.count('<div className="paramGroupBody radarGroupBody">'), 5)
+        self.assertNotIn('staticProps={{ className: "paramGroup radarGroup", open:', radar_source)
+        self.assertIn('{"OFDM Waveform"}', radar_source)
         self.assertNotIn("OFDM Waveform &amp; Signal", radar_source)
         self.assertNotIn(".radarGroup>summary", css_source)
         self.assertNotIn(".radarGroup:not([open])", css_source)
@@ -714,7 +766,8 @@ class FrontendRegressionTests(unittest.TestCase):
     def test_radar_starts_without_devices_or_targets(self) -> None:
         state_source = read_static_js("features/radar/state.js")
         controls_source = read_static_js("features/radar/controls.js")
-        panel_source = read_static_html()
+        panel_source = read_control_surface()
+        model_source = (PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "control-surface-model.ts").read_text(encoding="utf-8")
         runtime_source = read_static_js("features/radar/runtime.js")
 
         self.assertIn("tx: null", state_source)
@@ -725,7 +778,8 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("nextTargetNumber: 1", state_source)
         self.assertIn("selectedTargetId: null", state_source)
         self.assertNotIn("DEFAULT_TARGETS", state_source)
-        self.assertIn('<span id="radarTargetCount" class="radarSummaryBadge oat-badge">0 / 16</span>', panel_source)
+        self.assertIn('id="radarTargetCount" className="radarSummaryBadge oat-badge"', panel_source)
+        self.assertIn('radarTargetCount: previous?.radarTargetCount ?? "0 / 16"', model_source)
         self.assertIn("const INITIAL_SPEED_MIN_MPS = 5", controls_source)
         self.assertIn("const INITIAL_SPEED_MAX_MPS = 15", controls_source)
         self.assertIn("const INITIAL_DIRECTION_MIN_DEG = -180", controls_source)
@@ -766,11 +820,7 @@ class FrontendRegressionTests(unittest.TestCase):
             "rmTxX", "rmTxY", "rmTxZ",
             "deepMimoTxX", "deepMimoTxY", "deepMimoTxZ",
         ):
-            self.assertRegex(
-                html,
-                rf'id="{input_id}"[^>]*placeholder="—"',
-                input_id,
-            )
+            self.assertIn('placeholder: "—"', control_field_contract(input_id), input_id)
 
         self.assertIn("function readDeviceVector(inputRefs)", solver_source)
         self.assertIn("function syncDeviceVectorInputs(inputRefs, values, targetId)", solver_source)
@@ -818,7 +868,7 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_antenna_array_payloads_are_sent_to_solvers(self) -> None:
         source = read_frontend_js_modules()
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
 
         self.assertIn("solverConfig.tx_array = antennaArrayPayload(state.antenna.txArray)", source)
         self.assertIn("rx_array: antennaArrayPayload(state.antenna.rxArray)", source)
@@ -832,10 +882,13 @@ class FrontendRegressionTests(unittest.TestCase):
         source = read_frontend_js_modules()
         viewer_source = read_frontend_js_modules()
         colormap_source = read_static_js("colormaps.js")
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
         state_source = read_frontend_js_modules()
         dom_source = read_static_js("dom_refs.js")
         result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
+        app_shell_source = (
+            PROJECT_ROOT / "workbench" / "src" / "app-shell" / "AppShell.tsx"
+        ).read_text(encoding="utf-8")
 
         self.assertIn('id="rmSamplesPerTx"', html)
         self.assertIn('id="rmCellSize"', html)
@@ -848,7 +901,10 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("Solver Mesh", source)
         self.assertIn("Resolution &amp; Budget", result_component)
         self.assertIn("Display Scale", result_component)
-        self.assertIn('<option value="jet" selected>jet</option>', html)
+        colormap_contract = control_field_contract("rmColormap")
+        self.assertIn('value: "jet"', colormap_contract)
+        self.assertIn('defaultSelectedValue: "jet"', colormap_contract)
+        self.assertIn('{ label: "jet", value: "jet", disabled: false }', colormap_contract)
         self.assertIn("solver: {samplesPerTx: 1000000}", state_source)
         self.assertIn('colormap: "jet"', state_source)
         self.assertIn("rmSamplesPerTx: null", dom_source)
@@ -881,7 +937,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('? name : "jet"', colormap_source)
 
     def test_radiomap_results_live_in_right_side_dock(self) -> None:
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
         css_source = read_app_css()
         source = read_frontend_js_modules()
         app_source = read_frontend_js_modules()
@@ -891,6 +947,9 @@ class FrontendRegressionTests(unittest.TestCase):
         entry_source = read_static_js("entry_map.js")
         performance_source = read_static_js("performance_panel.js")
         result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
+        app_shell_source = (
+            PROJECT_ROOT / "workbench" / "src" / "app-shell" / "AppShell.tsx"
+        ).read_text(encoding="utf-8")
 
         dock_start = html.index('id="linkChannelSection"')
         link_panel_start = html.index('id="linkPanel"')
@@ -937,9 +996,10 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("analysisDockReserveObserver.observe(ui.deviceDock);", performance_source)
         self.assertIn("new ResizeObserver", performance_source)
         self.assertIn("resultDock: {\n    expanded: true,", state_source)
-        self.assertIn('btnResultDockToggle: document.getElementById("btnResultDockToggle")', dom_source)
-        self.assertIn('channelAnalysisScroll: document.getElementById("channelAnalysisScroll")', dom_source)
-        self.assertIn('ui.btnResultDockToggle.addEventListener("click", () => {', app_source)
+        self.assertIn('btnResultDockToggle: "btnResultDockToggle"', dom_source)
+        self.assertIn('channelAnalysisScroll: "channelAnalysisScroll"', dom_source)
+        self.assertIn('["btnResultDockToggle", "results.dock.toggle"]', app_shell_source)
+        self.assertIn('command.name === "results.dock.toggle"', app_source)
         self.assertIn("state.resultDock.expanded = !state.resultDock.expanded;", app_source)
         self.assertIn("function syncResultDockUi()", scene_source)
         self.assertIn('ui.linkChannelSection.classList.toggle("collapsed", !expanded);', scene_source)
@@ -954,17 +1014,18 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("Samples / Tx", source)
         self.assertIn("Result Range", source)
         self.assertIn("Display Scale", result_component)
-        self.assertNotIn('id="radiomapResult"', left_panel_html[left_panel_html.index('id="radiomapPanel"'):])
+        self.assertNotIn('id="radiomapResult"', read_control_surface())
         self.assertIn('resultDock.update("radiomap"', source)
         self.assertNotIn("ui.radiomapResult", source)
         self.assertIn('ui.linkChannelSection.classList.remove("hidden");', source)
         self.assertIn('ui.resultDockTitle.textContent = "Radio Map Results";', source)
         self.assertIn('syncModeUi();\n  syncControlSidebarUi();\n  syncViewerMarkers();', scene_source)
         self.assertIn('syncPerformanceUi();\n  syncResultDockUi();', scene_source)
-        self.assertIn("controlSurfaceBridge.setActionBusy(actionId, false);", app_source)
+        self.assertIn("controlSurfaceModel.setActionBusy(actionId, false);", app_source)
 
     def test_live_preview_controls_and_schedulers_are_wired(self) -> None:
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
+        control_source = read_control_surface()
         app_source = read_frontend_js_modules()
         api_source = read_static_js("api.js")
         dom_source = read_static_js("dom_refs.js")
@@ -975,20 +1036,21 @@ class FrontendRegressionTests(unittest.TestCase):
         css_source = read_app_css()
 
         self.assertIn('id="livePreviewStatus"', html)
-        self.assertIn('id="livePreviewEnabled" type="checkbox"', html)
+        self.assertIn('kind: "checkbox"', control_field_contract("livePreviewEnabled"))
         self.assertIn('id="livePreviewLinkSamples"', html)
         self.assertIn('<span class="paramLabel">Preview Samples / Source', html)
         self.assertIn('id="livePreviewPathsDelay"', html)
         self.assertNotIn('id="livePreviewRmSamples"', html)
         self.assertNotIn('id="livePreviewRmDelay"', html)
         self.assertNotIn('id="livePreviewRmCellSize"', html)
-        self.assertIn('class="devicePrecisionPanel deviceCompactBar hidden"', html)
+        self.assertIn('className: "devicePrecisionPanel deviceCompactBar hidden"', control_source)
         self.assertNotIn("devicePrecisionKicker", html)
-        self.assertIn('id="devicePrecisionTitle" class="devicePrecisionTitle">Tx</div>', html)
+        self.assertIn('id="devicePrecisionTitle"', control_source)
+        self.assertIn('staticProps={{ className: "devicePrecisionTitle" }}', control_source)
         self.assertIn("Pick a surface point or fine-tune below.", html)
         self.assertIn('id="linkSurfaceClearance"', html)
-        self.assertIn('value="1.5"', html)
-        self.assertIn(">Clearance\n", html)
+        self.assertIn('value: "1.5"', control_field_contract("linkSurfaceClearance"))
+        self.assertIn("Clearance", control_source)
         self.assertIn("Distance from the picked surface for the active mode device.", html)
         device_dock_css = css_rule_body(css_source, ".deviceDock")
         for property_name in ("position:", "left:", "bottom:", "z-index:", "width:", "max-width:", "min-width:"):
@@ -1054,7 +1116,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("solverControls.cancelLivePreview();", app_source)
         self.assertIn('view.addEventListener("pointerdown", handlePickPointerDown, {capture: true});', app_source)
         self.assertIn("event.currentTarget.setPointerCapture(event.pointerId);", app_source)
-        self.assertIn('document.getElementById("view").releasePointerCapture(pointerId);', app_source)
+        self.assertIn("pointerView?.releasePointerCapture(pointerId);", app_source)
         self.assertIn('solver.handleLivePreviewDeviceUpdate(target, livePhase);', app_source)
         self.assertIn('controller.handleLivePreviewDeviceUpdate(target, "change");', app_source)
         self.assertIn('["linkRxX", "link-rx"]', app_source)
@@ -1083,7 +1145,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn('return parts.join(" · ");', source)
 
     def test_link_results_live_in_right_side_dock(self) -> None:
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
         css_source = read_app_css()
         source = read_frontend_js_modules()
         result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
@@ -1111,7 +1173,7 @@ class FrontendRegressionTests(unittest.TestCase):
             result_component.index("<PathSections"),
             result_component.index("<ChannelSection"),
         )
-        self.assertIn("Path Gains &amp; Taps", dock_html)
+        self.assertIn("Path Gains & Taps", dock_html)
         for label in ("Selected Path", "Power Delay Profile", "Discrete Channel Taps"):
             self.assertIn(label, result_component)
         for label in (
@@ -1155,7 +1217,7 @@ class FrontendRegressionTests(unittest.TestCase):
 
     def test_tap_chart_axes_are_labeled_and_not_clipped(self) -> None:
         source = read_frontend_js_modules()
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
         css = read_app_css()
 
         result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
@@ -1176,16 +1238,18 @@ class FrontendRegressionTests(unittest.TestCase):
         state_source = read_frontend_js_modules()
         source = read_frontend_js_modules()
         css_source = read_app_css()
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
         result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
         control_collections = (PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "ControlCollections.tsx").read_text(encoding="utf-8")
         mobility_runtime = read_static_js("features/mobility/runtime.js")
 
         self.assertIn('id="tabMobility"', html)
         self.assertIn('id="btnRunMobility"', html)
-        self.assertIn('id="mobilityWaypointList"', html)
-        self.assertIn('id="mobilityMaxSteps" type="number" step="1" min="2" max="10000" value="1000"', html)
-        self.assertNotIn('id="mobilityMaxSteps" type="number" step="1" min="2" max="500"', html)
+        self.assertIn('id="mobilityWaypointList"', control_collections)
+        max_steps = control_field_contract("mobilityMaxSteps")
+        for contract_value in ('kind: "number"', 'value: "1000"', 'step: "1"', 'min: "2"', 'max: "10000"'):
+            self.assertIn(contract_value, max_steps)
+        self.assertNotIn('max: "500"', max_steps)
         self.assertIn('id="mobilitySeriesChart"', result_component)
         self.assertIn('Path Gain Range', source)
         self.assertIn('{ value: "received_power_db", label: "Path Gain" }', result_component)
@@ -1252,7 +1316,7 @@ class FrontendRegressionTests(unittest.TestCase):
         source = read_frontend_js_modules()
         viewer_source = read_frontend_js_modules()
         scene_source = read_frontend_js_modules()
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
         result_component = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
 
         self.assertIn('data-oat-react-owner="result-dock"', html)
@@ -1306,7 +1370,8 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("if (!Array.isArray(position)) {\n      this.rxMarker.visible = false;", viewer_source)
 
     def test_tx_orbit_showcase_button_is_wired(self) -> None:
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
+        control_source = read_control_surface()
         app_source = read_frontend_js_modules()
         state_source = read_static_js("app_state.js")
         dom_source = read_static_js("dom_refs.js")
@@ -1319,7 +1384,7 @@ class FrontendRegressionTests(unittest.TestCase):
 
         self.assertLess(action_bar_index, orbit_index)
         self.assertLess(orbit_index, solve_index)
-        self.assertIn('aria-label="Orbit around transmitter"', html)
+        self.assertIn('"aria-label": "Orbit around transmitter"', control_source)
         self.assertIn("btnOrbitTx: null", dom_source)
         self.assertIn('btnOrbitTx: "btnOrbitTx"', dom_source)
         self.assertIn("startTxOrbit() { return false; }", state_source)
@@ -1348,7 +1413,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('ui.btnOrbitTx.querySelector(".deviceActionText").textContent = orbitingTx ? "Stop" : "Orbit";', scene_source)
 
     def test_deepmimo_roi_export_controls_are_wired(self) -> None:
-        html = (PROJECT_ROOT / "backend" / "static" / "index.html").read_text(encoding="utf-8")
+        html = read_static_html()
         app_source = read_frontend_js_modules()
         api_source = read_static_js("api.js")
         dom_source = read_static_js("dom_refs.js")
@@ -1375,9 +1440,14 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('id="deepMimoRoiCenterX"', html)
         self.assertIn('id="deepMimoRoiWidth"', html)
         self.assertIn('id="deepMimoGridSpacing"', html)
-        self.assertIn('id="deepMimoMaxReceivers" type="number" step="1000" min="1" max="200000" value="30000"', html)
+        max_receivers = control_field_contract("deepMimoMaxReceivers")
+        for contract_value in ('kind: "number"', 'value: "30000"', 'step: "1000"', 'min: "1"', 'max: "200000"'):
+            self.assertIn(contract_value, max_receivers)
         self.assertNotIn('id="deepMimoRoiSummary"', html)
-        self.assertIn('id="deepMimoRxCandidates" type="text" value="--" readonly', html)
+        rx_candidates = control_field_contract("deepMimoRxCandidates")
+        self.assertIn('kind: "text"', rx_candidates)
+        self.assertIn('value: "--"', rx_candidates)
+        self.assertIn("readOnly: true", rx_candidates)
         self.assertNotIn('id="deepMimoSceneBuffer"', html)
         self.assertIn('<summary class="paramGroupSummary">DeepMIMO ROI</summary>', html)
         self.assertNotIn("DeepMIMO ROI Export · Selected Tiles", html)
@@ -1402,7 +1472,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn("deepMimoRoiSummary", dom_source)
         self.assertIn("deepMimoRxCandidates: null", dom_source)
         self.assertIn('deepMimoRxCandidates: "deepMimoRxCandidates"', dom_source)
-        self.assertIn('deepMimoDatasetMount: document.querySelector(\'[data-oat-react-owner="deepmimo-datasets"]\')', dom_source)
+        self.assertNotIn("deepMimoDatasetMount", dom_source)
         self.assertNotIn('document.getElementById("deepMimoDatasetTray")', dom_source)
         self.assertNotIn('document.getElementById("deepMimoDatasetToggle")', dom_source)
         self.assertNotIn('document.getElementById("deepMimoDatasetList")', dom_source)
@@ -1500,7 +1570,7 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("deepMimoDownloadUrl(jobId)", solver_source)
         self.assertIn('const visible = state.mode === "deepmimo" && datasets.length > 0;', dataset_view_source)
         self.assertIn("state.deepmimo.datasetTrayOpen = false;", dataset_view_source)
-        self.assertIn("bridge.update({", dataset_view_source)
+        self.assertIn("datasetModel.update({", dataset_view_source)
         self.assertNotIn("document.createElement", dataset_view_source)
         self.assertNotIn("ui.deepMimoDownloadLink", solver_source)
         self.assertIn('title: "Exporting DeepMIMO Dataset"', solver_source)

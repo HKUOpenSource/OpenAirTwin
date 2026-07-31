@@ -17,7 +17,6 @@ export function defineFeature(definition) {
   }
   return Object.freeze({
     order: 0,
-    templateFragments: Object.freeze({}),
     sharedControlPolicy: Object.freeze({}),
     settingsDependencies: Object.freeze([]),
     pickingTargets: Object.freeze([]),
@@ -122,21 +121,6 @@ export class PickingRegistry {
   }
 }
 
-function insertTemplateFragment(anchor, html) {
-  if (!(anchor instanceof Element) || typeof html !== "string" || !html.trim()) {
-    return [];
-  }
-  const template = document.createElement("template");
-  template.innerHTML = html;
-  const nodes = [...template.content.childNodes];
-  if (anchor instanceof HTMLTemplateElement) {
-    anchor.parentNode.insertBefore(template.content, anchor);
-  } else {
-    anchor.appendChild(template.content);
-  }
-  return nodes.filter((node) => node.nodeType === Node.ELEMENT_NODE);
-}
-
 export class FeatureRegistry {
   constructor({definitions = [], store, settings = new SettingsBus(), picking = new PickingRegistry()} = {}) {
     this.store = store || new FeatureStore(definitions);
@@ -180,14 +164,6 @@ export class FeatureRegistry {
 
   ownsPickingTarget(featureId, targetId) {
     return this.picking.belongsTo(featureId, targetId);
-  }
-
-  mountTemplates(root = document) {
-    for (const definition of this.definitions()) {
-      for (const [anchorId, html] of Object.entries(definition.templateFragments || {})) {
-        insertTemplateFragment(root.getElementById(anchorId), html);
-      }
-    }
   }
 
   initialize(context) {

@@ -1,4 +1,3 @@
-import {createDeepMimoDatasetBridge} from "/@oat/features/deepmimo/deepmimo-dataset-bridge.tsx";
 import {formatCount} from "/js/ui/result_formatters.js?v=20260519-mode-isolation";
 
 function shortDeepMimoJobId(jobId) {
@@ -22,17 +21,15 @@ export function createDeepMimoDatasetView({
   deepMimoReceiverEstimate,
   deepMimoDownloadUrl,
   closeModeMenu,
+  datasetModel,
 }) {
-  const bridge = createDeepMimoDatasetBridge({
-    container: ui.deepMimoDatasetMount,
-    onToggle: () => {
-      closeModeMenu();
-      if (state.deepmimo.datasets.length === 0) {
-        return;
-      }
-      state.deepmimo.datasetTrayOpen = !state.deepmimo.datasetTrayOpen;
-      renderDeepMimoDatasetTray();
-    },
+  datasetModel.setToggleHandler(() => {
+    closeModeMenu();
+    if (state.deepmimo.datasets.length === 0) {
+      return;
+    }
+    state.deepmimo.datasetTrayOpen = !state.deepmimo.datasetTrayOpen;
+    renderDeepMimoDatasetTray();
   });
 
   function addDeepMimoDataset(job) {
@@ -62,7 +59,7 @@ export function createDeepMimoDatasetView({
     if (!visible) {
       state.deepmimo.datasetTrayOpen = false;
     }
-    bridge.update({
+    datasetModel.update({
       visible,
       expanded: visible && state.deepmimo.datasetTrayOpen,
       datasets: datasets.map((dataset) => ({
@@ -91,7 +88,9 @@ export function createDeepMimoDatasetView({
 
   return {
     addDeepMimoDataset,
-    dispose: bridge.dispose,
+    dispose() {
+      datasetModel.setToggleHandler(null);
+    },
     renderDeepMimoDatasetTray,
     renderDeepMimoState,
   };

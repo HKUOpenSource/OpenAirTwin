@@ -19,9 +19,35 @@ const EXCLUDED_PRODUCTION_NAMES = [
 ];
 const PRODUCTION_BASE = "/workbench/";
 const REQUIRED_REACT_ENTRIES = [
-  "workbench/src/features/results/result-dock-bridge.tsx",
-  "workbench/src/features/deepmimo/deepmimo-dataset-bridge.tsx",
-  "workbench/src/features/controls/control-surface-bridge.tsx",
+  "workbench/src/app-shell/app-shell-runtime.tsx",
+];
+const FORBIDDEN_PRODUCTION_ROOT_IDS = [
+  "result-dock-content",
+  "deepmimo-dataset-tray",
+  "control-form-content",
+  "device-dock-content",
+];
+const FORBIDDEN_UI_MARKERS = [
+  "CompatibilityAppShellTree",
+  "CompatibilityControlTree",
+  "createAppShellBridge",
+  "createControlSurfaceBridge",
+  "createDeepMimoDatasetBridge",
+  "createResultDockBridge",
+  "legacyBare",
+  "miniBtn",
+  "miniSelect",
+  "oat-button--legacy-native-font",
+  " primary appDialogPrimary",
+  " primary entryFooterBtn",
+];
+const FORBIDDEN_UI_SOURCE_NAMES = [
+  "app-shell/CompatibilityAppShellTree.tsx",
+  "features/controls/CompatibilityControlTree.tsx",
+  "app-shell/app-shell-bridge.tsx",
+  "features/controls/control-surface-bridge.tsx",
+  "features/deepmimo/deepmimo-dataset-bridge.tsx",
+  "features/results/result-dock-bridge.tsx",
 ];
 
 const workbenchRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -51,6 +77,8 @@ const manifestSources = Object.keys(manifest);
 
 if (!index.includes('<script type="importmap">'))
   fail("compatibility import map is missing");
+if (index.includes("data-oat-react-owner") || index.includes('id="view"'))
+  fail("legacy workbench markup remains in the production HTML entry");
 if (!index.includes(`${PRODUCTION_BASE}assets/`))
   fail("index.html does not reference hashed assets");
 if (!appEntry || typeof appEntry.file !== "string")
@@ -73,6 +101,27 @@ if (
 for (const requiredSource of REQUIRED_REACT_ENTRIES) {
   if (!manifestSources.some((source) => source.endsWith(requiredSource)))
     fail(`production React entry is missing: ${requiredSource}`);
+}
+
+const productionJavaScript = files
+  .filter((path) => path.endsWith(".js"))
+  .map((path) => readFileSync(path, "utf8"))
+  .join("\n");
+if (!/id:[`'"]app-shell[`'"]/.test(productionJavaScript))
+  fail("single AppShell root is missing from production JavaScript");
+for (const rootId of FORBIDDEN_PRODUCTION_ROOT_IDS) {
+  if (productionJavaScript.includes(rootId))
+    fail(`legacy production React root remains: ${rootId}`);
+}
+for (const marker of FORBIDDEN_UI_MARKERS) {
+  if (productionJavaScript.includes(marker))
+    fail(`legacy UI marker remains: ${marker}`);
+}
+for (const sourceName of FORBIDDEN_UI_SOURCE_NAMES) {
+  if (existsSync(resolve(workbenchRoot, "src", sourceName)))
+    fail(`legacy UI source remains: ${sourceName}`);
+  if (manifestSources.some((source) => source.endsWith(sourceName)))
+    fail(`legacy UI source entered the production manifest: ${sourceName}`);
 }
 
 for (const [source, entry] of Object.entries(manifest)) {

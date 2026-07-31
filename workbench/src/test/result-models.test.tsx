@@ -1,9 +1,8 @@
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createDeepMimoDatasetBridge } from "../features/deepmimo/deepmimo-dataset-bridge.tsx";
+import { mountAppShell } from "../app-shell/app-shell-runtime.tsx";
 import { createInitialResultDockSnapshot } from "../features/results/contracts.ts";
-import { createResultDockBridge } from "../features/results/result-dock-bridge.tsx";
 
 const mountedContainers: HTMLElement[] = [];
 
@@ -18,19 +17,95 @@ afterEach(() => {
   for (const container of mountedContainers.splice(0)) container.remove();
 });
 
-describe("Phase 5 React result bridges", () => {
-  it("keeps chart hosts stable while Link data and commands update", async () => {
+describe("Phase 8 React result models", () => {
+  it("hides retained Link path details outside the Link result mode", () => {
     const container = mountContainer();
-    let bridge!: ReturnType<typeof createResultDockBridge>;
+    let runtime!: ReturnType<typeof mountAppShell>;
     act(() => {
-      bridge = createResultDockBridge({
+      runtime = mountAppShell({
+        activeMode: "link",
         container,
         reportError: vi.fn(),
       });
     });
+    const model = runtime.results;
+    const initial = createInitialResultDockSnapshot();
+    const linkModel = {
+      ...initial.link,
+      status: "success" as const,
+      visible: true,
+      paths: {
+        visible: true,
+        featureId: "link" as const,
+        countLabel: "1 path",
+        meta: "1 valid",
+        selectedIndex: 0,
+        rows: [],
+        detail: {
+          title: "Path 1",
+          typeLabel: "LoS",
+          fields: [
+            {
+              id: "gain",
+              label: "Path Gain",
+              value: "-81.25 dB",
+              wide: false,
+            },
+          ],
+        },
+      },
+    };
+
+    act(() => {
+      model.update("link", linkModel, "link");
+    });
+    const detail = container.querySelector<HTMLElement>("#pathDetailSection");
+    expect(detail?.classList.contains("hidden")).toBe(false);
+    expect(detail?.getAttribute("aria-hidden")).toBe("false");
+    expect(detail?.textContent).toContain("-81.25 dB");
+
+    act(() => {
+      model.update(
+        "radiomap",
+        { ...initial.radiomap, visible: true },
+        "radiomap",
+      );
+    });
+    expect(detail?.classList.contains("hidden")).toBe(true);
+    expect(detail?.getAttribute("aria-hidden")).toBe("true");
+
+    act(() => {
+      model.update("link", linkModel, null);
+    });
+    expect(detail?.classList.contains("hidden")).toBe(true);
+    expect(detail?.getAttribute("aria-hidden")).toBe("true");
+
+    act(() => {
+      model.update("link", linkModel, "link");
+    });
+    expect(detail?.classList.contains("hidden")).toBe(false);
+    expect(detail?.getAttribute("aria-hidden")).toBe("false");
+    expect(detail?.textContent).toContain("-81.25 dB");
+
+    act(() => {
+      runtime.dispose();
+    });
+  });
+
+  it("keeps chart hosts stable while Link data and commands update", async () => {
+    const container = mountContainer();
+    let runtime!: ReturnType<typeof mountAppShell>;
+    act(() => {
+      runtime = mountAppShell({
+        activeMode: "link",
+        container,
+        reportError: vi.fn(),
+      });
+    });
+    const model = runtime.results;
     const initial = createInitialResultDockSnapshot();
     const commandHandler = vi.fn();
-    bridge.registerCommandHandler("link", commandHandler);
+    model.registerCommandHandler("link", commandHandler);
     expect(container.innerHTML).toContain("linkTapChart");
     expect(container.querySelector("#linkTapTotalPower")?.textContent).toBe(
       "--",
@@ -42,10 +117,10 @@ describe("Phase 5 React result bridges", () => {
     expect(container.querySelector("#linkCirStrongest")?.textContent).toBe(
       "--",
     );
-    const chartHost = bridge.element("linkTapChart");
+    const chartHost = model.element("linkTapChart");
 
     act(() => {
-      bridge.update(
+      model.update(
         "link",
         {
           ...initial.link,
@@ -102,18 +177,14 @@ describe("Phase 5 React result bridges", () => {
     });
 
     act(() => {
-      bridge.update("link", initial.link, null);
+      model.update("link", initial.link, null);
     });
-    expect(bridge.element("linkTapChart")).toBe(chartHost);
+    expect(model.element("linkTapChart")).toBe(chartHost);
 
     const mobilityHandler = vi.fn();
-    bridge.registerCommandHandler("mobility", mobilityHandler);
+    model.registerCommandHandler("mobility", mobilityHandler);
     act(() => {
-      bridge.update(
-        "mobility",
-        { ...initial.mobility, maxStep: 2 },
-        "mobility",
-      );
+      model.update("mobility", { ...initial.mobility, maxStep: 2 }, "mobility");
     });
     const speed = container.querySelector<HTMLSelectElement>(
       "#mobilityPlaybackSpeed",
@@ -134,7 +205,7 @@ describe("Phase 5 React result bridges", () => {
       });
     });
     act(() => {
-      bridge.dispose();
+      runtime.dispose();
     });
     expect(container.childNodes).toHaveLength(0);
   });
@@ -142,17 +213,19 @@ describe("Phase 5 React result bridges", () => {
   it("owns the DeepMIMO dataset tray and preserves download semantics", async () => {
     const container = mountContainer();
     const onToggle = vi.fn();
-    let bridge!: ReturnType<typeof createDeepMimoDatasetBridge>;
+    let runtime!: ReturnType<typeof mountAppShell>;
     act(() => {
-      bridge = createDeepMimoDatasetBridge({
+      runtime = mountAppShell({
+        activeMode: "link",
         container,
-        onToggle,
         reportError: vi.fn(),
       });
+      runtime.setDatasetToggleHandler(onToggle);
     });
+    const model = runtime.datasets;
 
     act(() => {
-      bridge.update({
+      model.update({
         visible: true,
         expanded: true,
         datasets: [
@@ -185,7 +258,7 @@ describe("Phase 5 React result bridges", () => {
     });
 
     act(() => {
-      bridge.dispose();
+      runtime.dispose();
     });
     expect(container.childNodes).toHaveLength(0);
   });

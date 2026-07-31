@@ -3,7 +3,12 @@ import {fileURLToPath} from "node:url";
 
 import {expect, test} from "@playwright/test";
 
-import {buildPhase1DomCompatibilityContract} from "./phase1_contracts.js";
+import {
+  buildPhase1DomCompatibilityContract,
+  PHASE8_RETIRED_CLASSES,
+  PHASE8_RETIRED_ELEMENT_IDS,
+  normalizePhase8DomContract,
+} from "./phase1_contracts.js";
 
 const PHASE0_BASELINE_DIRECTORY = new URL("./baselines/", import.meta.url);
 const UPDATE_PHASE0_BASELINE = process.env.OAT_UPDATE_PHASE0_BASELINE === "1";
@@ -30,17 +35,24 @@ function assertPhase0DomBaseline(actual) {
     assertPhase0Baseline(filename, actual);
     return;
   }
-  const expected = JSON.parse(readFileSync(url, "utf8"));
+  const retiredClasses = new Set(PHASE8_RETIRED_CLASSES);
+  const retiredElementIds = new Set(PHASE8_RETIRED_ELEMENT_IDS);
+  expect(actual.elements.some(({id}) => retiredElementIds.has(id))).toBe(false);
+  expect(actual.elements.some(({classes}) => classes.some((name) => retiredClasses.has(name)))).toBe(false);
+  const expected = normalizePhase8DomContract(JSON.parse(readFileSync(url, "utf8")));
+  const phase8Actual = normalizePhase8DomContract(actual);
   const normalized = {
-    ...actual,
-    elements: actual.elements.map((element, index) => {
+    ...phase8Actual,
+    elements: phase8Actual.elements.map((element, index) => {
       const baseline = expected.elements[index];
+      expect(baseline).toBeDefined();
       expect(element.id).toBe(baseline.id);
       const addedClasses = element.classes.filter((className) => !baseline.classes.includes(className));
       expect(addedClasses.every((className) => className.startsWith("oat-"))).toBe(true);
       return {...element, classes: element.classes.filter((className) => baseline.classes.includes(className))};
     }),
   };
+  expect(normalized.elements).toHaveLength(expected.elements.length);
   expect(normalized).toEqual(expected);
 }
 
@@ -2102,7 +2114,115 @@ test("Radar jobs cancel, invalidate stale work and expose retryable failures", a
   await expect(page.locator("#btnRetryRadar")).toBeVisible();
 });
 
-test("feature registry accepts a virtual feature without core entry edits", async ({page}) => {
+test("scene re-entry deactivates Radar before restoring Link controls", async ({page}) => {
+  await openDeterministicApp(page);
+  const result = await page.evaluate(async () => {
+    const [{createSceneLoaderController}, {defineFeature, FeatureRegistry, FeatureStore}] = await Promise.all([
+      import("/js/controllers/scene_loader_controller.js?v=20260519-mode-isolation"),
+      import("/js/core/feature_registry.js"),
+    ]);
+    const lifecycle = [];
+    const parameterHost = document.createElement("div");
+    const link = defineFeature({
+      id: "link",
+      order: 10,
+      title: "Link Analysis",
+      createState: () => ({}),
+      createFeature: () => ({
+        activate() {
+          lifecycle.push("link:activate");
+        },
+      }),
+    });
+    const radar = defineFeature({
+      id: "radar",
+      order: 20,
+      title: "Radar Sensing",
+      createState: () => ({}),
+      createFeature: () => ({
+        activate() {
+          lifecycle.push("radar:activate");
+          parameterHost.classList.add("radarFullMode");
+        },
+        deactivate() {
+          lifecycle.push("radar:deactivate");
+          parameterHost.classList.remove("radarFullMode");
+        },
+      }),
+    });
+    const definitions = [link, radar];
+    const registry = new FeatureRegistry({
+      definitions,
+      store: new FeatureStore(definitions),
+    });
+    const state = {
+      entry: {sceneReady: false},
+      mode: "link",
+      panelCollapsed: true,
+      pickTarget: "radar-target",
+      tileLoadBusy: false,
+      manifest: null,
+    };
+    const context = {
+      api: {},
+      features: registry,
+      state,
+      ui: {panel: document.createElement("aside")},
+    };
+    registry.initialize(context);
+    registry.activate("radar", context);
+
+    const renderStates = [];
+    const viewer = {
+      focusOnTiles() {},
+    };
+    const controller = createSceneLoaderController(context, {
+      ensureViewer: async () => viewer,
+      getViewer: () => viewer,
+      hideEntryScreen() {},
+      hideOverlay() {},
+      renderAll() {
+        renderStates.push({
+          active: registry.active()?.id,
+          mode: state.mode,
+          radarFullMode: parameterHost.classList.contains("radarFullMode"),
+        });
+      },
+      setProgress() {},
+      showOverlay() {},
+      solver: () => ({}),
+      syncControlSidebarUi() {},
+      syncPerformanceUi() {},
+      syncTileListUi() {},
+      syncViewerMarkers() {},
+      tileSelectionView: {
+        tileSelections: () => ["fixture-tile"],
+      },
+    });
+    await controller.enterScene();
+    return {
+      active: registry.active()?.id,
+      lifecycle,
+      mode: state.mode,
+      panelCollapsed: state.panelCollapsed,
+      pickTarget: state.pickTarget,
+      radarFullMode: parameterHost.classList.contains("radarFullMode"),
+      renderStates,
+    };
+  });
+
+  expect(result).toEqual({
+    active: "link",
+    lifecycle: ["radar:activate", "radar:deactivate", "link:activate"],
+    mode: "link",
+    panelCollapsed: false,
+    pickTarget: null,
+    radarFullMode: false,
+    renderStates: [{active: "link", mode: "link", radarFullMode: false}],
+  });
+});
+
+test("feature registry accepts a virtual domain feature without template injection", async ({page}) => {
   await openDeterministicApp(page);
   const result = await page.evaluate(async () => {
     const {defineFeature, FeatureRegistry, FeatureStore} = await import("/js/core/feature_registry.js");
@@ -2111,8 +2231,7 @@ test("feature registry accepts a virtual feature without core entry edits", asyn
       order: 5,
       title: "Virtual",
       createState: () => ({ready: true}),
-      templateFragments: {featurePanelAnchor: '<section id="virtualPanel">Virtual Panel</section>'},
-      queryDom: (root) => ({panel: root.getElementById("virtualPanel")}),
+      queryDom: (root) => ({panel: root.getElementById("ui")}),
       createTransport: () => ({kind: "transport"}),
       createResultView: () => ({viewReady: true}),
       createController: () => ({controllerReady: true}),
@@ -2121,14 +2240,13 @@ test("feature registry accepts a virtual feature without core entry edits", asyn
     });
     const store = new FeatureStore([virtual]);
     const registry = new FeatureRegistry({definitions: [virtual], store});
-    registry.mountTemplates(document);
     registry.initialize({documentRoot: document});
     registry.activate("virtual");
     const instance = registry.instance("virtual");
     return {
       ids: registry.definitions().map((item) => item.id),
       state: store.get("virtual"),
-      panel: instance.dom.panel.textContent,
+      panel: instance.dom.panel.id,
       transport: registry.transport("virtual").kind,
       components: [instance.viewReady, instance.controllerReady, instance.rendererReady],
     };
@@ -2136,7 +2254,7 @@ test("feature registry accepts a virtual feature without core entry edits", asyn
   expect(result).toEqual({
     ids: ["virtual"],
     state: {ready: true, activated: true},
-    panel: "Virtual Panel",
+    panel: "ui",
     transport: "transport",
     components: [true, true, true],
   });

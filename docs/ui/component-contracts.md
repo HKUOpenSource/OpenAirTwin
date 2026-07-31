@@ -1,6 +1,6 @@
 # OpenAirTwin UI 组件合同
 
-> 状态：Phase 6 生产合同；结果数据、控件表单与设备操作 UI 为 React 所有者
+> 状态：Phase 8 生产合同；工作台由单一 React `app-shell` Root 所有
 >
 > 范围：核心桌面工作台，`1280x720` 及以上
 >
@@ -55,9 +55,9 @@
 - 数据：`oat-badge`、`oat-metric-grid`、`oat-list-card`、`oat-empty-state`；
 - 基础设施：`oat-scroll-region`、`oat-icon`。
 
-`.btn`、`.miniBtn`、`.miniSelect` 和 `.danger` 仅是兼容 Alias，退役条件见 [legacy-aliases.md](legacy-aliases.md)。Feature 不能再为这些组件定义核心按钮几何。
+Phase 8 已删除 `.btn`、`.miniBtn`、`.miniSelect`、`.primary`、`.danger` 和内部兼容字体类。生产 UI 只能使用公共 `oat-*` 类；Feature 不能再定义或复制按钮、字段和列表卡的核心几何。
 
-### 2.2 Phase 6 React 实现与生产边界
+### 2.2 Phase 8 React 实现与生产边界
 
 类型化 React Primitive 位于 `workbench/src/design-system/components/`，并继续输出 2.1 节的同一组 `oat-*` class。机器清单中的 `reactSource` 是每个公共组件的唯一 React 源码位置；禁止为 Feature 复制 Primitive 或建立 Barrel 入口。
 
@@ -70,12 +70,15 @@ React 组件遵循以下边界：
 - Root 只能挂载到空容器，由 `ReactRootRegistry` 统一 Unmount、Cleanup 和恢复焦点；
 - 组件异常由 Error Boundary 显示公共错误面板，并通过 Root Error Hook 进入宿主错误路径；
 - `className` 只用于领域布局组合，禁止传入任意 inline style 或设计值；
-- 当前 `component-manifest.json` 的 `productionOwner` 为 `mixed`。`result-dock-content`、`deepmimo-dataset-tray`、`control-form-content` 和 `device-dock-content` 是已批准的 React 生产边界；Shell、Entry Map、Performance、Dialog、Tooltip 和命令式图形引擎仍由原所有者持有。
+- 当前 `component-manifest.json` 的 `productionOwner` 为 `react`，唯一生产 Root 与边界均为 `app-shell`；旧的四个生产 Root 已退出生产入口。
+- `ShellLayout` 与 `ControlSurface` 是显式 JSX 组件树，在一个 React Root 内组合 Control、Device、Result 与 DeepMIMO Dataset 子树；生产入口不解析或注入 HTML Template，普通布局禁止使用 Portal。
+- Leaflet、Three.js、Canvas/SVG 图表仍是命令式 Adapter，只拥有 React 提供的稳定 Host 内部；普通 Shell 或 ViewModel 更新不得替换 `#view`、Map Host 或图表 Host。
+- Shell 的 Document/Window Handler、Performance Interval 和命名 Command 路由由 `AppShell` 生命周期持有；Feature、Map、Viewer 与 Controller 必须在 Page/Feature dispose 中释放资源。
 - `Filter` 与 `ChartFrame` 位于 `ResultData.tsx`，与 `MetricGrid`、`ListCard`、`EmptyState` 一起构成结果区公共组件集合。
-- React 结果边界只接收类型化 ViewModel 并发送冻结 Command；Legacy adapter 不得再写入这些子树。
+- React 结果边界只接收类型化 ViewModel 并发送冻结 Command；图表 Adapter 只能写入登记的 SVG/Canvas host。
 - `ControlledField` 保留原生 input/select 的 ID、name、默认值、min/max/step、提交时机和浏览器键盘语义。文本与数字输入在 `input` 时更新草稿，在 `blur` 或兼容原生 `change` 时提交；checkbox、radio 和 select 立即提交。
 - `ControlCollections` 是 Mobility waypoint 与 Radar target 列表的唯一 DOM 所有者。Feature runtime 只处理 `workbench.control.*` Command 和领域状态，不创建列表节点。
-- `control-surface-bridge` 提供冻结 DOM 到类型化快照的过渡适配；旧 Controller 可读取由桥绑定的元素，但不得绑定已迁移字段或按钮事件，也不得创建/替换 React 所有的子节点。
+- `control-surface-model`、`result-dock-model`、`deepmimo-dataset-model` 和 `shell-ui-model` 提供唯一类型化快照/API。Controller 可通过登记的稳定 Ref 读取原生字段以保持领域解析，但不得创建、替换或绑定 React 所有的普通 UI 子节点。
 
 开发目录在同一页面渲染 Native 与 React 两列，逐项验证 DOM 状态和 computed style。该目录只由 Vite 开发服务提供，不属于生产入口或发布 Bundle。
 
@@ -83,14 +86,14 @@ React 组件遵循以下边界：
 
 | 组件 | 当前实例 | 唯一所有者 | 允许组合 |
 | --- | --- | --- | --- |
-| `ControlPanel` | `#ui` | Shell 拥有外壳；`control-form-content` 拥有表单子树 | PanelHeader、ModeSelector、ScrollRegion、FeaturePanel |
-| `ModeSelector` | `#modeSelector` | `shell:feature-registry` | CollapsibleGroup、Feature mode buttons |
-| `DeviceDock` / `DeviceCard` | `#deviceDock` 与五模式设备卡 | Shell 拥有容器定位；`device-dock-content` 拥有卡片、字段和操作 | Field、IconButton、ButtonGroup |
-| `ResultDock` | `#linkChannelSection` | `shell:result-dock` | FeatureResult、ScrollRegion、PanelHeader |
-| `PerformanceDock` | `#performanceDock` | `shell:performance` | Badge、MetricGrid、Checkbox、ButtonGroup |
-| `EntryMap` | `#entryScreen` | `shell:entry-map` | Search、Map host、Tile list、Primary action |
-| `AppDialog` | `#appDialog` | `shell:overlay` | Dialog |
-| `ParameterTooltip` | `#paramTooltipLayer` | `shell:overlay` | Tooltip |
+| `ControlPanel` | `#ui` | `react:app-shell`；Controller 只读/同步已登记 Ref | PanelHeader、ModeSelector、ScrollRegion、FeaturePanel |
+| `ModeSelector` | `#modeSelector` | `react:app-shell` | CollapsibleGroup、Feature mode buttons |
+| `DeviceDock` / `DeviceCard` | `#deviceDock` 与五模式设备卡 | `react:app-shell` | Field、IconButton、ButtonGroup |
+| `ResultDock` | `#linkChannelSection` | `react:app-shell` | FeatureResult、ScrollRegion、PanelHeader |
+| `PerformanceDock` | `#performanceDock` | `react:app-shell`；Viewer Adapter 执行领域副作用 | Badge、MetricGrid、Checkbox、ButtonGroup |
+| `EntryMap` | `#entryScreen` | `react:app-shell`；Leaflet Adapter 独占 `#entryMap` 内部 | Search、Map host、Tile list、Primary action |
+| `AppDialog` | `#appDialog` | `react:app-shell`；Dialog Controller 保持队列和 Focus Trap | Dialog |
+| `ParameterTooltip` | `#paramTooltipLayer` | `react:app-shell`；Tooltip Adapter 负责运行时定位 | Tooltip |
 
 ## 4. 重复模式归属
 

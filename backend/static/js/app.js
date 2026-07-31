@@ -10,7 +10,7 @@ import {
 } from "/js/api.js";
 import {entryMap, featureStore, PERFORMANCE_MODES, state, viewerRef} from "/js/app_state.js?v=20260723-radar-shared-groups";
 import {FeatureRegistry, PickingRegistry, SettingsBus} from "/js/core/feature_registry.js";
-import {bindControlSurfaceRefs, inputs, ui} from "/js/dom_refs.js?v=20260519-mode-isolation";
+import {bindAppShellRefs, bindControlSurfaceRefs, inputs, ui} from "/js/dom_refs.js?v=20260519-mode-isolation";
 import {FEATURE_CATALOG} from "/js/features/feature_catalog.js?v=20260723-radar-shared-groups";
 import {createAppDialogController} from "/js/controllers/app_dialog_controller.js?v=20260604-app-dialog";
 import {createDevicePickingController} from "/js/controllers/device_picking_controller.js?v=20260519-mode-isolation";
@@ -19,8 +19,7 @@ import {createParamTooltipController} from "/js/param_tooltips.js";
 import {createPerformancePanelController} from "/js/performance_panel.js";
 import {createSceneRenderStateController} from "/js/scene_render_state.js?v=20260723-empty-devices";
 import {createSolverControlsController} from "/js/solver_controls.js?v=20260723-empty-devices";
-import {createResultDockBridge} from "/@oat/features/results/result-dock-bridge.tsx";
-import {createControlSurfaceBridge} from "/@oat/features/controls/control-surface-bridge.tsx";
+import {mountAppShell} from "/@oat/app-shell/app-shell-runtime.tsx";
 
 const settings = new SettingsBus();
 const pickingRegistry = new PickingRegistry();
@@ -54,25 +53,35 @@ const context = {
   controllers: {},
   utilities: {},
 };
-let resultDockBridge = null;
-let controlSurfaceBridge = null;
+let appShellRuntime = null;
+let resultDockModel = null;
+let controlSurfaceModel = null;
+let dialogController = null;
+let performancePanel = null;
+let entryMapController = null;
+let solverControls = null;
+let sceneRenderState = null;
+let paramTooltips = null;
+let devicePicking = null;
 
-const dialogController = createAppDialogController(context);
-context.controllers.dialogs = dialogController;
-
-const performancePanel = createPerformancePanelController(context);
-const entryMapController = createEntryMapController(context);
-const solverControls = createSolverControlsController(context);
-const sceneRenderState = createSceneRenderStateController(context);
-const paramTooltips = createParamTooltipController(context);
-const devicePicking = createDevicePickingController(context);
-
-context.controllers.performance = performancePanel;
-context.controllers.entry = entryMapController;
-context.controllers.solver = solverControls;
-context.controllers.scene = sceneRenderState;
-context.controllers.tooltips = paramTooltips;
-context.controllers.devicePicking = devicePicking;
+function initializeControllers() {
+  dialogController = createAppDialogController(context);
+  performancePanel = createPerformancePanelController(context);
+  entryMapController = createEntryMapController(context);
+  solverControls = createSolverControlsController(context);
+  sceneRenderState = createSceneRenderStateController(context);
+  paramTooltips = createParamTooltipController(context);
+  devicePicking = createDevicePickingController(context);
+  Object.assign(context.controllers, {
+    dialogs: dialogController,
+    performance: performancePanel,
+    entry: entryMapController,
+    solver: solverControls,
+    scene: sceneRenderState,
+    tooltips: paramTooltips,
+    devicePicking,
+  });
+}
 
 function errorMessage(error) {
   return error?.message || String(error || "Unknown error");
@@ -113,12 +122,12 @@ async function runSolveFromDock(actionId, run) {
   devicePicking.clearActiveDevice({render: false});
   solverControls.cancelLivePreview();
   sceneRenderState.renderAll();
-  controlSurfaceBridge.setActionBusy(actionId, true);
+  controlSurfaceModel.setActionBusy(actionId, true);
   try {
     await run();
   } finally {
     activeSolveActions.delete(actionId);
-    controlSurfaceBridge.setActionBusy(actionId, false);
+    controlSurfaceModel.setActionBusy(actionId, false);
     sceneRenderState.renderAll();
   }
 }
@@ -129,141 +138,139 @@ Object.assign(context.utilities, {
   showErrorDialog,
 });
 
-function attachEvents() {
-  paramTooltips.attach();
+function handleEnterScene() {
+  devicePicking.clearActiveDevice({render: false, status: false});
+  return sceneRenderState.enterScene().catch((error) => {
+    sceneRenderState.hideOverlay(null, true);
+    state.tileLoadBusy = false;
+    sceneRenderState.syncTileListUi();
+    return showErrorDialog("Enter Scene Failed", error);
+  });
+}
 
-  const handleEnterScene = () => {
-    devicePicking.clearActiveDevice({render: false, status: false});
-    return sceneRenderState.enterScene().catch((error) => {
-      sceneRenderState.hideOverlay(null, true);
-      state.tileLoadBusy = false;
-      sceneRenderState.syncTileListUi();
-      return showErrorDialog("Enter Scene Failed", error);
-    });
-  };
-  const handleReturnToScene = () => {
-    devicePicking.clearActiveDevice({render: false});
-    sceneRenderState.resetSelectionToLoadedTiles();
-    entryMapController.hideEntryScreen();
-    sceneRenderState.renderAll();
-  };
+function handleReturnToScene() {
+  devicePicking.clearActiveDevice({render: false});
+  sceneRenderState.resetSelectionToLoadedTiles();
+  entryMapController.hideEntryScreen();
+  sceneRenderState.renderAll();
+}
 
-  ui.panelToggle.addEventListener("click", () => {
+async function handleAppShellCommand(command) {
+  const payload = command.payload || {};
+  if (command.name === "workbench.controls.toggle") {
     paramTooltips.hideTooltip();
     state.panelCollapsed = !state.panelCollapsed;
     sceneRenderState.syncControlSidebarUi();
-  });
-  ui.entryMapFigure.addEventListener("mouseleave", () => {
-    entryMapController.hideEntryMapTooltip();
-  });
-
-  ui.btnEntrySidebarToggle.addEventListener("click", () => {
+    return;
+  }
+  if (command.name === "entry.sidebar.toggle") {
     state.entry.sidebarCollapsed = !state.entry.sidebarCollapsed;
     entryMapController.syncEntrySidebarUi();
     if (!state.entry.sidebarCollapsed) {
       window.setTimeout(() => ui.entryPlaceInput.focus(), 120);
     }
-  });
-  ui.btnEntryReturnScene.addEventListener("click", handleReturnToScene);
-  ui.btnEntrySearch.addEventListener("click", () => {
-    entryMapController.runEntryPlaceSearch();
-  });
-  ui.entryPlaceInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      entryMapController.runEntryPlaceSearch();
-    }
-  });
-  ui.btnEntryFitMap.addEventListener("click", () => {
-    entryMapController.fitEntryMapToView();
-  });
-  ui.btnEntryFocusSelection.addEventListener("click", () => {
+    return;
+  }
+  if (command.name === "entry.scene.return") return handleReturnToScene();
+  if (command.name === "entry.search.submit") return entryMapController.runEntryPlaceSearch();
+  if (command.name === "entry.place.select") return entryMapController.focusEntryPlaceResult(payload.index);
+  if (command.name === "entry.map.fit") return entryMapController.fitEntryMapToView();
+  if (command.name === "entry.map.focusSelection") {
     const selected = sceneRenderState.tileSelections();
-    if (!selected.length) {
-      return;
+    if (selected.length) {
+      entryMapController.focusEntryMapTiles(selected, selected.length > 1 ? 0.98 : 1.08);
     }
-    entryMapController.focusEntryMapTiles(selected, selected.length > 1 ? 0.98 : 1.08);
-  });
-  ui.btnEntryZoomIn.addEventListener("click", () => {
-    entryMap.map?.zoomIn(0.5);
-  });
-  ui.btnEntryZoomOut.addEventListener("click", () => {
-    entryMap.map?.zoomOut(0.5);
-  });
-  ui.btnEnterScene.addEventListener("click", handleEnterScene);
-  ui.btnOpenTileIndex.addEventListener("click", () => {
+    return;
+  }
+  if (command.name === "entry.map.zoomIn") return entryMap.map?.zoomIn(0.5);
+  if (command.name === "entry.map.zoomOut") return entryMap.map?.zoomOut(0.5);
+  if (command.name === "entry.map.pointerLeave") return entryMapController.hideEntryMapTooltip();
+  if (command.name === "entry.scene.enter") return handleEnterScene();
+  if (command.name === "entry.scene.open") {
     devicePicking.clearActiveDevice({render: false});
     solverControls.cancelLivePreview();
     entryMapController.showEntryScreen();
-  });
-
-  for (const button of ui.perfModeButtons) {
-    button.addEventListener("click", () => {
-      const mode = button.dataset.performanceMode;
-      if (!PERFORMANCE_MODES.has(mode)) {
-        return;
-      }
-      state.performance.mode = mode;
-      currentViewer().setPerformanceMode(mode);
-      performancePanel.syncPerformanceUi();
-    });
+    return;
   }
-  ui.perfLightMaterials.addEventListener("change", () => {
-    state.performance.lightweightMaterials = ui.perfLightMaterials.checked;
+  if (command.name === "entry.tile.toggle") {
+    return sceneRenderState.setTileChecked(payload.tileId, Boolean(payload.checked));
+  }
+  if (command.name === "performance.mode.select") {
+    if (!PERFORMANCE_MODES.has(payload.mode)) return;
+    state.performance.mode = payload.mode;
+    currentViewer().setPerformanceMode(payload.mode);
+    performancePanel.syncPerformanceUi();
+    return;
+  }
+  if (command.name === "performance.lightMaterials.toggle") {
+    state.performance.lightweightMaterials = Boolean(payload.checked);
     currentViewer().setLightweightMaterials(state.performance.lightweightMaterials);
     performancePanel.syncPerformanceUi();
-  });
-  ui.btnPerformanceDockToggle.addEventListener("click", () => {
+    return;
+  }
+  if (command.name === "performance.dock.toggle") {
     state.performance.dockExpanded = !state.performance.dockExpanded;
     performancePanel.syncPerformanceUi();
-  });
-  ui.btnResultDockToggle.addEventListener("click", () => {
+    return;
+  }
+  if (command.name === "results.dock.toggle") {
     state.resultDock.expanded = !state.resultDock.expanded;
     sceneRenderState.syncResultDockUi();
-  });
-  ui.btnShowAllCategories.addEventListener("click", () => {
-    performancePanel.showAllCategories();
-  });
-  ui.btnHideHeavyCategories.addEventListener("click", () => {
-    performancePanel.hideHeavyCategories();
-  });
-  window.setInterval(() => {
-    if (currentViewer().__ready && !state.entry.visible) {
-      performancePanel.syncPerformanceUi();
-    }
-  }, 500);
-
-  ui.modeSelector.addEventListener("toggle", () => {
-    ui.modeSelectButton.setAttribute("aria-expanded", String(ui.modeSelector.open));
-  });
-  ui.modeMenu.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
-  document.addEventListener("click", (event) => {
-    if (event.target instanceof Element && event.target.closest(".modeSelector")) {
-      return;
-    }
+    return;
+  }
+  if (command.name === "performance.categories.showAll") return performancePanel.showAllCategories();
+  if (command.name === "performance.categories.hideHeavy") return performancePanel.hideHeavyCategories();
+  if (command.name === "performance.category.toggle") {
+    return performancePanel.setCategoryVisibility(payload.category, payload.checked);
+  }
+  if (command.name === "performance.tick") {
+    if (currentViewer().__ready && !state.entry.visible) performancePanel.syncPerformanceUi();
+    return;
+  }
+  if (command.name === "workbench.mode.toggle") {
+    ui.modeSelectButton.setAttribute("aria-expanded", String(Boolean(payload.open)));
+    return;
+  }
+  if (command.name === "workbench.mode.select") {
+    const definition = featureRegistry.get(payload.mode);
+    if (!definition) return;
+    closeModeMenu();
+    paramTooltips.hideTooltip();
+    solverControls.cancelLivePreview();
+    devicePicking.stopTxOrbit();
+    devicePicking.clearActiveDevice({render: false});
+    featureRegistry.activate(definition.id, context);
+    sceneRenderState.renderAll();
+    return;
+  }
+  if (command.name === "workbench.transient.dismiss") {
     closeModeMenu();
     closeFeatureTransientUi();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      closeModeMenu();
-      closeFeatureTransientUi();
-    }
-  });
-
-  for (const definition of featureRegistry.definitions()) {
-    featureRegistry.uiRef(definition.id, definition.ui.tabRef, ui).addEventListener("click", () => {
-      closeModeMenu();
-      paramTooltips.hideTooltip();
-      solverControls.cancelLivePreview();
-      devicePicking.stopTxOrbit();
-      devicePicking.clearActiveDevice({render: false});
-      featureRegistry.activate(definition.id, context);
-      sceneRenderState.renderAll();
-    });
+    return;
   }
+  if (command.name === "viewer.precision.escape") {
+    devicePicking.handleDevicePrecisionEscape({key: "Escape", preventDefault() {}});
+    return;
+  }
+  if (command.name === "workbench.resize") {
+    paramTooltips.hideTooltip();
+    if (!state.entry.visible) return;
+    const selected = sceneRenderState.tileSelections();
+    if (selected.length) {
+      entryMapController.focusEntryMapTiles(selected, selected.length > 1 ? 0.98 : 1.08);
+    } else {
+      entryMapController.fitEntryMapToView();
+    }
+    return;
+  }
+  if (command.name === "dialog.primary") return dialogController.confirmActiveDialog();
+  if (command.name === "dialog.secondary") return dialogController.finishDialog(false);
+  if (command.name === "dialog.close") return dialogController.cancelActiveDialog();
+  if (command.name === "loading.cancel") return sceneRenderState.cancelOverlay();
+}
+
+function attachRuntimeEvents() {
+  paramTooltips.attach();
 
   featureRegistry.attachEvents(context);
 
@@ -277,7 +284,7 @@ function attachEvents() {
     "rxArrayPolarization", "rxArrayRows", "rxArrayCols",
     "rxArrayVerticalSpacing", "rxArrayHorizontalSpacing",
   ]);
-  controlSurfaceBridge.setCommandHandler(async (command) => {
+  controlSurfaceModel.setCommandHandler(async (command) => {
     if (command.name === "workbench.control.commit") {
       const {controlId} = command.payload;
       if (commonSolverIds.has(controlId)) {
@@ -315,48 +322,36 @@ function attachEvents() {
     }
   });
 
-  devicePicking.attachPointerEvents(document.getElementById("view"));
-
-  window.addEventListener("keydown", (event) => {
-    devicePicking.handleDevicePrecisionEscape(event);
-  });
-
-  window.addEventListener("resize", () => {
-    if (!state.entry.visible) {
-      return;
-    }
-    const selected = sceneRenderState.tileSelections();
-    if (selected.length) {
-      entryMapController.focusEntryMapTiles(selected, selected.length > 1 ? 0.98 : 1.08);
-      return;
-    }
-    entryMapController.fitEntryMapToView();
-  });
+  devicePicking.attachPointerEvents(appShellRuntime.element("view"));
 }
 
 async function bootstrap() {
-  featureRegistry.mountTemplates(document);
-  controlSurfaceBridge = createControlSurfaceBridge({
-    formContainer: ui.controlFormMount,
-    deviceContainer: ui.deviceContentMount,
+  appShellRuntime = mountAppShell({
     activeMode: state.mode,
+    container: document.body,
     reportError: ({error}) => {
-      showErrorDialog("Control UI Failed", error);
+      console.error("[app-shell]", error);
     },
   });
-  bindControlSurfaceRefs(controlSurfaceBridge);
-  context.featureServices.controls = controlSurfaceBridge;
-  resultDockBridge = createResultDockBridge({
-    container: ui.resultContentMount,
-    reportError: ({error}) => {
-      showErrorDialog("Result UI Failed", error);
-    },
-  });
-  context.featureServices.resultDock = resultDockBridge;
+  bindAppShellRefs(appShellRuntime);
+  controlSurfaceModel = appShellRuntime.controls;
+  resultDockModel = appShellRuntime.results;
+  bindControlSurfaceRefs(controlSurfaceModel);
+  context.featureServices.controls = controlSurfaceModel;
+  context.featureServices.resultDock = resultDockModel;
+  context.featureServices.shellUi = appShellRuntime.shell;
+  context.featureServices.deepMimoDatasets = {
+    update: appShellRuntime.datasets.update,
+    setToggleHandler: appShellRuntime.setDatasetToggleHandler,
+  };
+  initializeControllers();
+  appShellRuntime.setCommandHandler(handleAppShellCommand);
+  appShellRuntime.setDatasetToggleHandler(null);
+  controlSurfaceModel.setCommandHandler(null);
   featureRegistry.initialize(context);
   featureRegistry.activate(state.mode, context);
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 10, force: true});
-  attachEvents();
+  attachRuntimeEvents();
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading RT capabilities...", percent: 14, force: true});
   state.rtCapabilities = await getRtCapabilities();
   solverControls.applyRtCapabilities(state.rtCapabilities);
@@ -382,18 +377,25 @@ async function bootstrap() {
 
 window.addEventListener("pagehide", () => {
   featureRegistry.dispose(context);
-  resultDockBridge?.dispose();
-  resultDockBridge = null;
-  controlSurfaceBridge?.dispose();
-  controlSurfaceBridge = null;
+  devicePicking?.dispose?.();
+  paramTooltips?.dispose?.();
+  sceneRenderState?.dispose?.();
+  entryMapController?.dispose?.();
+  performancePanel?.dispose?.();
+  dialogController?.dispose?.();
+  appShellRuntime?.dispose();
+  appShellRuntime = null;
+  resultDockModel = null;
+  controlSurfaceModel = null;
 }, {once: true});
 
 bootstrap().catch((error) => {
   try {
-    sceneRenderState.hideOverlay(null, true);
+    sceneRenderState?.hideOverlay(null, true);
   } catch (cleanupError) {
     console.error("Failed to restore the UI after startup error", cleanupError);
-    ui.loadingScreen.style.display = "none";
+    if (ui.loadingScreen) ui.loadingScreen.style.display = "none";
   }
-  return showErrorDialog("Startup Failed", error);
+  if (dialogController) return showErrorDialog("Startup Failed", error);
+  console.error("Startup Failed", error);
 });

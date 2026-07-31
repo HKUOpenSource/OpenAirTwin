@@ -1000,14 +1000,14 @@
   margin-top:var(--oat-space-16);
 }
 
-.appDialogActions .btn {
+.appDialogActions .oat-button {
   flex:0 1 auto;
   min-width:92px;
   max-width:100%;
   min-height:36px;
 }
 
-.appDialogActions .btn:focus-visible,.appDialogClose:focus-visible {
+.appDialogActions .oat-button:focus-visible,.appDialogClose:focus-visible {
   outline:3px solid var(--oat-color-rgba-31-111-255-0-18);
   outline-offset:2px;
 }

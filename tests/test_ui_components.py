@@ -61,13 +61,10 @@ def test_manifest_and_catalog_cover_every_public_variant_and_state() -> None:
     manifest = load_manifest()
     catalog = read(CATALOG_PATH)
     components = {component["name"]: component for component in manifest["components"]}
-    assert manifest["schemaVersion"] == 4
-    assert manifest["phase"] == 6
-    assert manifest["productionOwner"] == "mixed"
-    assert manifest["reactProductionBoundaries"] == [
-        "result-dock-content", "deepmimo-dataset-tray",
-        "control-form-content", "device-dock-content",
-    ]
+    assert manifest["schemaVersion"] == 6
+    assert manifest["phase"] == 8
+    assert manifest["productionOwner"] == "react"
+    assert manifest["reactProductionBoundaries"] == ["app-shell"]
     assert manifest["reactCatalogEntry"] == "workbench/src/catalog/main.tsx"
     assert set(components) == {
         "Panel", "Button", "Field", "Checkbox", "Badge", "MetricGrid",
@@ -102,37 +99,36 @@ def test_react_catalog_is_development_only_and_keeps_native_as_production_owner(
     assert "reactCatalogRoot" not in production_index
 
 
-def test_legacy_aliases_share_public_rules_and_production_markup() -> None:
+def test_phase8_legacy_aliases_are_absent_from_css_and_react_markup() -> None:
     components = read(CSS_ROOT / "components.css")
-    assert not re.search(r"(?m)^\s*\.(?:btn|miniBtn|miniSelect|danger)\s*\{", components)
-    assert ":where(.oat-button:not(.oat-button--compact),.btn)" in components
-    assert ":where(.oat-button--compact,.miniBtn)" in components
-    assert ".miniSelect,.oat-input--compact" in components
-    assert components.count(".oat-button--legacy-native-font") == 1
-
-    production = "\n".join(
-        [read(STATIC_ROOT / "index.html")]
-        + [read(path) for path in sorted(JS_ROOT.rglob("*.js")) if path.name != "radar-demo.js"]
+    react_markup = "\n".join(
+        read(PROJECT_ROOT / "workbench" / "src" / relative)
+        for relative in (
+            "app-shell/ShellLayout.tsx",
+            "features/controls/ControlSurface.tsx",
+            "features/results/ResultDockContent.tsx",
+        )
     )
-    class_attributes = re.findall(r'class(?:Name)?\s*=\s*["`]([^"`]+)', production)
-    for value in class_attributes:
-        names = set(value.split())
-        if "miniBtn" in names:
-            assert {"oat-button", "oat-button--compact"} <= names
-        if "miniSelect" in names:
-            assert {"oat-input", "oat-input--compact"} <= names
-        if "btn" in names:
-            assert "oat-button" in names
-    assert production.count("oat-button--legacy-native-font") == 4
-    result_component = read(PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx")
-    assert result_component.count("oat-button--legacy-native-font") == 1
+    for alias in ("miniBtn", "miniSelect", "oat-button--legacy-native-font"):
+        assert alias not in components
+        assert alias not in react_markup
+    assert not re.search(r"(?m)(?:^|,)\s*\.btn(?:\b|[.:])", components)
+    assert not re.search(r"(?m)(?:^|,)\s*\.danger(?:\b|[.:])", components)
+    assert not re.search(r"(?m)(?:^|,)\s*\.primary(?:\b|[.:])", components)
+    assert '"className":"danger ' not in react_markup
+    assert 'className="primary ' not in react_markup
+    assert ".oat-button:not(.oat-button--compact)" in components
+    assert ".oat-button--compact" in components
+    assert ".oat-input--compact" in components
 
 
 def test_feature_rows_compose_public_components_without_core_button_overrides() -> None:
     expected_patterns = {
-        JS_ROOT / "entry_map.js": ["entryPlaceResult oat-list-card oat-list-card--interactive"],
-        JS_ROOT / "performance_panel.js": ["categoryItem oat-check oat-list-card"],
-        JS_ROOT / "ui" / "tile_selection_view.js": ["tileItem oat-check oat-list-card"],
+        PROJECT_ROOT / "workbench" / "src" / "app-shell" / "ShellCollections.tsx": [
+            "entryPlaceResult oat-list-card oat-list-card--interactive",
+            "categoryItem oat-check oat-list-card",
+            "tileItem oat-check oat-list-card",
+        ],
         PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx": [
             "pathAllButton oat-list-card oat-list-card--interactive",
             "pathRow oat-list-card oat-list-card--interactive",
@@ -154,27 +150,50 @@ def test_feature_rows_compose_public_components_without_core_button_overrides() 
     assert not re.search(r"(?m)^\s*\.radarAssetAddButton\s*\{", radar_css)
 
 
-def test_phase6_react_owns_control_and_device_boundaries() -> None:
+def test_phase8_react_has_one_app_shell_path_without_legacy_renderers() -> None:
     html = read(STATIC_ROOT / "index.html")
     app = read(JS_ROOT / "app.js")
     dom_refs = read(JS_ROOT / "dom_refs.js")
     solver = read(JS_ROOT / "solver_controls.js")
     radar_controls = read(JS_ROOT / "features" / "radar" / "controls.js")
-    bridge = read(PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "control-surface-bridge.tsx")
+    model = read(PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "control-surface-model.ts")
+    control_surface = read(PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "ControlSurface.tsx")
+    app_shell = read(PROJECT_ROOT / "workbench" / "src" / "app-shell" / "AppShell.tsx")
+    shell_layout = read(PROJECT_ROOT / "workbench" / "src" / "app-shell" / "ShellLayout.tsx")
+    app_shell_runtime = read(PROJECT_ROOT / "workbench" / "src" / "app-shell" / "app-shell-runtime.tsx")
     contracts = read(PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "contracts.ts")
     controlled_field = read(PROJECT_ROOT / "workbench" / "src" / "design-system" / "components" / "ControlledField.tsx")
 
-    assert 'data-oat-react-owner="control-form"' in html
-    assert 'data-oat-react-owner="device-dock"' in html
-    assert "createControlSurfaceBridge" in app
-    assert "bindControlSurfaceRefs(controlSurfaceBridge)" in app
+    assert "data-oat-react-owner" not in html
+    assert 'data-oat-react-owner="control-form"' in shell_layout
+    assert 'data-oat-react-owner="device-dock"' in shell_layout
+    assert "mountAppShell" in app
+    assert "bindAppShellRefs(appShellRuntime)" in app
+    assert "controlSurfaceModel = appShellRuntime.controls;" in app
+    assert "bindControlSurfaceRefs(controlSurfaceModel)" in app
     assert "inputs[key] = controlSurface.element(key);" in dom_refs
     assert "ui[key] = controlSurface.elements(selector);" in dom_refs
     assert "controlCommitCommand" in controlled_field
     assert "workbench.control.action" in contracts
-    assert "CommandBus" in bridge
+    assert "CommandBus" in app_shell_runtime
+    assert 'id: "app-shell"' in app_shell_runtime
+    assert "reactRootRegistry.mount" in app_shell_runtime
+    assert 'data-oat-react-owner="app-shell"' in app_shell
+    assert 'addEventListener("toggle", handleToggle, true)' in app_shell
+    assert "createPortal" not in app_shell
     assert "document.createElement" not in solver
     assert "document.createElement" not in radar_controls
+    assert "document.createElement" not in control_surface
+    assert ".innerHTML" not in control_surface
+    assert ".innerHTML" not in app_shell_runtime
+    assert "Compatibility" not in app_shell_runtime + control_surface + model
+    for removed in (
+        "app-shell/CompatibilityAppShellTree.tsx",
+        "features/controls/CompatibilityControlTree.tsx",
+        "app-shell/app-shell-bridge.tsx",
+        "features/controls/control-surface-bridge.tsx",
+    ):
+        assert not (PROJECT_ROOT / "workbench" / "src" / removed).exists()
 
     for relative_path in (
         "features/link/runtime.js",

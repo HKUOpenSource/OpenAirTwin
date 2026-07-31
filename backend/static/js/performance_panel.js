@@ -10,6 +10,7 @@ function formatBytes(bytes, digits = 1) {
 
 export function createPerformancePanelController(context) {
   const {state, ui, viewerRef} = context;
+  const shellUi = context.featureServices.shellUi;
   const getViewer = () => viewerRef.current;
   let analysisDockReserveObserver = null;
 
@@ -89,65 +90,27 @@ function setAllCategoryVisibility(visible, predicate = () => true) {
 
 function populatePerformanceControls(manifest) {
   state.performance.categories = buildPerformanceCategories(manifest);
-  ui.categoryVisibility.replaceChildren();
-
   for (const category of state.performance.categories) {
     if (!state.performance.categoryVisibility.has(category.name)) {
       state.performance.categoryVisibility.set(category.name, true);
     }
-
-    const row = document.createElement("label");
-    row.className = "categoryItem oat-check oat-list-card";
-    row.dataset.category = category.name;
-
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.checked = performanceCategoryVisible(category.name);
-    input.addEventListener("change", () => setCategoryVisibility(category.name, input.checked));
-
-    const meta = document.createElement("span");
-    const name = document.createElement("span");
-    name.className = "categoryName";
-    name.textContent = category.name;
-    const stats = document.createElement("span");
-    stats.className = "categoryStats";
-    stats.dataset.categoryStats = category.name;
-    stats.textContent = categoryManifestFallback(category);
-    meta.append(name, stats);
-
-    row.append(input, meta);
-    ui.categoryVisibility.appendChild(row);
   }
   syncPerformanceUi();
 }
 
 function syncCategoryVisibilityUi() {
   const loadedStats = new Map(getViewer().getLoadedCategoryStats().map((item) => [item.category, item]));
-  for (const category of state.performance.categories) {
+  shellUi.updatePerformanceCategories(state.performance.categories.map((category) => {
     const visible = performanceCategoryVisible(category.name);
-    const row = [...ui.categoryVisibility.querySelectorAll(".categoryItem")]
-      .find((item) => item.dataset.category === category.name);
-    const input = row?.querySelector('input[type="checkbox"]');
-    const statsNode = row?.querySelector(".categoryStats");
-    if (row) {
-      row.classList.toggle("hiddenCategory", !visible);
-    }
-    if (input) {
-      input.checked = visible;
-    }
-    if (!statsNode) {
-      continue;
-    }
-
     const loaded = loadedStats.get(category.name);
+    let stats = categoryManifestFallback(category);
     if (loaded && loaded.bundles > 0) {
       const faces = visible ? loaded.visibleFaces : loaded.faces;
       const vertices = visible ? loaded.visibleVertices : loaded.vertices;
-      statsNode.textContent = `${formatCompactCount(faces)} faces · ${formatCompactCount(vertices)} vertices · ${loaded.visibleBundles}/${loaded.bundles} bundles`;
-    } else {
-      statsNode.textContent = categoryManifestFallback(category);
+      stats = `${formatCompactCount(faces)} faces · ${formatCompactCount(vertices)} vertices · ${loaded.visibleBundles}/${loaded.bundles} bundles`;
     }
-  }
+    return {name: category.name, stats, visible};
+  }));
 }
 
 function syncPerformanceHud() {
@@ -251,9 +214,14 @@ function syncPerformanceUi() {
 
   return {
     applyPerformanceSettingsToViewer,
+    setCategoryVisibility,
     populatePerformanceControls,
     syncPerformanceUi,
     showAllCategories,
     hideHeavyCategories,
+    dispose() {
+      analysisDockReserveObserver?.disconnect();
+      analysisDockReserveObserver = null;
+    },
   };
 }

@@ -15,6 +15,38 @@ const OWNERS = Object.freeze({
   workbench: "shell:workbench",
 });
 
+export const PHASE8_RETIRED_ELEMENT_IDS = Object.freeze([
+  "featureModeMenuAnchor",
+  "featureParameterAnchor",
+  "featurePanelAnchor",
+  "featureDeviceCardAnchor",
+  "featureDeviceActionAnchor",
+]);
+
+export const PHASE8_RETIRED_CLASSES = Object.freeze([
+  "btn",
+  "danger",
+  "miniBtn",
+  "miniSelect",
+  "oat-button--legacy-native-font",
+  "primary",
+]);
+
+export function normalizePhase8DomContract(contract) {
+  const retiredIds = new Set(PHASE8_RETIRED_ELEMENT_IDS);
+  const retiredClasses = new Set(PHASE8_RETIRED_CLASSES);
+  return {
+    ...contract,
+    elements: contract.elements
+      .filter(({id}) => !retiredIds.has(id))
+      .map((element, order) => ({
+        ...element,
+        order,
+        classes: element.classes.filter((className) => !retiredClasses.has(className)),
+      })),
+  };
+}
+
 const BUTTON_COMMANDS = Object.freeze({
   appDialogClose: "dialog.dismiss",
   appDialogPrimary: "dialog.primary.confirm",
@@ -159,7 +191,8 @@ function interactionFor(element, owner) {
 }
 
 export function buildPhase1DomCompatibilityContract(phase0Contract) {
-  const elements = phase0Contract.elements.map((element) => {
+  const normalizedContract = normalizePhase8DomContract(phase0Contract);
+  const elements = normalizedContract.elements.map((element) => {
     const owner = ownerForId(element.id);
     const interaction = interactionFor(element, owner);
     return {
@@ -170,14 +203,18 @@ export function buildPhase1DomCompatibilityContract(phase0Contract) {
     };
   });
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedBy: "tests/browser/feature_modes.spec.js",
     baseline: "tests/browser/baselines/phase-0-dom-contract.json",
+    baselineTransform: {
+      retiredClasses: PHASE8_RETIRED_CLASSES,
+      retiredElementIds: PHASE8_RETIRED_ELEMENT_IDS,
+    },
     policy: {
       compatibilityValues: ["required", "deprecated", "internal"],
       requiredMeaning: "ID, semantic element, control order and behavior remain compatible until a reviewed versioned contract changes them.",
     },
-    document: phase0Contract.document,
+    document: normalizedContract.document,
     owners: [...new Set(Object.values(OWNERS))].sort(),
     elements,
     dynamicInteractions: DYNAMIC_INTERACTIONS,

@@ -1,9 +1,6 @@
-import type { RootErrorReporter } from "../../runtime/error-reporting.ts";
 import { flushSync } from "react-dom";
 import { ObservableStateAdapter } from "../../runtime/observable-state.ts";
-import { reactRootRegistry } from "../../runtime/root-registry.tsx";
 import { CommandBus, type AnyUiCommand } from "../../runtime/ui-command.ts";
-import { CompatibilityControlTree } from "./CompatibilityControlTree.tsx";
 import type {
   ControlFieldPatch,
   ControlFieldViewModel,
@@ -19,10 +16,10 @@ export type WorkbenchControlCommandHandler = (
   command: WorkbenchControlCommand,
 ) => void | Promise<void>;
 
-export interface ControlSurfaceBridge {
+export interface ControlSurfaceApi {
   readonly element: (id: string) => HTMLElement;
   readonly elements: (selector: string) => readonly HTMLElement[];
-  readonly refreshFromDom: (activeMode?: WorkbenchFeatureId) => void;
+  readonly syncFromAdapters: (activeMode?: WorkbenchFeatureId) => void;
   readonly setActionBusy: (id: string, busy: boolean) => void;
   readonly updateMobilityWaypoints: (
     items: readonly MobilityWaypointViewModel[],
@@ -43,9 +40,11 @@ export interface ControlSurfaceBridge {
   readonly dispose: () => void;
 }
 
-const defaultReporter: RootErrorReporter = ({ rootId, error }) => {
-  console.error(`[${rootId}]`, error);
-};
+export interface ControlSurfaceModel extends ControlSurfaceApi {
+  readonly commandBus: CommandBus;
+  readonly store: ObservableStateAdapter<WorkbenchControlsSnapshot>;
+  readonly initializeFromRenderedSurface: () => void;
+}
 
 const mutableAttributeNames = new Set([
   "aria-busy",
@@ -159,6 +158,15 @@ function captureSnapshot(
       }
     }
   }
+  return createEmptySnapshot(activeMode, previous, fields, nodes);
+}
+
+function createEmptySnapshot(
+  activeMode: WorkbenchFeatureId,
+  previous?: WorkbenchControlsSnapshot,
+  fields: Record<string, ControlFieldViewModel> = {},
+  nodes: Record<string, ControlNodeViewModel> = {},
+): WorkbenchControlsSnapshot {
   return {
     activeMode,
     fields,
@@ -283,25 +291,19 @@ function patchActionBusy(
   };
 }
 
-export function createControlSurfaceBridge({
-  formContainer,
-  deviceContainer,
+export function createControlSurfaceModel({
   activeMode = "link",
-  reportError = defaultReporter,
+  commandBus: providedCommandBus,
+  resolveContainers,
 }: {
-  readonly formContainer: Element;
-  readonly deviceContainer: Element;
   readonly activeMode?: WorkbenchFeatureId;
-  readonly reportError?: RootErrorReporter;
-}): ControlSurfaceBridge {
-  const containers = [formContainer, deviceContainer] as const;
-  const formSource = formContainer.innerHTML;
-  const deviceSource = deviceContainer.innerHTML;
-  let snapshot = captureSnapshot(containers, activeMode);
+  readonly commandBus?: CommandBus;
+  readonly resolveContainers: () => readonly Element[];
+}): ControlSurfaceModel {
+  const containers = resolveContainers;
+  let snapshot = createEmptySnapshot(activeMode);
   let commandHandler: WorkbenchControlCommandHandler | null = null;
   const busyActionIds = new Set<string>();
-  formContainer.replaceChildren();
-  deviceContainer.replaceChildren();
 
   const store = new ObservableStateAdapter(() => snapshot);
   const publish = () => {
@@ -321,55 +323,47 @@ export function createControlSurfaceBridge({
     snapshot = enforceBusyActions(snapshot);
     publish();
   };
-  const commandBus = new CommandBus();
+  const commandBus = providedCommandBus ?? new CommandBus();
+  const ownsCommandBus = providedCommandBus === undefined;
   const unsubscribe = commandBus.subscribe(
     "*",
     async (command: AnyUiCommand) => {
+      if (!command.name.startsWith("workbench.control.")) return;
       const typedCommand = command as WorkbenchControlCommand;
       snapshot = patchCommandSnapshot(snapshot, typedCommand);
       publish();
       await commandHandler?.(typedCommand);
       publishCapturedSnapshot(
-        captureSnapshot(containers, snapshot.activeMode, snapshot),
+        captureSnapshot(containers(), snapshot.activeMode, snapshot),
       );
     },
   );
-  const roots = [
-    reactRootRegistry.mount({
-      id: "control-form-content",
-      container: formContainer,
-      children: <CompatibilityControlTree source={formSource} store={store} />,
-      commandBus,
-      reportError,
-      synchronous: true,
-    }),
-    reactRootRegistry.mount({
-      id: "device-dock-content",
-      container: deviceContainer,
-      children: (
-        <CompatibilityControlTree source={deviceSource} store={store} />
-      ),
-      commandBus,
-      reportError,
-      synchronous: true,
-    }),
-  ];
+  let disposed = false;
 
   return {
+    commandBus,
+    store,
+    initializeFromRenderedSurface() {
+      publishCapturedSnapshot(
+        captureSnapshot(containers(), snapshot.activeMode, snapshot),
+      );
+    },
     element(id) {
-      for (const container of containers) {
+      for (const container of containers()) {
         const element = container.querySelector<HTMLElement>(`#${id}`);
         if (element) return element;
       }
       throw new Error(`Control surface element is missing: ${id}`);
     },
     elements(selector) {
-      return containers.flatMap((container) => [
+      return containers().flatMap((container) => [
         ...container.querySelectorAll<HTMLElement>(selector),
       ]);
     },
-    refreshFromDom(nextMode = snapshot.activeMode) {
-      publishCapturedSnapshot(captureSnapshot(containers, nextMode, snapshot));
+    syncFromAdapters(nextMode = snapshot.activeMode) {
+      publishCapturedSnapshot(
+        captureSnapshot(containers(), nextMode, snapshot),
+      );
     },
     setActionBusy(id, busy) {
       if (busy) busyActionIds.add(id);
@@ -424,11 +418,12 @@ export function createControlSurfaceBridge({
       commandHandler = handler;
     },
     dispose() {
+      if (disposed) return;
+      disposed = true;
       commandHandler = null;
       busyActionIds.clear();
       unsubscribe();
-      for (const root of roots.reverse()) root.unmount();
-      commandBus.dispose();
+      if (ownsCommandBus) commandBus.dispose();
       store.dispose();
     },
   };

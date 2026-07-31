@@ -108,9 +108,9 @@ Command-style DOM and runtime inline styles are a closed allowlist documented in
 [`ui/imperative-ui-exceptions.md`](ui/imperative-ui-exceptions.md). Framework
 and component-library decisions are recorded under `docs/adr/`.
 
-Phase 2 adds the machine-readable
+Phase 2 added the machine-readable
 [`ui/component-manifest.json`](ui/component-manifest.json), the icon rules in
-[`ui/icon-contracts.md`](ui/icon-contracts.md), and the temporary Alias policy in
+[`ui/icon-contracts.md`](ui/icon-contracts.md), and the retired Alias record in
 [`ui/legacy-aliases.md`](ui/legacy-aliases.md). New UI must use the public
 `oat-*` classes and appear in the native component catalog before it is used by
 a Feature. Start the development-only catalog separately; the production Python
@@ -124,10 +124,11 @@ Then open `http://127.0.0.1:8091/ui-catalog/`. The Playwright configuration
 starts this catalog automatically and verifies its public variants, states,
 accessible names, and contract-only test Feature.
 
-Phase 6 uses mixed production ownership: React owns the result dock content,
-DeepMIMO dataset tray, control form content and device dock content. Native
-still owns the outer shell, Entry Map, Performance, Dialog and Tooltip. Install
-and verify the locked toolchain with:
+Phase 8 uses one production React root named `app-shell`. It owns the Shell,
+Entry Map host, result and performance docks, control and device surfaces,
+Loading, Dialog and Tooltip hosts. Leaflet, Three.js and chart adapters retain
+exclusive ownership of their host internals. Install and verify the locked
+toolchain with:
 
 ```bash
 cd workbench
@@ -135,19 +136,19 @@ npm ci
 npm test
 ```
 
-The development catalog command above now delegates to Vite and renders Native
+The development catalog command above delegates to Vite and renders Native
 and React implementations side by side. Its browser test compares 28
 representative states for element semantics, ARIA, classes and computed style,
 then proves that React controls dispatch typed Commands. The production build
-continues to load `backend/static/js/app.js`; only approved React production
-boundaries may appear in the Vite manifest, while Catalog and test source remain
-excluded.
+loads `backend/static/js/app.js` as its application bootstrap; the manifest and
+compiled JavaScript must contain only the `app-shell` React
+root; the four former production roots, Catalog and test source are rejected.
 
 Result UI ownership is defined by `workbench/src/features/results/` and
 `workbench/src/features/deepmimo/`. Control ownership is defined by
 `workbench/src/features/controls/` and the shared controlled field in
-`workbench/src/design-system/components/ControlledField.tsx`. Legacy result
-views may build ViewModels, handle Commands and draw into stable SVG/Canvas
+`workbench/src/design-system/components/ControlledField.tsx`. Result adapters
+may build ViewModels, handle Commands and draw into stable SVG/Canvas
 hosts, but must not create, replace or directly mutate React-owned rows.
 Feature runtimes may validate and apply typed control Commands, but must not
 bind click/change handlers or create control/list DOM inside the React roots.
@@ -157,15 +158,17 @@ React UI code follows these ownership rules:
 1. Import components directly from their source file; do not add barrel files.
 2. Components receive typed Props and emit `UiCommand`; they do not call REST or
    import mutable Feature state.
-3. Expose Legacy/Feature state through `ObservableStateAdapter` and
+3. Expose Feature state through `ObservableStateAdapter` and
    `useSyncExternalStore`, with immutable snapshots between notifications.
-4. Mount only into an empty boundary through `ReactRootRegistry`; register every
-   external subscription or timer for cleanup and let unmount restore focus.
+4. Mount production UI only once through `ReactRootRegistry` as `app-shell`;
+   register every external subscription or timer for cleanup and let unmount
+   restore focus.
 5. Keep imperative Three.js, Leaflet and Canvas engines outside React. A React
    component may own their stable host, never their internal DOM or resources.
-6. Do not switch a production subtree until its React implementation passes
-   Native parity and the Legacy renderer/event owner is deleted in the same
-   work package.
+6. Every production subtree has one React renderer. Do not add a parallel
+   Template, DOM factory, temporary Root or migration flag.
+7. Do not add production Portals for ordinary layout. A Portal requires an
+   approved floating-layer target and a documented focus/cleanup contract.
 
 When the existing DOM intentionally changes, regenerate the Phase 1 contract
 with the real browser and review the diff; never edit the generated JSON by

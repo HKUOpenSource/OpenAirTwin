@@ -93,25 +93,27 @@ function PathSections({ model }: { readonly model: PathResultsViewModel }) {
   const dispatch = useUiCommand();
   const listRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
+  const detailVisible = model.visible && model.detail !== null;
 
   useEffect(() => {
+    if (!model.visible) return;
     const active = listRef.current?.querySelector(
       ".pathRow.active, .pathAllButton.active",
     );
     if (active && "scrollIntoView" in active) {
       active.scrollIntoView({ block: "nearest" });
     }
-  }, [model.selectedIndex, model.rows]);
+  }, [model.visible, model.selectedIndex, model.rows]);
 
   useEffect(() => {
     if (
-      model.detail &&
+      detailVisible &&
       detailRef.current &&
       "scrollIntoView" in detailRef.current
     ) {
       detailRef.current.scrollIntoView({ block: "nearest" });
     }
-  }, [model.detail]);
+  }, [detailVisible, model.detail]);
 
   return (
     <>
@@ -209,8 +211,8 @@ function PathSections({ model }: { readonly model: PathResultsViewModel }) {
       </div>
       <div
         id="pathDetailSection"
-        className={classNames("linkDockSection", !model.detail && "hidden")}
-        aria-hidden={!model.detail}
+        className={classNames("linkDockSection", !detailVisible && "hidden")}
+        aria-hidden={!detailVisible}
         ref={detailRef}
       >
         <div className="sectionTitle" id="pathDetailTitle">
@@ -266,7 +268,6 @@ function MobilityTimeline({
         </div>
         <Filter
           id="mobilityMetric"
-          className="miniSelect"
           ariaLabel="Mobility metric"
           featureId="mobility"
           commandName="mobility.timeline.metric.change"
@@ -290,7 +291,7 @@ function MobilityTimeline({
       </ChartFrame>
       <div className="mobilityPlayback">
         <button
-          className="miniBtn oat-button oat-button--compact oat-button--legacy-native-font"
+          className="oat-button oat-button--compact"
           id="btnMobilityPlay"
           type="button"
           onClick={() => {
@@ -321,7 +322,6 @@ function MobilityTimeline({
         />
         <Filter
           id="mobilityPlaybackSpeed"
-          className="miniSelect"
           ariaLabel="Mobility playback speed"
           featureId="mobility"
           commandName="mobility.playback.speed.change"
@@ -604,7 +604,6 @@ function RadarSections({
             featureId="radar"
             commandName="radar.detections.filter"
             value={model.detectionFilter}
-            legacyBare
             options={[
               { value: "all", label: "Targets + strongest clutter" },
               { value: "target", label: "Target detections only" },
@@ -614,7 +613,7 @@ function RadarSections({
           <button
             id="radarDetectionMore"
             className={classNames(
-              "miniBtn oat-button oat-button--compact",
+              "oat-button oat-button--compact",
               !model.detectionMoreVisible && "hidden",
             )}
             type="button"
@@ -671,7 +670,6 @@ function RadarSections({
             commandName="radar.paths.displayMode.change"
             value={model.pathDisplayMode}
             defaultValue="key"
-            legacyBare
             options={[
               { value: "target", label: "Target Echoes" },
               { value: "key", label: "Target + Key Clutter" },

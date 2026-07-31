@@ -9,6 +9,7 @@ export function createRadarFeature(context) {
   const picking = () => context.controllers.devicePicking;
   let manifestPromise = null;
   let targetPointer = null;
+  let pointerCanvas = null;
   const assetPreview = createRadarAssetPreview({dom, state, viewerRef: context.viewerRef});
 
   function reportActionError(title, error) {
@@ -48,21 +49,40 @@ export function createRadarFeature(context) {
     return manifestPromise;
   }
 
+  function handleTargetPointerDown(event) {
+    if (state.mode === "radar" && !state.pickTarget && event.isPrimary && event.button === 0) {
+      targetPointer = {id: event.pointerId, x: event.clientX, y: event.clientY};
+    }
+  }
+
+  function handleTargetPointerUp(event) {
+    if (!targetPointer || targetPointer.id !== event.pointerId || state.mode !== "radar" || state.pickTarget) {
+      targetPointer = null;
+      return;
+    }
+    const moved = Math.hypot(event.clientX - targetPointer.x, event.clientY - targetPointer.y);
+    targetPointer = null;
+    if (moved > 6) return;
+    const targetId = renderer.pickTarget(event.clientX, event.clientY);
+    if (targetId && controls.selectTarget(targetId)) scene().renderAll();
+  }
+
   function attachEvents() {
     resultView.attachEvents();
+    if (pointerCanvas) return;
+    pointerCanvas = context.ui.view;
+    pointerCanvas.addEventListener("pointerdown", handleTargetPointerDown);
+    pointerCanvas.addEventListener("pointerup", handleTargetPointerUp);
+  }
 
-    const canvas = document.getElementById("view");
-    canvas.addEventListener("pointerdown", (event) => {
-      if (state.mode === "radar" && !state.pickTarget && event.isPrimary && event.button === 0) targetPointer = {id: event.pointerId, x: event.clientX, y: event.clientY};
-    });
-    canvas.addEventListener("pointerup", (event) => {
-      if (!targetPointer || targetPointer.id !== event.pointerId || state.mode !== "radar" || state.pickTarget) { targetPointer = null; return; }
-      const moved = Math.hypot(event.clientX - targetPointer.x, event.clientY - targetPointer.y);
-      targetPointer = null;
-      if (moved > 6) return;
-      const targetId = renderer.pickTarget(event.clientX, event.clientY);
-      if (targetId && controls.selectTarget(targetId)) scene().renderAll();
-    });
+  function dispose() {
+    pointerCanvas?.removeEventListener("pointerdown", handleTargetPointerDown);
+    pointerCanvas?.removeEventListener("pointerup", handleTargetPointerUp);
+    pointerCanvas = null;
+    targetPointer = null;
+    resultView.dispose();
+    assetPreview.dispose();
+    renderer.dispose();
   }
 
   const deviceIds = new Set([
@@ -250,6 +270,6 @@ export function createRadarFeature(context) {
     },
     onSettingsChanged() { controller.invalidateRadarResult(); renderer.clearResult(); },
     render() { renderStatus(); resultView.renderRadarResult(); renderer.render(); assetPreview.syncState(); },
-    dispose() { resultView.dispose(); assetPreview.dispose(); renderer.dispose(); },
+    dispose,
   };
 }

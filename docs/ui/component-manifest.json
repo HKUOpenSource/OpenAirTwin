@@ -1,14 +1,11 @@
 {
-  "schemaVersion": 4,
-  "phase": 6,
+  "schemaVersion": 6,
+  "phase": 8,
   "cssOwner": "backend/static/css/components.css",
   "catalog": "tools/ui-catalog/index.html",
-  "productionOwner": "mixed",
+  "productionOwner": "react",
   "reactProductionBoundaries": [
-    "result-dock-content",
-    "deepmimo-dataset-tray",
-    "control-form-content",
-    "device-dock-content"
+    "app-shell"
   ],
   "reactCatalogEntry": "workbench/src/catalog/main.tsx",
   "components": [
@@ -96,19 +93,6 @@
       "classes": ["oat-icon"],
       "variants": ["xs", "sm", "md", "base", "lg", "xl", "2xl"],
       "states": ["decorative", "named-control"]
-    }
-  ],
-  "legacyAliases": [
-    {"class": "btn", "replacement": "oat-button", "removeAfterOwnerPhase": 7},
-    {"class": "miniBtn", "replacement": "oat-button oat-button--compact", "removeAfterOwnerPhase": 7},
-    {"class": "miniSelect", "replacement": "oat-input oat-input--compact", "removeAfterOwnerPhase": 8},
-    {"class": "danger", "replacement": "oat-button--danger", "removeAfterOwnerPhase": 7}
-  ],
-  "internalCompatibilityClasses": [
-    {
-      "class": "oat-button--legacy-native-font",
-      "purpose": "Preserve the Phase 0 platform-control typography of newly classified miniBtn instances.",
-      "removeAfterOwnerPhase": 7
     }
   ]
 }

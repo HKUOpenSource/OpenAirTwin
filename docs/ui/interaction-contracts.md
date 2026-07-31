@@ -1,6 +1,6 @@
 # OpenAirTwin UI 交互合同
 
-> 状态：Phase 6 生产合同。本文定义行为语义；逐控件的机器映射位于 `dom-compatibility-contract.json` 的 `interaction` 字段。
+> 状态：Phase 8 生产合同。本文定义行为语义；逐控件的机器映射位于 `dom-compatibility-contract.json` 的 `interaction` 字段。
 
 ## 1. Command 规则
 
@@ -18,18 +18,20 @@ React 控件边界只发出以下类型化基础 Command，由 App/Feature runti
 | Command | Payload | 提交时机 |
 | --- | --- | --- |
 | `workbench.control.draft` | `{controlId, value}` | number/text 的原生 `input`，仅保持受控值与焦点 |
-| `workbench.control.commit` | `{controlId, value, checked?}` | number/text 的 blur 或兼容 `change`；select/checkbox/radio 的 change |
+| `workbench.control.commit` | `{controlId, value, checked?}` | number/text 的 blur 或原生 `change`；select/checkbox/radio 的 change |
 | `workbench.control.action` | `{actionId, value?}` | Button、动态 ListCard 和设备操作激活 |
 | `workbench.control.group.toggle` | `{controlId, open}` | 有 ID 的 details 原生 toggle |
 
-同一 radio `name` 的 checked 更新必须在一个快照内原子完成。Solver 按钮的 busy 集合按 `actionId` 去重，重复提交是 no-op，成功或失败都必须清除 disabled/`aria-busy`。旧 Controller 可以读取桥接后的 HTMLElement 以完成领域解析和命令式 Viewer 同步，但不得再为 React 所有字段或按钮绑定 click/change 监听。
+同一 radio `name` 的 checked 更新必须在一个快照内原子完成。Solver 按钮的 busy 集合按 `actionId` 去重，重复提交是 no-op，成功或失败都必须清除 disabled/`aria-busy`。Controller 可以通过登记的稳定 Ref 读取 HTMLElement 以完成领域解析和 Viewer 同步，但不得再为 React 所有字段或按钮绑定 click/change 监听。
 
 ## 2. Shell 与入口命令
 
+下表命令由单一 `app-shell` CommandBus 发出。Shell 不再直接为按钮、checkbox、Mode 或动态地点结果注册分散监听；Leaflet、Three.js 与 Feature Adapter 接收命令后执行领域副作用。
+
 | 命令族 | 触发方式 | 行为和焦点合同 |
 | --- | --- | --- |
-| `workbench.feature.activate` | Mode 按钮 click/键盘激活 | 关闭菜单和 tooltip，清理临时状态，按 Registry 生命周期切换；焦点留在激活按钮 |
-| `workbench.modeMenu.toggle` | details/summary click、Enter、Space | `open` 与 `aria-expanded` 同步；外部 click 和 Escape 关闭 |
+| `workbench.mode.select` | Mode 按钮 click/键盘激活 | 关闭菜单和 tooltip，清理临时状态，按 Registry 生命周期切换；焦点留在激活按钮；连续点击按触发顺序同步可观察 |
+| `workbench.mode.toggle` | details/summary click、Enter、Space | `open` 与 `aria-expanded` 同步；外部 click 和 Escape 关闭 |
 | `workbench.controls.toggle` | Panel toggle click | 保持滚动容器和已展开参数组状态；隐藏 tooltip |
 | `entry.sidebar.toggle` | icon button click | 展开后 120ms 将焦点移到搜索框；折叠后焦点保留在按钮 |
 | `entry.search.submit` | Search click 或输入框 Enter | Shift+Enter 不提交；搜索失败显示现有状态，不清除已有选择 |

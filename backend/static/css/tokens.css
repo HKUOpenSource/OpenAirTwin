@@ -290,6 +290,7 @@
     --oat-color-rgba-91-116-149-0-26: rgba(91,116,149,.26);
 
     /* Type, spacing, radius, motion, elevation, and control tokens. */
+    --oat-font-family-performance-action: Arial;
     --oat-font-size-9: 9px;
     --oat-font-size-10: 10px;
     --oat-font-size-11: 11px;

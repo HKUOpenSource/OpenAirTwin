@@ -4,6 +4,7 @@ const TOOLTIP_GAP_PX = 10;
 export function createParamTooltipController(context) {
   const {ui} = context;
   let activeTip = null;
+  let attached = false;
 
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
@@ -83,55 +84,72 @@ export function createParamTooltipController(context) {
     positionTooltip(activeTip);
   }
 
-  function attach() {
-    document.addEventListener("mousemove", (event) => {
-      const tip = tipFromTarget(document.elementFromPoint(event.clientX, event.clientY));
-      if (tip) {
-        if (tip === activeTip) {
-          repositionTooltip();
-        } else {
-          showTooltip(tip);
-        }
-      } else if (activeTip && document.activeElement !== activeTip) {
-        hideTooltip();
-      }
-    });
-    document.addEventListener("mouseover", (event) => {
-      const tip = tipFromTarget(event.target);
-      if (tip) {
-        showTooltip(tip);
-      }
-    });
-    document.addEventListener("mouseout", (event) => {
-      const tip = tipFromTarget(event.target);
-      if (tip && (!event.relatedTarget || !tip.contains(event.relatedTarget))) {
-        hideTooltip();
-      }
-    });
-    document.addEventListener("focusin", (event) => {
-      const tip = tipFromTarget(event.target);
-      if (tip) {
-        showTooltip(tip);
-      }
-    });
-    document.addEventListener("focusout", (event) => {
-      const tip = tipFromTarget(event.target);
-      if (tip) {
-        hideTooltip();
-      }
-    });
+  function handleMouseMove(event) {
+    const tip = tipFromTarget(document.elementFromPoint(event.clientX, event.clientY));
+    if (tip) {
+      if (tip === activeTip) repositionTooltip();
+      else showTooltip(tip);
+    } else if (activeTip && document.activeElement !== activeTip) {
+      hideTooltip();
+    }
+  }
 
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        hideTooltip();
-      }
-    });
+  function handleMouseOver(event) {
+    const tip = tipFromTarget(event.target);
+    if (tip) showTooltip(tip);
+  }
+
+  function handleMouseOut(event) {
+    const tip = tipFromTarget(event.target);
+    if (tip && (!event.relatedTarget || !tip.contains(event.relatedTarget))) {
+      hideTooltip();
+    }
+  }
+
+  function handleFocusIn(event) {
+    const tip = tipFromTarget(event.target);
+    if (tip) showTooltip(tip);
+  }
+
+  function handleFocusOut(event) {
+    const tip = tipFromTarget(event.target);
+    if (tip) hideTooltip();
+  }
+
+  function handleKeydown(event) {
+    if (event.key === "Escape") hideTooltip();
+  }
+
+  function attach() {
+    if (attached) return;
+    attached = true;
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseover", handleMouseOver);
+    document.addEventListener("mouseout", handleMouseOut);
+    document.addEventListener("focusin", handleFocusIn);
+    document.addEventListener("focusout", handleFocusOut);
+    document.addEventListener("keydown", handleKeydown);
     window.addEventListener("resize", hideTooltip);
     window.addEventListener("scroll", hideTooltip, true);
   }
 
+  function dispose() {
+    if (!attached) return;
+    attached = false;
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseover", handleMouseOver);
+    document.removeEventListener("mouseout", handleMouseOut);
+    document.removeEventListener("focusin", handleFocusIn);
+    document.removeEventListener("focusout", handleFocusOut);
+    document.removeEventListener("keydown", handleKeydown);
+    window.removeEventListener("resize", hideTooltip);
+    window.removeEventListener("scroll", hideTooltip, true);
+    hideTooltip();
+  }
+
   return {
     attach,
+    dispose,
     hideTooltip,
     repositionTooltip,
   };
