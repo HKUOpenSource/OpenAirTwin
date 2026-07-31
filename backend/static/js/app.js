@@ -10,7 +10,7 @@ import {
 } from "/js/api.js";
 import {entryMap, featureStore, PERFORMANCE_MODES, state, viewerRef} from "/js/app_state.js?v=20260723-radar-shared-groups";
 import {FeatureRegistry, PickingRegistry, SettingsBus} from "/js/core/feature_registry.js";
-import {inputs, ui} from "/js/dom_refs.js?v=20260519-mode-isolation";
+import {bindControlSurfaceRefs, inputs, ui} from "/js/dom_refs.js?v=20260519-mode-isolation";
 import {FEATURE_CATALOG} from "/js/features/feature_catalog.js?v=20260723-radar-shared-groups";
 import {createAppDialogController} from "/js/controllers/app_dialog_controller.js?v=20260604-app-dialog";
 import {createDevicePickingController} from "/js/controllers/device_picking_controller.js?v=20260519-mode-isolation";
@@ -20,6 +20,7 @@ import {createPerformancePanelController} from "/js/performance_panel.js";
 import {createSceneRenderStateController} from "/js/scene_render_state.js?v=20260723-empty-devices";
 import {createSolverControlsController} from "/js/solver_controls.js?v=20260723-empty-devices";
 import {createResultDockBridge} from "/@oat/features/results/result-dock-bridge.tsx";
+import {createControlSurfaceBridge} from "/@oat/features/controls/control-surface-bridge.tsx";
 
 const settings = new SettingsBus();
 const pickingRegistry = new PickingRegistry();
@@ -54,6 +55,7 @@ const context = {
   utilities: {},
 };
 let resultDockBridge = null;
+let controlSurfaceBridge = null;
 
 const dialogController = createAppDialogController(context);
 context.controllers.dialogs = dialogController;
@@ -103,19 +105,20 @@ function closeFeatureTransientUi() {
   }
 }
 
-async function runSolveFromDock(button, run) {
+const activeSolveActions = new Set();
+
+async function runSolveFromDock(actionId, run) {
+  if (activeSolveActions.has(actionId)) return;
+  activeSolveActions.add(actionId);
   devicePicking.clearActiveDevice({render: false});
   solverControls.cancelLivePreview();
   sceneRenderState.renderAll();
-  button.disabled = true;
-  button.classList.add("busy");
-  button.setAttribute("aria-busy", "true");
+  controlSurfaceBridge.setActionBusy(actionId, true);
   try {
     await run();
   } finally {
-    button.disabled = false;
-    button.classList.remove("busy");
-    button.removeAttribute("aria-busy");
+    activeSolveActions.delete(actionId);
+    controlSurfaceBridge.setActionBusy(actionId, false);
     sceneRenderState.renderAll();
   }
 }
@@ -262,45 +265,55 @@ function attachEvents() {
     });
   }
 
-  ui.btnOrbitTx.addEventListener("click", () => devicePicking.toggleTxOrbit());
-
-  for (const input of [
-    inputs.cfgFrequency,
-    inputs.cfgMaxDepth,
-    inputs.cfgLos,
-    inputs.cfgSpecular,
-    inputs.cfgDiffuse,
-    inputs.cfgRefraction,
-    inputs.cfgSeed,
-  ]) {
-    input.addEventListener("change", () => {
-      settings.publish("common-solver");
-      sceneRenderState.renderAll();
-    });
-  }
-
-  for (const input of [
-    inputs.txArrayPattern,
-    inputs.txArrayPolarization,
-    inputs.txArrayRows,
-    inputs.txArrayCols,
-    inputs.txArrayVerticalSpacing,
-    inputs.txArrayHorizontalSpacing,
-    inputs.rxArrayPattern,
-    inputs.rxArrayPolarization,
-    inputs.rxArrayRows,
-    inputs.rxArrayCols,
-    inputs.rxArrayVerticalSpacing,
-    inputs.rxArrayHorizontalSpacing,
-  ]) {
-    input.addEventListener("change", () => {
-      solverControls.readAntennaArrayInputs();
-      settings.publish("antenna");
-      sceneRenderState.renderAll();
-    });
-  }
-
   featureRegistry.attachEvents(context);
+
+  const commonSolverIds = new Set([
+    "cfgFrequency", "cfgMaxDepth", "cfgLos", "cfgSpecular",
+    "cfgDiffuse", "cfgRefraction", "cfgSeed",
+  ]);
+  const antennaIds = new Set([
+    "txArrayPattern", "txArrayPolarization", "txArrayRows", "txArrayCols",
+    "txArrayVerticalSpacing", "txArrayHorizontalSpacing", "rxArrayPattern",
+    "rxArrayPolarization", "rxArrayRows", "rxArrayCols",
+    "rxArrayVerticalSpacing", "rxArrayHorizontalSpacing",
+  ]);
+  controlSurfaceBridge.setCommandHandler(async (command) => {
+    if (command.name === "workbench.control.commit") {
+      const {controlId} = command.payload;
+      if (commonSolverIds.has(controlId)) {
+        settings.publish("common-solver");
+        sceneRenderState.renderAll();
+        return;
+      }
+      if (antennaIds.has(controlId)) {
+        solverControls.readAntennaArrayInputs();
+        settings.publish("antenna");
+        sceneRenderState.renderAll();
+        return;
+      }
+      for (const definition of featureRegistry.definitions()) {
+        if (await featureRegistry.instance(definition.id)?.handleControlCommit?.(controlId)) return;
+      }
+      return;
+    }
+    if (command.name === "workbench.control.action") {
+      const {actionId, value} = command.payload;
+      if (actionId === "btnOrbitTx") {
+        devicePicking.toggleTxOrbit();
+        return;
+      }
+      for (const definition of featureRegistry.definitions()) {
+        if (await featureRegistry.instance(definition.id)?.handleControlAction?.(actionId, value)) return;
+      }
+      return;
+    }
+    if (command.name === "workbench.control.group.toggle") {
+      const {controlId, open} = command.payload;
+      for (const definition of featureRegistry.definitions()) {
+        if (await featureRegistry.instance(definition.id)?.handleControlGroupToggle?.(controlId, open)) return;
+      }
+    }
+  });
 
   devicePicking.attachPointerEvents(document.getElementById("view"));
 
@@ -323,6 +336,16 @@ function attachEvents() {
 
 async function bootstrap() {
   featureRegistry.mountTemplates(document);
+  controlSurfaceBridge = createControlSurfaceBridge({
+    formContainer: ui.controlFormMount,
+    deviceContainer: ui.deviceContentMount,
+    activeMode: state.mode,
+    reportError: ({error}) => {
+      showErrorDialog("Control UI Failed", error);
+    },
+  });
+  bindControlSurfaceRefs(controlSurfaceBridge);
+  context.featureServices.controls = controlSurfaceBridge;
   resultDockBridge = createResultDockBridge({
     container: ui.resultContentMount,
     reportError: ({error}) => {
@@ -361,9 +384,16 @@ window.addEventListener("pagehide", () => {
   featureRegistry.dispose(context);
   resultDockBridge?.dispose();
   resultDockBridge = null;
+  controlSurfaceBridge?.dispose();
+  controlSurfaceBridge = null;
 }, {once: true});
 
 bootstrap().catch((error) => {
-  sceneRenderState.hideOverlay(null, true);
+  try {
+    sceneRenderState.hideOverlay(null, true);
+  } catch (cleanupError) {
+    console.error("Failed to restore the UI after startup error", cleanupError);
+    ui.loadingScreen.style.display = "none";
+  }
   return showErrorDialog("Startup Failed", error);
 });

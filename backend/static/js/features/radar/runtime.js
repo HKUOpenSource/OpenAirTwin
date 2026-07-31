@@ -50,49 +50,6 @@ export function createRadarFeature(context) {
 
   function attachEvents() {
     resultView.attachEvents();
-    dom.btnSolveRadar.addEventListener("click", () => context.utilities.runSolveFromDock(dom.btnSolveRadar, () => controller.runRadarSolve()).catch((error) => reportActionError("Radar Sensing Failed", error)));
-    dom.btnCancelRadar.addEventListener("click", () => controller.cancelCurrentRadarJob().catch((error) => reportActionError("Radar Cancellation Failed", error)));
-    dom.btnRetryRadar.addEventListener("click", () => context.utilities.runSolveFromDock(dom.btnSolveRadar, () => controller.runRadarSolve()).catch((error) => reportActionError("Radar Retry Failed", error)));
-    dom.btnPickRadarTx.addEventListener("click", () => picking().openDevicePrecision("radar-tx"));
-    dom.btnPickRadarRx.addEventListener("click", () => picking().openDevicePrecision("radar-rx"));
-    dom.btnPickRadarTarget.addEventListener("click", () => context.featureServices.picking.toggleTarget("radar-target"));
-    dom.btnFocusRadarTarget.addEventListener("click", () => renderer.focusTarget(radar.selectedTargetId));
-    for (const input of [dom.radarTxX, dom.radarTxY, dom.radarTxZ, dom.radarRxX, dom.radarRxY, dom.radarRxZ]) {
-      input.addEventListener("change", () => {
-        inputChanged();
-        context.settings.publish("radar-device");
-        picking().refreshPickStatus("radar");
-      });
-    }
-    for (const input of [dom.radarModeMonostatic, dom.radarModeBistatic]) input.addEventListener("change", () => {
-      inputChanged();
-      if (radar.mode === "monostatic" && state.deviceControl.activeTarget === "radar-rx") {
-        picking().closeDevicePrecision();
-      }
-      controls.syncInputs();
-      scene().renderAll();
-    });
-
-    dom.btnAddRadarTarget.addEventListener("click", () => {
-      try { controls.addTarget(assetPreview.selectedAssetId()); controller.invalidateRadarResult(); renderer.render(); scene().renderAll(); }
-      catch (error) { reportActionError("Cannot Add Radar Target", error); }
-    });
-    dom.btnRemoveRadarTarget.addEventListener("click", () => {
-      controls.removeSelectedTarget(); controller.invalidateRadarResult(); renderer.render(); scene().renderAll();
-    });
-    dom.radarTargetList.addEventListener("click", (event) => {
-      const target = event.target.closest("[data-target-id]");
-      if (target && controls.selectTarget(target.dataset.targetId)) scene().renderAll();
-    });
-
-    const targetInputs = [dom.radarTargetAsset, dom.radarTargetX, dom.radarTargetY, dom.radarTargetZ, dom.radarTargetRoll, dom.radarTargetPitch, dom.radarTargetSpeed, dom.radarTargetDirection, dom.radarTargetClimb, dom.radarTargetRcs];
-    for (const input of targetInputs) input.addEventListener("change", () => inputChanged());
-    const parameterInputs = [
-      dom.radarCarrierFrequency, dom.radarBandwidth, dom.radarNumSubcarriers, dom.radarNumSymbols, dom.radarTxPower, dom.radarNoiseFigure, dom.radarSystemLoss, dom.radarNoiseTemperature, dom.radarDirectPathCancellation,
-      dom.radarCfarEnabled, dom.radarCfarGuardRange, dom.radarCfarGuardDoppler, dom.radarCfarTrainingRange, dom.radarCfarTrainingDoppler, dom.radarCfarPfa,
-      dom.radarSamplesPerSrc, dom.radarMaxPaths, dom.radarMaxDepth, dom.radarSeed, dom.radarLos, dom.radarSpecular, dom.radarDiffuse, dom.radarRefraction, dom.radarDiffraction, dom.radarSyntheticArray,
-    ];
-    for (const input of parameterInputs) input.addEventListener("change", inputChanged);
 
     const canvas = document.getElementById("view");
     canvas.addEventListener("pointerdown", (event) => {
@@ -106,6 +63,120 @@ export function createRadarFeature(context) {
       const targetId = renderer.pickTarget(event.clientX, event.clientY);
       if (targetId && controls.selectTarget(targetId)) scene().renderAll();
     });
+  }
+
+  const deviceIds = new Set([
+    "radarTxX", "radarTxY", "radarTxZ", "radarRxX", "radarRxY", "radarRxZ",
+  ]);
+  const modeIds = new Set(["radarModeMonostatic", "radarModeBistatic"]);
+  const targetIds = new Set([
+    "radarTargetAsset", "radarTargetX", "radarTargetY", "radarTargetZ",
+    "radarTargetRoll", "radarTargetPitch", "radarTargetSpeed",
+    "radarTargetDirection", "radarTargetClimb", "radarTargetRcs",
+  ]);
+  const parameterIds = new Set([
+    "radarCarrierFrequency", "radarBandwidth", "radarNumSubcarriers",
+    "radarNumSymbols", "radarTxPower", "radarNoiseFigure", "radarSystemLoss",
+    "radarNoiseTemperature", "radarDirectPathCancellation", "radarCfarEnabled",
+    "radarCfarGuardRange", "radarCfarGuardDoppler", "radarCfarTrainingRange",
+    "radarCfarTrainingDoppler", "radarCfarPfa", "radarSamplesPerSrc",
+    "radarMaxPaths", "radarMaxDepth", "radarSeed", "radarLos",
+    "radarSpecular", "radarDiffuse", "radarRefraction", "radarDiffraction",
+    "radarSyntheticArray",
+  ]);
+
+  function handleControlCommit(controlId) {
+    if (deviceIds.has(controlId)) {
+      inputChanged();
+      context.settings.publish("radar-device");
+      picking().refreshPickStatus("radar");
+      return true;
+    }
+    if (modeIds.has(controlId)) {
+      inputChanged();
+      if (radar.mode === "monostatic" && state.deviceControl.activeTarget === "radar-rx") {
+        picking().closeDevicePrecision();
+      }
+      controls.syncInputs();
+      scene().renderAll();
+      return true;
+    }
+    if (!targetIds.has(controlId) && !parameterIds.has(controlId)) return false;
+    inputChanged();
+    return true;
+  }
+
+  async function handleControlAction(actionId, value) {
+    if (actionId === "radarTarget.select") {
+      if (controls.selectTarget(String(value))) scene().renderAll();
+      return true;
+    }
+    if (actionId === "btnRadarAssetPrevious") {
+      assetPreview.previous();
+      return true;
+    }
+    if (actionId === "btnRadarAssetNext") {
+      assetPreview.next();
+      return true;
+    }
+    if (actionId === "btnPickRadarTx") {
+      picking().openDevicePrecision("radar-tx");
+      return true;
+    }
+    if (actionId === "btnPickRadarRx") {
+      picking().openDevicePrecision("radar-rx");
+      return true;
+    }
+    if (actionId === "btnPickRadarTarget") {
+      context.featureServices.picking.toggleTarget("radar-target");
+      return true;
+    }
+    if (actionId === "btnFocusRadarTarget") {
+      renderer.focusTarget(radar.selectedTargetId);
+      return true;
+    }
+    if (actionId === "btnAddRadarTarget") {
+      try {
+        controls.addTarget(assetPreview.selectedAssetId());
+        controller.invalidateRadarResult();
+        renderer.render();
+        scene().renderAll();
+      } catch (error) {
+        reportActionError("Cannot Add Radar Target", error);
+      }
+      return true;
+    }
+    if (actionId === "btnRemoveRadarTarget") {
+      controls.removeSelectedTarget();
+      controller.invalidateRadarResult();
+      renderer.render();
+      scene().renderAll();
+      return true;
+    }
+    if (actionId === "btnCancelRadar") {
+      await controller.cancelCurrentRadarJob().catch((error) => reportActionError(
+        "Radar Cancellation Failed",
+        error,
+      ));
+      return true;
+    }
+    if (actionId === "btnSolveRadar" || actionId === "btnRetryRadar") {
+      await context.utilities.runSolveFromDock(
+        "btnSolveRadar",
+        () => controller.runRadarSolve(),
+      ).catch((error) => reportActionError(
+        actionId === "btnRetryRadar" ? "Radar Retry Failed" : "Radar Sensing Failed",
+        error,
+      ));
+      return true;
+    }
+    return false;
+  }
+
+  function handleControlGroupToggle(controlId, open) {
+    if (controlId !== "radarTargetsGroup") return false;
+    assetPreview.syncGroup(open);
+    return true;
   }
 
   function applyPick(pick, target) {
@@ -152,6 +223,9 @@ export function createRadarFeature(context) {
 
   return {
     attachEvents,
+    handleControlAction,
+    handleControlCommit,
+    handleControlGroupToggle,
     applyPick,
     markerPositions() { return {tx: radar.txVisual, rx: radar.mode === "monostatic" ? radar.txVisual : radar.rxVisual}; },
     readInputs() { controls.readInputs(); },

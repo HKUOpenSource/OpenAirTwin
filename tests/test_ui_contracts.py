@@ -79,12 +79,16 @@ def test_typed_feature_and_ui_contract_surface_is_present() -> None:
     source = (JS_ROOT / "core" / "ui_contracts.d.ts").read_text(encoding="utf-8")
     for declaration in (
         "FeatureDefinition", "FeatureInstance", "UiRef", "UiViewModel", "UiCommand",
-        "FeatureLifecycle", "FeatureFactoryContext", "FeatureUiContract", "PickingTargetDefinition",
+        "FeatureLifecycle", "FeatureFactoryContext", "FeatureRefContext",
+        "FeatureUiContract", "PickingTargetDefinition",
     ):
         assert re.search(rf"\b(?:interface|type)\s+{declaration}\b", source)
     for lifecycle in ("attachEvents", "activate", "deactivate", "render", "onSettingsChanged", "dispose"):
         assert lifecycle in source
-    for factory in ("createState", "createTransport", "createResultView", "createController", "createRenderer", "createFeature"):
+    for factory in (
+        "createState", "createRefs", "queryDom", "createTransport", "createResultView",
+        "createController", "createRenderer", "createFeature",
+    ):
         assert factory in source
 
 

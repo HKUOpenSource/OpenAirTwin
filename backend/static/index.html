@@ -211,6 +211,10 @@
                 <span class="modeMenuDot" aria-hidden="true"></span>
                 <span class="modeMenuTitle">DeepMIMO</span>
               </button>
+              <button class="modeMenuItem" data-mode="radar" id="tabRadar" type="button" role="option" aria-selected="false">
+                <span class="modeMenuDot" aria-hidden="true"></span>
+                <span class="modeMenuTitle">Radar Sensing</span>
+              </button>
               <template id="featureModeMenuAnchor"></template>
             </div>
           </div>
@@ -221,6 +225,7 @@
           <div id="tileList" class="tileList hidden"></div>
         </div>
 
+        <div class="oat-react-mount" data-oat-react-owner="control-form">
         <div class="solverCfg researchParams">
           <details class="paramGroup" open>
             <summary class="paramGroupSummary">Physical Layer</summary>
@@ -663,12 +668,202 @@
         <section id="mobilityPanel" class="modePanel hidden"></section>
         <section id="radiomapPanel" class="modePanel hidden"></section>
         <section id="deepmimoPanel" class="modePanel hidden"></section>
+<section id="radarPanel" class="modePanel radarOnlyParams hidden" aria-label="Radar sensing configuration">
+    <div id="radarJobBar" class="radarJobBar hidden" data-status="idle">
+      <div class="radarJobCopy"><span id="radarJobStatus" class="radarStatusPill oat-badge">READY</span><strong id="radarJobMessage">Ready</strong></div>
+      <progress id="radarJobProgress" max="1" value="0" aria-label="Radar task progress"></progress>
+      <div class="radarJobActions"><button id="btnCancelRadar" class="miniBtn oat-button oat-button--compact hidden" type="button">Cancel</button><button id="btnRetryRadar" class="miniBtn oat-button oat-button--compact hidden" type="button">Retry</button></div>
+    </div>
+
+    <details id="radarGeometryGroup" class="paramGroup radarGroup">
+      <summary class="paramGroupSummary">Radar Geometry</summary>
+      <div class="paramGroupBody radarGroupBody">
+        <div class="radarModeSwitch" role="radiogroup" aria-label="Radar geometry">
+          <label class="oat-check"><input id="radarModeMonostatic" name="radarMode" type="radio" value="monostatic"/> Monostatic</label>
+          <label class="oat-check"><input id="radarModeBistatic" name="radarMode" type="radio" value="bistatic" checked/> Bistatic</label>
+        </div>
+        <p id="radarModeHint" class="radarHint">Tx and Rx are placed independently.</p>
+      </div>
+    </details>
+
+    <details id="radarTargetsGroup" class="paramGroup radarGroup">
+      <summary class="paramGroupSummary"><span>Drone Targets</span><span id="radarTargetCount" class="radarSummaryBadge oat-badge">0 / 16</span></summary>
+      <div class="paramGroupBody radarGroupBody">
+        <div id="radarAssetPicker" class="radarAssetPicker" data-state="loading" aria-label="New target model">
+          <div class="radarAssetPreviewViewport">
+            <canvas id="radarAssetPreviewCanvas" class="radarAssetPreviewCanvas" role="img" aria-label="Drone model preview"></canvas>
+            <div id="radarAssetPreviewStatus" class="radarAssetPreviewStatus" role="status">Loading drone models…</div>
+            <button id="btnRadarAssetPrevious" class="radarAssetNav previous" type="button" aria-label="Previous drone model">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+            </button>
+            <button id="btnRadarAssetNext" class="radarAssetNav next" type="button" aria-label="Next drone model">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </button>
+          </div>
+          <div class="radarAssetPickerMeta">
+            <div><span>New Target Model</span><strong id="radarAssetPreviewName" aria-live="polite">Loading…</strong></div>
+            <span id="radarAssetPreviewCount" class="radarAssetPreviewCount">0 / 0</span>
+          </div>
+          <button id="btnAddRadarTarget" class="miniBtn oat-button oat-button--compact oat-button--primary oat-button--block radarAssetAddButton" type="button" disabled>Add Target</button>
+          <div class="radarEditorActions" role="group" aria-label="Selected target actions"><button id="btnPickRadarTarget" class="miniBtn oat-button oat-button--compact oat-button--toolbar" type="button">Pick in 3D</button><button id="btnFocusRadarTarget" class="miniBtn oat-button oat-button--compact oat-button--toolbar" type="button">Focus Target</button><button id="btnRemoveRadarTarget" class="miniBtn danger oat-button oat-button--compact oat-button--toolbar oat-button--danger" type="button">Remove Target</button></div>
+          <p id="radarAssetPickerHint" class="radarAssetPickerHint">Drag to rotate the 3D preview.</p>
+        </div>
+        <div id="radarTargetList" class="radarTargetList oat-scroll-region" role="listbox" aria-label="Radar targets"></div>
+        <div id="radarTargetEditor" class="radarTargetEditor">
+          <div class="radarEditorHead"><strong id="radarEditorTitle">Target</strong><span id="radarEditorAssetName">--</span></div>
+          <label class="radarField radarWide" for="radarTargetAsset"><span class="radarFieldLabel">Drone Model</span><select id="radarTargetAsset"></select></label>
+          <div class="radarVectorLabel">Position</div><div class="radarVectorGrid">
+
+  <label class="radarField oat-field" for="radarTargetX"><span class="radarFieldLabel">X</span>
+    <span class="unitInput"><input class="oat-input" id="radarTargetX" type="number" value="0" step="0.1"/><span class="unitSuffix" aria-hidden="true">m</span></span>
+  </label>
+  <label class="radarField oat-field" for="radarTargetY"><span class="radarFieldLabel">Y</span>
+    <span class="unitInput"><input class="oat-input" id="radarTargetY" type="number" value="0" step="0.1"/><span class="unitSuffix" aria-hidden="true">m</span></span>
+  </label>
+  <label class="radarField oat-field" for="radarTargetZ"><span class="radarFieldLabel">Z</span>
+    <span class="unitInput"><input class="oat-input" id="radarTargetZ" type="number" value="0" step="0.1"/><span class="unitSuffix" aria-hidden="true">m</span></span>
+  </label>
+          </div>
+          <div class="radarVectorLabel">Attitude</div><div class="radarVectorGrid">
+
+  <label class="radarField oat-field" for="radarTargetRoll"><span class="radarFieldLabel">Roll</span>
+    <span class="unitInput"><input class="oat-input" id="radarTargetRoll" type="number" value="0" step="1"/><span class="unitSuffix" aria-hidden="true">°</span></span>
+  </label>
+  <label class="radarField oat-field" for="radarTargetPitch"><span class="radarFieldLabel">Pitch</span>
+    <span class="unitInput"><input class="oat-input" id="radarTargetPitch" type="number" value="0" step="1"/><span class="unitSuffix" aria-hidden="true">°</span></span>
+  </label>
+  <label class="radarField oat-field" for="radarTargetYaw"><span class="radarFieldLabel">Yaw<span class="infoTip" tabindex="0" aria-label="Yaw details">i<span class="tipBubble" role="tooltip">Automatically follows the X–Y motion direction.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarTargetYaw" type="number" value="0" step="1" readonly aria-readonly="true"/><span class="unitSuffix" aria-hidden="true">°</span></span>
+  </label>
+          </div>
+          <div class="radarVectorLabel">Motion</div><div class="radarVectorGrid radarVelocityGrid">
+
+  <label class="radarField oat-field" for="radarTargetSpeed"><span class="radarFieldLabel">Speed</span>
+    <span class="unitInput"><input class="oat-input" id="radarTargetSpeed" type="number" value="0" min="0" max="500" step="0.1"/><span class="unitSuffix" aria-hidden="true">m/s</span></span>
+  </label>
+  <label class="radarField oat-field" for="radarTargetDirection"><span class="radarFieldLabel">Direction</span>
+    <span class="unitInput"><input class="oat-input" id="radarTargetDirection" type="number" value="0" min="-180" max="360" step="1"/><span class="unitSuffix" aria-hidden="true">°</span></span>
+  </label>
+  <label class="radarField oat-field" for="radarTargetClimb"><span class="radarFieldLabel">Climb</span>
+    <span class="unitInput"><input class="oat-input" id="radarTargetClimb" type="number" value="0" min="-90" max="90" step="1"/><span class="unitSuffix" aria-hidden="true">°</span></span>
+  </label>
+          </div>
+          <div class="radarVelocityMeta"><span>0° = +X · 90° = +Y · Yaw follows Direction</span><span id="radarVelocityVectorPreview">Velocity [0.0, 0.0, 0.0] m/s</span></div>
+
+  <label class="radarField oat-field" for="radarTargetRcs"><span class="radarFieldLabel">Effective RCS<span class="infoTip" tabindex="0" aria-label="Effective RCS details">i<span class="tipBubble" role="tooltip">Effective radar cross section used to scale the target echo power.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarTargetRcs" type="number" value="0.01" min="0.000001" max="1000000" step="0.001"/><span class="unitSuffix" aria-hidden="true">m²</span></span>
+  </label>
+        </div>
+      </div>
+    </details>
+
+    <details id="radarWaveformGroup" class="paramGroup radarGroup">
+      <summary class="paramGroupSummary">OFDM Waveform</summary>
+      <div class="paramGroupBody radarGroupBody">
+        <div class="radarFieldGrid">
+
+  <label class="radarField oat-field" for="radarCarrierFrequency"><span class="radarFieldLabel">Carrier Frequency<span class="infoTip" tabindex="0" aria-label="Carrier Frequency details">i<span class="tipBubble" role="tooltip">RF carrier used for wavelength, propagation, and Doppler calculations.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarCarrierFrequency" type="number" value="5.8" min="0.1" max="300" step="0.1"/><span class="unitSuffix" aria-hidden="true">GHz</span></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarBandwidth"><span class="radarFieldLabel">Bandwidth<span class="infoTip" tabindex="0" aria-label="Bandwidth details">i<span class="tipBubble" role="tooltip">Occupied OFDM bandwidth. Wider bandwidth improves equivalent range resolution.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarBandwidth" type="number" value="128" min="0.001" step="1"/><span class="unitSuffix" aria-hidden="true">MHz</span></span>
+  </label>
+          <label class="radarField" for="radarNumSubcarriers"><span class="radarFieldLabel">OFDM Subcarriers<span class="infoTip" tabindex="0" aria-label="OFDM subcarriers details">i<span class="tipBubble" role="tooltip">Number of frequency bins in each OFDM symbol. Together with bandwidth, this sets subcarrier spacing.</span></span></span><select id="radarNumSubcarriers"><option>16</option><option>32</option><option>64</option><option>128</option><option>256</option><option>512</option><option selected>1024</option><option>2048</option></select></label>
+          <label class="radarField" for="radarNumSymbols"><span class="radarFieldLabel">OFDM Symbols<span class="infoTip" tabindex="0" aria-label="OFDM symbols details">i<span class="tipBubble" role="tooltip">Number of slow-time symbols used for Doppler processing. More symbols improve Doppler resolution and increase processing cost.</span></span></span><select id="radarNumSymbols"><option>8</option><option>16</option><option>32</option><option>64</option><option>128</option><option>256</option><option>512</option><option selected>1024</option></select></label>
+
+  <label class="radarField oat-field" for="radarTxPower"><span class="radarFieldLabel">Tx Power<span class="infoTip" tabindex="0" aria-label="Tx Power details">i<span class="tipBubble" role="tooltip">Total transmitted radar power used in the received-power and SNR calculation.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarTxPower" type="number" value="30" min="-100" max="100" step="1"/><span class="unitSuffix" aria-hidden="true">dBm</span></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarNoiseFigure"><span class="radarFieldLabel">Noise Figure<span class="infoTip" tabindex="0" aria-label="Noise Figure details">i<span class="tipBubble" role="tooltip">Receiver noise figure added to thermal noise when calculating the detection SNR.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarNoiseFigure" type="number" value="7" min="0" max="100" step="0.1"/><span class="unitSuffix" aria-hidden="true">dB</span></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarSystemLoss"><span class="radarFieldLabel">System Loss<span class="infoTip" tabindex="0" aria-label="System Loss details">i<span class="tipBubble" role="tooltip">Aggregate implementation and hardware loss applied to the received signal.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarSystemLoss" type="number" value="3" min="0" max="100" step="0.1"/><span class="unitSuffix" aria-hidden="true">dB</span></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarNoiseTemperature"><span class="radarFieldLabel">Noise Temperature<span class="infoTip" tabindex="0" aria-label="Noise Temperature details">i<span class="tipBubble" role="tooltip">System noise temperature used to calculate thermal noise power.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarNoiseTemperature" type="number" value="290" min="1" max="1000" step="1"/><span class="unitSuffix" aria-hidden="true">K</span></span>
+  </label>
+        </div>
+        <label class="radarCheck"><input id="radarDirectPathCancellation" type="checkbox" checked/><span>Cancel known direct Tx–Rx leakage<span class="infoTip" tabindex="0" aria-label="Direct path cancellation details">i<span class="tipBubble" role="tooltip">Removes the modeled direct transmitter-to-receiver path before OFDM processing so it does not mask weaker target echoes.</span></span></span></label>
+        <div class="radarDerived"><span><span class="radarDerivedLabel"><span>Range<br/>Resolution</span><span class="infoTip" tabindex="0" aria-label="Range resolution details">i<span class="tipBubble" role="tooltip">Equivalent range-bin spacing derived from the configured bandwidth.</span></span></span><b id="radarRangeResolutionPreview">--</b></span><span><span class="radarDerivedLabel"><span>Doppler<br/>Resolution</span><span class="infoTip" tabindex="0" aria-label="Doppler resolution details">i<span class="tipBubble" role="tooltip">Doppler-bin spacing derived from subcarrier spacing and the number of OFDM symbols.</span></span></span><b id="radarDopplerResolutionPreview">--</b></span><span><span class="radarDerivedLabel"><span>Velocity<br/>Resolution</span><span class="infoTip" tabindex="0" aria-label="Velocity resolution details">i<span class="tipBubble" role="tooltip">Equivalent radial-velocity spacing derived from Doppler resolution and carrier wavelength.</span></span></span><b id="radarVelocityResolutionPreview">--</b></span></div>
+      </div>
+    </details>
+
+    <details id="radarCfarGroup" class="paramGroup radarGroup">
+      <summary class="paramGroupSummary">CA-CFAR Detection</summary>
+      <div class="paramGroupBody radarGroupBody">
+        <label class="radarCheck"><input id="radarCfarEnabled" type="checkbox" checked/> Enable CA-CFAR detections</label>
+        <div class="radarFieldGrid">
+
+  <label class="radarField oat-field" for="radarCfarGuardRange"><span class="radarFieldLabel">Range Guard Cells<span class="infoTip" tabindex="0" aria-label="Range Guard Cells details">i<span class="tipBubble" role="tooltip">Range cells excluded around the cell under test so target energy does not bias the noise estimate.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarCfarGuardRange" type="number" value="1" min="0" max="64" step="1"/></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarCfarGuardDoppler"><span class="radarFieldLabel">Doppler Guard Cells<span class="infoTip" tabindex="0" aria-label="Doppler Guard Cells details">i<span class="tipBubble" role="tooltip">Doppler cells excluded around the cell under test.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarCfarGuardDoppler" type="number" value="1" min="0" max="64" step="1"/></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarCfarTrainingRange"><span class="radarFieldLabel">Range Training Cells<span class="infoTip" tabindex="0" aria-label="Range Training Cells details">i<span class="tipBubble" role="tooltip">Range cells sampled on each side to estimate the local clutter and noise level.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarCfarTrainingRange" type="number" value="2" min="1" max="128" step="1"/></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarCfarTrainingDoppler"><span class="radarFieldLabel">Doppler Training Cells<span class="infoTip" tabindex="0" aria-label="Doppler Training Cells details">i<span class="tipBubble" role="tooltip">Doppler cells sampled on each side to estimate the local clutter and noise level.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarCfarTrainingDoppler" type="number" value="4" min="1" max="128" step="1"/></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarCfarPfa"><span class="radarFieldLabel">False-alarm Probability (Pfa)<span class="infoTip" tabindex="0" aria-label="False-alarm Probability (Pfa) details">i<span class="tipBubble" role="tooltip">Desired probability of false alarm used to derive the CA-CFAR detection threshold.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarCfarPfa" type="number" value="1e-8" min="1e-12" max="0.1" step="1e-8"/></span>
+  </label>
+        </div>
+      </div>
+    </details>
+
+    <details id="radarPropagationGroup" class="paramGroup radarGroup">
+      <summary class="paramGroupSummary">Propagation Solver</summary>
+      <div class="paramGroupBody radarGroupBody">
+        <div class="radarFieldGrid">
+
+  <label class="radarField oat-field" for="radarSamplesPerSrc"><span class="radarFieldLabel">Samples / Source<span class="infoTip" tabindex="0" aria-label="Samples / Source details">i<span class="tipBubble" role="tooltip">Monte Carlo rays launched per source. Higher values reduce sampling noise and increase runtime.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarSamplesPerSrc" type="number" value="65536" min="1" max="1000000" step="256"/></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarMaxPaths"><span class="radarFieldLabel">Max Paths / Source<span class="infoTip" tabindex="0" aria-label="Max Paths / Source details">i<span class="tipBubble" role="tooltip">Maximum number of propagation paths retained per source.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarMaxPaths" type="number" value="4096" min="1" max="1000000" step="256"/></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarMaxDepth"><span class="radarFieldLabel">Max Depth<span class="infoTip" tabindex="0" aria-label="Max Depth details">i<span class="tipBubble" role="tooltip">Maximum number of propagation interactions allowed for each path.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarMaxDepth" type="number" value="2" min="0" max="20" step="1"/></span>
+  </label>
+
+  <label class="radarField oat-field" for="radarSeed"><span class="radarFieldLabel">Seed<span class="infoTip" tabindex="0" aria-label="Seed details">i<span class="tipBubble" role="tooltip">Random seed for repeatable ray sampling and clutter results.</span></span></span>
+    <span class="unitInput"><input class="oat-input" id="radarSeed" type="number" value="42" min="0" max="2147483647" step="1"/></span>
+  </label>
+        </div>
+        <div class="radarCheckGrid">
+          <label class="radarCheck"><input id="radarLos" type="checkbox" checked/><span>LoS<span class="infoTip" tabindex="0" aria-label="Line of sight details">i<span class="tipBubble" role="tooltip">Includes unobstructed propagation paths between Radar devices and scene objects.</span></span></span></label>
+          <label class="radarCheck"><input id="radarSpecular" type="checkbox" checked/><span>Specular<span class="infoTip" tabindex="0" aria-label="Specular reflection details">i<span class="tipBubble" role="tooltip">Includes mirror-like reflections from scene surfaces.</span></span></span></label>
+          <label class="radarCheck"><input id="radarDiffuse" type="checkbox" checked/><span>Diffuse<span class="infoTip" tabindex="0" aria-label="Diffuse reflection details">i<span class="tipBubble" role="tooltip">Includes rough-surface scattering used to model environmental clutter.</span></span></span></label>
+          <label class="radarCheck"><input id="radarRefraction" type="checkbox" checked/><span>Refraction<span class="infoTip" tabindex="0" aria-label="Refraction details">i<span class="tipBubble" role="tooltip">Includes transmission through supported scene materials.</span></span></span></label>
+          <label class="radarCheck"><input id="radarDiffraction" type="checkbox"/><span>Diffraction<span class="infoTip" tabindex="0" aria-label="Diffraction details">i<span class="tipBubble" role="tooltip">Includes bending around wedges and edges. This can improve NLoS coverage and increase solve time.</span></span></span></label>
+          <label class="radarCheck"><input id="radarSyntheticArray" type="checkbox"/><span>Synthetic Array<span class="infoTip" tabindex="0" aria-label="Synthetic Array details">i<span class="tipBubble" role="tooltip">Uses a synthetic-array approximation for array studies.</span></span></span></label>
+        </div>
+      </div>
+    </details>
+
+    <p id="radarInputError" class="radarInputError hidden" role="alert"></p>
+  </section>
         <template id="featurePanelAnchor"></template>
+        </div>
 
       </div>
     </div>
 
     <div id="deviceDock" class="deviceDock oat-panel hidden" aria-hidden="true">
+      <div class="oat-react-mount" data-oat-react-owner="device-dock">
       <div id="devicePrecisionPanel" class="devicePrecisionPanel deviceCompactBar hidden" aria-hidden="true">
         <div class="devicePrecisionHead">
           <div id="devicePrecisionTitle" class="devicePrecisionTitle">Tx</div>
@@ -718,6 +913,12 @@
               <label>Z <span class="unitInput"><input id="deepMimoTxZ" type="number" step="1.0" placeholder="—" /><span class="unitSuffix" aria-hidden="true">m</span></span></label>
             </div>
           </section>
+<section id="radarTxDeviceCard" class="deviceCoordPanel hidden"><div class="deviceCoordGrid">
+    <label>X <span class="unitInput"><input id="radarTxX" type="number" step="1" placeholder="—"/><span class="unitSuffix">m</span></span></label><label>Y <span class="unitInput"><input id="radarTxY" type="number" step="1" placeholder="—"/><span class="unitSuffix">m</span></span></label><label>Z <span class="unitInput"><input id="radarTxZ" type="number" step="1" placeholder="—"/><span class="unitSuffix">m</span></span></label>
+  </div></section>
+  <section id="radarRxDeviceCard" class="deviceCoordPanel hidden"><div class="deviceCoordGrid">
+    <label>X <span class="unitInput"><input id="radarRxX" type="number" step="1" placeholder="—"/><span class="unitSuffix">m</span></span></label><label>Y <span class="unitInput"><input id="radarRxY" type="number" step="1" placeholder="—"/><span class="unitSuffix">m</span></span></label><label>Z <span class="unitInput"><input id="radarRxZ" type="number" step="1" placeholder="—"/><span class="unitSuffix">m</span></span></label>
+  </div></section>
           <template id="featureDeviceCardAnchor"></template>
           <label id="linkSurfaceClearanceField" class="deviceClearanceField hidden" for="linkSurfaceClearance">
             <span>Clearance
@@ -810,7 +1011,11 @@
           </span>
           <span class="deviceActionText">Export Data</span>
         </button>
+<button class="deviceActionBtn radarDevicePick hidden" id="btnPickRadarTx" type="button" aria-label="Pick radar transmitter"><span class="deviceActionIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19v-7"></path><path d="M7 9a5 5 0 0 1 10 0"></path><path d="M4 6a9 9 0 0 1 16 0"></path><path d="M10 21h4"></path></svg></span><span class="deviceActionText">Tx</span></button>
+  <button class="deviceActionBtn radarDevicePick hidden" id="btnPickRadarRx" type="button" aria-label="Pick radar receiver"><span class="deviceActionIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19v-7"></path><path d="M17 9a5 5 0 0 0-10 0"></path><path d="M20 6A9 9 0 0 0 4 6"></path><path d="M9 21h6"></path></svg></span><span class="deviceActionText">Rx</span></button>
+  <button class="deviceActionBtn solve radarDeviceRun hidden" id="btnSolveRadar" type="button"><span class="deviceActionIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"></circle><path d="M5.6 8.2a7 7 0 0 0 0 7.6"></path><path d="M18.4 8.2a7 7 0 0 1 0 7.6"></path><path d="M2.7 5.2a11 11 0 0 0 0 13.6"></path><path d="M21.3 5.2a11 11 0 0 1 0 13.6"></path></svg></span><span class="deviceActionText">Run Radar</span></button>
         <template id="featureDeviceActionAnchor"></template>
+      </div>
       </div>
     </div>
 

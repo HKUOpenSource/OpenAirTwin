@@ -479,6 +479,8 @@ Leaflet、Three.js 标签层、SVG/Canvas 和明确登记的兼容适配器可�
 
 ### Phase 6：迁移控件、表单和设备 UI
 
+> 执行状态：已完成（2026-07-31）。五个 Feature 的控件表单、设备字段、操作按钮、Mobility waypoint 与 Radar target 列表已切换为 React 生产所有者；外层 Shell、Viewer、Entry Map 和 Feature 生命周期保持不变。
+
 交付物：
 
 - 由 Feature State 驱动的 Controlled React Field；
@@ -495,6 +497,16 @@ Leaflet、Three.js 标签层、SVG/Canvas 和明确登记的兼容适配器可�
 - 无关状态更新不会导致输入失焦；
 - 异步按钮不能重复提交，失败后必须恢复；
 - 五个 Feature 都通过真实浏览器事件完成完整流程。
+
+实现记录：
+
+- `ControlledField` 统一接管 number/text/select/checkbox/radio，保持冻结默认值、min/max/step、name、只读状态、焦点和提交时机；程序化原生 `change` 继续通过兼容监听转换为类型化 Commit。
+- `control-surface-bridge` 使用不可变快照、`ObservableStateAdapter`、`CommandBus` 和同步 Root 管理 `control-form-content` 与 `device-dock-content`；Busy、select options、字段同步和动态列表更新均有显式 API。
+- Link、Mobility、Radio Map、DeepMIMO 和 Radar runtime 只处理 `workbench.control.commit/action/group.toggle`，已删除迁移区内的原生 click/change 事件绑定。
+- Mobility waypoint 与 Radar target 列表由 `ControlCollections` 单一渲染；`solver_controls.js` 和 Radar controls 不再创建列表 DOM。
+- Radar 控件标记进入静态工作台结构，已删除字段、分组和设备卡 template-string 工厂；Feature Registry 保留 ID 与生命周期合同。
+- `dom_refs.js` 的迁移字段不再在模块加载时查询 DOM，由 React control bridge 统一绑定；生产 manifest 对四个 React 边界执行完整性校验。
+- Phase 0 DOM、computed style、`1440x900` 视觉快照和 `1280x720` 布局基线不更新。
 
 ### Phase 7：迁移全局 Shell 与 Entry Map
 
@@ -743,10 +755,10 @@ ui-release: 加固、文档、打包并验证 Release Candidate
 
 ## 14. 下一执行工作包
 
-下一项开发任务执行 Phase 6 的第一个完整控件边界：
+下一项开发任务执行 Phase 7 的第一个完整 Shell 边界：
 
-1. 用 CodeGraph 选择依赖最少且具有完整 Payload 浏览器覆盖的 Feature 表单边界。
-2. 冻结字段值、校验时机、Command、Payload、焦点、Picking 和失效合同。
-3. React 接管完整表单与对应设备操作后，在同一工作包删除旧模板和事件绑定，禁止双写。
-4. 保持 REST、Feature 生命周期、DOM ID、视觉、键盘、错误提示和 Viewer 操作不变。
-5. 只有单元、Payload、生命周期、生产 Build、完整 Python 与 Playwright 门禁全部通过后，才迁移下一个控件边界。
+1. 用 CodeGraph 选择不重建 Three.js Canvas 的 Control Shell/Mode Selector 边界。
+2. 冻结 Mode 切换、折叠、Focus、Result/Device reserve、Feature activate/deactivate 和 Resize 合同。
+3. React 接管外层 Shell 后，在同一工作包删除对应原生事件与 DOM 写入，禁止双写。
+4. 保持 Entry Map、REST、Feature 生命周期、DOM ID、视觉、键盘、错误提示和 Viewer 操作不变。
+5. 只有生产 Build、完整 Python、Playwright、两个桌面尺寸视觉门禁和资源释放检查全部通过后，才迁移下一个 Shell 边界。

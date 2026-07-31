@@ -1,12 +1,14 @@
 {
-  "schemaVersion": 3,
-  "phase": 5,
+  "schemaVersion": 4,
+  "phase": 6,
   "cssOwner": "backend/static/css/components.css",
   "catalog": "tools/ui-catalog/index.html",
   "productionOwner": "mixed",
   "reactProductionBoundaries": [
     "result-dock-content",
-    "deepmimo-dataset-tray"
+    "deepmimo-dataset-tray",
+    "control-form-content",
+    "device-dock-content"
   ],
   "reactCatalogEntry": "workbench/src/catalog/main.tsx",
   "components": [
@@ -27,6 +29,7 @@
     {
       "name": "Field",
       "reactSource": "workbench/src/design-system/components/Field.tsx",
+      "controlledReactSource": "workbench/src/design-system/components/ControlledField.tsx",
       "classes": ["oat-field", "oat-input"],
       "variants": ["default", "compact"],
       "states": ["hover", "focus-visible", "disabled", "invalid", "read-only"]
@@ -98,7 +101,7 @@
   "legacyAliases": [
     {"class": "btn", "replacement": "oat-button", "removeAfterOwnerPhase": 7},
     {"class": "miniBtn", "replacement": "oat-button oat-button--compact", "removeAfterOwnerPhase": 7},
-    {"class": "miniSelect", "replacement": "oat-input oat-input--compact", "removeAfterOwnerPhase": 6},
+    {"class": "miniSelect", "replacement": "oat-input oat-input--compact", "removeAfterOwnerPhase": 8},
     {"class": "danger", "replacement": "oat-button--danger", "removeAfterOwnerPhase": 7}
   ],
   "internalCompatibilityClasses": [

@@ -61,11 +61,12 @@ def test_manifest_and_catalog_cover_every_public_variant_and_state() -> None:
     manifest = load_manifest()
     catalog = read(CATALOG_PATH)
     components = {component["name"]: component for component in manifest["components"]}
-    assert manifest["schemaVersion"] == 3
-    assert manifest["phase"] == 5
+    assert manifest["schemaVersion"] == 4
+    assert manifest["phase"] == 6
     assert manifest["productionOwner"] == "mixed"
     assert manifest["reactProductionBoundaries"] == [
         "result-dock-content", "deepmimo-dataset-tray",
+        "control-form-content", "device-dock-content",
     ]
     assert manifest["reactCatalogEntry"] == "workbench/src/catalog/main.tsx"
     assert set(components) == {
@@ -129,7 +130,6 @@ def test_legacy_aliases_share_public_rules_and_production_markup() -> None:
 
 def test_feature_rows_compose_public_components_without_core_button_overrides() -> None:
     expected_patterns = {
-        JS_ROOT / "solver_controls.js": ["waypointItem oat-list-card oat-list-card--interactive", "waypointEmpty oat-empty-state"],
         JS_ROOT / "entry_map.js": ["entryPlaceResult oat-list-card oat-list-card--interactive"],
         JS_ROOT / "performance_panel.js": ["categoryItem oat-check oat-list-card"],
         JS_ROOT / "ui" / "tile_selection_view.js": ["tileItem oat-check oat-list-card"],
@@ -138,7 +138,12 @@ def test_feature_rows_compose_public_components_without_core_button_overrides() 
             "pathRow oat-list-card oat-list-card--interactive",
             'className="radarEmptyState"',
         ],
-        JS_ROOT / "features" / "radar" / "controls.js": ["radarTargetCard oat-list-card oat-list-card--interactive", "radarEmptyState oat-empty-state"],
+        PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "ControlCollections.tsx": [
+            "waypointItem oat-list-card oat-list-card--interactive",
+            "waypointEmpty oat-empty-state",
+            "radarTargetCard oat-list-card oat-list-card--interactive",
+            "radarEmptyState oat-empty-state",
+        ],
     }
     for path, patterns in expected_patterns.items():
         source = read(path)
@@ -147,6 +152,40 @@ def test_feature_rows_compose_public_components_without_core_button_overrides() 
     radar_css = read(CSS_ROOT / "radar.css")
     assert ".radarEditorActions .miniBtn" not in radar_css
     assert not re.search(r"(?m)^\s*\.radarAssetAddButton\s*\{", radar_css)
+
+
+def test_phase6_react_owns_control_and_device_boundaries() -> None:
+    html = read(STATIC_ROOT / "index.html")
+    app = read(JS_ROOT / "app.js")
+    dom_refs = read(JS_ROOT / "dom_refs.js")
+    solver = read(JS_ROOT / "solver_controls.js")
+    radar_controls = read(JS_ROOT / "features" / "radar" / "controls.js")
+    bridge = read(PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "control-surface-bridge.tsx")
+    contracts = read(PROJECT_ROOT / "workbench" / "src" / "features" / "controls" / "contracts.ts")
+    controlled_field = read(PROJECT_ROOT / "workbench" / "src" / "design-system" / "components" / "ControlledField.tsx")
+
+    assert 'data-oat-react-owner="control-form"' in html
+    assert 'data-oat-react-owner="device-dock"' in html
+    assert "createControlSurfaceBridge" in app
+    assert "bindControlSurfaceRefs(controlSurfaceBridge)" in app
+    assert "inputs[key] = controlSurface.element(key);" in dom_refs
+    assert "ui[key] = controlSurface.elements(selector);" in dom_refs
+    assert "controlCommitCommand" in controlled_field
+    assert "workbench.control.action" in contracts
+    assert "CommandBus" in bridge
+    assert "document.createElement" not in solver
+    assert "document.createElement" not in radar_controls
+
+    for relative_path in (
+        "features/link/runtime.js",
+        "features/mobility/runtime.js",
+        "features/radiomap/runtime.js",
+        "features/deepmimo/runtime.js",
+        "features/radar/runtime.js",
+    ):
+        source = read(JS_ROOT / relative_path)
+        assert '.addEventListener("click"' not in source, relative_path
+        assert '.addEventListener("change"' not in source, relative_path
 
 
 def test_icon_geometry_uses_tokens_and_accessibility_contract() -> None:

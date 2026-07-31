@@ -1,6 +1,6 @@
 # OpenAirTwin UI 交互合同
 
-> 状态：Phase 1 冻结合同。本文定义行为语义；逐控件的机器映射位于 `dom-compatibility-contract.json` 的 `interaction` 字段。
+> 状态：Phase 6 生产合同。本文定义行为语义；逐控件的机器映射位于 `dom-compatibility-contract.json` 的 `interaction` 字段。
 
 ## 1. Command 规则
 
@@ -10,6 +10,19 @@
 - 异步 Command 必须定义 idle、busy、success、empty、cancelled、error、retry 和 stale-response 行为。
 - busy 期间提交按钮 disabled 且 `aria-busy=true`；失败后恢复可操作状态并进入现有可见错误路径。
 - Feature 切换会取消 Live Preview、停止 Tx Orbit、清理 picking 和 transient UI；不得显示上一 Feature 结果。
+
+### 1.1 Phase 6 控件 Command Envelope
+
+React 控件边界只发出以下类型化基础 Command，由 App/Feature runtime 路由到本文件定义的领域命令；它们不替代领域语义：
+
+| Command | Payload | 提交时机 |
+| --- | --- | --- |
+| `workbench.control.draft` | `{controlId, value}` | number/text 的原生 `input`，仅保持受控值与焦点 |
+| `workbench.control.commit` | `{controlId, value, checked?}` | number/text 的 blur 或兼容 `change`；select/checkbox/radio 的 change |
+| `workbench.control.action` | `{actionId, value?}` | Button、动态 ListCard 和设备操作激活 |
+| `workbench.control.group.toggle` | `{controlId, open}` | 有 ID 的 details 原生 toggle |
+
+同一 radio `name` 的 checked 更新必须在一个快照内原子完成。Solver 按钮的 busy 集合按 `actionId` 去重，重复提交是 no-op，成功或失败都必须清除 disabled/`aria-busy`。旧 Controller 可以读取桥接后的 HTMLElement 以完成领域解析和命令式 Viewer 同步，但不得再为 React 所有字段或按钮绑定 click/change 监听。
 
 ## 2. Shell 与入口命令
 

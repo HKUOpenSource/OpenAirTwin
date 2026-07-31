@@ -21,6 +21,7 @@ const PRODUCTION_BASE = "/workbench/";
 const REQUIRED_REACT_ENTRIES = [
   "workbench/src/features/results/result-dock-bridge.tsx",
   "workbench/src/features/deepmimo/deepmimo-dataset-bridge.tsx",
+  "workbench/src/features/controls/control-surface-bridge.tsx",
 ];
 
 const workbenchRoot = fileURLToPath(new URL("..", import.meta.url));

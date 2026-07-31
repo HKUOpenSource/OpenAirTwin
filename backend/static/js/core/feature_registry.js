@@ -206,7 +206,9 @@ export class FeatureRegistry {
           `Feature ${definition.id} requires unavailable capabilities: ${missingCapabilities.join(", ")}`,
         );
       }
-      const dom = definition.queryDom?.(context.documentRoot || globalThis.document) || {};
+      const dom = definition.createRefs?.(context)
+        || definition.queryDom?.(context.documentRoot || globalThis.document)
+        || {};
       const featureContext = {...context, definition, featureState: this.store.get(definition.id), dom};
       const transport = definition.createTransport?.(featureContext) || {};
       this._transports.set(definition.id, transport);

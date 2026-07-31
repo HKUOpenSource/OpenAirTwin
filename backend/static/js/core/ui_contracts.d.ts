@@ -82,6 +82,18 @@ export interface FeatureFactoryContext<
   readonly featureServices: Record<string, unknown>;
 }
 
+export interface FeatureRefContext {
+  readonly documentRoot?: Document;
+  readonly ui: Readonly<Record<string, UiRef<Element> | readonly Element[]>>;
+  readonly inputs: Readonly<
+    Record<
+      string,
+      UiRef<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    >
+  >;
+  readonly featureServices: Record<string, unknown>;
+}
+
 export interface FeatureDefinition<
   TState = unknown,
   TTransport = unknown,
@@ -101,6 +113,7 @@ export interface FeatureDefinition<
   readonly createFeature?: (
     context: FeatureFactoryContext<TState, TTransport, TResultView, TController, TRenderer>,
   ) => TLifecycle;
+  readonly createRefs?: (context: FeatureRefContext) => UiRefMap;
   readonly queryDom?: (root: Document) => UiRefMap;
   readonly templateFragments: TemplateFragments;
   readonly dependencies: readonly CapabilityId[];

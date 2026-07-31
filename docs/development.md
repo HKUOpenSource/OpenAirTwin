@@ -124,9 +124,10 @@ Then open `http://127.0.0.1:8091/ui-catalog/`. The Playwright configuration
 starts this catalog automatically and verifies its public variants, states,
 accessible names, and contract-only test Feature.
 
-Phase 5 uses mixed production ownership: React owns the result dock content and
-DeepMIMO dataset tray, while Native still owns the shell, forms and device
-controls. Install and verify the locked toolchain with:
+Phase 6 uses mixed production ownership: React owns the result dock content,
+DeepMIMO dataset tray, control form content and device dock content. Native
+still owns the outer shell, Entry Map, Performance, Dialog and Tooltip. Install
+and verify the locked toolchain with:
 
 ```bash
 cd workbench
@@ -143,9 +144,13 @@ boundaries may appear in the Vite manifest, while Catalog and test source remain
 excluded.
 
 Result UI ownership is defined by `workbench/src/features/results/` and
-`workbench/src/features/deepmimo/`. Legacy result views may build ViewModels,
-handle Commands and draw into stable SVG/Canvas hosts, but must not create,
-replace or directly mutate React-owned result rows.
+`workbench/src/features/deepmimo/`. Control ownership is defined by
+`workbench/src/features/controls/` and the shared controlled field in
+`workbench/src/design-system/components/ControlledField.tsx`. Legacy result
+views may build ViewModels, handle Commands and draw into stable SVG/Canvas
+hosts, but must not create, replace or directly mutate React-owned rows.
+Feature runtimes may validate and apply typed control Commands, but must not
+bind click/change handlers or create control/list DOM inside the React roots.
 
 React UI code follows these ownership rules:
 
