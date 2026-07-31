@@ -8,7 +8,7 @@ function formatArea(size) {
 
 function statusType(status) {
   if (status === "Succeeded") return "success";
-  if (status === "Failed") return "error";
+  if (["Failed", "Timed Out", "Offline", "Server Error"].includes(status)) return "error";
   if (status === "Cancelled") return "warning";
   if (status === "Idle") return "empty";
   return "loading";

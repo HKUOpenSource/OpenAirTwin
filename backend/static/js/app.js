@@ -373,6 +373,7 @@ async function bootstrap() {
     ui.panel.style.display = "flex";
     sceneRenderState.syncControlSidebarUi();
   }
+  window.__OPENAIRTWIN_UI_READY_MS__ = window.performance.now();
   window.dispatchEvent(new CustomEvent("openairtwin:ui-ready"));
 }
 

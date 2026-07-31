@@ -26,6 +26,8 @@ export default defineConfig({
         "--use-angle=swiftshader",
         "--use-gl=angle",
         "--disable-gpu-driver-bug-workarounds",
+        "--enable-precise-memory-info",
+        "--js-flags=--expose-gc",
       ],
     },
   },

@@ -1,6 +1,7 @@
 export function createMobilityState() {
   return {
     generation: 0,
+    failureKind: null,
     tx: null,
     txVisual: null,
     rx: null,

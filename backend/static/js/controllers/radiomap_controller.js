@@ -1,3 +1,5 @@
+import {requestFailureState} from "/js/api.js";
+
 export function createRadiomapController({
   state,
   getViewer,
@@ -18,6 +20,7 @@ export function createRadiomapController({
     state.radiomap.jobId = null;
     state.radiomap.result = null;
     state.radiomap.status = "Idle";
+    state.radiomap.failureKind = null;
     if (clearOverlay && runOwner) {
       hideOverlay(runOwner);
     }
@@ -84,6 +87,7 @@ export function createRadiomapController({
     runOwner = overlayOwner;
 
     state.radiomap.status = "Queued";
+    state.radiomap.failureKind = null;
     state.radiomap.jobId = null;
     state.radiomap.result = null;
     renderRadiomapResult();
@@ -108,7 +112,9 @@ export function createRadiomapController({
         return;
       }
       state.radiomap.jobId = null;
-      state.radiomap.status = "failed";
+      const failure = requestFailureState(error);
+      state.radiomap.status = failure.status;
+      state.radiomap.failureKind = failure.kind;
       state.radiomap.result = null;
       renderRadiomapResult();
       const overlayWasCurrent = hideOverlay(overlayOwner);

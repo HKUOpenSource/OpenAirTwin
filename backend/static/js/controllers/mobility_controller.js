@@ -1,3 +1,5 @@
+import {requestFailureState} from "/js/api.js";
+
 export function createMobilityController({
   state,
   getViewer,
@@ -26,6 +28,7 @@ export function createMobilityController({
     state.mobility.generation += 1;
     state.mobility.jobId = null;
     state.mobility.status = "Idle";
+    state.mobility.failureKind = null;
     resetMobilityResultState();
     if (clearPaths && state.mode === "mobility") {
       getViewer().clearPaths();
@@ -108,6 +111,7 @@ export function createMobilityController({
     const overlayOwner = `mobility:${token}`;
     runOwner = overlayOwner;
     state.mobility.status = "Queued";
+    state.mobility.failureKind = null;
     state.mobility.jobId = null;
     state.mobility.result = null;
     state.mobility.selectedStep = 0;
@@ -134,7 +138,9 @@ export function createMobilityController({
         return;
       }
       state.mobility.jobId = null;
-      state.mobility.status = "failed";
+      const failure = requestFailureState(error);
+      state.mobility.status = failure.status;
+      state.mobility.failureKind = failure.kind;
       state.mobility.result = null;
       state.mobility.selectedStep = 0;
       state.mobility.selectedPath = -1;

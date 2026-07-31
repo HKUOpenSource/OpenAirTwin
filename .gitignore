@@ -17,6 +17,7 @@ __pycache__/
 /website/dist/
 /node_modules/
 /dist/release/
+/dist/audit/
 /workbench/node_modules/
 /backend/static/.vite/
 /backend/static/workbench/

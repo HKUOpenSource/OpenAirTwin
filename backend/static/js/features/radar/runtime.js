@@ -227,6 +227,7 @@ export function createRadarFeature(context) {
     const deviceRequirement = controls.deviceRequirementMessage();
     dom.radarJobBar.classList.toggle("hidden", !activeJob && radar.status !== "failed");
     dom.radarJobBar.dataset.status = radar.status;
+    dom.radarJobBar.dataset.failureKind = radar.failureKind || "";
     dom.radarJobStatus.textContent = radar.status.toUpperCase();
     dom.radarJobStatus.className = `radarStatusPill status-${radar.status}`;
     dom.radarJobMessage.textContent = radar.error || radar.message;

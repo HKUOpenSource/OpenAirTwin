@@ -9,7 +9,6 @@ import hashlib
 import io
 import json
 from pathlib import Path
-import re
 import subprocess
 import sys
 import tarfile
@@ -19,6 +18,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from backend.workbench import GIT_COMMIT_PATTERN, RELEASE_VERSION_PATTERN, load_workbench_build  # noqa: E402
+from tools.release_dependencies import (  # noqa: E402
+    BROWSER_RUNTIME_DEPENDENCIES,
+    PYTHON_RUNTIME_DEPENDENCIES,
+    parse_requirements,
+)
 
 
 TOP_LEVEL_FILES = (
@@ -29,26 +33,10 @@ TOP_LEVEL_FILES = (
     "CITATION.cff",
     "CHANGELOG.md",
     "THIRD_PARTY_NOTICES.md",
+    "docs/data-licenses.md",
     "docs/release-checklist.md",
 )
 BACKEND_RUNTIME_DIRECTORIES = ("backend/features", "backend/jobs", "backend/rt", "backend/scene")
-PYTHON_LICENSES = {
-    "numpy": "BSD-3-Clause",
-    "sionna-rt": "Apache-2.0",
-    "mitsuba": "BSD-3-Clause",
-    "drjit": "BSD-3-Clause",
-    "trimesh": "MIT",
-    "deepmimo": "GPL-2.0-or-later",
-    "defusedxml": "PSF-2.0",
-}
-BROWSER_COMPONENTS = (
-    ("react", "19.2.8", "MIT", "pkg:npm/react@19.2.8"),
-    ("react-dom", "19.2.8", "MIT", "pkg:npm/react-dom@19.2.8"),
-    ("scheduler", "0.27.0", "MIT", "pkg:npm/scheduler@0.27.0"),
-    ("three", "0.160.0", "MIT", "pkg:npm/three@0.160.0"),
-    ("leaflet", "1.9.4", "BSD-2-Clause", "pkg:npm/leaflet@1.9.4"),
-    ("proj4", "2.11.0", "MIT", "pkg:npm/proj4@2.11.0"),
-)
 
 
 class ReleaseBuildError(RuntimeError):
@@ -167,19 +155,6 @@ def build_archive(
             output.write(uncompressed.getvalue())
 
 
-def parse_requirements(path: Path) -> list[tuple[str, str]]:
-    requirements = []
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        match = re.fullmatch(r"([A-Za-z0-9_.-]+)==([A-Za-z0-9_.+-]+)", line)
-        if match is None:
-            raise ReleaseBuildError(f"Runtime requirement is not exactly pinned: {line}")
-        requirements.append((match.group(1), match.group(2)))
-    return requirements
-
-
 def component(name: str, version: str, license_id: str, purl: str, kind: str = "library") -> dict:
     return {
         "type": kind,
@@ -192,14 +167,28 @@ def component(name: str, version: str, license_id: str, purl: str, kind: str = "
 
 def write_sbom(path: Path, *, version: str, git_commit: str, build_id: str, archive_hash: str) -> None:
     components = []
-    for name, dependency_version in parse_requirements(PROJECT_ROOT / "requirements.txt"):
-        license_id = PYTHON_LICENSES.get(name.lower())
-        if license_id is None:
-            raise ReleaseBuildError(f"Unknown runtime license for {name}")
-        normalized = name.replace("_", "-").lower()
-        components.append(component(name, dependency_version, license_id, f"pkg:pypi/{normalized}@{dependency_version}"))
-    for item in BROWSER_COMPONENTS:
-        components.append(component(*item))
+    requirement_versions = dict(parse_requirements(PROJECT_ROOT / "requirements.txt"))
+    for dependency in PYTHON_RUNTIME_DEPENDENCIES:
+        normalized = dependency.name.replace("_", "-").lower()
+        if requirement_versions.get(normalized) != dependency.version:
+            raise ReleaseBuildError(f"Runtime dependency policy mismatch for {dependency.name}")
+        components.append(
+            component(
+                dependency.name,
+                dependency.version,
+                dependency.license_id,
+                dependency.purl,
+            )
+        )
+    for dependency in BROWSER_RUNTIME_DEPENDENCIES:
+        components.append(
+            component(
+                dependency.name,
+                dependency.version,
+                dependency.license_id,
+                dependency.purl,
+            )
+        )
     components.sort(key=lambda item: item["purl"])
     serial = uuid.uuid5(uuid.NAMESPACE_URL, f"https://openairtwin.com/releases/{build_id}")
     sbom = {

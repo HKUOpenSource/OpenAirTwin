@@ -558,7 +558,7 @@ class FrontendRegressionTests(unittest.TestCase):
         app_source = read_static_js("app.js")
         html = read_static_html()
 
-        self.assertIn('requestJson("/assets/open3dhk_tile_coverage.json")', api_source)
+        self.assertIn('export function getOpen3dHkTileCoverage()', api_source)
         self.assertIn("state.entry.coverage = await getOpen3dHkTileCoverage();", app_source)
         self.assertIn("buildEntryOverview(state.manifest, state.entry.coverage)", app_source)
         self.assertIn("const coverageById = new Map();", source)
@@ -578,7 +578,7 @@ class FrontendRegressionTests(unittest.TestCase):
         app_source = read_static_js("app.js")
         state_source = read_frontend_js_modules()
 
-        self.assertIn('requestJson("/api/rt/capabilities")', api_source)
+        self.assertIn('export function getRtCapabilities()', api_source)
         self.assertIn("state.rtCapabilities = await getRtCapabilities();", app_source)
         self.assertIn("solverControls.applyRtCapabilities(state.rtCapabilities);", app_source)
         self.assertIn("txArray: createDefaultAntennaArray()", state_source)
@@ -588,7 +588,7 @@ class FrontendRegressionTests(unittest.TestCase):
         api_source = read_static_js("api.js")
         source = read_frontend_js_modules()
 
-        self.assertIn('requestJson("/api/rt/scene-selection")', api_source)
+        self.assertIn('export function getRtSceneSelection()', api_source)
         self.assertIn('requestJson("/api/rt/scene-selection", {', api_source)
         self.assertIn("getRtSceneSelection,", source)
         self.assertIn("setRtSceneSelection,", source)
@@ -920,7 +920,13 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn('throw new Error(job.error || job.message || "Radio map job failed");', source)
         self.assertIn("createRadiomapController", source)
         self.assertRegex(source, r"state\.radiomap\.jobId = null;\s+state\.radiomap\.result = null;")
-        self.assertRegex(source, r'state\.radiomap\.status = "failed";\s+state\.radiomap\.result = null;')
+        self.assertRegex(
+            source,
+            r"const failure = requestFailureState\(error\);\s+"
+            r"state\.radiomap\.status = failure\.status;\s+"
+            r"state\.radiomap\.failureKind = failure\.kind;\s+"
+            r"state\.radiomap\.result = null;",
+        )
         self.assertIn('surface.resolution_mode === "cell_size_grid"', source)
         self.assertIn('`${nx} x ${ny} cells (${formatCount(surface.grid_cell_count)})`', source)
         self.assertIn("surface.triangle_count", source)
@@ -1310,7 +1316,13 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("getViewer().renderPaths(sample?.paths || [], -1);", source)
         self.assertIn("createMobilityController", source)
         self.assertRegex(source, r"state\.mobility\.jobId = null;\s+state\.mobility\.result = null;")
-        self.assertRegex(source, r'state\.mobility\.status = "failed";\s+state\.mobility\.result = null;')
+        self.assertRegex(
+            source,
+            r"const failure = requestFailureState\(error\);\s+"
+            r"state\.mobility\.status = failure\.status;\s+"
+            r"state\.mobility\.failureKind = failure\.kind;\s+"
+            r"state\.mobility\.result = null;",
+        )
 
     def test_mobility_uses_shared_result_dock_and_viewer_preview(self) -> None:
         source = read_frontend_js_modules()
@@ -1464,7 +1476,7 @@ class FrontendRegressionTests(unittest.TestCase):
         ):
             self.assertIn(f'id="{element_id}"', dataset_component)
         self.assertIn('requestJson("/api/deepmimo/jobs"', api_source)
-        self.assertIn('cancelDeepMimoJob(jobId)', api_source)
+        self.assertIn('export function cancelDeepMimoJob(jobId, options = {})', api_source)
         self.assertIn('`/api/deepmimo/jobs/${encodeURIComponent(jobId)}/cancel`', api_source)
         self.assertIn('`/api/deepmimo/jobs/${encodeURIComponent(jobId)}/download`', api_source)
         self.assertIn("deepMimoTxX: null", dom_source)
@@ -1557,7 +1569,13 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("createDeepMimoController", solver_source)
         self.assertIn("createDeepMimoJob(payload)", solver_source)
         self.assertRegex(solver_source, r"state\.deepmimo\.jobId = null;\s+state\.deepmimo\.result = null;")
-        self.assertRegex(solver_source, r'state\.deepmimo\.jobId = null;\s+state\.deepmimo\.status = "failed";')
+        self.assertRegex(
+            solver_source,
+            r"state\.deepmimo\.jobId = null;\s+"
+            r"const failure = requestFailureState\(error\);\s+"
+            r'state\.deepmimo\.status = "failed";\s+'
+            r"state\.deepmimo\.failureKind = failure\.kind;",
+        )
         self.assertNotIn("ui.deepMimoProgress", solver_source)
         self.assertIn("function renderDeepMimoDatasetTray()", solver_source)
         self.assertIn("addDeepMimoDataset(job);", solver_source)

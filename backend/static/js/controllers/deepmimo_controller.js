@@ -1,3 +1,5 @@
+import {requestFailureState} from "/js/api.js";
+
 const TERMINAL_DEEPMIMO_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
 
 export function createDeepMimoController({
@@ -19,6 +21,7 @@ export function createDeepMimoController({
     state.deepmimo.jobId = null;
     state.deepmimo.result = null;
     state.deepmimo.status = "Idle";
+    state.deepmimo.failureKind = null;
     state.deepmimo.progress = 0;
     state.deepmimo.message = "Idle";
     state.deepmimo.pendingDataset = null;
@@ -58,6 +61,7 @@ export function createDeepMimoController({
       renderDeepMimoState();
 
       if (job.status === "succeeded") {
+        state.deepmimo.failureKind = null;
         state.deepmimo.message = "Dataset ready";
         addDeepMimoDataset(job);
         state.deepmimo.jobId = null;
@@ -90,6 +94,7 @@ export function createDeepMimoController({
         state.deepmimo.pendingDataset = null;
         state.deepmimo.progress = 1;
         state.deepmimo.message = job.message || "Cancelled";
+        state.deepmimo.failureKind = "cancelled";
         renderDeepMimoState();
         hideOverlay(overlayOwner);
         if (runOwner === overlayOwner) {
@@ -139,6 +144,7 @@ export function createDeepMimoController({
         state.deepmimo.status = "succeeded";
         state.deepmimo.progress = 1;
         state.deepmimo.message = "Dataset ready";
+        state.deepmimo.failureKind = null;
         addDeepMimoDataset(job);
         state.deepmimo.pendingDataset = null;
         renderDeepMimoState();
@@ -158,6 +164,7 @@ export function createDeepMimoController({
             ? "Dataset ready"
             : "Cancelled";
         state.deepmimo.message = job.message || fallbackMessage;
+        state.deepmimo.failureKind = job.status === "cancelled" ? "cancelled" : null;
         renderDeepMimoState();
         hideOverlay(runOwner);
         runOwner = null;
@@ -174,6 +181,7 @@ export function createDeepMimoController({
       if (state.deepmimo.jobId !== jobId) {
         return;
       }
+      state.deepmimo.failureKind = requestFailureState(error).kind;
       state.deepmimo.status = "running";
       state.deepmimo.message = error.message || "Could not cancel DeepMIMO export";
       renderDeepMimoState();
@@ -190,6 +198,7 @@ export function createDeepMimoController({
     runOwner = overlayOwner;
     const submittedScenarioName = payload.export?.scenario_name || state.deepmimo.export.scenarioName || "hku_deepmimo_roi";
     state.deepmimo.status = "Queued";
+    state.deepmimo.failureKind = null;
     state.deepmimo.progress = 0;
     state.deepmimo.message = "Submitting DeepMIMO export job...";
     state.deepmimo.jobId = null;
@@ -224,9 +233,11 @@ export function createDeepMimoController({
         return;
       }
       state.deepmimo.jobId = null;
+      const failure = requestFailureState(error);
       state.deepmimo.status = "failed";
+      state.deepmimo.failureKind = failure.kind;
       state.deepmimo.progress = 1;
-      state.deepmimo.message = error.message;
+      state.deepmimo.message = failure.message;
       state.deepmimo.pendingDataset = null;
       renderDeepMimoState();
       const overlayWasCurrent = hideOverlay(overlayOwner);

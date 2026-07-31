@@ -1,3 +1,5 @@
+import {requestFailureState} from "/js/api.js";
+
 function clearTimer(handle) {
   if (handle !== null && handle !== undefined) {
     window.clearTimeout(handle);
@@ -24,6 +26,7 @@ export function createLinkController({
   function invalidateLinkResult({clearPaths = true, clearOverlay = true} = {}) {
     cancelLivePreview();
     state.link.generation += 1;
+    state.link.failureKind = null;
     state.link.result = null;
     state.link.selectedPath = -1;
     if (clearOverlay && runOwner) {
@@ -40,6 +43,7 @@ export function createLinkController({
     const token = ++state.link.generation;
     const overlayOwner = `link:${token}`;
     runOwner = overlayOwner;
+    state.link.failureKind = null;
     getViewer().clearOverlay();
     showOverlay({
       title: "Solving Link",
@@ -66,6 +70,7 @@ export function createLinkController({
       if (!overlayWasCurrent) {
         return;
       }
+      state.link.failureKind = requestFailureState(error).kind;
       throw error;
     } finally {
       if (token === state.link.generation) {

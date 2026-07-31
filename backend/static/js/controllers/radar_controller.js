@@ -1,3 +1,5 @@
+import {requestFailureState} from "/js/api.js";
+
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 const EXPECTED_RADAR_BUILD_ID = "radar-rs08-fix-20260722";
 
@@ -41,6 +43,7 @@ export function createRadarController({state, controls, transport, renderAll, sh
     radar.progress = 0;
     radar.message = message;
     radar.error = null;
+    radar.failureKind = null;
     hideRunOverlay();
     if (cancelJob && previousJobId) {
       transport.cancelRadarJob(previousJobId).catch(() => {});
@@ -66,6 +69,7 @@ export function createRadarController({state, controls, transport, renderAll, sh
       }
       if (job.status === "cancelled") {
         radar.jobId = null;
+        radar.failureKind = "cancelled";
         hideRunOverlay(owner);
         return null;
       }
@@ -107,6 +111,7 @@ export function createRadarController({state, controls, transport, renderAll, sh
     radar.selectedPath = -1;
     radar.jobId = null;
     radar.jobSceneGeneration = null;
+    radar.failureKind = null;
     setJobState({status: "submitting", progress: 0, message: "Submitting Radar job…"});
     showOverlay?.({title: "Radar Sensing", message: "Submitting bounded in-memory job…", indeterminate: true, owner, force: true});
     try {
@@ -130,7 +135,9 @@ export function createRadarController({state, controls, transport, renderAll, sh
       if (radar.generation !== token) return null;
       radar.jobId = null;
       radar.result = null;
-      setJobState({status: "failed", progress: 1, message: "Radar sensing failed", error: error?.message || String(error)});
+      const failure = requestFailureState(error);
+      radar.failureKind = failure.kind;
+      setJobState({status: "failed", progress: 1, message: failure.label, error: failure.message});
       hideRunOverlay(owner);
       throw error;
     } finally {
@@ -148,11 +155,16 @@ export function createRadarController({state, controls, transport, renderAll, sh
       if (radar.generation !== token) return false;
       radar.jobId = null;
       radar.result = null;
+      radar.failureKind = status.status === "cancelled" ? "cancelled" : null;
       setJobState({status: status.status || "cancelled", progress: status.progress ?? 1, message: status.message || "Cancelled"});
       hideRunOverlay();
       return true;
     } catch (error) {
-      if (radar.generation === token) setJobState({status: "failed", progress: 1, message: "Cancellation failed", error: error?.message || String(error)});
+      if (radar.generation === token) {
+        const failure = requestFailureState(error);
+        radar.failureKind = failure.kind;
+        setJobState({status: "failed", progress: 1, message: "Cancellation failed", error: failure.message});
+      }
       throw error;
     }
   }
