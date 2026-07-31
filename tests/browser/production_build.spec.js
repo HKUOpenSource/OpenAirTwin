@@ -118,6 +118,9 @@ test("seven cold starts stay within the local release performance budget", async
           requestAnimationFrame(() => requestAnimationFrame(resolve)),
         ),
     );
+    await page.waitForFunction(
+      () => performance.getEntriesByName("first-contentful-paint").length > 0,
+    );
     observations.push(
       await page.evaluate(() => ({
         uiReady: window.__OPENAIRTWIN_UI_READY_MS__,
@@ -134,6 +137,9 @@ test("seven cold starts stay within the local release performance budget", async
     ];
   const uiReadyMedian = median(observations.map(({ uiReady }) => uiReady));
   const fcpMedian = median(observations.map(({ fcp }) => fcp));
+  console.info(
+    `Cold-start medians: UI Ready ${uiReadyMedian.toFixed(1)} ms, FCP ${fcpMedian.toFixed(1)} ms`,
+  );
   expect(uiReadyMedian, JSON.stringify(observations)).toBeLessThanOrEqual(175);
   expect(fcpMedian, JSON.stringify(observations)).toBeLessThanOrEqual(885);
 });

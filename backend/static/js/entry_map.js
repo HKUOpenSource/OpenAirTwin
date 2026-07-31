@@ -545,34 +545,47 @@ function createEntryTileLayer(tileEntry) {
     ...entryTileLayerStyle(tileEntry),
     interactive: true,
   });
+  layer.oatTileEntry = tileEntry;
+  return layer;
+}
 
-  layer.on("mouseover", (event) => {
+function entryTileFromLayerEvent(event) {
+  return event.layer?.oatTileEntry || null;
+}
+
+function bindEntryTileLayerEvents(layerGroup) {
+  layerGroup.on("mouseover", (event) => {
+    const tileEntry = entryTileFromLayerEvent(event);
+    if (!tileEntry) return;
     entryMap.hoveredTileId = tileEntry.id;
     syncEntryTileLayerStyle(tileEntry);
     if (event.originalEvent) {
       showEntryMapTooltip(event.originalEvent.clientX, event.originalEvent.clientY, entryMapTooltipParts(tileEntry.id));
     }
   });
-  layer.on("mousemove", (event) => {
-    if (event.originalEvent) {
+  layerGroup.on("mousemove", (event) => {
+    const tileEntry = entryTileFromLayerEvent(event);
+    if (tileEntry && event.originalEvent) {
       showEntryMapTooltip(event.originalEvent.clientX, event.originalEvent.clientY, entryMapTooltipParts(tileEntry.id));
     }
   });
-  layer.on("mouseout", () => {
+  layerGroup.on("mouseout", (event) => {
+    const tileEntry = entryTileFromLayerEvent(event);
+    if (!tileEntry) return;
     if (entryMap.hoveredTileId === tileEntry.id) {
       entryMap.hoveredTileId = null;
     }
     hideEntryMapTooltip();
     syncEntryTileLayerStyle(tileEntry);
   });
-  layer.on("click", (event) => {
+  layerGroup.on("click", (event) => {
+    const tileEntry = entryTileFromLayerEvent(event);
+    if (!tileEntry) return;
     if (event.originalEvent) {
       window.L.DomEvent.stopPropagation(event.originalEvent);
     }
     selectEntryMapTile(tileEntry.id);
   });
-
-  return layer;
 }
 
 function ensureEntryMap() {
@@ -611,7 +624,8 @@ function ensureEntryMap() {
     pane: "entryTilePane",
     padding: 0.45,
   });
-  entryMap.tileLayerGroup = window.L.layerGroup().addTo(entryMap.map);
+  entryMap.tileLayerGroup = window.L.featureGroup().addTo(entryMap.map);
+  bindEntryTileLayerEvents(entryMap.tileLayerGroup);
 
   entryMap.tileLayer = window.L.tileLayer(CARTO_LIGHT_URL, {
     attribution: CARTO_LIGHT_ATTRIBUTION,
@@ -697,7 +711,7 @@ function buildEntryMap(overview) {
   }
 }
 
-function showEntryScreen() {
+function showEntryScreen({syncOverview = true} = {}) {
   if (!state.entry.overview) {
     return;
   }
@@ -718,7 +732,7 @@ function showEntryScreen() {
     }
     entryMap.map?.invalidateSize();
   });
-  syncEntryOverviewUi();
+  if (syncOverview) syncEntryOverviewUi();
 }
 
 function hideEntryScreen() {
@@ -784,12 +798,24 @@ function syncEntryOverviewUi() {
   ui.btnOpenTileIndex.disabled = state.tileLoadBusy || downloadingCount > 0;
 
   for (const [tileId, tileEntry] of entryMap.tilesById.entries()) {
-    tileEntry.inScene = overview.tileById.has(tileId);
-    tileEntry.downloadable = overview.coverageById.has(tileId);
-    tileEntry.selected = selectedSet.has(tileId);
-    tileEntry.loaded = loadedSet.has(tileId);
-    tileEntry.downloading = state.entry.downloadingTileIds.has(tileId);
-    syncEntryTileLayerStyle(tileEntry);
+    const inScene = overview.tileById.has(tileId);
+    const downloadable = overview.coverageById.has(tileId);
+    const selected = selectedSet.has(tileId);
+    const isLoaded = loadedSet.has(tileId);
+    const downloading = state.entry.downloadingTileIds.has(tileId);
+    const styleChanged = (
+      tileEntry.inScene !== inScene ||
+      tileEntry.downloadable !== downloadable ||
+      tileEntry.selected !== selected ||
+      tileEntry.loaded !== isLoaded ||
+      tileEntry.downloading !== downloading
+    );
+    tileEntry.inScene = inScene;
+    tileEntry.downloadable = downloadable;
+    tileEntry.selected = selected;
+    tileEntry.loaded = isLoaded;
+    tileEntry.downloading = downloading;
+    if (styleChanged) syncEntryTileLayerStyle(tileEntry);
   }
 }
 

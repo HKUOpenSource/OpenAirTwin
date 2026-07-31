@@ -16,6 +16,22 @@ const toolsRoot = resolve(projectRoot, "tools");
 const catalogRoot = resolve(toolsRoot, "ui-catalog");
 const catalogIndexPath = resolve(catalogRoot, "index.html");
 const catalogStylePath = resolve(catalogRoot, "catalog.css");
+const LEGACY_PUBLIC_MODULE_SPECIFIERS = [
+  "/js/app.js",
+  "/js/app_state.js?v=20260723-radar-shared-groups",
+  "/js/controllers/app_dialog_controller.js?v=20260604-app-dialog",
+  "/js/controllers/scene_loader_controller.js?v=20260519-mode-isolation",
+  "/js/core/feature_registry.js",
+  "/js/dom_refs.js?v=20260519-mode-isolation",
+  "/js/features/radar/charts.js",
+  "/js/features/radar/charts.js?v=20260722-radar-color-contract",
+  "/js/features/radar/colors.js?v=20260722-radar-color-contract",
+  "/js/features/radar/presentation.js?v=20260722-radar-ui-consistency",
+  "/js/features/radar/target_scene.js",
+  "/js/viewer.js",
+  "/js/viewer/asset_manager.js",
+  "/js/viewer/layer_manager.js",
+] as const;
 
 function toPosixPath(value: string): string {
   return value.split(sep).join("/");
@@ -38,7 +54,15 @@ function collectJavaScriptFiles(directory: string): string[] {
 const legacyJavaScriptFiles = collectJavaScriptFiles(legacyJavaScriptRoot);
 const rollupInputs: Record<string, string> = {
   index: resolve(legacyRoot, "index.html"),
+  "js/app": resolve(legacyJavaScriptRoot, "app.js"),
 };
+for (const absolutePath of legacyJavaScriptFiles) {
+  const entryName = toPosixPath(relative(legacyRoot, absolutePath)).replace(
+    /\.js$/,
+    "",
+  );
+  rollupInputs[entryName] = absolutePath;
+}
 for (const stylesheet of CORE_STYLE_ORDER) {
   rollupInputs[`css/${stylesheet.replace(/\.css$/, "")}`] = resolve(
     legacyRoot,
@@ -49,27 +73,11 @@ for (const stylesheet of CORE_STYLE_ORDER) {
 
 function collectLegacySpecifiers(): Map<string, Set<string>> {
   const result = new Map<string, Set<string>>();
-  const sources = [resolve(legacyRoot, "index.html"), ...legacyJavaScriptFiles];
-  const pattern = /["'](\/js\/[^"']+?\.js(?:\?[^"']*)?)["']/g;
-
-  for (const sourcePath of sources) {
-    const source = readFileSync(sourcePath, "utf8");
-    for (const match of source.matchAll(pattern)) {
-      const specifier = match[1];
-      if (!specifier) continue;
-      const pathname = specifier.split("?", 1)[0];
-      if (!pathname) continue;
-      const aliases = result.get(pathname) ?? new Set<string>();
-      aliases.add(pathname);
-      aliases.add(specifier);
-      result.set(pathname, aliases);
-    }
-  }
-
-  for (const absolutePath of legacyJavaScriptFiles) {
-    const pathname = `/${toPosixPath(relative(legacyRoot, absolutePath))}`;
+  for (const specifier of LEGACY_PUBLIC_MODULE_SPECIFIERS) {
+    const pathname = specifier.split("?", 1)[0];
+    if (!pathname) continue;
     const aliases = result.get(pathname) ?? new Set<string>();
-    aliases.add(pathname);
+    aliases.add(specifier);
     result.set(pathname, aliases);
   }
   return result;
@@ -77,6 +85,44 @@ function collectLegacySpecifiers(): Map<string, Set<string>> {
 
 function stripLegacyModuleVersionQueries(source: string): string {
   return source.replace(/(["']\/js\/[^"'?]+\.js)\?[^"']+(["'])/g, "$1$2");
+}
+
+const PRODUCTION_FEATURE_IDS = [
+  "link",
+  "mobility",
+  "radiomap",
+  "deepmimo",
+  "radar",
+] as const;
+
+function isFeatureModule(id: string, featureId: string): boolean {
+  const source = toPosixPath(id.split("?", 1)[0] ?? id);
+  return (
+    source.includes(`/js/features/${featureId}/`) ||
+    source.endsWith(`/js/controllers/${featureId}_controller.js`) ||
+    source.endsWith(`/js/ui/${featureId}_result_view.js`)
+  );
+}
+
+function isApplicationModule(id: string): boolean {
+  const source = toPosixPath(id.split("?", 1)[0] ?? id);
+  return (
+    source.startsWith(`${toPosixPath(legacyJavaScriptRoot)}/`) ||
+    source.startsWith(`${toPosixPath(resolve(workbenchRoot, "src"))}/`)
+  );
+}
+
+function isViewerModule(id: string): boolean {
+  const source = toPosixPath(id.split("?", 1)[0] ?? id);
+  const viewerRoot = toPosixPath(resolve(legacyJavaScriptRoot, "viewer"));
+  const libraryRoot = toPosixPath(resolve(legacyRoot, "lib"));
+  return (
+    source === toPosixPath(resolve(legacyJavaScriptRoot, "viewer.js")) ||
+    source.startsWith(`${viewerRoot}/`) ||
+    new RegExp(
+      `^${libraryRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/(?:GLBGeometryLoader|PLYLoader|Line2|LineGeometry|LineMaterial|LineSegments2)\\.js$`,
+    ).test(source)
+  );
 }
 
 function normalizeLegacyModuleIdsPlugin(): Plugin {
@@ -175,7 +221,7 @@ function productionImportMapPlugin(): Plugin {
         );
         if (!sourcePath.startsWith("js/")) continue;
         const pathname = `/${sourcePath}`;
-        for (const alias of aliasesByPath.get(pathname) ?? [pathname]) {
+        for (const alias of aliasesByPath.get(pathname) ?? []) {
           imports[alias] = `${PRODUCTION_BASE}${output.fileName}`;
         }
       }
@@ -227,9 +273,12 @@ function productionImportMapPlugin(): Plugin {
         /\s*<script type="module"[^>]*><\/script>/g,
         "",
       );
-      index.source = indexSource
-        .replace("</head>", `  ${watchdogTag}\n  ${importMapTag}\n</head>`)
-        .replace("</body>", `  ${appScriptTag}\n</body>`);
+      const firstPreload = indexSource.indexOf('<link rel="modulepreload"');
+      if (firstPreload < 0) {
+        this.error("Vite did not emit module preloads for the application");
+        return;
+      }
+      index.source = `${indexSource.slice(0, firstPreload)}${watchdogTag}\n  ${importMapTag}\n  ${appScriptTag}\n    ${indexSource.slice(firstPreload)}`;
     },
   };
 }
@@ -289,13 +338,43 @@ export default defineConfig({
     sourcemap: false,
     cssCodeSplit: true,
     cssMinify: false,
+    modulePreload: { polyfill: false },
     chunkSizeWarningLimit: 600,
     rollupOptions: {
-      preserveEntrySignatures: "strict",
+      preserveEntrySignatures: "allow-extension",
       input: rollupInputs,
       output: {
-        preserveModules: true,
-        preserveModulesRoot: legacyRoot,
+        strictExecutionOrder: true,
+        codeSplitting: {
+          includeDependenciesRecursively: false,
+          groups: [
+            {
+              name: "react-runtime",
+              test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/,
+              priority: 20,
+            },
+            {
+              name: "three-runtime",
+              test: /[\\/]lib[\\/](?:three\.module|OrbitControls)\.js(?:\?|$)/,
+              priority: 20,
+            },
+            {
+              name: "viewer-runtime",
+              test: isViewerModule,
+              priority: 15,
+            },
+            ...PRODUCTION_FEATURE_IDS.map((featureId) => ({
+              name: `feature-${featureId}`,
+              test: (id: string) => isFeatureModule(id, featureId),
+              priority: 10,
+            })),
+            {
+              name: "app-core",
+              test: isApplicationModule,
+              priority: 0,
+            },
+          ],
+        },
         entryFileNames: "assets/[name]-[hash].js",
         chunkFileNames: "assets/chunks/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",

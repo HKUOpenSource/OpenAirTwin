@@ -20,9 +20,7 @@ const EXCLUDED_PRODUCTION_NAMES = [
   "playwright-report",
 ];
 const PRODUCTION_BASE = "/workbench/";
-const REQUIRED_REACT_ENTRIES = [
-  "workbench/src/app-shell/app-shell-runtime.tsx",
-];
+const REQUIRED_REACT_OUTPUT = /(?:^|\/)react-runtime-[A-Za-z0-9_-]{8,}\.js$/;
 const FORBIDDEN_PRODUCTION_ROOT_IDS = [
   "result-dock-content",
   "deepmimo-dataset-tray",
@@ -223,10 +221,8 @@ if (
   fail("development-only files entered the production output");
 }
 
-for (const requiredSource of REQUIRED_REACT_ENTRIES) {
-  if (!manifestSources.some((source) => source.endsWith(requiredSource)))
-    fail(`production React entry is missing: ${requiredSource}`);
-}
+if (!files.some((path) => REQUIRED_REACT_OUTPUT.test(toPosix(path))))
+  fail("production React runtime chunk is missing");
 
 const productionJavaScript = files
   .filter((path) => path.endsWith(".js"))
@@ -279,17 +275,8 @@ const cssFiles = files.filter((path) => path.endsWith(".css"));
 const initialOutputs = new Set();
 collectInitialOutputs("js/app.js", manifest, new Set(), initialOutputs);
 const reactRuntimeOutputs = new Set();
-for (const [source, entry] of Object.entries(manifest)) {
-  if (
-    source.includes("workbench/node_modules/react/") ||
-    source.includes("workbench/node_modules/react-dom/") ||
-    source.includes("workbench/node_modules/scheduler/")
-  ) {
-    for (const file of manifestOutputFiles(entry)) {
-      if (file.endsWith(".js"))
-        reactRuntimeOutputs.add(resolve(outputRoot, file));
-    }
-  }
+for (const path of javascriptFiles) {
+  if (REQUIRED_REACT_OUTPUT.test(toPosix(path))) reactRuntimeOutputs.add(path);
 }
 const sizes = {
   initialGzip: sumGzip(initialOutputs),
@@ -304,13 +291,12 @@ for (const [name, actual] of Object.entries(sizes))
   checkBudget(name, actual, BUDGETS[name]);
 const featureSizes = {};
 for (const featureId of FEATURE_IDS) {
-  const outputs = new Set();
-  for (const [source, entry] of Object.entries(manifest)) {
-    if (!source.includes(`js/features/${featureId}/`)) continue;
-    for (const file of manifestOutputFiles(entry)) {
-      if (file.endsWith(".js")) outputs.add(resolve(outputRoot, file));
-    }
-  }
+  const outputs = new Set(
+    javascriptFiles.filter((path) =>
+      toPosix(path).includes(`/feature-${featureId}-`),
+    ),
+  );
+  if (outputs.size !== 1) fail(`${featureId} feature chunk is missing`);
   featureSizes[featureId] = sumGzip(outputs);
   checkBudget(
     `${featureId} feature gzip`,

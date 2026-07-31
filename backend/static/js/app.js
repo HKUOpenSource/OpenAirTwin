@@ -353,12 +353,17 @@ async function bootstrap() {
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 10, force: true});
   attachRuntimeEvents();
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading RT capabilities...", percent: 14, force: true});
-  state.rtCapabilities = await getRtCapabilities();
+  const [rtCapabilities, manifest, coverage] = await Promise.all([
+    getRtCapabilities(),
+    getManifest(),
+    getOpen3dHkTileCoverage(),
+  ]);
+  state.rtCapabilities = rtCapabilities;
   solverControls.applyRtCapabilities(state.rtCapabilities);
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading scene manifest...", percent: 18, force: true});
-  state.manifest = await getManifest();
+  state.manifest = manifest;
   sceneRenderState.showOverlay({title: "Loading Scene", message: "Loading Open3DHK coverage...", percent: 22, force: true});
-  state.entry.coverage = await getOpen3dHkTileCoverage();
+  state.entry.coverage = coverage;
   sceneRenderState.populateTileList(state.manifest);
   performancePanel.populatePerformanceControls(state.manifest);
   state.entry.overview = entryMapController.buildEntryOverview(state.manifest, state.entry.coverage);
@@ -368,7 +373,7 @@ async function bootstrap() {
 
   sceneRenderState.renderAll();
   if (state.entry.overview) {
-    entryMapController.showEntryScreen();
+    entryMapController.showEntryScreen({syncOverview: false});
   } else {
     ui.panel.style.display = "flex";
     sceneRenderState.syncControlSidebarUi();

@@ -10,11 +10,11 @@ authors:
     given-names: "Zihao"
   - family-names: "Zhao"
     given-names: "Zongyao"
-version: 1.0.0
-date-released: 2026-07-19
+version: 1.1.0-rc.1
+date-released: 2026-07-31
 license: Apache-2.0
 repository-code: "https://github.com/HKUOpenSource/OpenAirTwin"
-url: "https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.0.0"
+url: "https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.1.0-rc.1"
 keywords:
   - "digital twin"
   - "wireless communication"

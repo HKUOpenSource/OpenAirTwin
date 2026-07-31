@@ -550,7 +550,8 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertNotIn("if (!availableTileIds.length) {\n    return null;\n  }", source)
         self.assertIn("primaryRegion: regions[0] || null", source)
         self.assertIn("Click the tile on the map to download it.", source)
-        self.assertIn("if (state.entry.overview) {\n    entryMapController.showEntryScreen();", app_source)
+        self.assertIn("if (state.entry.overview) {", app_source)
+        self.assertIn("entryMapController.showEntryScreen({syncOverview: false});", app_source)
 
     def test_entry_map_uses_open3dhk_coverage_for_clickable_download_tiles(self) -> None:
         source = read_static_js("entry_map.js")
@@ -559,7 +560,12 @@ class FrontendRegressionTests(unittest.TestCase):
         html = read_static_html()
 
         self.assertIn('export function getOpen3dHkTileCoverage()', api_source)
-        self.assertIn("state.entry.coverage = await getOpen3dHkTileCoverage();", app_source)
+        self.assertIn(
+            "const [rtCapabilities, manifest, coverage] = await Promise.all([",
+            app_source,
+        )
+        self.assertIn("getOpen3dHkTileCoverage(),", app_source)
+        self.assertIn("state.entry.coverage = coverage;", app_source)
         self.assertIn("buildEntryOverview(state.manifest, state.entry.coverage)", app_source)
         self.assertIn("const coverageById = new Map();", source)
         self.assertIn("...overview.coverageById.keys()", source)
@@ -579,7 +585,12 @@ class FrontendRegressionTests(unittest.TestCase):
         state_source = read_frontend_js_modules()
 
         self.assertIn('export function getRtCapabilities()', api_source)
-        self.assertIn("state.rtCapabilities = await getRtCapabilities();", app_source)
+        self.assertIn(
+            "const [rtCapabilities, manifest, coverage] = await Promise.all([",
+            app_source,
+        )
+        self.assertIn("getRtCapabilities(),", app_source)
+        self.assertIn("state.rtCapabilities = rtCapabilities;", app_source)
         self.assertIn("solverControls.applyRtCapabilities(state.rtCapabilities);", app_source)
         self.assertIn("txArray: createDefaultAntennaArray()", state_source)
         self.assertIn("rxArray: createDefaultAntennaArray()", state_source)
