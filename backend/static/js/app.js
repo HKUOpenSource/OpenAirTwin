@@ -373,6 +373,7 @@ async function bootstrap() {
     ui.panel.style.display = "flex";
     sceneRenderState.syncControlSidebarUi();
   }
+  window.dispatchEvent(new CustomEvent("openairtwin:ui-ready"));
 }
 
 window.addEventListener("pagehide", () => {

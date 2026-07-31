@@ -220,6 +220,7 @@ function productionImportMapPlugin(): Plugin {
           `href="${PRODUCTION_BASE}${output.fileName}"`,
         );
       }
+      const watchdogTag = `<script>(()=>{let ready=false;let timer;const cleanup=()=>{ready=true;clearTimeout(timer);window.removeEventListener("error",onError,true);window.removeEventListener("unhandledrejection",onRejection)};const render=()=>{if(ready||document.getElementById("oatBootstrapError"))return;ready=true;clearTimeout(timer);const panel=document.createElement("section");panel.id="oatBootstrapError";panel.className="oat-panel oat-bootstrap-error";panel.setAttribute("role","alert");const header=document.createElement("div");header.className="oat-panel__header";const title=document.createElement("strong");title.className="oat-panel__title";title.textContent="OpenAirTwin could not start";const badge=document.createElement("span");badge.className="oat-badge oat-badge--error";badge.textContent="Error";header.append(title,badge);const message=document.createElement("p");message.className="oat-bootstrap-error__message";message.textContent="A required application resource failed to load. Check the connection and reload the workbench.";const reload=document.createElement("button");reload.type="button";reload.className="oat-button oat-button--primary";reload.textContent="Reload";reload.addEventListener("click",()=>window.location.reload());panel.append(header,message,reload);document.body.replaceChildren(panel)};const onError=(event)=>{const target=event.target;if(target&&((target.src||"").includes("/workbench/")||(target.href||"").includes("/workbench/")))render()};const onRejection=(event)=>{const message=String(event.reason?.message||event.reason||"");if(/(?:chunk|module|import|load)/i.test(message))render()};window.addEventListener("openairtwin:ui-ready",cleanup,{once:true});window.addEventListener("error",onError,true);window.addEventListener("unhandledrejection",onRejection);timer=window.setTimeout(render,15000)})();</script>`;
       const importMapTag = `<script type="importmap">${importMap}</script>`;
       const appScriptTag = `<script type="module" crossorigin src="${PRODUCTION_BASE}${appOutput.fileName}"></script>`;
       indexSource = indexSource.replace(
@@ -227,7 +228,7 @@ function productionImportMapPlugin(): Plugin {
         "",
       );
       index.source = indexSource
-        .replace("</head>", `  ${importMapTag}\n</head>`)
+        .replace("</head>", `  ${watchdogTag}\n  ${importMapTag}\n</head>`)
         .replace("</body>", `  ${appScriptTag}\n</body>`);
     },
   };

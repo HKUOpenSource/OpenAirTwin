@@ -1,4 +1,18 @@
 @layer layout {
+  .oat-bootstrap-error {
+    position: fixed;
+    inset: 50% auto auto 50%;
+    width: min(30rem, calc(100% - var(--oat-space-8)));
+    padding: var(--oat-space-5);
+    transform: translate(-50%, -50%);
+    z-index: var(--oat-z-dialog);
+  }
+
+  .oat-bootstrap-error__message {
+    margin: var(--oat-space-4) 0;
+    color: var(--oat-text-muted);
+  }
+
 .channelAnalysisDock {
   position:absolute;
   right:var(--oat-layout-results-right);

@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import { relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 
 const CORE_STYLE_ORDER = [
   "tokens.css",
@@ -49,11 +51,24 @@ const FORBIDDEN_UI_SOURCE_NAMES = [
   "features/deepmimo/deepmimo-dataset-bridge.tsx",
   "features/results/result-dock-bridge.tsx",
 ];
+const BUDGETS = {
+  initialGzip: 352 * 1024,
+  allJavaScriptGzip: 384 * 1024,
+  allCssGzip: 24 * 1024,
+  reactRuntimeGzip: 68 * 1024,
+  singleFeatureGzip: 30 * 1024,
+  htmlGzip: 3 * 1024,
+  maxChunkRaw: 576 * 1024,
+  maxChunkGzip: 145 * 1024,
+};
+const FEATURE_IDS = ["link", "mobility", "radiomap", "deepmimo", "radar"];
 
 const workbenchRoot = fileURLToPath(new URL("..", import.meta.url));
 const outputRoot = resolve(workbenchRoot, "../backend/static/workbench");
 const indexPath = resolve(outputRoot, "index.html");
 const manifestPath = resolve(outputRoot, ".vite/manifest.json");
+const buildInfoPath = resolve(outputRoot, "build-info.json");
+const integrityPath = resolve(outputRoot, "integrity.json");
 
 function fail(message) {
   throw new Error(`Invalid production workbench: ${message}`);
@@ -66,14 +81,124 @@ function walk(directory) {
   });
 }
 
+function toPosix(value) {
+  return value.split(sep).join("/");
+}
+
+function sha256(data) {
+  return createHash("sha256").update(data).digest("hex");
+}
+
+function gzipSize(path) {
+  return gzipSync(readFileSync(path), { level: 9 }).byteLength;
+}
+
+function sumGzip(paths) {
+  return [...paths].reduce((total, path) => total + gzipSize(path), 0);
+}
+
+function checkBudget(label, actual, budget) {
+  if (actual > budget)
+    fail(`${label} is ${actual} bytes; budget is ${budget} bytes`);
+}
+
+function manifestOutputFiles(entry) {
+  return [entry.file, ...(entry.css ?? []), ...(entry.assets ?? [])].filter(
+    (value) => typeof value === "string",
+  );
+}
+
+function collectInitialOutputs(source, manifest, seenSources, outputs) {
+  if (seenSources.has(source)) return;
+  seenSources.add(source);
+  const entry = manifest[source];
+  if (!entry || typeof entry !== "object") return;
+  for (const file of manifestOutputFiles(entry))
+    outputs.add(resolve(outputRoot, file));
+  for (const dependency of entry.imports ?? []) {
+    if (typeof dependency === "string") {
+      collectInitialOutputs(dependency, manifest, seenSources, outputs);
+    }
+  }
+}
+
 if (!existsSync(indexPath)) fail("index.html is missing");
 if (!existsSync(manifestPath)) fail(".vite/manifest.json is missing");
+if (!existsSync(buildInfoPath)) fail("build-info.json is missing");
+if (!existsSync(integrityPath)) fail("integrity.json is missing");
 
 const index = readFileSync(indexPath, "utf8");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+const buildInfo = JSON.parse(readFileSync(buildInfoPath, "utf8"));
+const integrity = JSON.parse(readFileSync(integrityPath, "utf8"));
 const files = walk(outputRoot);
 const appEntry = manifest["js/app.js"];
 const manifestSources = Object.keys(manifest);
+
+if (
+  buildInfo.schemaVersion !== 1 ||
+  typeof buildInfo.releaseVersion !== "string" ||
+  typeof buildInfo.gitCommit !== "string" ||
+  typeof buildInfo.buildId !== "string"
+) {
+  fail("build-info.json is invalid");
+}
+const developmentBuild =
+  buildInfo.releaseVersion === "development" &&
+  buildInfo.gitCommit === "development" &&
+  buildInfo.buildId === "development";
+if (!developmentBuild) {
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(buildInfo.releaseVersion))
+    fail("release version is invalid");
+  if (!/^[0-9a-f]{40}$/.test(buildInfo.gitCommit))
+    fail("Git commit must be a full lowercase SHA");
+  if (
+    buildInfo.buildId !==
+    `${buildInfo.releaseVersion}+${buildInfo.gitCommit.slice(0, 12)}`
+  )
+    fail("Build ID does not match release metadata");
+}
+if (
+  integrity.schemaVersion !== 1 ||
+  integrity.buildId !== buildInfo.buildId ||
+  !Array.isArray(integrity.files)
+) {
+  fail("integrity.json metadata is invalid");
+}
+const expectedIntegrityPaths = integrity.files.map((entry) => entry.path);
+if (
+  expectedIntegrityPaths.some((path, index) =>
+    index > 0
+      ? path.localeCompare(expectedIntegrityPaths[index - 1]) < 0
+      : false,
+  )
+) {
+  fail("integrity entries are not sorted by path");
+}
+const actualIntegrityPaths = files
+  .filter((path) => path !== integrityPath)
+  .map((path) => toPosix(relative(outputRoot, path)))
+  .sort();
+if (
+  JSON.stringify([...expectedIntegrityPaths].sort()) !==
+  JSON.stringify(actualIntegrityPaths)
+)
+  fail("integrity file set does not match production output");
+for (const entry of integrity.files) {
+  if (
+    !entry ||
+    typeof entry.path !== "string" ||
+    !Number.isInteger(entry.bytes) ||
+    entry.bytes < 0 ||
+    !/^[0-9a-f]{64}$/.test(entry.sha256)
+  ) {
+    fail("integrity entry is invalid");
+  }
+  const path = resolve(outputRoot, entry.path);
+  const data = readFileSync(path);
+  if (data.byteLength !== entry.bytes || sha256(data) !== entry.sha256)
+    fail(`integrity mismatch for ${entry.path}`);
+}
 
 if (!index.includes('<script type="importmap">'))
   fail("compatibility import map is missing");
@@ -149,6 +274,54 @@ for (const stylesheet of CORE_STYLE_ORDER) {
   cursor = next;
 }
 
+const javascriptFiles = files.filter((path) => path.endsWith(".js"));
+const cssFiles = files.filter((path) => path.endsWith(".css"));
+const initialOutputs = new Set();
+collectInitialOutputs("js/app.js", manifest, new Set(), initialOutputs);
+const reactRuntimeOutputs = new Set();
+for (const [source, entry] of Object.entries(manifest)) {
+  if (
+    source.includes("workbench/node_modules/react/") ||
+    source.includes("workbench/node_modules/react-dom/") ||
+    source.includes("workbench/node_modules/scheduler/")
+  ) {
+    for (const file of manifestOutputFiles(entry)) {
+      if (file.endsWith(".js"))
+        reactRuntimeOutputs.add(resolve(outputRoot, file));
+    }
+  }
+}
+const sizes = {
+  initialGzip: sumGzip(initialOutputs),
+  allJavaScriptGzip: sumGzip(javascriptFiles),
+  allCssGzip: sumGzip(cssFiles),
+  reactRuntimeGzip: sumGzip(reactRuntimeOutputs),
+  htmlGzip: gzipSize(indexPath),
+  maxChunkRaw: Math.max(...javascriptFiles.map((path) => statSync(path).size)),
+  maxChunkGzip: Math.max(...javascriptFiles.map(gzipSize)),
+};
+for (const [name, actual] of Object.entries(sizes))
+  checkBudget(name, actual, BUDGETS[name]);
+const featureSizes = {};
+for (const featureId of FEATURE_IDS) {
+  const outputs = new Set();
+  for (const [source, entry] of Object.entries(manifest)) {
+    if (!source.includes(`js/features/${featureId}/`)) continue;
+    for (const file of manifestOutputFiles(entry)) {
+      if (file.endsWith(".js")) outputs.add(resolve(outputRoot, file));
+    }
+  }
+  featureSizes[featureId] = sumGzip(outputs);
+  checkBudget(
+    `${featureId} feature gzip`,
+    featureSizes[featureId],
+    BUDGETS.singleFeatureGzip,
+  );
+}
+
 console.log(
-  `Verified production workbench: ${Object.keys(manifest).length} manifest entries, ${files.length} files`,
+  `Verified production workbench ${buildInfo.buildId}: ${Object.keys(manifest).length} manifest entries, ${files.length} files`,
+);
+console.log(
+  `Production budgets: ${JSON.stringify({ ...sizes, features: featureSizes })}`,
 );

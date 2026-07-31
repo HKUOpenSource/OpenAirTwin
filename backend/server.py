@@ -194,6 +194,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         *,
         content_type: str = "application/octet-stream",
         cache_control: str = "no-store",
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         with open(file_path, "rb") as handle:
             size = os.fstat(handle.fileno()).st_size
@@ -202,6 +203,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(size))
             self.send_header("Cache-Control", cache_control)
             self.send_header("X-Content-Type-Options", "nosniff")
+            for name, value in (extra_headers or {}).items():
+                self.send_header(name, value)
             self.end_headers()
             remaining = size
             while remaining > 0:
@@ -419,7 +422,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return
             self.serve_static_file("index.html")
             return
-        self.send_file(build.index_path, content_type="text/html; charset=utf-8")
+        self.send_file(
+            build.index_path,
+            content_type="text/html; charset=utf-8",
+            extra_headers={"X-OpenAirTwin-Frontend-Build-ID": build.build_id},
+        )
 
     def serve_workbench_asset(self, relative_path: str) -> None:
         asset_root = configured_workbench_root() / "assets"

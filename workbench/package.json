@@ -9,7 +9,7 @@
     "npm": ">=10"
   },
   "scripts": {
-    "build": "vite build && npm run verify:build",
+    "build": "vite build && node scripts/finalize-build.mjs && npm run verify:build",
     "check": "npm run typecheck && npm run lint && npm run lint:css && npm run format:check",
     "dev": "node scripts/dev.mjs",
     "dev:catalog": "vite",
