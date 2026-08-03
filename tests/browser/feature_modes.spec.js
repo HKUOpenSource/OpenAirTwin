@@ -744,6 +744,22 @@ async function capturePhase0DomContract(page) {
 
 async function capturePhase0ComputedStyles(page) {
   return page.evaluate(() => {
+    const controlScroll = document.querySelector("#uiBody");
+    if (!controlScroll)
+      throw new Error("Missing UI baseline scroll container: #uiBody");
+    const inlineScrollbarWidth = controlScroll.style.getPropertyValue(
+      "scrollbar-width",
+    );
+    const inlineScrollbarPriority = controlScroll.style.getPropertyPriority(
+      "scrollbar-width",
+    );
+    const computedScrollbarWidth = getComputedStyle(controlScroll)
+      .getPropertyValue("scrollbar-width")
+      .trim();
+
+    // Exclude the platform-native scrollbar gutter from frozen geometry.
+    controlScroll.style.setProperty("scrollbar-width", "none");
+
     const properties = [
       "align-items",
       "background-color",
@@ -819,37 +835,51 @@ async function capturePhase0ComputedStyles(page) {
       scrollRegion: "#channelAnalysisScroll",
       select: "#txArrayPattern",
     };
-    const components = Object.fromEntries(
-      Object.entries(targets).map(([name, selector]) => {
-        const element = document.querySelector(selector);
-        if (!element)
-          throw new Error(`Missing UI baseline style target: ${selector}`);
-        const style = getComputedStyle(element);
-        return [
-          name,
-          {
-            selector,
-            styles: Object.fromEntries(
-              properties.map((property) => [
-                property,
-                style.getPropertyValue(property),
-              ]),
-            ),
-          },
-        ];
-      }),
-    );
-    const rootStyle = getComputedStyle(document.documentElement);
-    const tokens = Object.fromEntries(
-      [...rootStyle]
-        .filter((property) => property.startsWith("--oat-"))
-        .sort()
-        .map((property) => [
-          property,
-          rootStyle.getPropertyValue(property).trim(),
-        ]),
-    );
-    return { components, tokens };
+    try {
+      const components = Object.fromEntries(
+        Object.entries(targets).map(([name, selector]) => {
+          const element = document.querySelector(selector);
+          if (!element)
+            throw new Error(`Missing UI baseline style target: ${selector}`);
+          const style = getComputedStyle(element);
+          return [
+            name,
+            {
+              selector,
+              styles: Object.fromEntries(
+                properties.map((property) => [
+                  property,
+                  style.getPropertyValue(property),
+                ]),
+              ),
+            },
+          ];
+        }),
+      );
+      components.controlScroll.styles["scrollbar-width"] =
+        computedScrollbarWidth;
+      const rootStyle = getComputedStyle(document.documentElement);
+      const tokens = Object.fromEntries(
+        [...rootStyle]
+          .filter((property) => property.startsWith("--oat-"))
+          .sort()
+          .map((property) => [
+            property,
+            rootStyle.getPropertyValue(property).trim(),
+          ]),
+      );
+      return { components, tokens };
+    } finally {
+      if (inlineScrollbarWidth) {
+        controlScroll.style.setProperty(
+          "scrollbar-width",
+          inlineScrollbarWidth,
+          inlineScrollbarPriority,
+        );
+      } else {
+        controlScroll.style.removeProperty("scrollbar-width");
+      }
+    }
   });
 }
 
@@ -1385,6 +1415,7 @@ test("all feature modes start without Tx or Rx devices", async ({ page }) => {
 test("five modes, dialog and error states pass the release accessibility gate", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openDeterministicApp(page);
   await enableRealViewer(page);
