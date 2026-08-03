@@ -23,6 +23,7 @@ export default defineConfig({
     launchOptions: {
       ...(executablePath ? {executablePath} : {}),
       args: [
+        "--hide-scrollbars",
         "--use-angle=swiftshader",
         "--use-gl=angle",
         "--disable-gpu-driver-bug-workarounds",

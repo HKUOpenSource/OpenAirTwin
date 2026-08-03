@@ -67,6 +67,13 @@ class ReleaseMetadataTests(unittest.TestCase):
         )
         self.assertIn("run: npm run test:ci", browser_job)
 
+    def test_browser_contracts_use_platform_neutral_scrollbars(self) -> None:
+        config = (PROJECT_ROOT / "tests/browser/playwright.config.js").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('"--hide-scrollbars"', config)
+
 
 if __name__ == "__main__":
     unittest.main()
