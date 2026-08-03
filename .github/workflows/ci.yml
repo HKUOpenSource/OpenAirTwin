@@ -242,12 +242,17 @@ jobs:
           cache-dependency-path: |
             tests/browser/package-lock.json
             website/package-lock.json
+            workbench/package-lock.json
 
       - name: Setup npm 11.9.0
         run: npm install --global npm@11.9.0
 
       - name: Install browser dependencies
         working-directory: tests/browser
+        run: npm ci
+
+      - name: Install Workbench dependencies
+        working-directory: workbench
         run: npm ci
 
       - name: Install tutorial dependencies

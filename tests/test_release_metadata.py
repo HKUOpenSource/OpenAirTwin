@@ -52,6 +52,21 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertIn(f"releases/tag/v{EXPECTED_VERSION}", readme)
         self.assertIn("[`CITATION.cff`](CITATION.cff)", readme)
 
+    def test_browser_contract_job_installs_ui_catalog_toolchain(self) -> None:
+        workflow = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        browser_job = workflow.split("\n  browser-contracts:\n", 1)[1].split(
+            "\n  release-package:\n", 1
+        )[0]
+
+        self.assertIn("workbench/package-lock.json", browser_job)
+        self.assertIn(
+            "- name: Install Workbench dependencies\n"
+            "        working-directory: workbench\n"
+            "        run: npm ci",
+            browser_job,
+        )
+        self.assertIn("run: npm run test:ci", browser_job)
+
 
 if __name__ == "__main__":
     unittest.main()
