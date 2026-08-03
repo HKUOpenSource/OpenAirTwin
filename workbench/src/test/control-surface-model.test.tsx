@@ -11,7 +11,7 @@ afterEach(() => {
   for (const container of mountedContainers.splice(0)) container.remove();
 });
 
-describe("Phase 8 React control surface model", () => {
+describe("React control surface model", () => {
   it("owns fields and actions through the production AppShell tree", async () => {
     const container = document.createElement("main");
     document.body.append(container);

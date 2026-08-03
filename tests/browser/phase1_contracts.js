@@ -177,7 +177,7 @@ function configurationCommand(owner) {
 function interactionFor(element, owner) {
   if (element.tag === "button") {
     const command = BUTTON_COMMANDS[element.id];
-    if (!command) throw new Error(`Phase 1 command is not defined for button #${element.id}`);
+    if (!command) throw new Error(`Interaction command is not defined for button #${element.id}`);
     return {command, events: ["click"]};
   }
   if (element.tag === "details") {

@@ -19,7 +19,7 @@ No headless component library is introduced by default. A complex component may 
 - Existing visuals and behavior can be reused exactly without creating two sources of truth between a third-party theme and project tokens.
 - The project must maintain component states, accessibility, the catalog, and the test matrix itself.
 - New features must compose shared components first; domain components may not override shared core geometry.
-- Phase 2 proved the component contracts in the native UI before Phase 4 implemented the React components.
+- The native UI contract was validated before React components became the production rendering owners.
 
 ## Rejected Alternatives
 

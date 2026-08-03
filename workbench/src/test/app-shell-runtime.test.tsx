@@ -19,7 +19,7 @@ afterEach(() => {
   for (const container of mountedContainers.splice(0)) container.remove();
 });
 
-describe("Phase 8 AppShell runtime", () => {
+describe("AppShell runtime", () => {
   it("owns the production UI through one root and routes shell commands", async () => {
     const container = createShellHost();
     const handler = vi.fn();

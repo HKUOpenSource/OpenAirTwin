@@ -1,6 +1,5 @@
 {
   "schemaVersion": 6,
-  "phase": 8,
   "cssOwner": "backend/static/css/components.css",
   "catalog": "tools/ui-catalog/index.html",
   "productionOwner": "react",

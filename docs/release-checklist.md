@@ -1,21 +1,21 @@
-# v1.1.0-rc.1 Release Checklist
+# v1.1.0 Release Checklist
 
-This checklist defines the release contract for OpenAirTwin `1.1.0-rc.1`, dated
-2026-07-31. The supported Workbench target is desktop Chromium or Chrome at
-1280x720 or larger. This candidate does not add mobile, Safari or Firefox
+This checklist defines the release contract for OpenAirTwin `1.1.0`, dated
+2026-08-01. The supported Workbench target is desktop Chromium or Chrome at
+1280x720 or larger. This release does not add mobile, Safari or Firefox
 support.
 
-## Candidate identity
+## Release identity
 
 - [ ] Confirm `backend.__version__`, Workbench metadata, tutorial metadata,
   `CITATION.cff`, `CHANGELOG.md` and the application manifest all report
-  `1.1.0-rc.1`.
+  `1.1.0`.
 - [ ] Build with the full lowercase 40-character Git commit from `HEAD`.
 - [ ] Confirm the frontend Build ID is
-  `1.1.0-rc.1+<first-12-characters-of-the-commit>`.
+  `1.1.0+<first-12-characters-of-the-commit>`.
 - [ ] Confirm the tracked tree is clean before packaging and that the packaged
   commit is the exact tested commit.
-- [ ] Confirm all commit subjects and bodies created for the candidate are in
+- [ ] Confirm all commit subjects and bodies created for the release are in
   English. Do not rewrite existing repository history.
 
 ## Source and language scope
@@ -28,9 +28,10 @@ support.
 - [ ] Confirm every HTML entry point uses English language metadata.
 - [ ] Manually inspect user-facing images, GIFs and videos for non-English
   visible text.
-- [ ] Confirm the archive contains only runtime code, the installer, pinned
-  requirements, required static assets and libraries, the built Workbench,
-  project documentation, licenses and release metadata.
+- [ ] Confirm the archive contains every Git-tracked project source file plus
+  the installer, pinned requirements and the verified prebuilt Workbench.
+  Untracked or ignored dependencies, caches, generated data, reports and
+  migration-only planning material must remain excluded.
 
 ## Toolchain and tests
 
@@ -58,7 +59,7 @@ support.
 ## Security and dependency review
 
 - [ ] Run `pip-audit` against `requirements.txt` and `npm audit` against all
-  three lockfiles. High or Critical findings block the candidate.
+  three lockfiles. High or Critical findings block the release.
 - [ ] Run `python3 tools/audit_release_dependencies.py` and confirm every
   runtime and vendored browser dependency has an approved license.
 - [ ] Confirm unknown licenses and unapproved strong-copyleft dependencies are
@@ -69,31 +70,31 @@ support.
 
 ## Deterministic application package
 
-- [ ] Build the Workbench once with `OAT_RELEASE_VERSION=1.1.0-rc.1` and the
+- [ ] Build the Workbench once with `OAT_RELEASE_VERSION=1.1.0` and the
   exact `OAT_GIT_COMMIT`; all later jobs must consume that same output.
 - [ ] Confirm `build-info.json`, `.vite/manifest.json` and `integrity.json`
   agree on the Build ID and every production file.
-- [ ] Build `openairtwin-1.1.0-rc.1.tar.gz` twice from the same commit and
+- [ ] Build `openairtwin-1.1.0.tar.gz` twice from the same commit and
   confirm the archives are byte-for-byte identical.
-- [ ] Verify `openairtwin-1.1.0-rc.1.tar.gz.sha256`,
-  `openairtwin-1.1.0-rc.1.cdx.json` and the archive's
+- [ ] Verify `openairtwin-1.1.0.tar.gz.sha256`,
+  `openairtwin-1.1.0.cdx.json` and the archive's
   `release-manifest.json`.
 - [ ] Extract into a new temporary directory, run the packaged installer with
   Python 3.11 and start the server with a PATH that does not contain Node.js.
 - [ ] Verify `/api/health`, the homepage Build ID response header, every
   manifest asset, `no-store` HTML and immutable hashed-asset cache headers.
 - [ ] Confirm a missing or damaged production Workbench returns the standard
-  English 503 response and never falls back to frontend source.
+  English 503 response and never serves the legacy source entry as a production
+  fallback.
 
 ## Publication
 
-The Phase 9 candidate preparation stops before these repository-changing
-actions. A maintainer performs them only after reviewing the local commits and
-artifacts.
+This checklist stops before the following repository-changing actions. A
+maintainer performs them only after reviewing the local commits and artifacts.
 
-- [ ] Push the reviewed candidate branch.
+- [ ] Push the reviewed release branch.
 - [ ] Open and merge the release pull request without changing the tested tree.
-- [ ] Create an annotated `v1.1.0-rc.1` tag.
+- [ ] Create an annotated `v1.1.0` tag.
 - [ ] Publish the English release notes and attach the archive, checksum and
   SBOM to the GitHub Release.
 - [ ] Verify the published digest, Build ID, CI checks, tutorial and
@@ -112,4 +113,4 @@ artifacts.
    homepage.
 5. Confirm `X-OpenAirTwin-Frontend-Build-ID` reports the previous Build ID,
    `/api/health` returns 200 and the expected scene opens before removing the
-   failed candidate directory.
+   failed release directory.

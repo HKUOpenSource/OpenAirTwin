@@ -1,6 +1,6 @@
 # OpenAirTwin Icon Contract
 
-> Status: Active since Phase 2
+> Status: Active production contract
 
 Icons are governed by `oat-icon` and the `--oat-icon-*` tokens in `tokens.css`. Features may select a registered size but may not redefine the fill, stroke, line cap, or line join of shared SVG icons.
 

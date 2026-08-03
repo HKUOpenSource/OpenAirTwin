@@ -164,14 +164,14 @@ def test_release_build_id_must_match_full_git_commit(tmp_path: Path) -> None:
         json.dumps(
             {
                 "schemaVersion": 1,
-                "releaseVersion": "1.1.0-rc.1",
+                "releaseVersion": "1.1.0",
                 "gitCommit": commit,
-                "buildId": "1.1.0-rc.1+incorrect",
+                "buildId": "1.1.0+incorrect",
             }
         ),
         encoding="utf-8",
     )
-    write_integrity(build_root, "1.1.0-rc.1+incorrect")
+    write_integrity(build_root, "1.1.0+incorrect")
 
     with pytest.raises(WorkbenchBuildError, match="Build ID does not match"):
         load_workbench_build(build_root)

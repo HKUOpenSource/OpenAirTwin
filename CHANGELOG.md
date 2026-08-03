@@ -5,7 +5,7 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ## [Unreleased]
 
-## [1.1.0-rc.1] - 2026-07-31
+## [1.1.0] - 2026-08-01
 
 ### Added
 
@@ -13,7 +13,8 @@ All notable changes to OpenAirTwin are recorded here. This project follows
   DOM compatibility, state ownership and styling contracts.
 - Added deterministic Workbench identity and integrity manifests, immutable
   hashed assets, startup failure recovery and a complete application archive
-  that runs without Node.js or frontend source files.
+  containing all tracked project source plus a prebuilt Workbench, so installation
+  and normal operation do not require Node.js.
 - Added English-only repository and package gates, deterministic size budgets,
   dependency and license auditing, third-party notices, CycloneDX SBOM output,
   clean-install smoke tests, accessibility checks and lifecycle soak coverage.
@@ -92,6 +93,6 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 - Existing global state, API exports and Viewer methods remain available as
   compatibility facades.
 
-[Unreleased]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.1.0-rc.1...HEAD
-[1.1.0-rc.1]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.0.0...v1.1.0-rc.1
+[Unreleased]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.0.0

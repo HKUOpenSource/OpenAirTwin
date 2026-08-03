@@ -8,9 +8,10 @@ expected when changing an existing Feature or adding a new one.
 OpenAirTwin uses a shared runtime with explicitly registered Features:
 
 ```text
-UI shell
-  -> frontend Feature catalog
-  -> Feature state / transport / controller / result view / renderer
+React App Shell
+  -> typed UI commands / observable view models
+  -> frontend Feature catalog and domain runtime
+  -> Feature state / transport / controller adapters / renderer
   -> existing REST contract
   -> backend Feature catalog and route registry
   -> Feature service
@@ -92,14 +93,14 @@ The core workbench is desktop-only. Its supported contract starts at
 breakpoints to these files. The tutorial website has a separate responsive
 stylesheet and test suite.
 
-The frozen pre-framework UI evidence is documented in
-[`ui-phase-0-baseline.md`](ui-phase-0-baseline.md). It includes DOM, computed
+The frozen UI compatibility evidence is documented in
+[`ui-regression-baseline.md`](ui-regression-baseline.md). It includes DOM, computed
 style, network and resource contracts plus full-workbench snapshots at both
 supported reference sizes. Do not regenerate these artifacts during component
 or framework work unless the contract change is explicit, reviewed and listed
-in that phase's fidelity evidence.
+in the corresponding pull request.
 
-Phase 1 UI work is contract-first. Before implementing or changing a reusable
+UI work is contract-first. Before implementing or changing a reusable
 component, read [`ui/component-contracts.md`](ui/component-contracts.md), map
 every user action to a named command in
 [`ui/interaction-contracts.md`](ui/interaction-contracts.md), and preserve the
@@ -108,7 +109,7 @@ Command-style DOM and runtime inline styles are a closed allowlist documented in
 [`ui/imperative-ui-exceptions.md`](ui/imperative-ui-exceptions.md). Framework
 and component-library decisions are recorded under `docs/adr/`.
 
-Phase 2 added the machine-readable
+The machine-readable
 [`ui/component-manifest.json`](ui/component-manifest.json), the icon rules in
 [`ui/icon-contracts.md`](ui/icon-contracts.md), and the retired Alias record in
 [`ui/legacy-aliases.md`](ui/legacy-aliases.md). New UI must use the public
@@ -124,7 +125,7 @@ Then open `http://127.0.0.1:8091/ui-catalog/`. The Playwright configuration
 starts this catalog automatically and verifies its public variants, states,
 accessible names, and contract-only test Feature.
 
-Phase 8 uses one production React root named `app-shell`. It owns the Shell,
+Production uses one React root named `app-shell`. It owns the Shell,
 Entry Map host, result and performance docks, control and device surfaces,
 Loading, Dialog and Tooltip hosts. Leaflet, Three.js and chart adapters retain
 exclusive ownership of their host internals. Install and verify the locked
@@ -141,8 +142,8 @@ and React implementations side by side. Its browser test compares 28
 representative states for element semantics, ARIA, classes and computed style,
 then proves that React controls dispatch typed Commands. The production build
 loads `backend/static/js/app.js` as its application bootstrap; the manifest and
-compiled JavaScript must contain only the `app-shell` React
-root; the four former production roots, Catalog and test source are rejected.
+compiled JavaScript must contain only the `app-shell` React root; any other
+production root, Catalog source and test source are rejected.
 
 Result UI ownership is defined by `workbench/src/features/results/` and
 `workbench/src/features/deepmimo/`. Control ownership is defined by
@@ -166,18 +167,18 @@ React UI code follows these ownership rules:
 5. Keep imperative Three.js, Leaflet and Canvas engines outside React. A React
    component may own their stable host, never their internal DOM or resources.
 6. Every production subtree has one React renderer. Do not add a parallel
-   Template, DOM factory, temporary Root or migration flag.
+   Template, DOM factory, secondary Root or compatibility flag.
 7. Do not add production Portals for ordinary layout. A Portal requires an
    approved floating-layer target and a documented focus/cleanup contract.
 
-When the existing DOM intentionally changes, regenerate the Phase 1 contract
+When the existing DOM intentionally changes, regenerate the DOM compatibility contract
 with the real browser and review the diff; never edit the generated JSON by
 hand:
 
 ```bash
 cd tests/browser
-OAT_TEST_PYTHON=.venv/bin/python OAT_UPDATE_PHASE1_CONTRACT=1 \
-  npx playwright test feature_modes.spec.js --grep "phase 1 DOM ownership"
+OAT_TEST_PYTHON=.venv/bin/python OAT_UPDATE_DOM_CONTRACT=1 \
+  npx playwright test feature_modes.spec.js --grep "DOM ownership and interaction commands"
 ```
 
 ### Backend

@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  OAT_RELEASE_VERSION: 1.1.0-rc.1
+  OAT_RELEASE_VERSION: 1.1.0
   OAT_GIT_COMMIT: ${{ github.sha }}
 
 jobs:
@@ -293,14 +293,14 @@ jobs:
 
       - name: Build the first release archive
         run: >-
-          python tools/build_release_candidate.py
+          python tools/build_release.py
           --version "$OAT_RELEASE_VERSION"
           --git-commit "$OAT_GIT_COMMIT"
           --output-dir dist/release-first
 
       - name: Build the second release archive
         run: >-
-          python tools/build_release_candidate.py
+          python tools/build_release.py
           --version "$OAT_RELEASE_VERSION"
           --git-commit "$OAT_GIT_COMMIT"
           --output-dir dist/release-second
@@ -308,18 +308,18 @@ jobs:
       - name: Verify byte-for-byte reproducibility
         run: >-
           cmp
-          dist/release-first/openairtwin-1.1.0-rc.1.tar.gz
-          dist/release-second/openairtwin-1.1.0-rc.1.tar.gz
+          dist/release-first/openairtwin-1.1.0.tar.gz
+          dist/release-second/openairtwin-1.1.0.tar.gz
 
       - name: Enforce English release content
         run: >-
           python tools/check_release_english.py
-          --archive dist/release-first/openairtwin-1.1.0-rc.1.tar.gz
+          --archive dist/release-first/openairtwin-1.1.0.tar.gz
 
-      - name: Upload the release candidate
+      - name: Upload the release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openairtwin-1.1.0-rc.1-${{ github.sha }}
+          name: openairtwin-1.1.0-${{ github.sha }}
           path: dist/release-first
           if-no-files-found: error
           retention-days: 14
@@ -333,10 +333,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Download the release candidate
+      - name: Download the release artifact
         uses: actions/download-artifact@v5
         with:
-          name: openairtwin-1.1.0-rc.1-${{ github.sha }}
+          name: openairtwin-1.1.0-${{ github.sha }}
           path: dist/release
 
       - name: Setup Python 3.11
@@ -345,4 +345,4 @@ jobs:
           python-version: "3.11"
 
       - name: Install and smoke-test the packaged application
-        run: python tools/smoke_release_archive.py dist/release/openairtwin-1.1.0-rc.1.tar.gz
+        run: python tools/smoke_release_archive.py dist/release/openairtwin-1.1.0.tar.gz

@@ -21,7 +21,7 @@
   color-scheme: light dark;
   background-color: var(--background) !important;
 
-  /* Agent-facing contract; keep in sync with SKILL.md. */
+  /* OpenAirTwin architecture theme tokens. */
   --background: light-dark(rgb(255 255 255), rgb(24 24 24));
   --foreground: light-dark(rgb(26 28 31), rgb(255 255 255));
   --card: color-mix(in oklab, var(--foreground) 5%, transparent);
@@ -1133,6 +1133,7 @@ html&gt;body{padding:0}&lt;/style&gt;
       &lt;select class=&quot;form-select&quot; id=&quot;oatArchitectureView&quot;&gt;
         &lt;option value=&quot;overview&quot;&gt;System overview&lt;/option&gt;
         &lt;option value=&quot;frontend&quot;&gt;Frontend runtime&lt;/option&gt;
+        &lt;option value=&quot;delivery&quot;&gt;Production delivery&lt;/option&gt;
         &lt;option value=&quot;backend&quot;&gt;Backend runtime&lt;/option&gt;
         &lt;option value=&quot;link&quot;&gt;Link call flow&lt;/option&gt;
         &lt;option value=&quot;mobility&quot;&gt;Mobility call flow&lt;/option&gt;
@@ -1142,8 +1143,8 @@ html&gt;body{padding:0}&lt;/style&gt;
       &lt;/select&gt;
     &lt;/div&gt;
     &lt;div class=&quot;arch-index-state text-small&quot; aria-label=&quot;CodeGraph index summary&quot;&gt;
-      &lt;span&gt;CodeGraph 1.4.1&lt;/span&gt;
-      &lt;span class=&quot;text-muted&quot;&gt;131 files · 2,820 symbols · 8,646 edges&lt;/span&gt;
+      &lt;span&gt;CodeGraph-assisted&lt;/span&gt;
+      &lt;span class=&quot;text-muted&quot;&gt;Reviewed for OpenAirTwin 1.1.0&lt;/span&gt;
     &lt;/div&gt;
   &lt;/div&gt;
 
@@ -1161,7 +1162,7 @@ html&gt;body{padding:0}&lt;/style&gt;
         &lt;line class=&quot;lane&quot; x1=&quot;20&quot; y1=&quot;536&quot; x2=&quot;980&quot; y2=&quot;536&quot;&gt;&lt;/line&gt;
         &lt;g id=&quot;oatArchitectureEdgeLayer&quot;&gt;&lt;/g&gt;
       &lt;/svg&gt;
-      &lt;span class=&quot;arch-column-label text-small&quot; style=&quot;left: 14%&quot;&gt;Frontend Feature&lt;/span&gt;
+      &lt;span class=&quot;arch-column-label text-small&quot; style=&quot;left: 14%&quot;&gt;React UI / Feature&lt;/span&gt;
       &lt;span class=&quot;arch-column-label text-small&quot; style=&quot;left: 42%&quot;&gt;Transport / REST&lt;/span&gt;
       &lt;span class=&quot;arch-column-label text-small&quot; style=&quot;left: 70%&quot;&gt;Backend Feature&lt;/span&gt;
       &lt;span class=&quot;arch-column-label text-small&quot; style=&quot;left: 89%&quot;&gt;Execution&lt;/span&gt;
@@ -1170,7 +1171,7 @@ html&gt;body{padding:0}&lt;/style&gt;
     &lt;aside class=&quot;card arch-detail&quot; id=&quot;oatArchitectureDetail&quot; aria-live=&quot;polite&quot;&gt;
       &lt;div class=&quot;arch-detail-head&quot;&gt;
         &lt;span class=&quot;viz-badge&quot; id=&quot;oatArchitectureDetailCategory&quot;&gt;Core&lt;/span&gt;
-        &lt;h2 id=&quot;oatArchitectureDetailTitle&quot;&gt;Feature Core&lt;/h2&gt;
+        &lt;h2 id=&quot;oatArchitectureDetailTitle&quot;&gt;React App Shell&lt;/h2&gt;
         &lt;span class=&quot;text-muted&quot; id=&quot;oatArchitectureDetailSummary&quot;&gt;&lt;/span&gt;
       &lt;/div&gt;
       &lt;dl&gt;
@@ -1195,7 +1196,7 @@ html&gt;body{padding:0}&lt;/style&gt;
   &lt;section class=&quot;arch-contract&quot; aria-labelledby=&quot;oatFeatureContractTitle&quot;&gt;
     &lt;div class=&quot;arch-section-head&quot;&gt;
       &lt;h2 id=&quot;oatFeatureContractTitle&quot;&gt;Feature interface matrix&lt;/h2&gt;
-      &lt;span class=&quot;text-muted text-small&quot;&gt;Frontend directory → Transport → Backend definition → Renderer&lt;/span&gt;
+      &lt;span class=&quot;text-muted text-small&quot;&gt;React UI / Feature runtime → Transport → Backend definition → Renderer&lt;/span&gt;
     &lt;/div&gt;
     &lt;div class=&quot;table-responsive&quot;&gt;
       &lt;table class=&quot;table table-sm&quot;&gt;
@@ -1267,18 +1268,18 @@ html&gt;body{padding:0}&lt;/style&gt;
 
       const nodes = [
         {
-          id: &quot;app-shell&quot;, label: &quot;app.js / UI Shell&quot;, category: &quot;core&quot;, x: 14, y: 10,
-          scopes: [&quot;frontend&quot;],
-          summary: &quot;Browser startup entry point and shared UI orchestration.&quot;,
-          responsibilities: [&quot;Starts the Viewer and shared controllers&quot;, &quot;Mounts templates and initializes the Feature Registry&quot;, &quot;Retains only shared UI, scene, and performance logic&quot;],
-          files: [&quot;backend/static/js/app.js&quot;, &quot;backend/static/index.html&quot;, &quot;backend/static/js/dom_refs.js&quot;],
+          id: &quot;app-shell&quot;, label: &quot;React App Shell&quot;, category: &quot;core&quot;, x: 14, y: 10,
+          scopes: [&quot;frontend&quot;, &quot;delivery&quot;],
+          summary: &quot;Single production React root with stable DOM and imperative-engine hosts.&quot;,
+          responsibilities: [&quot;Owns the Shell, Entry Map hosts, controls, devices, results, performance, Loading, Dialog, and Tooltip UI&quot;, &quot;Preserves public DOM IDs and dispatches typed UI commands&quot;, &quot;Leaves Leaflet, Three.js, SVG, and Canvas internals under their imperative adapters&quot;],
+          files: [&quot;workbench/src/app-shell/AppShell.tsx&quot;, &quot;workbench/src/app-shell/app-shell-runtime.tsx&quot;, &quot;workbench/src/app-shell/ShellLayout.tsx&quot;, &quot;backend/static/js/app.js&quot;],
         },
         {
-          id: &quot;feature-core&quot;, label: &quot;Feature Core&quot;, category: &quot;core&quot;, x: 42, y: 10,
+          id: &quot;feature-core&quot;, label: &quot;UI Bridge + Feature Core&quot;, shortLabel: &quot;UI / Feature Bridge&quot;, category: &quot;core&quot;, x: 42, y: 10,
           scopes: [&quot;frontend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;, &quot;radar&quot;],
-          summary: &quot;Central hub for explicit registration, state, settings, picking, and lifecycles.&quot;,
-          responsibilities: [&quot;FeatureRegistry: registers, initializes, activates, and disposes Features&quot;, &quot;FeatureStore: creates isolated state for each Feature&quot;, &quot;SettingsBus / PickingRegistry: routes shared-setting invalidation and picking targets&quot;],
-          files: [&quot;backend/static/js/core/feature_registry.js&quot;, &quot;backend/static/js/features/feature_catalog.js&quot;, &quot;backend/static/js/app_state.js&quot;],
+          summary: &quot;Typed commands and observable models bridge React-owned UI to domain Feature lifecycles.&quot;,
+          responsibilities: [&quot;CommandBus and observable models synchronize React controls, results, datasets, and shell collections&quot;, &quot;FeatureRegistry registers, initializes, activates, and disposes domain Features&quot;, &quot;Feature modules retain isolated state, transport, controller adapters, picking, and scene renderers&quot;],
+          files: [&quot;workbench/src/runtime/ui-command.ts&quot;, &quot;workbench/src/features/controls/control-surface-model.ts&quot;, &quot;workbench/src/features/results/result-dock-model.ts&quot;, &quot;backend/static/js/core/feature_registry.js&quot;, &quot;backend/static/js/features/feature_catalog.js&quot;],
         },
         {
           id: &quot;viewer-core&quot;, label: &quot;Viewer Core&quot;, category: &quot;frontend&quot;, x: 70, y: 10,
@@ -1411,7 +1412,7 @@ html&gt;body{padding:0}&lt;/style&gt;
           scopes: [&quot;frontend&quot;, &quot;radar&quot;],
           summary: &quot;Standalone Radar target editing, job control, sensing results, and scene rendering module.&quot;,
           responsibilities: [&quot;Owns Radar platform, waveform, detection, solver, and target state&quot;, &quot;Submits, polls, cancels, and invalidates Radar jobs&quot;, &quot;Renders isolated target, path, and detection layers&quot;],
-          files: [&quot;backend/static/js/features/radar/index.js&quot;, &quot;backend/static/js/features/radar/controller.js&quot;, &quot;backend/static/js/features/radar/transport.js&quot;, &quot;backend/static/js/features/radar/renderer.js&quot;],
+          files: [&quot;backend/static/js/features/radar/index.js&quot;, &quot;backend/static/js/controllers/radar_controller.js&quot;, &quot;backend/static/js/features/radar/transport.js&quot;, &quot;backend/static/js/features/radar/renderer.js&quot;],
         },
         {
           id: &quot;radar-api&quot;, label: &quot;/api/radar/jobs&quot;, category: &quot;transport&quot;, feature: &quot;radar&quot;, x: 42, y: 82,
@@ -1435,6 +1436,20 @@ html&gt;body{padding:0}&lt;/style&gt;
           files: [&quot;backend/jobs/radar_jobs.py&quot;, &quot;backend/rt/solve_radar.py&quot;, &quot;backend/rt/process_radar.py&quot;],
         },
         {
+          id: &quot;workbench-build&quot;, label: &quot;Vite Workbench Build&quot;, shortLabel: &quot;Workbench Build&quot;, category: &quot;core&quot;, x: 14, y: 95,
+          scopes: [&quot;delivery&quot;],
+          summary: &quot;Compiles the React application and framework-independent runtime modules into one content-addressed production Workbench.&quot;,
+          responsibilities: [&quot;Builds the application entry and shared runtime chunks&quot;, &quot;Emits build-info, Vite manifest, and sorted SHA-256 integrity metadata&quot;, &quot;Enforces hashed assets, source ownership, and deterministic size budgets&quot;],
+          files: [&quot;workbench/vite.config.ts&quot;, &quot;workbench/scripts/finalize-build.mjs&quot;, &quot;workbench/scripts/verify-build.mjs&quot;],
+        },
+        {
+          id: &quot;workbench-loader&quot;, label: &quot;Production Workbench Loader&quot;, shortLabel: &quot;Workbench Loader&quot;, category: &quot;transport&quot;, x: 38, y: 95,
+          scopes: [&quot;delivery&quot;],
+          summary: &quot;Validates and serves the exact prebuilt Workbench without a source fallback.&quot;,
+          responsibilities: [&quot;Verifies Build ID, manifest, hashed assets, and every integrity entry before serving HTML&quot;, &quot;Applies no-store to HTML and immutable caching to hashed assets&quot;, &quot;Returns an English 503 response when the production build is absent or damaged&quot;],
+          files: [&quot;backend/workbench.py&quot;, &quot;backend/server.py&quot;, &quot;tools/build_release.py&quot;],
+        },
+        {
           id: &quot;rt-scene&quot;, label: &quot;RT Runtime + Scene Core&quot;, shortLabel: &quot;RT / Scene Core&quot;, category: &quot;execution&quot;, x: 62, y: 95,
           scopes: [&quot;backend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;, &quot;radar&quot;],
           summary: &quot;Ray-tracing runtime and scene generation shared by all five analysis Features.&quot;,
@@ -1451,6 +1466,8 @@ html&gt;body{padding:0}&lt;/style&gt;
       ];
 
       const edges = [
+        {from: &quot;workbench-build&quot;, to: &quot;workbench-loader&quot;, type: &quot;registry&quot;, scopes: [&quot;delivery&quot;]},
+        {from: &quot;workbench-loader&quot;, to: &quot;app-shell&quot;, type: &quot;registry&quot;, scopes: [&quot;delivery&quot;]},
         {from: &quot;app-shell&quot;, to: &quot;feature-core&quot;, type: &quot;registry&quot;, scopes: [&quot;frontend&quot;]},
         {from: &quot;app-shell&quot;, to: &quot;viewer-core&quot;, type: &quot;render&quot;, scopes: [&quot;frontend&quot;]},
         {from: &quot;feature-core&quot;, to: &quot;backend-core&quot;, type: &quot;registry&quot;, scopes: [&quot;backend&quot;]},
@@ -1497,8 +1514,9 @@ html&gt;body{padding:0}&lt;/style&gt;
       ];
 
       const flowText = {
-        overview: &quot;&lt;strong&gt;Main path:&lt;/strong&gt; UI Shell → Feature Registry → Feature Transport → REST Route → Feature Service → RT / Job → Viewer Layer&quot;,
-        frontend: &quot;&lt;strong&gt;Frontend:&lt;/strong&gt; The Catalog registers each Feature once; the Registry assembles its state, transport, controller, view, renderer, and lifecycle.&quot;,
+        overview: &quot;&lt;strong&gt;Main path:&lt;/strong&gt; React App Shell → typed Commands / ViewModels → Feature Registry and runtime → Transport → REST Route → Feature Service → RT / Job → Viewer Layer&quot;,
+        frontend: &quot;&lt;strong&gt;Frontend:&lt;/strong&gt; React owns the stable Shell, control, device, and result DOM; typed commands and observable models bridge it to isolated Feature state, transports, controller adapters, picking, and Viewer renderers.&quot;,
+        delivery: &quot;&lt;strong&gt;Production delivery:&lt;/strong&gt; Tracked source + React application / runtime modules → Vite hashed build → build-info / manifest / integrity → Python validation and caching → browser bootstrap → React App Shell.&quot;,
         backend: &quot;&lt;strong&gt;Backend:&lt;/strong&gt; server.py → RouteRegistry → FeatureServiceRegistry → synchronous service or job manager → RT Runtime.&quot;,
         link: &quot;&lt;strong&gt;Link:&lt;/strong&gt; Solve → POST /api/link/solve → LinkService.solve → Sionna RT → polyline-set.&quot;,
         mobility: &quot;&lt;strong&gt;Mobility:&lt;/strong&gt; Consume Link capabilities → create job → poll status → InProcess Worker → trajectory + markers + paths.&quot;,
@@ -1508,8 +1526,9 @@ html&gt;body{padding:0}&lt;/style&gt;
       };
 
       const preferredNode = {
-        overview: &quot;feature-core&quot;,
+        overview: &quot;app-shell&quot;,
         frontend: &quot;feature-core&quot;,
+        delivery: &quot;workbench-build&quot;,
         backend: &quot;backend-core&quot;,
         link: &quot;link-front&quot;,
         mobility: &quot;mobility-front&quot;,
@@ -1653,7 +1672,7 @@ html&gt;body{padding:0}&lt;/style&gt;
   const { autoUpdate, computePosition, flip, offset, shift, size } =
     window.FloatingUIDOM;
   const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
-  const tooltipId = `codex-visualization-tooltip-${
+  const tooltipId = `openairtwin-architecture-tooltip-${
     window.crypto?.randomUUID?.() ?? Date.now().toString(36)
   }`;
   const tooltipGap = 5;
@@ -1866,7 +1885,7 @@ html&gt;body{padding:0}&lt;/style&gt;
   window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
 })();
 &lt;/script&gt;
-&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script id=&quot;openairtwin-architecture-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
 &lt;script&gt;
 (() =&gt; {
   const initialize = () =&gt; {
@@ -1877,7 +1896,7 @@ html&gt;body{padding:0}&lt;/style&gt;
     return;
   }
   document
-    .getElementById(&quot;codex-visualization-lucide&quot;)
+    .getElementById(&quot;openairtwin-architecture-lucide&quot;)
     ?.addEventListener(&quot;load&quot;, initialize, { once: true });
 })();
 &lt;/script&gt;

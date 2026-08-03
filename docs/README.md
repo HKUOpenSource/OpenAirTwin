@@ -13,7 +13,7 @@ runtime and tutorial website.
   checks required before publishing a tag.
 - [`data-licenses.md`](data-licenses.md) records scene-data responsibilities and
   third-party scene and Radar drone-model attribution requirements.
-- [`../CHANGELOG.md`](../CHANGELOG.md) records the v1.1.0-rc.1 release candidate
+- [`../CHANGELOG.md`](../CHANGELOG.md) records the v1.1.0 release
   and future unreleased changes.
 
 The tutorial website build copies `openairtwin-architecture.html` to

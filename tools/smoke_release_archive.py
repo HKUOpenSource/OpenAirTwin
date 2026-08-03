@@ -20,6 +20,25 @@ import time
 
 
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+PAYLOAD_CONTRACT = {
+    "source": "all-git-tracked-files",
+    "workbench": "verified-prebuilt-overlay",
+}
+SOURCE_CONTRACT_FILES = {
+    "backend/server.py",
+    "tests/test_release_build.py",
+    "tools/build_release.py",
+    "website/package.json",
+    "website/src/App.tsx",
+    "workbench/package.json",
+    "workbench/src/app-shell/AppShell.tsx",
+}
+WORKBENCH_CONTRACT_FILES = {
+    "backend/static/workbench/.vite/manifest.json",
+    "backend/static/workbench/build-info.json",
+    "backend/static/workbench/index.html",
+    "backend/static/workbench/integrity.json",
+}
 
 
 class ReleaseSmokeError(RuntimeError):
@@ -78,7 +97,11 @@ def verify_archive(archive: Path) -> tuple[str, dict]:
             raise ReleaseSmokeError("Release manifest cannot be read")
         manifest = json.loads(manifest_stream.read().decode("utf-8"))
         entries = manifest.get("files")
-        if manifest.get("schemaVersion") != 1 or not isinstance(entries, list):
+        if (
+            manifest.get("schemaVersion") != 2
+            or manifest.get("payloadContract") != PAYLOAD_CONTRACT
+            or not isinstance(entries, list)
+        ):
             raise ReleaseSmokeError("Invalid release manifest schema")
         expected = {}
         for entry in entries:
@@ -102,6 +125,14 @@ def verify_archive(archive: Path) -> tuple[str, dict]:
         }
         if actual_paths != set(expected):
             raise ReleaseSmokeError("Release archive file set does not match release manifest")
+        missing_contract_files = sorted(
+            (SOURCE_CONTRACT_FILES | WORKBENCH_CONTRACT_FILES) - actual_paths
+        )
+        if missing_contract_files:
+            raise ReleaseSmokeError(
+                "Release archive does not satisfy the source and Workbench payload contract: "
+                + ", ".join(missing_contract_files)
+            )
         for relative_path, (expected_size, expected_digest) in expected.items():
             stream = package.extractfile(f"{root}/{relative_path}")
             if stream is None:

@@ -25,7 +25,7 @@ from tools.release_dependencies import (  # noqa: E402
 )
 
 
-TOP_LEVEL_FILES = (
+REQUIRED_RELEASE_FILES = (
     "install.py",
     "requirements.txt",
     "README.md",
@@ -36,22 +36,25 @@ TOP_LEVEL_FILES = (
     "docs/data-licenses.md",
     "docs/release-checklist.md",
 )
-BACKEND_RUNTIME_DIRECTORIES = ("backend/features", "backend/jobs", "backend/rt", "backend/scene")
+WORKBENCH_TARGET_ROOT = "backend/static/workbench"
 
 
 class ReleaseBuildError(RuntimeError):
     pass
 
 
-def run_git(arguments: list[str], repository: Path = PROJECT_ROOT) -> str:
+def run_git_bytes(arguments: list[str], repository: Path = PROJECT_ROOT) -> bytes:
     result = subprocess.run(
         ["git", *arguments],
         cwd=repository,
         check=True,
         capture_output=True,
-        text=True,
     )
-    return result.stdout.strip()
+    return result.stdout
+
+
+def run_git(arguments: list[str], repository: Path = PROJECT_ROOT) -> str:
+    return run_git_bytes(arguments, repository).decode("utf-8").strip()
 
 
 def validate_release_identity(version: str, git_commit: str, repository: Path = PROJECT_ROOT) -> int:
@@ -86,20 +89,38 @@ def add_tree(entries: dict[str, Path], source_root: Path, target_root: str, patt
             entries[target] = source
 
 
-def collect_payload(workbench_root: Path, project_root: Path = PROJECT_ROOT) -> dict[str, Path]:
+def tracked_source_entries(project_root: Path = PROJECT_ROOT) -> dict[str, Path]:
+    root = project_root.resolve()
     entries: dict[str, Path] = {}
-    for relative in TOP_LEVEL_FILES:
-        source = project_root / relative
+    for raw_path in run_git_bytes(["ls-files", "-z"], root).split(b"\0"):
+        if not raw_path:
+            continue
+        try:
+            relative = raw_path.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ReleaseBuildError("Tracked release paths must be UTF-8") from exc
+        target = Path(relative)
+        if target.is_absolute() or ".." in target.parts:
+            raise ReleaseBuildError(f"Tracked release path is unsafe: {relative}")
+        source = root / target
         if not source.is_file():
-            raise ReleaseBuildError(f"Required release file is missing: {relative}")
-        entries[relative] = source
-    for source in sorted((project_root / "backend").glob("*.py")):
-        entries[f"backend/{source.name}"] = source
-    for relative in BACKEND_RUNTIME_DIRECTORIES:
-        add_tree(entries, project_root / relative, relative, "*.py")
-    add_tree(entries, project_root / "backend/static/assets", "backend/static/assets")
-    add_tree(entries, project_root / "backend/static/lib", "backend/static/lib")
-    add_tree(entries, workbench_root, "backend/static/workbench")
+            raise ReleaseBuildError(f"Tracked release source is missing: {relative}")
+        entries[target.as_posix()] = source
+    for required in REQUIRED_RELEASE_FILES:
+        if required not in entries:
+            raise ReleaseBuildError(f"Required release file is not tracked: {required}")
+    return entries
+
+
+def collect_payload(workbench_root: Path, project_root: Path = PROJECT_ROOT) -> dict[str, Path]:
+    entries = tracked_source_entries(project_root)
+    workbench_prefix = f"{WORKBENCH_TARGET_ROOT}/"
+    for target in tuple(entries):
+        if target == WORKBENCH_TARGET_ROOT or target.startswith(workbench_prefix):
+            del entries[target]
+    add_tree(entries, workbench_root, WORKBENCH_TARGET_ROOT)
+    if f"{workbench_prefix}index.html" not in entries:
+        raise ReleaseBuildError("Verified Workbench payload is missing index.html")
     return entries
 
 
@@ -111,10 +132,14 @@ def release_manifest(
         data = source.read_bytes()
         files.append({"path": target, "bytes": len(data), "sha256": sha256_bytes(data)})
     manifest = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "releaseVersion": version,
         "gitCommit": git_commit,
         "buildId": build_id,
+        "payloadContract": {
+            "source": "all-git-tracked-files",
+            "workbench": "verified-prebuilt-overlay",
+        },
         "files": files,
     }
     return f"{json.dumps(manifest, indent=2)}\n".encode()

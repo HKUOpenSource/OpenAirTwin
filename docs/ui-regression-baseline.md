@@ -1,4 +1,4 @@
-# OpenAirTwin UI Phase 0 Baseline
+# OpenAirTwin UI Regression Baseline
 
 > Status: Frozen
 > Date: 2026-07-30
@@ -8,7 +8,7 @@
 
 ## 1. Purpose
 
-This baseline protects the later component-standardization and React migration work. It records the DOM, styles, network traffic, resources, and visual behavior of the releasable workbench so later migrations can prove that implementation changed while functionality, interaction logic, visuals, and styling did not.
+This baseline protects the workbench against unintended UI regressions. It records the DOM, styles, network traffic, resources, and visual behavior of the releasable workbench so implementation changes can prove that functionality, interaction logic, visuals, and styling remain compatible.
 
 The baseline is not a new design specification and does not authorize visual differences. Unless a task explicitly approves a user-visible product change, a baseline difference must first be treated as a regression.
 
@@ -78,7 +78,7 @@ The `1280x720` full-screen baseline also asserts that:
 
 ## 3. Browser Support Record
 
-Phase 0 preserves the existing support scope and does not broaden compatibility commitments:
+This baseline preserves the existing support scope and does not broaden compatibility commitments:
 
 - Desktop Chromium and Google Chrome.
 - macOS visual snapshots run through the local Google Chrome or Chromium path.
@@ -93,14 +93,14 @@ Normal verification command:
 
 ```bash
 cd tests/browser
-npx playwright test --grep "phase 0"
+npx playwright test --grep "UI DOM, style, network and resource contracts"
 ```
 
 Run the following only when a baseline change has been explicitly reviewed:
 
 ```bash
 cd tests/browser
-OAT_UPDATE_PHASE0_BASELINE=1 npx playwright test --grep "phase 0" --update-snapshots
+OAT_UPDATE_UI_BASELINE=1 npx playwright test --grep "UI DOM, style, network and resource contracts" --update-snapshots
 ```
 
 Before updating a baseline:
@@ -111,22 +111,7 @@ Before updating a baseline:
 4. Inspect added, removed, and resized network resources.
 5. Compare every old and new snapshot in an image viewer.
 6. Confirm that resource growth remains zero.
-7. List every intentional difference in the pull request or phase evidence report.
+7. List every intentional difference in the pull request or compatibility review.
 8. Run the complete Python and Playwright suites, not only the baseline tests.
 
-Do not update the baseline merely because the implementation changed to React, Vite, TypeScript, a DOM factory, or components. An implementation change must first prove product-contract equivalence. Only explained network-path changes caused by infrastructure may be reviewed separately in the corresponding migration phase.
-
-## 5. Phase 0 Completion Gate
-
-- [x] The seven-file CSS architecture and `--oat-*` token contract are established.
-- [x] Existing `1440x900` visual snapshots were not updated.
-- [x] Complete `1440x900` and `1280x720` workbench snapshots were added.
-- [x] DOM, computed-style, network, and resource contracts are versioned.
-- [x] Five complete feature cycles produce zero resource growth.
-- [x] Browser support scope is documented.
-- [x] Complete Python suite passed: 303 passed, 4 skipped.
-- [x] Complete Playwright suite passed: 19 passed.
-- [x] The real page and interaction flow passed in-app browser verification with no console warning or error.
-- [x] The final diff was reviewed and the Phase 0 commit was created.
-
-The Phase 0 contracts, verification evidence, and commit scope have received final review.
+Do not update the baseline merely because the implementation changed to React, Vite, TypeScript, a DOM factory, or components. An implementation change must first prove product-contract equivalence. Only explained network-path changes caused by build or delivery infrastructure may be reviewed separately in the corresponding compatibility review.

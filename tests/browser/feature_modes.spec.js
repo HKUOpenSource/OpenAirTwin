@@ -12,12 +12,12 @@ import {
 } from "./phase1_contracts.js";
 
 const PHASE0_BASELINE_DIRECTORY = new URL("./baselines/", import.meta.url);
-const UPDATE_PHASE0_BASELINE = process.env.OAT_UPDATE_PHASE0_BASELINE === "1";
+const UPDATE_PHASE0_BASELINE = process.env.OAT_UPDATE_UI_BASELINE === "1";
 const PHASE1_DOM_CONTRACT = new URL(
   "../../docs/ui/dom-compatibility-contract.json",
   import.meta.url,
 );
-const UPDATE_PHASE1_CONTRACT = process.env.OAT_UPDATE_PHASE1_CONTRACT === "1";
+const UPDATE_PHASE1_CONTRACT = process.env.OAT_UPDATE_DOM_CONTRACT === "1";
 
 function phase0BaselineUrl(filename) {
   return new URL(filename, PHASE0_BASELINE_DIRECTORY);
@@ -823,7 +823,7 @@ async function capturePhase0ComputedStyles(page) {
       Object.entries(targets).map(([name, selector]) => {
         const element = document.querySelector(selector);
         if (!element)
-          throw new Error(`Missing Phase 0 style target: ${selector}`);
+          throw new Error(`Missing UI baseline style target: ${selector}`);
         const style = getComputedStyle(element);
         return [
           name,
@@ -953,7 +953,7 @@ test("core CSS modules load in order and expose the desktop computed-style contr
   });
 });
 
-test("phase 0 DOM, style, network and resource contracts remain frozen", async ({
+test("UI DOM, style, network and resource contracts remain frozen", async ({
   page,
   browserName,
 }) => {
@@ -1092,7 +1092,7 @@ test("phase 0 DOM, style, network and resource contracts remain frozen", async (
   });
 });
 
-test("phase 1 DOM ownership and interaction commands remain explicit", async ({
+test("DOM ownership and interaction commands remain explicit", async ({
   page,
 }) => {
   await openDeterministicApp(page);
@@ -1124,7 +1124,7 @@ test("phase 1 DOM ownership and interaction commands remain explicit", async ({
   assertPhase1DomContract(contract);
 });
 
-test("phase 0 full workbench desktop snapshots stay stable", async ({
+test("full workbench desktop snapshots stay stable", async ({
   page,
 }) => {
   await page.route("**/api/link/solve", (route) =>

@@ -9,8 +9,8 @@ from backend.server import RequestHandler
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "1.1.0-rc.1"
-EXPECTED_RELEASE_DATE = "2026-07-31"
+EXPECTED_VERSION = "1.1.0"
+EXPECTED_RELEASE_DATE = "2026-08-01"
 
 
 class ReleaseMetadataTests(unittest.TestCase):

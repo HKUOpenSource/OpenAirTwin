@@ -1,6 +1,6 @@
 # OpenAirTwin UI Component Contract
 
-> Status: Phase 8 production contract; the workbench is owned by one React `app-shell` root
+> Status: Active production contract; the workbench is owned by one React `app-shell` root
 >
 > Scope: Core desktop workbench at `1280x720` and larger
 >
@@ -45,7 +45,7 @@
 | `LoadingOverlay` | `title`, `message`, `progress` | `cancellable` | Modal busy state; cancel command is enabled only while cancellation is available | `shell.css` |
 | `ChartFrame` | `id`, `title`, `host` | `legend`, `tooltip`, `empty`, `loading` | Canvas or SVG engine owns the host interior; ordinary component updates do not rebuild the engine | `results.css`, `radar.css` |
 
-### 2.1 Phase 2 Native Class Mapping
+### 2.1 Shared CSS Class Mapping
 
 [component-manifest.json](component-manifest.json) is the machine-readable authority for the native implementation, and `tools/ui-catalog/index.html` displays every public variant and state. Shared classes include:
 
@@ -55,9 +55,9 @@
 - Data: `oat-badge`, `oat-metric-grid`, `oat-list-card`, and `oat-empty-state`.
 - Infrastructure: `oat-scroll-region` and `oat-icon`.
 
-Phase 8 removed `.btn`, `.miniBtn`, `.miniSelect`, `.primary`, `.danger`, and the internal compatibility font class. Production UI may use only shared `oat-*` classes. Features may no longer define or duplicate core button, field, or list-card geometry.
+The retired `.btn`, `.miniBtn`, `.miniSelect`, `.primary`, `.danger`, and internal compatibility font classes are prohibited in production. Production UI may use only shared `oat-*` classes. Features may no longer define or duplicate core button, field, or list-card geometry.
 
-### 2.2 Phase 8 React Implementation and Production Boundary
+### 2.2 React Implementation and Production Boundary
 
 Typed React primitives live in `workbench/src/design-system/components/` and continue to emit the same `oat-*` classes from section 2.1. The machine manifest's `reactSource` is the sole React source location for each shared component. Features may not copy primitives or establish a barrel entry point.
 
@@ -70,7 +70,7 @@ React components observe these boundaries:
 - Roots mount only into empty containers and `ReactRootRegistry` owns unmount, cleanup, and focus restoration.
 - Component exceptions render the shared error panel through an Error Boundary and enter the host error path through the root error hook.
 - `className` is only for domain layout composition. Arbitrary inline styles and design values are prohibited.
-- `component-manifest.json` declares `productionOwner` as `react`. The sole production root and boundary are both `app-shell`; the previous four production roots are retired.
+- `component-manifest.json` declares `productionOwner` as `react`. The sole production root and boundary are both `app-shell`; Catalog and test roots remain development-only.
 - `ShellLayout` and `ControlSurface` are explicit JSX trees in one React root, composing the Control, Device, Result, and DeepMIMO Dataset subtrees. The production entry does not parse or inject HTML templates, and ordinary layout may not use portals.
 - Leaflet, Three.js, and Canvas or SVG charts remain imperative adapters that own only the interior of stable React-provided hosts. Ordinary Shell or view-model updates may not replace `#view`, the map host, or chart hosts.
 - `AppShell` lifecycle owns Shell document and window handlers, the performance interval, and named command routing. Features, the map, the Viewer, and Controllers must release their resources during page or feature disposal.

@@ -1,6 +1,6 @@
 # OpenAirTwin UI Interaction Contract
 
-> Status: Phase 8 production contract. This document defines behavior semantics; per-control machine mappings are stored in the `interaction` fields of `dom-compatibility-contract.json`.
+> Status: Active production contract. This document defines behavior semantics; per-control machine mappings are stored in the `interaction` fields of `dom-compatibility-contract.json`.
 
 ## 1. Command Rules
 
@@ -11,7 +11,7 @@
 - While busy, submit buttons are disabled with `aria-busy=true`. A failure restores operability and enters the existing visible error path.
 - Feature switching cancels Live Preview, stops Tx Orbit, and clears picking and transient UI. A feature must never show another feature's results.
 
-### 1.1 Phase 6 Control Command Envelope
+### 1.1 Control Command Envelope
 
 The React control boundary emits only these typed base commands. App and feature runtimes route them to the domain commands in this document; they do not replace domain semantics:
 
@@ -89,4 +89,4 @@ One `app-shell` CommandBus emits the following commands. The Shell no longer reg
 
 ## 7. Machine Coverage
 
-Browser tests generate a contract for 363 elements with IDs from the real page. Every button, input, select, textarea, details, and summary element must have a named `interaction.command`. Dynamic lists, Leaflet, Canvas, Viewer, and global-dismiss actions are registered in `dynamicInteractions`. Contract generation fails when a new interactive control has no command.
+Browser tests generate the machine contract for every element with an ID on the real page. Every button, input, select, textarea, details, and summary element must have a named `interaction.command`. Dynamic lists, Leaflet, Canvas, Viewer, and global-dismiss actions are registered in `dynamicInteractions`. Contract generation fails when a new interactive control has no command.

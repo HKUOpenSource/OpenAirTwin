@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from html import unescape
 from pathlib import Path
+import re
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -23,6 +25,12 @@ APP_CSS_FILES = (
 def read_app_css() -> str:
     css_root = PROJECT_ROOT / "backend" / "static" / "css"
     return "\n".join((css_root / name).read_text(encoding="utf-8") for name in APP_CSS_FILES)
+
+
+def read_architecture_map() -> str:
+    return unescape(
+        (PROJECT_ROOT / "docs" / "openairtwin-architecture.html").read_text(encoding="utf-8")
+    )
 
 
 def test_backend_catalog_and_existing_routes_are_explicit() -> None:
@@ -234,3 +242,51 @@ def test_backend_server_dispatches_feature_routes_without_feature_url_branches()
     assert "FEATURE_ROUTES.dispatch" in server_source
     for route_prefix in ("/api/link/", "/api/mobility/", "/api/radiomap/", "/api/deepmimo/", "/api/radar/"):
         assert route_prefix not in server_source
+
+
+def test_architecture_map_documents_react_bridge_and_production_delivery() -> None:
+    source = read_architecture_map()
+    expected_contract = (
+        '<option value="delivery">Production delivery</option>',
+        'id: "app-shell", label: "React App Shell"',
+        'id: "feature-core", label: "UI Bridge + Feature Core"',
+        'id: "workbench-build"',
+        'id: "workbench-loader"',
+        'from: "workbench-build", to: "workbench-loader"',
+        'from: "workbench-loader", to: "app-shell"',
+        "workbench/src/app-shell/AppShell.tsx",
+        "workbench/src/runtime/ui-command.ts",
+        "backend/workbench.py",
+        "backend/static/js/controllers/radar_controller.js",
+        "Reviewed for OpenAirTwin 1.1.0",
+    )
+    for expected in expected_contract:
+        assert expected in source
+
+    stale_contract = (
+        "CodeGraph 1.4.1",
+        "131 files · 2,820 symbols · 8,646 edges",
+        "backend/static/js/features/radar/controller.js",
+        "Mounts templates and initializes the Feature Registry",
+        "codex-visualization",
+        "Agent-facing contract",
+        "SKILL.md",
+    )
+    for stale in stale_contract:
+        assert stale not in source
+
+
+def test_architecture_map_only_references_existing_project_files() -> None:
+    source = read_architecture_map()
+    file_blocks = re.findall(r"files:\s*\[(.*?)\]", source, re.DOTALL)
+    references = sorted(
+        {
+            match
+            for block in file_blocks
+            for match in re.findall(r'"([^"\n]+)"', block)
+        }
+    )
+
+    assert references
+    missing = [reference for reference in references if not (PROJECT_ROOT / reference).is_file()]
+    assert missing == []

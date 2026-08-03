@@ -62,7 +62,7 @@ def test_manifest_and_catalog_cover_every_public_variant_and_state() -> None:
     catalog = read(CATALOG_PATH)
     components = {component["name"]: component for component in manifest["components"]}
     assert manifest["schemaVersion"] == 6
-    assert manifest["phase"] == 8
+    assert "phase" not in manifest
     assert manifest["productionOwner"] == "react"
     assert manifest["reactProductionBoundaries"] == ["app-shell"]
     assert manifest["reactCatalogEntry"] == "workbench/src/catalog/main.tsx"

@@ -17,7 +17,7 @@ afterEach(() => {
   for (const container of mountedContainers.splice(0)) container.remove();
 });
 
-describe("Phase 8 React result models", () => {
+describe("React result models", () => {
   it("hides retained Link path details outside the Link result mode", () => {
     const container = mountContainer();
     let runtime!: ReturnType<typeof mountAppShell>;
