@@ -262,11 +262,6 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
     syncAnimation();
   }
 
-  const previousHandler = () => selectOffset(-1);
-  const nextHandler = () => selectOffset(1);
-  dom.btnRadarAssetPrevious.addEventListener("click", previousHandler);
-  dom.btnRadarAssetNext.addEventListener("click", nextHandler);
-  dom.radarTargetsGroup.addEventListener("toggle", handleGroupToggle);
   document.addEventListener("visibilitychange", handleVisibilityChange);
   updateMeta();
   setLoadState("loading", "Loading drone models…");
@@ -291,10 +286,17 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
       resizeObserver?.disconnect();
       orbitControls?.dispose();
       webglRenderer?.dispose();
-      dom.btnRadarAssetPrevious.removeEventListener("click", previousHandler);
-      dom.btnRadarAssetNext.removeEventListener("click", nextHandler);
-      dom.radarTargetsGroup.removeEventListener("toggle", handleGroupToggle);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+    },
+    next() {
+      selectOffset(1);
+    },
+    previous() {
+      selectOffset(-1);
+    },
+    syncGroup(open) {
+      dom.radarTargetsGroup.open = Boolean(open);
+      handleGroupToggle();
     },
     selectedAssetId: () => selectedAsset()?.id || null,
     setAssets,

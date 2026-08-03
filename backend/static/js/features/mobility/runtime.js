@@ -18,61 +18,6 @@ export function createMobilityFeature(context) {
   }
 
   function attachEvents() {
-    ui.btnRunMobility.addEventListener("click", () => context.utilities.runSolveFromDock(
-      ui.btnRunMobility,
-      () => controller.runMobility(),
-    ).catch((error) => {
-      scene().hideOverlay(null, true);
-      resultView.stopMobilityPlayback();
-      return context.utilities.showErrorDialog("Mobility Failed", error);
-    }));
-    ui.btnPickMobilityTx.addEventListener("click", () => picking().openDevicePrecision("mobility-tx"));
-    ui.btnPickMobilityRx.addEventListener("click", () => picking().openDevicePrecision("mobility-rx"));
-
-    for (const [input, target] of [
-      [inputs.mobilityTxX, "mobility-tx"], [inputs.mobilityTxY, "mobility-tx"], [inputs.mobilityTxZ, "mobility-tx"],
-      [inputs.mobilityRxX, "mobility-rx"], [inputs.mobilityRxY, "mobility-rx"], [inputs.mobilityRxZ, "mobility-rx"],
-    ]) {
-      input.addEventListener("change", () => {
-        solver().readMobilityInputs();
-        controller.invalidateMobilityResult();
-        picking().refreshPickStatus("mobility");
-        scene().renderAll();
-      });
-    }
-    for (const input of [inputs.mobilityVelocity, inputs.mobilityTimeStep, inputs.mobilityMaxSteps]) {
-      input.addEventListener("change", () => {
-        solver().readMobilityInputs();
-        controller.invalidateMobilityResult();
-        scene().renderAll();
-      });
-    }
-    ui.btnMobilityAddRxPoint.addEventListener("click", () => solver().addCurrentRxWaypoint());
-    ui.btnMobilityClearPoints.addEventListener("click", () => {
-      solver().resetMobilityTrajectoryFromRx();
-      scene().renderAll();
-    });
-    ui.mobilityMetric.addEventListener("change", () => {
-      state.mobility.metric = ui.mobilityMetric.value;
-      resultView.renderMobilityResult();
-    });
-    ui.mobilityStepSlider.addEventListener("input", () => {
-      resultView.selectMobilityStep(Number(ui.mobilityStepSlider.value));
-    });
-    ui.mobilityPlaybackSpeed.addEventListener("change", () => {
-      state.mobility.playbackSpeed = Number(ui.mobilityPlaybackSpeed.value);
-      if (state.mobility.playing) {
-        resultView.startMobilityPlayback();
-      }
-    });
-    ui.btnMobilityPlay.addEventListener("click", () => {
-      if (state.mobility.playing) {
-        resultView.stopMobilityPlayback();
-        resultView.renderMobilityResult();
-        return;
-      }
-      resultView.startMobilityPlayback();
-    });
     window.addEventListener("keydown", (event) => {
       if (state.mode !== "mobility" || state.entry.visible || ui.loadingScreen.style.display !== "none" || isEditableKeyboardTarget(event.target)) {
         return;
@@ -87,8 +32,71 @@ export function createMobilityFeature(context) {
     });
   }
 
+  const deviceIds = new Set([
+    "mobilityTxX", "mobilityTxY", "mobilityTxZ",
+    "mobilityRxX", "mobilityRxY", "mobilityRxZ",
+  ]);
+  const trajectoryIds = new Set([
+    "mobilityVelocity", "mobilityTimeStep", "mobilityMaxSteps",
+  ]);
+
+  function handleControlCommit(controlId) {
+    if (deviceIds.has(controlId)) {
+      solver().readMobilityInputs();
+      controller.invalidateMobilityResult();
+      picking().refreshPickStatus("mobility");
+      scene().renderAll();
+      return true;
+    }
+    if (!trajectoryIds.has(controlId)) return false;
+    solver().readMobilityInputs();
+    controller.invalidateMobilityResult();
+    scene().renderAll();
+    return true;
+  }
+
+  function handleControlAction(actionId, value) {
+    if (actionId === "mobilityWaypoint.select") {
+      state.mobility.selectedWaypointIndex = Number(value);
+      scene().renderAll();
+      return true;
+    }
+    if (actionId === "mobilityWaypoint.remove") {
+      solver().deleteMobilityWaypoint(Number(value));
+      return true;
+    }
+    if (actionId === "btnPickMobilityTx") {
+      picking().openDevicePrecision("mobility-tx");
+      return true;
+    }
+    if (actionId === "btnPickMobilityRx") {
+      picking().openDevicePrecision("mobility-rx");
+      return true;
+    }
+    if (actionId === "btnMobilityAddRxPoint") {
+      solver().addCurrentRxWaypoint();
+      return true;
+    }
+    if (actionId === "btnMobilityClearPoints") {
+      solver().resetMobilityTrajectoryFromRx();
+      scene().renderAll();
+      return true;
+    }
+    if (actionId !== "btnRunMobility") return false;
+    return context.utilities.runSolveFromDock(
+      "btnRunMobility",
+      () => controller.runMobility(),
+    ).catch((error) => {
+      scene().hideOverlay(null, true);
+      resultView.stopMobilityPlayback();
+      return context.utilities.showErrorDialog("Mobility Failed", error);
+    }).then(() => true);
+  }
+
   return {
     attachEvents,
+    handleControlAction,
+    handleControlCommit,
     applyPick(pick, target) {
       const position = shared.pickPositionWithSurfaceClearance(pick, target.scope);
       shared.setLogicalAndVisual(state.mobility, target.role, position);
@@ -122,6 +130,9 @@ export function createMobilityFeature(context) {
       if (rxReady) ui.btnMobilityAddRxPoint.removeAttribute("title");
       else ui.btnMobilityAddRxPoint.title = "Place Mobility Rx before adding a waypoint.";
       resultView.renderMobilityResult();
+    },
+    dispose() {
+      resultView.dispose();
     },
   };
 }

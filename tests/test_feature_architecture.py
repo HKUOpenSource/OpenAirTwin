@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from html import unescape
 from pathlib import Path
+import re
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -14,6 +16,21 @@ from backend.rt.radar_payload import RADAR_JOB_ROUTE_CONTRACT
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+APP_CSS_FILES = (
+    "tokens.css", "base.css", "components.css", "shell.css",
+    "entry-map.css", "results.css", "radar.css",
+)
+
+
+def read_app_css() -> str:
+    css_root = PROJECT_ROOT / "backend" / "static" / "css"
+    return "\n".join((css_root / name).read_text(encoding="utf-8") for name in APP_CSS_FILES)
+
+
+def read_architecture_map() -> str:
+    return unescape(
+        (PROJECT_ROOT / "docs" / "openairtwin-architecture.html").read_text(encoding="utf-8")
+    )
 
 
 def test_backend_catalog_and_existing_routes_are_explicit() -> None:
@@ -99,10 +116,12 @@ def test_rt_job_features_share_generic_manager() -> None:
 
 def test_frontend_core_entry_is_catalog_driven() -> None:
     app_source = (PROJECT_ROOT / "backend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    registry_source = (PROJECT_ROOT / "backend" / "static" / "js" / "core" / "feature_registry.js").read_text(encoding="utf-8")
     scene_source = (PROJECT_ROOT / "backend" / "static" / "js" / "scene_render_state.js").read_text(encoding="utf-8")
     catalog_source = (PROJECT_ROOT / "backend" / "static" / "js" / "features" / "feature_catalog.js").read_text(encoding="utf-8")
     assert "featureRegistry.definitions()" in app_source
-    assert "featureRegistry.mountTemplates(document)" in app_source
+    assert "mountTemplates" not in app_source
+    assert "templateFragments" not in registry_source
     assert "features.definitions()" in scene_source
     for feature_id in ("link", "mobility", "radiomap", "deepmimo", "radar"):
         assert f'"{feature_id}"' not in app_source
@@ -151,11 +170,12 @@ def test_radar_rs08_frontend_uses_job_api_and_owns_its_complete_workflow() -> No
     transport_source = (radar_root / "transport.js").read_text(encoding="utf-8")
     controller_source = (PROJECT_ROOT / "backend" / "static" / "js" / "controllers" / "radar_controller.js").read_text(encoding="utf-8")
     result_source = (PROJECT_ROOT / "backend" / "static" / "js" / "ui" / "radar_result_view.js").read_text(encoding="utf-8")
+    result_component_source = (PROJECT_ROOT / "workbench" / "src" / "features" / "results" / "ResultDockContent.tsx").read_text(encoding="utf-8")
     renderer_source = (radar_root / "renderer.js").read_text(encoding="utf-8")
     charts_source = (radar_root / "charts.js").read_text(encoding="utf-8")
     colors_source = (radar_root / "colors.js").read_text(encoding="utf-8")
     viewer_source = (PROJECT_ROOT / "backend" / "static" / "js" / "viewer.js").read_text(encoding="utf-8")
-    css_source = (PROJECT_ROOT / "backend" / "static" / "css" / "app.css").read_text(encoding="utf-8")
+    css_source = read_app_css()
 
     assert "createLinkResultView" not in index_source
     assert "renderLinkResult" not in index_source + runtime_source
@@ -165,10 +185,15 @@ def test_radar_rs08_frontend_uses_job_api_and_owns_its_complete_workflow() -> No
         assert method in controller_source
     for capability in (
         "radarModeMonostatic", "btnAddRadarTarget", "btnRemoveRadarTarget", "btnPickRadarTarget",
-        "radarNumSubcarriers", "radarNumSymbols", "radarCfarEnabled", "radarRangeDopplerCanvas",
-        "radarDetectionList", "radarTruthList", "radarPathList",
+        "radarNumSubcarriers", "radarNumSymbols", "radarCfarEnabled",
     ):
         assert capability in index_source
+    for capability in (
+        "radarRangeDopplerCanvas", "radarDetectionList", "radarTruthList", "radarPathList",
+    ):
+        assert capability in result_component_source
+    assert 'resultDock: context.featureServices.resultDock' in index_source
+    assert 'resultDock.registerCommandHandler("radar"' in result_source
     assert "1048576" in controls_source
     assert "scene_generation" in controller_source
     assert "RadarTargetScene" in renderer_source
@@ -184,9 +209,11 @@ def test_radar_rs08_frontend_uses_job_api_and_owns_its_complete_workflow() -> No
     assert "radarTargetColor" in result_source
     assert "RADAR_TARGET_COLORS" in colors_source
     assert 'selected ? "#1f6fff"' not in charts_source
-    assert 'id="radarPlotLegend"' in index_source
+    assert 'id="radarPlotLegend"' in result_component_source
     assert "Color matches scene target" not in index_source
-    assert ".radarPlotLegend .clutter:before{border:1.5px solid #718299;background:transparent}" in css_source
+    assert ".radarPlotLegend .clutter:before" in css_source
+    assert "border:1.5px solid var(--radar-legend-clutter-color)" in css_source
+    assert 'style.setProperty("--radar-legend-clutter-color", RADAR_CLUTTER_COLOR)' in result_source
     assert "decluttered" not in renderer_source
     assert "flipped" not in renderer_source
     assert "subscribeFrame(updateTargetLabelPositions)" in renderer_source
@@ -215,3 +242,51 @@ def test_backend_server_dispatches_feature_routes_without_feature_url_branches()
     assert "FEATURE_ROUTES.dispatch" in server_source
     for route_prefix in ("/api/link/", "/api/mobility/", "/api/radiomap/", "/api/deepmimo/", "/api/radar/"):
         assert route_prefix not in server_source
+
+
+def test_architecture_map_documents_react_bridge_and_production_delivery() -> None:
+    source = read_architecture_map()
+    expected_contract = (
+        '<option value="delivery">Production delivery</option>',
+        'id: "app-shell", label: "React App Shell"',
+        'id: "feature-core", label: "UI Bridge + Feature Core"',
+        'id: "workbench-build"',
+        'id: "workbench-loader"',
+        'from: "workbench-build", to: "workbench-loader"',
+        'from: "workbench-loader", to: "app-shell"',
+        "workbench/src/app-shell/AppShell.tsx",
+        "workbench/src/runtime/ui-command.ts",
+        "backend/workbench.py",
+        "backend/static/js/controllers/radar_controller.js",
+        "Reviewed for OpenAirTwin 1.1.0",
+    )
+    for expected in expected_contract:
+        assert expected in source
+
+    stale_contract = (
+        "CodeGraph 1.4.1",
+        "131 files · 2,820 symbols · 8,646 edges",
+        "backend/static/js/features/radar/controller.js",
+        "Mounts templates and initializes the Feature Registry",
+        "codex-visualization",
+        "Agent-facing contract",
+        "SKILL.md",
+    )
+    for stale in stale_contract:
+        assert stale not in source
+
+
+def test_architecture_map_only_references_existing_project_files() -> None:
+    source = read_architecture_map()
+    file_blocks = re.findall(r"files:\s*\[(.*?)\]", source, re.DOTALL)
+    references = sorted(
+        {
+            match
+            for block in file_blocks
+            for match in re.findall(r'"([^"\n]+)"', block)
+        }
+    )
+
+    assert references
+    missing = [reference for reference in references if not (PROJECT_ROOT / reference).is_file()]
+    assert missing == []

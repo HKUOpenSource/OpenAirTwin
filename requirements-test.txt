@@ -4,3 +4,4 @@ numpy==2.2.6
 trimesh==4.12.2
 defusedxml==0.7.1
 pytest==8.4.2
+pip-audit==2.10.1

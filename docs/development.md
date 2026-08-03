@@ -8,9 +8,10 @@ expected when changing an existing Feature or adding a new one.
 OpenAirTwin uses a shared runtime with explicitly registered Features:
 
 ```text
-UI shell
-  -> frontend Feature catalog
-  -> Feature state / transport / controller / result view / renderer
+React App Shell
+  -> typed UI commands / observable view models
+  -> frontend Feature catalog and domain runtime
+  -> Feature state / transport / controller adapters / renderer
   -> existing REST contract
   -> backend Feature catalog and route registry
   -> Feature service
@@ -50,6 +51,136 @@ Compatibility facades such as the existing `api.js` exports, global state
 properties and legacy Viewer methods remain available for existing callers, but
 new Feature code should prefer the registry and layer interfaces.
 
+### Core workbench CSS
+
+The desktop workbench loads native CSS modules directly from `index.html` in
+this fixed order:
+
+1. `tokens.css` declares the layer order and every `--oat-*` design token.
+2. `base.css` owns reset, document defaults, the canvas and utilities.
+3. `components.css` owns reusable controls, fields, badges, metric grids, list
+   cards and scroll regions.
+4. `shell.css` owns the control/results shell, device dock, performance panel,
+   loading state and dialogs.
+5. `entry-map.css` owns the map entry experience and first-party Leaflet
+   overrides.
+6. `results.css` owns result UI shared by Link, Mobility, Radio Map and
+   DeepMIMO.
+7. `radar.css` owns only Radar-specific target editing, waveform, CFAR,
+   Range-Doppler and scene-label UI.
+
+The global Cascade Layer order is `reset, tokens, base, components, layout,
+features, utilities`. Every rule must belong to one of those layers. Do not
+change the HTML load order to resolve a specificity problem.
+
+All reusable design values use the `--oat-*` namespace. Color literals are
+allowed only in `tokens.css`; other modules consume colors through `var()`.
+Dynamic runtime properties such as `--analysis-dock-bottom-reserve`, Radar
+label scale, legend colors and chart crosshair coordinates remain component
+inputs rather than design tokens. Canvas UI chrome must use `readUiToken()`;
+Feature data palettes remain in their JavaScript domain modules.
+
+Prefer these public classes before adding a Feature-specific component:
+`oat-panel`, `oat-button` and its modifiers, `oat-field`, `oat-input`,
+`oat-check`, `oat-badge`, `oat-metric-grid`, `oat-list-card`, and
+`oat-scroll-region`. Preserve DOM IDs and Feature semantic classes because they
+are lifecycle and JavaScript hooks. Add a Feature rule only when the behavior is
+domain-specific, then place it in `results.css`, `radar.css`, or a future
+Feature module with a clearly documented owner.
+
+The core workbench is desktop-only. Its supported contract starts at
+`1280x720`; `1440x900` is the visual-regression reference. Do not add mobile
+breakpoints to these files. The tutorial website has a separate responsive
+stylesheet and test suite.
+
+The frozen UI compatibility evidence is documented in
+[`ui-regression-baseline.md`](ui-regression-baseline.md). It includes DOM, computed
+style, network and resource contracts plus full-workbench snapshots at both
+supported reference sizes. Do not regenerate these artifacts during component
+or framework work unless the contract change is explicit, reviewed and listed
+in the corresponding pull request.
+
+UI work is contract-first. Before implementing or changing a reusable
+component, read [`ui/component-contracts.md`](ui/component-contracts.md), map
+every user action to a named command in
+[`ui/interaction-contracts.md`](ui/interaction-contracts.md), and preserve the
+browser-generated [`ui/dom-compatibility-contract.json`](ui/dom-compatibility-contract.json).
+Command-style DOM and runtime inline styles are a closed allowlist documented in
+[`ui/imperative-ui-exceptions.md`](ui/imperative-ui-exceptions.md). Framework
+and component-library decisions are recorded under `docs/adr/`.
+
+The machine-readable
+[`ui/component-manifest.json`](ui/component-manifest.json), the icon rules in
+[`ui/icon-contracts.md`](ui/icon-contracts.md), and the retired Alias record in
+[`ui/legacy-aliases.md`](ui/legacy-aliases.md). New UI must use the public
+`oat-*` classes and appear in the native component catalog before it is used by
+a Feature. Start the development-only catalog separately; the production Python
+server intentionally does not expose it:
+
+```bash
+.venv/bin/python tools/serve_ui_catalog.py
+```
+
+Then open `http://127.0.0.1:8091/ui-catalog/`. The Playwright configuration
+starts this catalog automatically and verifies its public variants, states,
+accessible names, and contract-only test Feature.
+
+Production uses one React root named `app-shell`. It owns the Shell,
+Entry Map host, result and performance docks, control and device surfaces,
+Loading, Dialog and Tooltip hosts. Leaflet, Three.js and chart adapters retain
+exclusive ownership of their host internals. Install and verify the locked
+toolchain with:
+
+```bash
+cd workbench
+npm ci
+npm test
+```
+
+The development catalog command above delegates to Vite and renders Native
+and React implementations side by side. Its browser test compares 28
+representative states for element semantics, ARIA, classes and computed style,
+then proves that React controls dispatch typed Commands. The production build
+loads `backend/static/js/app.js` as its application bootstrap; the manifest and
+compiled JavaScript must contain only the `app-shell` React root; any other
+production root, Catalog source and test source are rejected.
+
+Result UI ownership is defined by `workbench/src/features/results/` and
+`workbench/src/features/deepmimo/`. Control ownership is defined by
+`workbench/src/features/controls/` and the shared controlled field in
+`workbench/src/design-system/components/ControlledField.tsx`. Result adapters
+may build ViewModels, handle Commands and draw into stable SVG/Canvas
+hosts, but must not create, replace or directly mutate React-owned rows.
+Feature runtimes may validate and apply typed control Commands, but must not
+bind click/change handlers or create control/list DOM inside the React roots.
+
+React UI code follows these ownership rules:
+
+1. Import components directly from their source file; do not add barrel files.
+2. Components receive typed Props and emit `UiCommand`; they do not call REST or
+   import mutable Feature state.
+3. Expose Feature state through `ObservableStateAdapter` and
+   `useSyncExternalStore`, with immutable snapshots between notifications.
+4. Mount production UI only once through `ReactRootRegistry` as `app-shell`;
+   register every external subscription or timer for cleanup and let unmount
+   restore focus.
+5. Keep imperative Three.js, Leaflet and Canvas engines outside React. A React
+   component may own their stable host, never their internal DOM or resources.
+6. Every production subtree has one React renderer. Do not add a parallel
+   Template, DOM factory, secondary Root or compatibility flag.
+7. Do not add production Portals for ordinary layout. A Portal requires an
+   approved floating-layer target and a documented focus/cleanup contract.
+
+When the existing DOM intentionally changes, regenerate the DOM compatibility contract
+with the real browser and review the diff; never edit the generated JSON by
+hand:
+
+```bash
+cd tests/browser
+OAT_TEST_PYTHON=.venv/bin/python OAT_UPDATE_DOM_CONTRACT=1 \
+  npx playwright test feature_modes.spec.js --grep "DOM ownership and interaction commands"
+```
+
 ### Backend
 
 Backend Features live under `backend/features/`. A Feature defines its service
@@ -80,19 +211,22 @@ dependencies, picking targets and scene output. Then:
 
 1. Create `backend/static/js/features/<feature-id>/` with state, transport,
    runtime/controller integration and renderer modules.
-2. Render into existing shell anchors without adding CSS-affecting wrapper
+2. Define the Feature View Model and named Commands, then map its UI to the
+   public component contract before writing markup.
+3. Render into existing shell anchors without adding CSS-affecting wrapper
    elements unless the UI change is intentional.
-3. Register picking targets through the shared picking registry.
-4. Render scene output through Feature-owned viewer layers and common
+4. Register picking targets through the shared picking registry.
+5. Render scene output through Feature-owned viewer layers and common
    primitives. Use a custom renderer only when the common primitives are
    insufficient.
-5. Add a backend module under `backend/features/` and declare its service,
+6. Add a backend module under `backend/features/` and declare its service,
    routes and shared resources.
-6. Use the common in-process job manager for ordinary queued work. Use a
+7. Use the common in-process job manager for ordinary queued work. Use a
    dedicated subprocess manager only when process isolation or downloadable
    artifacts require it.
-7. Add the frontend and backend definitions to their catalogs.
-8. Add protocol, lifecycle, isolation and visual regression tests.
+8. Add the frontend and backend definitions to their catalogs.
+9. Add protocol, lifecycle, isolation and visual regression tests, then update
+   the generated DOM/interaction contract.
 
 Do not access a sibling Feature's DOM, state object or viewer layer directly.
 Cross-Feature domain reuse should be exposed as an explicit capability, as

@@ -99,6 +99,27 @@ export function createRadarControls(context) {
   const {dom, state} = context;
   const radar = state.radar;
 
+  function publishControlledFields() {
+    context.featureServices.controls.updateFields(
+      Object.values(dom)
+        .filter((field) => field instanceof HTMLInputElement || field instanceof HTMLSelectElement)
+        .map((field) => ({
+          id: field.id,
+          value: field.value,
+          disabled: field.disabled,
+          ...(field instanceof HTMLInputElement
+            ? {
+              checked: field.checked,
+              readOnly: field.readOnly,
+              min: field.min,
+              max: field.max,
+              step: field.step,
+            }
+            : {}),
+        })),
+    );
+  }
+
   function assets() {
     return radar.assets.length ? radar.assets : RADAR_FALLBACK_ASSETS;
   }
@@ -109,15 +130,18 @@ export function createRadarControls(context) {
 
   function setSelectOptions(select, selectedId) {
     const oldValue = selectedId || select.value;
-    select.replaceChildren(...assets().map((asset) => {
-      const option = document.createElement("option");
-      option.value = asset.id;
-      option.textContent = radarAssetDisplayName(assets(), asset.id);
-      return option;
+    const options = assets().map((asset) => ({
+      label: radarAssetDisplayName(assets(), asset.id),
+      value: asset.id,
     }));
-    if ([...select.options].some((option) => option.value === oldValue)) {
-      select.value = oldValue;
-    }
+    const selectedValue = options.some((option) => option.value === oldValue)
+      ? oldValue
+      : options[0]?.value || "";
+    context.featureServices.controls.updateSelectOptions(
+      select.id,
+      options,
+      selectedValue,
+    );
   }
 
   function setAssets(manifest) {
@@ -159,40 +183,28 @@ export function createRadarControls(context) {
   }
 
   function syncTargetList() {
-    dom.radarTargetList.replaceChildren();
-    dom.radarTargetCount.textContent = `${radar.targets.length} / ${RADAR_MAX_TARGETS}`;
-    if (!radar.targets.length) {
-      const empty = document.createElement("p");
-      empty.className = "radarEmptyState";
-      empty.textContent = "No targets added. Choose a drone model above, then select Add Target.";
-      dom.radarTargetList.append(empty);
-      return;
-    }
-    for (const target of radar.targets) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `radarTargetCard${target.id === radar.selectedTargetId ? " selected" : ""}`;
-      button.dataset.targetId = target.id;
-      button.setAttribute("role", "option");
-      button.setAttribute("aria-selected", String(target.id === radar.selectedTargetId));
-      const name = document.createElement("strong");
-      name.textContent = radarAssetDisplayName(assets(), target.asset_id);
-      const meta = document.createElement("span");
-      const range = equivalentRadarRange(radar, target.position);
-      meta.textContent = `${radarTargetDisplayName(target.id)} · ${range === null ? "Set Tx/Rx" : `${range.toFixed(1)} m`} · ${vectorLength(target.velocity).toFixed(1)} m/s`;
-      button.append(name, meta);
-      dom.radarTargetList.append(button);
-    }
+    context.featureServices.controls.updateRadarTargets(
+      radar.targets.map((target) => {
+        const range = equivalentRadarRange(radar, target.position);
+        return {
+          id: target.id,
+          name: radarAssetDisplayName(assets(), target.asset_id),
+          meta: `${radarTargetDisplayName(target.id)} · ${range === null ? "Set Tx/Rx" : `${range.toFixed(1)} m`} · ${vectorLength(target.velocity).toFixed(1)} m/s`,
+          selected: target.id === radar.selectedTargetId,
+        };
+      }),
+      `${radar.targets.length} / ${RADAR_MAX_TARGETS}`,
+    );
   }
 
   function syncTargetEditor() {
     const target = selectedTarget(radar);
     const editorControls = [dom.radarTargetAsset, dom.radarTargetX, dom.radarTargetY, dom.radarTargetZ, dom.radarTargetRoll, dom.radarTargetPitch, dom.radarTargetYaw, dom.radarTargetSpeed, dom.radarTargetDirection, dom.radarTargetClimb, dom.radarTargetRcs, dom.btnPickRadarTarget, dom.btnFocusRadarTarget, dom.btnRemoveRadarTarget];
-    editorControls.forEach((control) => { control.disabled = !target; });
     dom.radarTargetEditor.classList.toggle("empty", !target);
     dom.radarEditorTitle.textContent = target ? radarTargetDisplayName(target.id) : "No target selected";
     dom.radarEditorAssetName.textContent = target ? radarAssetDisplayName(assets(), target.asset_id) : "Add a drone to edit";
     setSelectOptions(dom.radarTargetAsset, target?.asset_id);
+    editorControls.forEach((control) => { control.disabled = !target; });
     if (!target) {
       setVectorInputs([dom.radarTargetX, dom.radarTargetY, dom.radarTargetZ], null);
       setVectorInputs([dom.radarTargetRoll, dom.radarTargetPitch, dom.radarTargetYaw], null);
@@ -225,6 +237,13 @@ export function createRadarControls(context) {
 
   function syncInputs() {
     radar.targets.forEach(alignTargetYaw);
+    dom.radarModeHint.textContent = radar.mode === "monostatic" ? "Rx is locked to Tx for a co-located monostatic radar." : "Tx and Rx are placed independently for bistatic sensing.";
+    // Precision coordinate cards are owned by the shared Picking controller. It
+    // must remain the only authority deciding whether the active Tx or Rx card is
+    // visible; otherwise bistatic input sync exposes both cards at once.
+    dom.btnPickRadarRx.classList.toggle("hidden", radar.mode === "monostatic" || state.mode !== "radar");
+    syncTargetList();
+    syncTargetEditor();
     if (radar.tx || state.deviceControl.activeTarget !== "radar-tx") {
       setVectorInputs([dom.radarTxX, dom.radarTxY, dom.radarTxZ], radar.tx, 1);
     }
@@ -233,13 +252,6 @@ export function createRadarControls(context) {
     }
     dom.radarModeMonostatic.checked = radar.mode === "monostatic";
     dom.radarModeBistatic.checked = radar.mode === "bistatic";
-    dom.radarModeHint.textContent = radar.mode === "monostatic" ? "Rx is locked to Tx for a co-located monostatic radar." : "Tx and Rx are placed independently for bistatic sensing.";
-    // Precision coordinate cards are owned by the shared Picking controller. It
-    // must remain the only authority deciding whether the active Tx or Rx card is
-    // visible; otherwise bistatic input sync exposes both cards at once.
-    dom.btnPickRadarRx.classList.toggle("hidden", radar.mode === "monostatic" || state.mode !== "radar");
-    syncTargetList();
-    syncTargetEditor();
     const values = {
       radarCarrierFrequency: radar.waveform.carrierFrequencyGhz, radarBandwidth: radar.waveform.bandwidthMhz,
       radarNumSubcarriers: radar.waveform.numSubcarriers, radarNumSymbols: radar.waveform.numSymbols,
@@ -260,6 +272,7 @@ export function createRadarControls(context) {
     dom.radarDiffraction.checked = radar.solver.diffraction;
     dom.radarSyntheticArray.checked = radar.solver.syntheticArray;
     syncDerived();
+    publishControlledFields();
   }
 
   function readTargetEditor() {

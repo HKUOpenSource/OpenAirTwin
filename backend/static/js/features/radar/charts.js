@@ -5,6 +5,7 @@ import {
   radarTargetColor,
 } from "/js/features/radar/colors.js?v=20260722-radar-color-contract";
 import {radarTargetDisplayName} from "/js/features/radar/presentation.js?v=20260722-radar-ui-consistency";
+import {readUiToken} from "/js/ui/theme_tokens.js?v=20260730-css-architecture";
 
 const SPEED_OF_LIGHT_MPS = 299792458;
 
@@ -77,11 +78,21 @@ function heatColor(level) {
   return `rgb(${rgb.join(",")})`;
 }
 
-function drawAxes(context, width, height, margin, xExtent, yExtent, {xTitle, yTitle} = {}) {
+function canvasChrome() {
+  return {
+    background: readUiToken("--oat-canvas-background"),
+    grid: readUiToken("--oat-canvas-grid"),
+    label: readUiToken("--oat-canvas-label"),
+    title: readUiToken("--oat-canvas-title"),
+    zeroLine: readUiToken("--oat-canvas-zero-line"),
+  };
+}
+
+function drawAxes(context, width, height, margin, xExtent, yExtent, colors, {xTitle, yTitle} = {}) {
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
-  context.strokeStyle = "rgba(75,99,130,.18)";
-  context.fillStyle = "#62738a";
+  context.strokeStyle = colors.grid;
+  context.fillStyle = colors.label;
   context.font = "9px ui-monospace, SFMono-Regular, monospace";
   for (const ratio of [0, 0.5, 1]) {
     const x = margin.left + ratio * plotWidth;
@@ -93,7 +104,7 @@ function drawAxes(context, width, height, margin, xExtent, yExtent, {xTitle, yTi
     context.textAlign = "right";
     context.fillText(`${Math.round(yExtent[1] - ratio * (yExtent[1] - yExtent[0]))}`, margin.left - 5, y + 3);
   }
-  context.fillStyle = "#46556c";
+  context.fillStyle = colors.title;
   context.font = "600 10px Inter, Segoe UI, sans-serif";
   if (xTitle) {
     context.textAlign = "center";
@@ -156,6 +167,7 @@ export function drawRadarRangeDoppler({
   detections = null,
 }) {
   const {context, width, height} = prepareCanvas(canvas);
+  const chrome = canvasChrome();
   const margin = {left: 58, right: 9, top: 9, bottom: 38};
   const ranges = rangeDoppler?.equivalent_range_axis_m || [];
   const dopplers = rangeDoppler?.doppler_axis_hz || [];
@@ -172,7 +184,7 @@ export function drawRadarRangeDoppler({
   });
   const floorDbm = Number(resolvedScale.floorDbm);
   const peakDbm = Number(resolvedScale.peakDbm);
-  context.fillStyle = "#f7f9fc";
+  context.fillStyle = chrome.background;
   context.fillRect(0, 0, width, height);
   for (let row = 0; row < dopplers.length; row += 1) {
     for (let column = 0; column < ranges.length; column += 1) {
@@ -186,13 +198,13 @@ export function drawRadarRangeDoppler({
       );
     }
   }
-  drawAxes(context, width, height, margin, xExtent, yExtent, {
+  drawAxes(context, width, height, margin, xExtent, yExtent, chrome, {
     xTitle: "Equivalent Range (m)",
     yTitle: "Doppler Shift (Hz)",
   });
   if (yExtent[0] <= 0 && yExtent[1] >= 0) {
     const zeroY = margin.top + yExtent[1] / (yExtent[1] - yExtent[0]) * plotHeight;
-    context.strokeStyle = "rgba(49,82,122,.46)";
+    context.strokeStyle = chrome.zeroLine;
     context.lineWidth = 1.2;
     context.beginPath(); context.moveTo(margin.left, zeroY); context.lineTo(margin.left + plotWidth, zeroY); context.stroke();
   }
@@ -267,6 +279,7 @@ export function radarRangeDopplerHover(layout, x, y) {
 
 export function drawRadarRangeProfile({canvas, profile, maxRangeM = null}) {
   const {context, width, height} = prepareCanvas(canvas);
+  const chrome = canvasChrome();
   const margin = {left: 58, right: 9, top: 9, bottom: 38};
   const points = (profile?.equivalent_range_axis_m || []).map((rangeM, index) => ({rangeM: Number(rangeM), powerDbm: Number(profile.power_dbm?.[index])})).filter((item) => Number.isFinite(item.rangeM) && Number.isFinite(item.powerDbm) && (maxRangeM == null || item.rangeM <= maxRangeM));
   const ranges = points.map((item) => item.rangeM);
@@ -277,8 +290,8 @@ export function drawRadarRangeProfile({canvas, profile, maxRangeM = null}) {
   if (yExtent[0] === yExtent[1]) yExtent[1] += 1;
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
-  context.fillStyle = "#f7f9fc"; context.fillRect(0, 0, width, height);
-  drawAxes(context, width, height, margin, xExtent, yExtent, {
+  context.fillStyle = chrome.background; context.fillRect(0, 0, width, height);
+  drawAxes(context, width, height, margin, xExtent, yExtent, chrome, {
     xTitle: "Equivalent Range (m)",
     yTitle: "Power (dBm)",
   });

@@ -1,0 +1,384 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import react from "@vitejs/plugin-react";
+import { defineConfig, type Plugin } from "vite";
+
+import { CORE_STYLE_ORDER, PRODUCTION_BASE } from "./src/toolchain-contract.ts";
+
+const workbenchRoot = fileURLToPath(new URL(".", import.meta.url));
+const projectRoot = resolve(workbenchRoot, "..");
+const legacyRoot = resolve(projectRoot, "backend/static");
+const legacyJavaScriptRoot = resolve(legacyRoot, "js");
+const outputRoot = resolve(legacyRoot, "workbench");
+const toolsRoot = resolve(projectRoot, "tools");
+const catalogRoot = resolve(toolsRoot, "ui-catalog");
+const catalogIndexPath = resolve(catalogRoot, "index.html");
+const catalogStylePath = resolve(catalogRoot, "catalog.css");
+const LEGACY_PUBLIC_MODULE_SPECIFIERS = [
+  "/js/app.js",
+  "/js/app_state.js?v=20260723-radar-shared-groups",
+  "/js/controllers/app_dialog_controller.js?v=20260604-app-dialog",
+  "/js/controllers/scene_loader_controller.js?v=20260519-mode-isolation",
+  "/js/core/feature_registry.js",
+  "/js/dom_refs.js?v=20260519-mode-isolation",
+  "/js/features/radar/charts.js",
+  "/js/features/radar/charts.js?v=20260722-radar-color-contract",
+  "/js/features/radar/colors.js?v=20260722-radar-color-contract",
+  "/js/features/radar/presentation.js?v=20260722-radar-ui-consistency",
+  "/js/features/radar/target_scene.js",
+  "/js/viewer.js",
+  "/js/viewer/asset_manager.js",
+  "/js/viewer/layer_manager.js",
+] as const;
+
+function toPosixPath(value: string): string {
+  return value.split(sep).join("/");
+}
+
+function collectJavaScriptFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const absolutePath = resolve(directory, entry.name);
+    if (entry.isDirectory()) return collectJavaScriptFiles(absolutePath);
+    if (
+      !entry.isFile() ||
+      !entry.name.endsWith(".js") ||
+      entry.name === "radar-demo.js"
+    )
+      return [];
+    return [absolutePath];
+  });
+}
+
+const legacyJavaScriptFiles = collectJavaScriptFiles(legacyJavaScriptRoot);
+const rollupInputs: Record<string, string> = {
+  index: resolve(legacyRoot, "index.html"),
+  "js/app": resolve(legacyJavaScriptRoot, "app.js"),
+};
+for (const absolutePath of legacyJavaScriptFiles) {
+  const entryName = toPosixPath(relative(legacyRoot, absolutePath)).replace(
+    /\.js$/,
+    "",
+  );
+  rollupInputs[entryName] = absolutePath;
+}
+for (const stylesheet of CORE_STYLE_ORDER) {
+  rollupInputs[`css/${stylesheet.replace(/\.css$/, "")}`] = resolve(
+    legacyRoot,
+    "css",
+    stylesheet,
+  );
+}
+
+function collectLegacySpecifiers(): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  for (const specifier of LEGACY_PUBLIC_MODULE_SPECIFIERS) {
+    const pathname = specifier.split("?", 1)[0];
+    if (!pathname) continue;
+    const aliases = result.get(pathname) ?? new Set<string>();
+    aliases.add(specifier);
+    result.set(pathname, aliases);
+  }
+  return result;
+}
+
+function stripLegacyModuleVersionQueries(source: string): string {
+  return source.replace(/(["']\/js\/[^"'?]+\.js)\?[^"']+(["'])/g, "$1$2");
+}
+
+const PRODUCTION_FEATURE_IDS = [
+  "link",
+  "mobility",
+  "radiomap",
+  "deepmimo",
+  "radar",
+] as const;
+
+function isFeatureModule(id: string, featureId: string): boolean {
+  const source = toPosixPath(id.split("?", 1)[0] ?? id);
+  return (
+    source.includes(`/js/features/${featureId}/`) ||
+    source.endsWith(`/js/controllers/${featureId}_controller.js`) ||
+    source.endsWith(`/js/ui/${featureId}_result_view.js`)
+  );
+}
+
+function isApplicationModule(id: string): boolean {
+  const source = toPosixPath(id.split("?", 1)[0] ?? id);
+  return (
+    source.startsWith(`${toPosixPath(legacyJavaScriptRoot)}/`) ||
+    source.startsWith(`${toPosixPath(resolve(workbenchRoot, "src"))}/`)
+  );
+}
+
+function isViewerModule(id: string): boolean {
+  const source = toPosixPath(id.split("?", 1)[0] ?? id);
+  const viewerRoot = toPosixPath(resolve(legacyJavaScriptRoot, "viewer"));
+  const libraryRoot = toPosixPath(resolve(legacyRoot, "lib"));
+  return (
+    source === toPosixPath(resolve(legacyJavaScriptRoot, "viewer.js")) ||
+    source.startsWith(`${viewerRoot}/`) ||
+    new RegExp(
+      `^${libraryRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/(?:GLBGeometryLoader|PLYLoader|Line2|LineGeometry|LineMaterial|LineSegments2)\\.js$`,
+    ).test(source)
+  );
+}
+
+function normalizeLegacyModuleIdsPlugin(): Plugin {
+  return {
+    name: "openairtwin-normalize-legacy-module-ids",
+    enforce: "pre",
+    transformIndexHtml(html) {
+      return stripLegacyModuleVersionQueries(html);
+    },
+    transform(code, id) {
+      const sourcePath = id.split("?", 1)[0];
+      if (
+        !sourcePath ||
+        !sourcePath.startsWith(`${legacyJavaScriptRoot}${sep}`) ||
+        !sourcePath.endsWith(".js")
+      ) {
+        return null;
+      }
+      const normalized = stripLegacyModuleVersionQueries(code);
+      return normalized === code ? null : { code: normalized, map: null };
+    },
+    resolveId(source) {
+      if (!source.startsWith("/js/") || !source.includes("?")) return null;
+      const sourcePath = source.slice(1).split("?", 1)[0];
+      if (!sourcePath) return null;
+      return resolve(legacyRoot, sourcePath);
+    },
+  };
+}
+
+function developmentCatalogPlugin(): Plugin {
+  return {
+    name: "openairtwin-development-ui-catalog",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const pathname = new URL(request.url ?? "/", "http://127.0.0.1")
+          .pathname;
+        if (pathname === "/ui-catalog") {
+          response.statusCode = 302;
+          response.setHeader("Location", "/ui-catalog/");
+          response.end();
+          return;
+        }
+        if (pathname.startsWith("/css/")) {
+          const stylesheet = pathname.slice("/css/".length);
+          if (CORE_STYLE_ORDER.some((candidate) => candidate === stylesheet)) {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "text/css; charset=utf-8");
+            response.setHeader("Cache-Control", "no-store");
+            response.end(
+              readFileSync(resolve(legacyRoot, "css", stylesheet), "utf8"),
+            );
+            return;
+          }
+        }
+        if (pathname === "/ui-catalog/catalog.css") {
+          response.statusCode = 200;
+          response.setHeader("Content-Type", "text/css; charset=utf-8");
+          response.setHeader("Cache-Control", "no-store");
+          response.end(readFileSync(catalogStylePath, "utf8"));
+          return;
+        }
+        if (pathname !== "/ui-catalog/") {
+          next();
+          return;
+        }
+        void server
+          .transformIndexHtml(pathname, readFileSync(catalogIndexPath, "utf8"))
+          .then((html) => {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "text/html; charset=utf-8");
+            response.setHeader("Cache-Control", "no-store");
+            response.end(html);
+          })
+          .catch((error: unknown) => {
+            next(error instanceof Error ? error : new Error(String(error)));
+          });
+      });
+    },
+  };
+}
+
+function productionImportMapPlugin(): Plugin {
+  const aliasesByPath = collectLegacySpecifiers();
+  const appSourcePath = resolve(legacyJavaScriptRoot, "app.js");
+  return {
+    name: "openairtwin-production-import-map",
+    enforce: "post",
+    generateBundle(_options, bundle) {
+      const imports: Record<string, string> = {};
+      for (const output of Object.values(bundle)) {
+        if (output.type !== "chunk" || !output.facadeModuleId) continue;
+        const sourcePath = toPosixPath(
+          relative(legacyRoot, output.facadeModuleId),
+        );
+        if (!sourcePath.startsWith("js/")) continue;
+        const pathname = `/${sourcePath}`;
+        for (const alias of aliasesByPath.get(pathname) ?? []) {
+          imports[alias] = `${PRODUCTION_BASE}${output.fileName}`;
+        }
+      }
+
+      const index = bundle["index.html"];
+      if (
+        !index ||
+        index.type !== "asset" ||
+        typeof index.source !== "string"
+      ) {
+        this.error("Vite did not emit the production index.html asset");
+        return;
+      }
+      const appOutput = Object.values(bundle).find(
+        (candidate) =>
+          candidate.type === "chunk" &&
+          candidate.facadeModuleId === appSourcePath,
+      );
+      if (!appOutput || appOutput.type !== "chunk") {
+        this.error("Vite did not emit the production app.js entry");
+        return;
+      }
+      const importMap = JSON.stringify({
+        imports: Object.fromEntries(Object.entries(imports).sort()),
+      }).replaceAll("<", "\\u003c");
+      let indexSource = index.source;
+      for (const stylesheet of CORE_STYLE_ORDER) {
+        const output = Object.values(bundle).find(
+          (candidate) =>
+            candidate.type === "asset" &&
+            candidate.fileName.startsWith(
+              `assets/css/${stylesheet.replace(/\.css$/, "")}-`,
+            ) &&
+            candidate.fileName.endsWith(".css"),
+        );
+        if (!output) {
+          this.error(`Vite did not emit the ${stylesheet} stylesheet entry`);
+          return;
+        }
+        indexSource = indexSource.replace(
+          new RegExp(`href="/css/${stylesheet.replace(".", "\\.")}\\?[^"]*"`),
+          `href="${PRODUCTION_BASE}${output.fileName}"`,
+        );
+      }
+      const watchdogTag = `<script>(()=>{let ready=false;let timer;const cleanup=()=>{ready=true;clearTimeout(timer);window.removeEventListener("error",onError,true);window.removeEventListener("unhandledrejection",onRejection)};const render=()=>{if(ready||document.getElementById("oatBootstrapError"))return;ready=true;clearTimeout(timer);const panel=document.createElement("section");panel.id="oatBootstrapError";panel.className="oat-panel oat-bootstrap-error";panel.setAttribute("role","alert");const header=document.createElement("div");header.className="oat-panel__header";const title=document.createElement("strong");title.className="oat-panel__title";title.textContent="OpenAirTwin could not start";const badge=document.createElement("span");badge.className="oat-badge oat-badge--error";badge.textContent="Error";header.append(title,badge);const message=document.createElement("p");message.className="oat-bootstrap-error__message";message.textContent="A required application resource failed to load. Check the connection and reload the workbench.";const reload=document.createElement("button");reload.type="button";reload.className="oat-button oat-button--primary";reload.textContent="Reload";reload.addEventListener("click",()=>window.location.reload());panel.append(header,message,reload);document.body.replaceChildren(panel)};const onError=(event)=>{const target=event.target;if(target&&((target.src||"").includes("/workbench/")||(target.href||"").includes("/workbench/")))render()};const onRejection=(event)=>{const message=String(event.reason?.message||event.reason||"");if(/(?:chunk|module|import|load)/i.test(message))render()};window.addEventListener("openairtwin:ui-ready",cleanup,{once:true});window.addEventListener("error",onError,true);window.addEventListener("unhandledrejection",onRejection);timer=window.setTimeout(render,15000)})();</script>`;
+      const importMapTag = `<script type="importmap">${importMap}</script>`;
+      const appScriptTag = `<script type="module" crossorigin src="${PRODUCTION_BASE}${appOutput.fileName}"></script>`;
+      indexSource = indexSource.replace(
+        /\s*<script type="module"[^>]*><\/script>/g,
+        "",
+      );
+      const firstPreload = indexSource.indexOf('<link rel="modulepreload"');
+      if (firstPreload < 0) {
+        this.error("Vite did not emit module preloads for the application");
+        return;
+      }
+      index.source = `${indexSource.slice(0, firstPreload)}${watchdogTag}\n  ${importMapTag}\n  ${appScriptTag}\n    ${indexSource.slice(firstPreload)}`;
+    },
+  };
+}
+
+export default defineConfig({
+  root: legacyRoot,
+  base: PRODUCTION_BASE,
+  publicDir: false,
+  plugins: [
+    normalizeLegacyModuleIdsPlugin(),
+    react(),
+    developmentCatalogPlugin(),
+    productionImportMapPlugin(),
+  ],
+  resolve: {
+    alias: [
+      {
+        find: "/@oat-catalog",
+        replacement: resolve(workbenchRoot, "src/catalog"),
+      },
+      {
+        find: "/@oat",
+        replacement: resolve(workbenchRoot, "src"),
+      },
+      {
+        find: "react",
+        replacement: resolve(workbenchRoot, "node_modules/react"),
+      },
+      {
+        find: "react-dom",
+        replacement: resolve(workbenchRoot, "node_modules/react-dom"),
+      },
+      { find: "/js", replacement: resolve(legacyRoot, "js") },
+      { find: "/css", replacement: resolve(legacyRoot, "css") },
+      { find: "/lib", replacement: resolve(legacyRoot, "lib") },
+    ],
+  },
+  server: {
+    host: process.env.OAT_UI_CATALOG_HOST ?? "127.0.0.1",
+    port: Number.parseInt(process.env.OAT_UI_CATALOG_PORT ?? "5173", 10),
+    strictPort: true,
+    fs: {
+      strict: true,
+      allow: [legacyRoot, workbenchRoot, toolsRoot],
+    },
+    proxy: {
+      "/api": {
+        target: process.env.OAT_API_ORIGIN ?? "http://127.0.0.1:8090",
+        changeOrigin: false,
+      },
+    },
+  },
+  build: {
+    outDir: outputRoot,
+    emptyOutDir: true,
+    manifest: true,
+    sourcemap: false,
+    cssCodeSplit: true,
+    cssMinify: false,
+    modulePreload: { polyfill: false },
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      preserveEntrySignatures: "allow-extension",
+      input: rollupInputs,
+      output: {
+        strictExecutionOrder: true,
+        codeSplitting: {
+          includeDependenciesRecursively: false,
+          groups: [
+            {
+              name: "react-runtime",
+              test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/,
+              priority: 20,
+            },
+            {
+              name: "three-runtime",
+              test: /[\\/]lib[\\/](?:three\.module|OrbitControls)\.js(?:\?|$)/,
+              priority: 20,
+            },
+            {
+              name: "viewer-runtime",
+              test: isViewerModule,
+              priority: 15,
+            },
+            ...PRODUCTION_FEATURE_IDS.map((featureId) => ({
+              name: `feature-${featureId}`,
+              test: (id: string) => isFeatureModule(id, featureId),
+              priority: 10,
+            })),
+            {
+              name: "app-core",
+              test: isApplicationModule,
+              priority: 0,
+            },
+          ],
+        },
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/chunks/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+      },
+    },
+  },
+});

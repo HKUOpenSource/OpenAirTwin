@@ -5,8 +5,19 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-01
+
 ### Added
 
+- Added a production React and TypeScript Workbench with explicit component,
+  DOM compatibility, state ownership and styling contracts.
+- Added deterministic Workbench identity and integrity manifests, immutable
+  hashed assets, startup failure recovery and a complete application archive
+  containing all tracked project source plus a prebuilt Workbench, so installation
+  and normal operation do not require Node.js.
+- Added English-only repository and package gates, deterministic size budgets,
+  dependency and license auditing, third-party notices, CycloneDX SBOM output,
+  clean-install smoke tests, accessibility checks and lifecycle soak coverage.
 - Added a complete Radar Sensing workflow with monostatic and bistatic Tx/Rx,
   a four-model 3D drone target picker, editable target motion and orientation,
   OFDM waveform controls, CA-CFAR detection and a dedicated propagation solver.
@@ -22,6 +33,14 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ### Changed
 
+- Migrated the application shell, Entry Map, controls, forms, device workflows
+  and repeated result views to standardized React components while preserving
+  desktop geometry, DOM IDs, REST APIs and Feature lifecycle behavior.
+- Hardened JSON requests with explicit timeout, cancellation, offline and server
+  error states while preventing stale generations from replacing current data.
+- Standardized release-facing text, documentation, metadata and CI output in
+  English and fixed the release toolchain at Node.js 22.13.0, npm 11.9.0 and
+  Python 3.11.
 - Replaced the 20 legacy MP4/WebVTT tutorial pairs with nine manually reviewed
   4064x2144 PNG interface states and restored the original Features → Tutorial
   → Installation page flow.
@@ -30,6 +49,10 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ### Fixed
 
+- Prevented a selected Link path detail card from leaking into another
+  Feature's result dock.
+- Restored the complete active Feature controls after returning to the Entry
+  Map, changing the tile selection and loading the scene again.
 - Restored persisted DeepMIMO jobs across server restarts, enforced TTL and
   storage limits for historical job directories, and hardened server shutdown
   so active DeepMIMO workers are terminated and reaped.
@@ -70,5 +93,6 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 - Existing global state, API exports and Viewer methods remain available as
   compatibility facades.
 
-[Unreleased]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.0.0

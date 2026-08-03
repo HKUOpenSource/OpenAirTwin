@@ -10,7 +10,8 @@
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-green"></a>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-blue">
   <img alt="Sionna RT" src="https://img.shields.io/badge/Sionna_RT-2.0.1-brightgreen">
-  <img alt="WebGL" src="https://img.shields.io/badge/frontend-WebGL-4b8bbe">
+  <img alt="React 19" src="https://img.shields.io/badge/React-19.2.8-61DAFB?logo=react&logoColor=black">
+  <img alt="WebGL rendering" src="https://img.shields.io/badge/rendering-WebGL-4b8bbe">
   <a href="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/ci.yml/badge.svg"></a>
 </p>
 
@@ -87,7 +88,8 @@ installation. For tutorials, use the
 - [Development guide](docs/development.md): repository structure, tests,
   architectural boundaries and the process for adding a Feature.
 - [Changelog](CHANGELOG.md) and [release checklist](docs/release-checklist.md):
-  the v1.0.0 release record and the maintainer publication sequence.
+  the v1.1.0 release record, production gates and maintainer
+  publication sequence.
 - [Scene data and third-party terms](docs/data-licenses.md): Open3Dhk/CSDI data
   responsibilities, bundled sample-scene attribution and Radar drone-model
   licensing.
@@ -267,6 +269,7 @@ registration, REST contracts, viewer layers or shared settings.
 |-- docs/                  # Architecture and contributor documentation
 |-- tests/                 # Python unit, contract and regression tests
 |   `-- browser/           # Playwright behavior and visual baselines
+|-- workbench/             # React/TypeScript production Workbench source
 |-- website/               # React/Vite tutorial website
 |-- CHANGELOG.md           # Release history and pending user-visible changes
 |-- CITATION.cff           # Machine-readable software citation metadata
@@ -302,8 +305,8 @@ relevant Python and Playwright suites before submitting a change.
 If OpenAirTwin contributes to your work, cite the version used. For this
 release:
 
-> Wang, Z., Zhou, Z., & Zhao, Z. (2026). OpenAirTwin (Version 1.0.0)
-> [Computer software]. https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.0.0
+> Wang, Z., Zhou, Z., & Zhao, Z. (2026). OpenAirTwin (Version 1.1.0)
+> [Computer software]. https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.1.0
 
 Machine-readable citation metadata is available in [`CITATION.cff`](CITATION.cff).
 

@@ -1,6 +1,7 @@
 export function createLinkState() {
   return {
     generation: 0,
+    failureKind: null,
     tx: null,
     txVisual: null,
     rx: null,

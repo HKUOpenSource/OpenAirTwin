@@ -33,6 +33,27 @@ export function createSolverControlsController(context) {
     scene().renderAll();
   }
 
+  function publishControlledFields(fieldRefs) {
+    context.featureServices.controls.updateFields(
+      fieldRefs
+        .filter((field) => field instanceof HTMLInputElement || field instanceof HTMLSelectElement)
+        .map((field) => ({
+          id: field.id,
+          value: field.value,
+          disabled: field.disabled,
+          ...(field instanceof HTMLInputElement
+            ? {
+              checked: field.checked,
+              readOnly: field.readOnly,
+              min: field.min,
+              max: field.max,
+              step: field.step,
+            }
+            : {}),
+        })),
+    );
+  }
+
   function featureMethod(method) {
     const activeCandidate = context.features.instance(state.mode)?.[method];
     if (typeof activeCandidate === "function") {
@@ -83,14 +104,11 @@ function populateSelect(select, values, selectedValue) {
   if (!options.includes(selected)) {
     options.unshift(selected);
   }
-  select.replaceChildren();
-  for (const value of options) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = value;
-    option.selected = value === selected;
-    select.appendChild(option);
-  }
+  context.featureServices.controls.updateSelectOptions(
+    select.id,
+    options.map((value) => ({label: value, value})),
+    selected,
+  );
 }
 
 function applyAntennaArrayLimits(kind, limits = {}) {
@@ -109,12 +127,18 @@ function applyAntennaArrayLimits(kind, limits = {}) {
   refs.horizontalSpacing.max = String(horizontalLimits.max ?? 10);
 }
 
-function syncAntennaArrayInputs() {
+function syncAntennaArrayInputs({publish = true} = {}) {
   const fixedForDeepMimo = context.features.get(state.mode)?.sharedControlPolicy?.antenna === "fixed";
   for (const [kind, config] of [["tx", state.antenna.txArray], ["rx", state.antenna.rxArray]]) {
     const refs = antennaInputs(kind);
     writeAntennaArrayInputs(refs, fixedForDeepMimo ? DEEPMIMO_FIXED_ANTENNA_ARRAY : config);
     setAntennaInputsDisabled(refs, fixedForDeepMimo);
+  }
+  if (publish) {
+    publishControlledFields([
+      ...Object.values(antennaInputs("tx")),
+      ...Object.values(antennaInputs("rx")),
+    ]);
   }
 }
 
@@ -189,7 +213,7 @@ function syncDerivedChannelInputs() {
     : "";
 }
 
-function syncLinkAdvancedInputs() {
+function syncLinkAdvancedInputs({publish = true} = {}) {
   const advanced = state.link.advanced;
   inputs.linkBandwidthMhz.value = String(advanced.bandwidthMhz);
   inputs.linkSamplesPerSrc.value = String(advanced.samplesPerSrc);
@@ -209,6 +233,23 @@ function syncLinkAdvancedInputs() {
     inputs.linkTapLMax,
   ]) {
     input.disabled = !advanced.computeTaps;
+  }
+  if (publish) {
+    publishControlledFields([
+      inputs.linkBandwidthMhz,
+      inputs.linkSamplesPerSrc,
+      inputs.linkMaxNumPaths,
+      inputs.linkSyntheticArray,
+      inputs.linkDiffraction,
+      inputs.linkEdgeDiffraction,
+      inputs.linkDiffractionLitRegion,
+      inputs.linkComputeTaps,
+      inputs.linkTapLMin,
+      inputs.linkTapLMax,
+      inputs.linkTapFftSize,
+      inputs.linkTapSubcarrierSpacing,
+      inputs.linkSubcarrierSpacingKhz,
+    ]);
   }
 }
 
@@ -303,41 +344,14 @@ function deleteMobilityWaypoint(index = state.mobility.selectedWaypointIndex) {
 }
 
 function renderMobilityWaypoints() {
-  ui.mobilityWaypointList.innerHTML = "";
   normalizeMobilityWaypointSelection();
-  if (!state.mobility.trajectory.points.length) {
-    const empty = document.createElement("div");
-    empty.className = "waypointEmpty";
-    empty.textContent = "No Rx waypoints yet";
-    ui.mobilityWaypointList.appendChild(empty);
-    return;
-  }
-  state.mobility.trajectory.points.forEach((point, index) => {
-    const item = document.createElement("div");
-    item.className = "waypointItem";
-    item.classList.toggle("active", index === state.mobility.selectedWaypointIndex);
-    item.addEventListener("click", () => {
-      state.mobility.selectedWaypointIndex = index;
-      renderAll();
-    });
-    const badge = document.createElement("span");
-    badge.className = "waypointIndex";
-    badge.textContent = String(index + 1);
-    const coord = document.createElement("span");
-    coord.className = "waypointCoord";
-    coord.textContent = `[${formatCoord(point)}]`;
-    const remove = document.createElement("button");
-    remove.className = "waypointRemove";
-    remove.type = "button";
-    remove.textContent = "×";
-    remove.setAttribute("aria-label", `Remove waypoint ${index + 1}`);
-    remove.addEventListener("click", (event) => {
-      event.stopPropagation();
-      deleteMobilityWaypoint(index);
-    });
-    item.append(badge, coord, remove);
-    ui.mobilityWaypointList.appendChild(item);
-  });
+  context.featureServices.controls.updateMobilityWaypoints(
+    state.mobility.trajectory.points.map((point, index) => ({
+      index,
+      coordinate: formatCoord(point),
+      selected: index === state.mobility.selectedWaypointIndex,
+    })),
+  );
 }
 
 function renderMobilityTrajectoryPreview() {
@@ -357,6 +371,7 @@ function syncMobilityInputs() {
   inputs.mobilityVelocity.value = String(state.mobility.trajectory.velocityMps);
   inputs.mobilityTimeStep.value = String(state.mobility.trajectory.timeStepS);
   inputs.mobilityMaxSteps.value = String(state.mobility.trajectory.maxSteps);
+  publishControlledFields(Object.values(inputs));
   renderMobilityWaypoints();
   const estimate = mobilityEstimate();
   ui.mobilityEstimate.textContent = Number.isFinite(estimate.duration)
@@ -411,11 +426,12 @@ function syncNumericInputs() {
   inputs.deepMimoFilterBuildings.checked = Boolean(dmGrid.filterBuildings);
   inputs.deepMimoSamplesPerSrc.value = String(dmSolver.samplesPerSrc);
   inputs.deepMimoMaxPaths.value = String(dmSolver.maxNumPathsPerSrc);
-  syncAntennaArrayInputs();
-  syncLinkAdvancedInputs();
+  syncAntennaArrayInputs({publish: false});
+  syncLinkAdvancedInputs({publish: false});
   syncLivePreviewInputs();
   syncMobilityInputs();
   context.features.instance(state.mode)?.syncInputs?.();
+  publishControlledFields(Object.values(inputs));
 }
 
 
@@ -640,54 +656,6 @@ function clearLivePreviewStatus() {
   syncLivePreviewStatusUi();
 }
 
-function renderLinkChannel(channel) {
-  callFeature("renderLinkChannel", channel);
-}
-
-function renderLinkResult() {
-  callFeature("renderLinkResult");
-}
-
-function clearPathSelection() {
-  callFeature("clearPathSelection");
-}
-
-function hidePathDetails() {
-  callFeature("hidePathDetails");
-}
-
-function renderPathDetails(paths, selectedIndex) {
-  callFeature("renderPathDetails", paths, selectedIndex);
-}
-
-function renderPathSelection(paths, selectedIndex, onSelect, summary = null) {
-  callFeature("renderPathSelection", paths, selectedIndex, onSelect, summary);
-}
-
-function scrollSelectedPathDetailsIntoView() {
-  callFeature("scrollSelectedPathDetailsIntoView");
-}
-
-function stopMobilityPlayback() {
-  callFeature("stopMobilityPlayback");
-}
-
-function selectMobilityStep(index) {
-  callFeature("selectMobilityStep", index);
-}
-
-function startMobilityPlayback() {
-  callFeature("startMobilityPlayback");
-}
-
-function renderMobilityResult() {
-  callFeature("renderMobilityResult");
-}
-
-function renderRadiomapResult() {
-  callFeature("renderRadiomapResult");
-}
-
 function deepMimoRoiBounds() {
   const cornerA = state.deepmimo.roi.cornerA;
   const cornerB = state.deepmimo.roi.cornerB;
@@ -770,10 +738,6 @@ function renderDeepMimoState() {
 
 function addDeepMimoDataset(job) {
   callFeature("addDeepMimoDataset", job);
-}
-
-function renderDeepMimoDatasetTray() {
-  callFeature("renderDeepMimoDatasetTray");
 }
 
 function setDeepMimoRoiCorner(position) {
@@ -928,21 +892,12 @@ function applyPick(pick, targetId = state.pickTarget) {
     setLivePreviewStatus,
     clearLivePreviewStatus,
     syncLivePreviewStatusUi,
-    renderLinkChannel,
-    clearPathSelection,
-    hidePathDetails,
-    renderPathDetails,
-    renderPathSelection,
-    scrollSelectedPathDetailsIntoView,
     readMobilityInputs,
     mobilityEstimate,
-    renderMobilityResult,
     renderMobilityTrajectoryPreview,
-    stopMobilityPlayback,
     readRadiomapInputs,
     radiomapJobPayload,
     radiomapColorRange,
-    renderRadiomapResult,
     deepMimoRoiBounds,
     deepMimoReceiverEstimate,
     deepMimoPayload,
@@ -975,12 +930,8 @@ function applyPick(pick, targetId = state.pickTarget) {
     invalidateDeepMimoResult,
     readDeepMimoInputs,
     rerenderRadiomapOverlay,
-    renderLinkResult,
-    renderMobilityResult,
     renderMobilityTrajectoryPreview,
-    renderRadiomapResult,
     renderDeepMimoState,
-    renderDeepMimoDatasetTray,
     runLinkSolve,
     runMobility,
     runRadiomap,
@@ -993,9 +944,6 @@ function applyPick(pick, targetId = state.pickTarget) {
     addCurrentRxWaypoint,
     deleteMobilityWaypoint,
     resetMobilityTrajectoryFromRx,
-    selectMobilityStep,
-    startMobilityPlayback,
-    stopMobilityPlayback,
     cancelLivePreview,
     handleLivePreviewDeviceUpdate,
     applyPick,

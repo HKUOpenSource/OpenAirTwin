@@ -20,7 +20,18 @@ export function createDeepMimoDatasetView({
   deepMimoRoiBounds,
   deepMimoReceiverEstimate,
   deepMimoDownloadUrl,
+  closeModeMenu,
+  datasetModel,
 }) {
+  datasetModel.setToggleHandler(() => {
+    closeModeMenu();
+    if (state.deepmimo.datasets.length === 0) {
+      return;
+    }
+    state.deepmimo.datasetTrayOpen = !state.deepmimo.datasetTrayOpen;
+    renderDeepMimoDatasetTray();
+  });
+
   function addDeepMimoDataset(job) {
     const jobId = String(job.job_id || job.jobId || "");
     if (!jobId) {
@@ -44,46 +55,21 @@ export function createDeepMimoDatasetView({
 
   function renderDeepMimoDatasetTray() {
     const datasets = state.deepmimo.datasets;
-    const hasDatasets = datasets.length > 0;
-    const visible = state.mode === "deepmimo" && hasDatasets;
+    const visible = state.mode === "deepmimo" && datasets.length > 0;
     if (!visible) {
       state.deepmimo.datasetTrayOpen = false;
     }
-    const expanded = visible && state.deepmimo.datasetTrayOpen;
-
-    ui.deepMimoDatasetTray.classList.toggle("hidden", !visible);
-    ui.deepMimoDatasetTray.setAttribute("aria-hidden", String(!visible));
-    ui.deepMimoDatasetTray.classList.toggle("open", expanded);
-    ui.deepMimoDatasetToggle.setAttribute("aria-expanded", String(expanded));
-    ui.deepMimoDatasetCount.textContent = String(datasets.length);
-    ui.deepMimoDatasetPanel.classList.toggle("hidden", !expanded);
-    ui.deepMimoDatasetPanel.setAttribute("aria-hidden", String(!expanded));
-
-    ui.deepMimoDatasetList.replaceChildren(...datasets.map((dataset) => {
-      const item = document.createElement("div");
-      item.className = "deepMimoDatasetItem";
-
-      const meta = document.createElement("div");
-      meta.className = "deepMimoDatasetMeta";
-
-      const name = document.createElement("div");
-      name.className = "deepMimoDatasetName";
-      name.textContent = dataset.scenarioName;
-
-      const detail = document.createElement("div");
-      detail.className = "deepMimoDatasetDetail";
-      detail.textContent = `Job ${shortDeepMimoJobId(dataset.jobId)} · ${formatDeepMimoDatasetTime(dataset.readyAt)}`;
-
-      const link = document.createElement("a");
-      link.className = "deepMimoDatasetDownload";
-      link.href = dataset.downloadUrl;
-      link.download = dataset.archiveName;
-      link.textContent = "Download";
-
-      meta.append(name, detail);
-      item.append(meta, link);
-      return item;
-    }));
+    datasetModel.update({
+      visible,
+      expanded: visible && state.deepmimo.datasetTrayOpen,
+      datasets: datasets.map((dataset) => ({
+        jobId: dataset.jobId,
+        scenarioName: dataset.scenarioName,
+        detail: `Job ${shortDeepMimoJobId(dataset.jobId)} · ${formatDeepMimoDatasetTime(dataset.readyAt)}`,
+        archiveName: dataset.archiveName,
+        downloadUrl: dataset.downloadUrl,
+      })),
+    });
   }
 
   function renderDeepMimoState() {
@@ -102,6 +88,9 @@ export function createDeepMimoDatasetView({
 
   return {
     addDeepMimoDataset,
+    dispose() {
+      datasetModel.setToggleHandler(null);
+    },
     renderDeepMimoDatasetTray,
     renderDeepMimoState,
   };

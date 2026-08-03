@@ -15,14 +15,27 @@ __pycache__/
 /venv/
 /website/node_modules/
 /website/dist/
+/node_modules/
+/dist/release/
+/dist/audit/
+/workbench/node_modules/
+/backend/static/.vite/
+/backend/static/workbench/
 /tests/browser/node_modules/
 /tests/browser/test-results/
 /tests/browser/playwright-report/
+/.audit/
+/audit-results/
+/browser-report/
+/screenshots/
+/traces/
+/.cache/
 *.tsbuildinfo
 
 # Local Radar development records
 /docs/radar-sensing-development-plan.md
 /docs/radar-small-target-validation.md
+/docs/ui-component-system-react-migration-plan.md
 
 # Local Radar sensing demo
 /backend/static/radar-demo.html

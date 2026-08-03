@@ -1,6 +1,7 @@
 export function createRadarState() {
   return {
     generation: 0,
+    failureKind: null,
     mode: "bistatic",
     tx: null,
     txVisual: null,

@@ -227,7 +227,7 @@ export function createSceneLoaderController(context, {
       await ensureViewer();
       await loadScene();
       state.entry.sceneReady = true;
-      state.mode = "link";
+      context.features.activate("link", context);
       state.pickTarget = null;
       ui.panel.style.display = "flex";
       state.panelCollapsed = false;

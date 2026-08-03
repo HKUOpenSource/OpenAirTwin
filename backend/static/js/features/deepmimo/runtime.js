@@ -13,50 +13,53 @@ export function createDeepMimoFeature(context) {
   }
 
   function attachEvents() {
-    ui.deepMimoDatasetToggle.addEventListener("click", (event) => {
-      event.stopPropagation();
-      context.utilities.closeModeMenu();
-      if (state.deepmimo.datasets.length === 0) {
-        return;
-      }
-      state.deepmimo.datasetTrayOpen = !state.deepmimo.datasetTrayOpen;
-      resultView.renderDeepMimoDatasetTray();
-    });
-    ui.deepMimoDatasetTray.addEventListener("click", (event) => event.stopPropagation());
-    ui.btnRunDeepMimo.addEventListener("click", () => {
-      picking().clearActiveDevice({render: false});
-      solver().cancelLivePreview();
-      ui.btnRunDeepMimo.disabled = true;
-      ui.btnRunDeepMimo.classList.add("busy");
-      ui.btnRunDeepMimo.setAttribute("aria-busy", "true");
-      controller.runDeepMimo().catch((error) => context.utilities.showErrorDialog("DeepMIMO Export Failed", error)).finally(() => {
-        ui.btnRunDeepMimo.disabled = false;
-        ui.btnRunDeepMimo.classList.remove("busy");
-        ui.btnRunDeepMimo.removeAttribute("aria-busy");
-        scene().renderAll();
-      });
-    });
-    ui.btnDeepMimoPickTx.addEventListener("click", () => picking().openDevicePrecision("deepmimo-tx"));
-    ui.btnDeepMimoPickRoi.addEventListener("click", () => context.featureServices.picking.toggleTarget("deepmimo-roi"));
-    ui.btnDeepMimoClearRoi.addEventListener("click", () => context.featureServices.picking.clearTarget("deepmimo-roi"));
-    for (const input of [
-      inputs.deepMimoTxX, inputs.deepMimoTxY, inputs.deepMimoTxZ, inputs.deepMimoScenarioName,
-      inputs.deepMimoRoiCenterX, inputs.deepMimoRoiCenterY, inputs.deepMimoRoiWidth,
-      inputs.deepMimoRoiLength, inputs.deepMimoGridSpacing, inputs.deepMimoRxHeight,
-      inputs.deepMimoMaxReceivers, inputs.deepMimoChunkSize, inputs.deepMimoSamplesPerSrc,
-      inputs.deepMimoMaxPaths, inputs.deepMimoFilterBuildings,
-    ]) {
-      input.addEventListener("change", () => {
-        solver().readDeepMimoInputs();
-        controller.invalidateDeepMimoResult();
-        resultView.renderDeepMimoState();
-        scene().renderAll();
-      });
+    // DeepMIMO form and device actions are owned by the React control surface.
+  }
+
+  const fieldIds = new Set([
+    "deepMimoTxX", "deepMimoTxY", "deepMimoTxZ", "deepMimoScenarioName",
+    "deepMimoRoiCenterX", "deepMimoRoiCenterY", "deepMimoRoiWidth",
+    "deepMimoRoiLength", "deepMimoGridSpacing", "deepMimoRxHeight",
+    "deepMimoMaxReceivers", "deepMimoChunkSize", "deepMimoSamplesPerSrc",
+    "deepMimoMaxPaths", "deepMimoFilterBuildings",
+  ]);
+
+  function handleControlCommit(controlId) {
+    if (!fieldIds.has(controlId)) return false;
+    solver().readDeepMimoInputs();
+    controller.invalidateDeepMimoResult();
+    resultView.renderDeepMimoState();
+    scene().renderAll();
+    return true;
+  }
+
+  function handleControlAction(actionId) {
+    if (actionId === "btnDeepMimoPickTx") {
+      picking().openDevicePrecision("deepmimo-tx");
+      return true;
     }
+    if (actionId === "btnDeepMimoPickRoi") {
+      context.featureServices.picking.toggleTarget("deepmimo-roi");
+      return true;
+    }
+    if (actionId === "btnDeepMimoClearRoi") {
+      context.featureServices.picking.clearTarget("deepmimo-roi");
+      return true;
+    }
+    if (actionId !== "btnRunDeepMimo") return false;
+    return context.utilities.runSolveFromDock(
+      "btnRunDeepMimo",
+      () => controller.runDeepMimo(),
+    ).catch((error) => context.utilities.showErrorDialog(
+      "DeepMIMO Export Failed",
+      error,
+    )).then(() => true);
   }
 
   return {
     attachEvents,
+    handleControlAction,
+    handleControlCommit,
     applyPick(pick, target) {
       if (target.role === "roi") {
         const position = Array.isArray(pick.surfacePosition) ? pick.surfacePosition : pick.logicalPosition;
@@ -110,6 +113,9 @@ export function createDeepMimoFeature(context) {
     },
     render() {
       resultView.renderDeepMimoState();
+    },
+    dispose() {
+      resultView.dispose();
     },
   };
 }

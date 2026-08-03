@@ -61,7 +61,7 @@ export function createSceneRenderStateController(context) {
       viewerRef.modulePromise = import("/js/viewer.js?v=20260722-radar-screen-labels");
     }
     const {Viewer} = await viewerRef.modulePromise;
-    const realViewer = new Viewer(document.getElementById("view"));
+    const realViewer = new Viewer(ui.view);
     realViewer.__ready = true;
     viewerRef.current = realViewer;
     applyPerformanceSettingsToViewer();
@@ -97,9 +97,14 @@ function hideOverlay(owner = null, force = false) {
   return loadingOverlay.hideOverlay(owner, force);
 }
 
+function cancelOverlay() {
+  return loadingOverlay.cancel();
+}
+
 const tileSelectionView = createTileSelectionView({
   state,
   ui,
+  shellUi: context.featureServices.shellUi,
   getViewer,
   syncEntryOverviewUi,
 });
@@ -165,6 +170,13 @@ function syncControlSidebarUi() {
 function syncModeUi() {
   const definitions = features.definitions();
   const featureUiRef = (definition, ref) => features.uiRef(definition.id, ref, ui);
+  const requiredFeatureUiRef = (definition, ref) => {
+    const value = features.uiRef(definition.id, ref, ui);
+    if (value == null) {
+      throw new Error(`Missing UI ref "${ref}" for feature "${definition.id}"`);
+    }
+    return value;
+  };
   const activeFeature = features.get(state.mode) || definitions[0];
   const activeUi = activeFeature.ui || {};
   const activeTargetIds = new Set(picking.targetsFor(activeFeature.id).map((target) => target.id));
@@ -188,10 +200,10 @@ function syncModeUi() {
 
   for (const definition of definitions) {
     const active = definition.id === activeFeature.id;
-    const button = featureUiRef(definition, definition.ui.tabRef);
+    const button = requiredFeatureUiRef(definition, definition.ui.tabRef);
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
-    featureUiRef(definition, definition.ui.panelRef).classList.toggle("hidden", !active);
+    requiredFeatureUiRef(definition, definition.ui.panelRef).classList.toggle("hidden", !active);
   }
   ui.modeSelectTitle.textContent = `Mode (${activeFeature.title})`;
 
@@ -231,24 +243,24 @@ function syncModeUi() {
     const isActive = definition.id === activeFeature.id;
     for (const target of picking.targetsFor(definition.id)) {
       if (target.cardRef) {
-        featureUiRef(definition, target.cardRef).classList.toggle("hidden", nextActiveTarget !== target.id);
+        requiredFeatureUiRef(definition, target.cardRef).classList.toggle("hidden", nextActiveTarget !== target.id);
       }
       if (target.buttonRef) {
-        const button = featureUiRef(definition, target.buttonRef);
+        const button = requiredFeatureUiRef(definition, target.buttonRef);
         button.classList.toggle("hidden", !isActive);
         button.classList.toggle("active", nextActiveTarget === target.id);
         button.classList.toggle("picking", state.pickTarget === target.id);
       }
     }
     for (const ref of definition.ui.extraActionButtonRefs || []) {
-      featureUiRef(definition, ref).classList.toggle("hidden", !isActive);
+      requiredFeatureUiRef(definition, ref).classList.toggle("hidden", !isActive);
     }
-    featureUiRef(definition, definition.ui.runButtonRef).classList.toggle("hidden", !isActive);
+    requiredFeatureUiRef(definition, definition.ui.runButtonRef).classList.toggle("hidden", !isActive);
   }
   ui.linkSurfaceClearanceField.classList.toggle("hidden", !activeTargetMeta?.clearance);
 
   for (const definition of definitions) {
-    const button = featureUiRef(definition, definition.ui.runButtonRef);
+    const button = requiredFeatureUiRef(definition, definition.ui.runButtonRef);
     const requirement = features.instance(definition.id)?.runRequirementMessage?.() || "";
     const busy = button.getAttribute("aria-busy") === "true";
     const tileBlocked = Boolean(definition.ui.disableDuringTileLoad && state.tileLoadBusy);
@@ -282,6 +294,7 @@ function renderAll() {
   syncPerformanceUi();
   syncResultDockUi();
   features.render(context);
+  context.featureServices.controls?.syncFromAdapters(state.mode);
 }
 
 async function waitForRtSceneSelection(generation, tileIds) {
@@ -309,6 +322,7 @@ async function loadScene() {
 
   return {
     setProgress,
+    cancelOverlay,
     showOverlay,
     hideOverlay,
     ensureViewer,
@@ -326,5 +340,8 @@ async function loadScene() {
     toggleTileChecked,
     enterScene,
     loadScene,
+    dispose() {
+      loadingOverlay.dispose();
+    },
   };
 }

@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 6,
+  "cssOwner": "backend/static/css/components.css",
+  "catalog": "tools/ui-catalog/index.html",
+  "productionOwner": "react",
+  "reactProductionBoundaries": [
+    "app-shell"
+  ],
+  "reactCatalogEntry": "workbench/src/catalog/main.tsx",
+  "components": [
+    {
+      "name": "Panel",
+      "reactSource": "workbench/src/design-system/components/Panel.tsx",
+      "classes": ["oat-panel", "oat-panel__header", "oat-panel__title"],
+      "variants": ["default"],
+      "states": ["hidden"]
+    },
+    {
+      "name": "Button",
+      "reactSource": "workbench/src/design-system/components/Button.tsx",
+      "classes": ["oat-button", "oat-button-group"],
+      "variants": ["default", "primary", "compact", "icon", "danger", "block", "toolbar"],
+      "states": ["hover", "focus-visible", "active", "pressed", "disabled", "busy"]
+    },
+    {
+      "name": "Field",
+      "reactSource": "workbench/src/design-system/components/Field.tsx",
+      "controlledReactSource": "workbench/src/design-system/components/ControlledField.tsx",
+      "classes": ["oat-field", "oat-input"],
+      "variants": ["default", "compact"],
+      "states": ["hover", "focus-visible", "disabled", "invalid", "read-only"]
+    },
+    {
+      "name": "Checkbox",
+      "reactSource": "workbench/src/design-system/components/Selection.tsx",
+      "classes": ["oat-check"],
+      "variants": ["default"],
+      "states": ["checked", "focus-visible", "disabled"]
+    },
+    {
+      "name": "Badge",
+      "reactSource": "workbench/src/design-system/components/DataDisplay.tsx",
+      "classes": ["oat-badge"],
+      "variants": ["neutral", "success", "warning", "error", "busy"],
+      "states": ["default"]
+    },
+    {
+      "name": "MetricGrid",
+      "reactSource": "workbench/src/design-system/components/DataDisplay.tsx",
+      "classes": ["oat-metric-grid"],
+      "variants": ["default"],
+      "states": ["default"]
+    },
+    {
+      "name": "ListCard",
+      "reactSource": "workbench/src/design-system/components/DataDisplay.tsx",
+      "classes": ["oat-list-card"],
+      "variants": ["default", "interactive"],
+      "states": ["hover", "focus-visible", "selected"]
+    },
+    {
+      "name": "EmptyState",
+      "reactSource": "workbench/src/design-system/components/DataDisplay.tsx",
+      "classes": ["oat-empty-state"],
+      "variants": ["default"],
+      "states": ["empty"]
+    },
+    {
+      "name": "Filter",
+      "reactSource": "workbench/src/design-system/components/ResultData.tsx",
+      "classes": ["oat-input", "oat-input--compact"],
+      "variants": ["compact"],
+      "states": ["default", "disabled"]
+    },
+    {
+      "name": "ChartFrame",
+      "reactSource": "workbench/src/design-system/components/ResultData.tsx",
+      "classes": ["oat-chart-frame"],
+      "variants": ["svg-host", "canvas-host"],
+      "states": ["empty", "populated"]
+    },
+    {
+      "name": "ScrollRegion",
+      "reactSource": "workbench/src/design-system/components/Panel.tsx",
+      "classes": ["oat-scroll-region"],
+      "variants": ["default"],
+      "states": ["overflow"]
+    },
+    {
+      "name": "Icon",
+      "reactSource": "workbench/src/design-system/components/Icon.tsx",
+      "classes": ["oat-icon"],
+      "variants": ["xs", "sm", "md", "base", "lg", "xl", "2xl"],
+      "states": ["decorative", "named-control"]
+    }
+  ]
+}

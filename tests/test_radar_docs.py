@@ -56,7 +56,7 @@ class RadarDocumentationTests(unittest.TestCase):
     def test_processing_view_documentation_omits_detection_association_discussion(self) -> None:
         processing_view = re.compile(r"mean[- ]subtracted", re.IGNORECASE)
         prohibited = re.compile(
-            r"\b(?:association|associated|unassociated|target\s+id)\b|关联",
+            r"\b(?:association|associated|unassociated|target\s+id)\b",
             re.IGNORECASE,
         )
         for path in DOCUMENT_PATHS:

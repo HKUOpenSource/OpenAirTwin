@@ -144,19 +144,32 @@ export function createAppDialogController(context) {
     });
   }
 
-  ui.appDialogPrimary.addEventListener("click", confirmActiveDialog);
-  ui.appDialogSecondary.addEventListener("click", () => finishDialog(false));
-  ui.appDialogClose.addEventListener("click", cancelActiveDialog);
   document.addEventListener("keydown", handleGlobalKeydown, true);
   document.addEventListener("focusin", handleFocusIn, true);
   hideDialog();
 
   return {
+    cancelActiveDialog,
+    confirmActiveDialog,
+    finishDialog,
     alert(options) {
       return enqueueDialog(normalizeOptions("alert", options)).then(() => {});
     },
     confirm(options) {
       return enqueueDialog(normalizeOptions("confirm", options)).then(Boolean);
+    },
+    dispose() {
+      document.removeEventListener("keydown", handleGlobalKeydown, true);
+      document.removeEventListener("focusin", handleFocusIn, true);
+      if (activeRequest) {
+        const request = activeRequest;
+        activeRequest = null;
+        request.resolve(request.type === "confirm" ? false : undefined);
+      }
+      for (const request of queue.splice(0)) {
+        request.resolve(request.type === "confirm" ? false : undefined);
+      }
+      hideDialog();
     },
   };
 }

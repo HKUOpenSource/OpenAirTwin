@@ -1,0 +1,40 @@
+@layer reset {
+* {
+  box-sizing:border-box;
+}
+
+html,body {
+  margin:0;
+  height:100%;
+  overflow:hidden;
+  font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;
+  background:radial-gradient(1200px 700px at 80% -10%, var(--oat-color-dbe4f4) 0%, transparent 45%),linear-gradient(180deg,var(--oat-surface-canvas-raised),var(--oat-surface-canvas));
+  color:var(--oat-text-primary);
+}
+}
+
+@layer base {
+#view {
+  width:100vw;
+  height:100vh;
+  display:block;
+}
+
+.shell {
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+}
+}
+
+@layer utilities {
+.hidden {
+  display:none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entrySidebarStack,#ui,.entrySidebarToggle,#panelToggle,.performanceDock,.performanceDockBody,.performanceDockChevron,.channelAnalysisDock,.channelAnalysisScroll,.channelAnalysisChevron,.quickIconBtn {
+    transition:none;
+  }
+}
+}

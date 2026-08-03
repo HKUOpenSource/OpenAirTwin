@@ -28,14 +28,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Node.js
+      - name: Setup Node.js 22.13.0
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 22.13.0
           cache: npm
           cache-dependency-path: |
             website/package-lock.json
             tests/browser/package-lock.json
+
+      - name: Setup npm 11.9.0
+        run: npm install --global npm@11.9.0
 
       - name: Install dependencies
         run: npm ci

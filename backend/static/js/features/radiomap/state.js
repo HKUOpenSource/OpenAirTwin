@@ -1,6 +1,7 @@
 export function createRadiomapState() {
   return {
     generation: 0,
+    failureKind: null,
     tx: null,
     txVisual: null,
     surfaceClearanceM: 1.5,

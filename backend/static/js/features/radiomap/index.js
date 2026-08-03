@@ -14,7 +14,7 @@ function createResultView(context) {
     getViewer: shared.getViewer,
     radiomapColorRange: shared.radiomapColorRange,
     syncLivePreviewStatusUi: shared.syncLivePreviewStatusUi,
-    hidePathDetails: shared.hidePathDetails,
+    resultDock: context.featureServices.resultDock,
   });
 }
 

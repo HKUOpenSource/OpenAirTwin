@@ -11,6 +11,7 @@ function createResultView(context) {
     state: context.state,
     ui: context.ui,
     getViewer: context.featureServices.solver.getViewer,
+    resultDock: context.featureServices.resultDock,
   });
   context.featureServices.pathResults = resultView;
   return resultView;

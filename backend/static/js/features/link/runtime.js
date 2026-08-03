@@ -16,74 +16,80 @@ export function createLinkFeature(context) {
   }
 
   function attachEvents() {
-    ui.btnSolveLink.addEventListener("click", () => context.utilities.runSolveFromDock(
-      ui.btnSolveLink,
-      () => controller.runLinkSolve(),
-    ).catch((error) => {
-      scene().hideOverlay(null, true);
-      return context.utilities.showErrorDialog("Link Solve Failed", error);
-    }));
-    ui.btnPickLinkTx.addEventListener("click", () => picking().openDevicePrecision("link-tx"));
-    ui.btnPickLinkRx.addEventListener("click", () => picking().openDevicePrecision("link-rx"));
+    // Link controls are owned by the React control surface. This lifecycle hook
+    // remains for symmetry with features that still attach imperative engines.
+  }
 
-    for (const [input, target] of [
-      [inputs.linkTxX, "link-tx"], [inputs.linkTxY, "link-tx"], [inputs.linkTxZ, "link-tx"],
-      [inputs.linkRxX, "link-rx"], [inputs.linkRxY, "link-rx"], [inputs.linkRxZ, "link-rx"],
-    ]) {
-      input.addEventListener("change", () => {
-        if (state.mode === "radar") {
-          return;
-        }
-        solver().readLinkInputs();
-        settings.publish("link-device");
-        picking().refreshPickStatus("link");
-        controller.handleLivePreviewDeviceUpdate(target, "change");
-        scene().renderAll();
-      });
+  const deviceTargets = new Map([
+    ["linkTxX", "link-tx"], ["linkTxY", "link-tx"], ["linkTxZ", "link-tx"],
+    ["linkRxX", "link-rx"], ["linkRxY", "link-rx"], ["linkRxZ", "link-rx"],
+  ]);
+  const channelIds = new Set([
+    "linkSamplesPerSrc", "linkMaxNumPaths", "linkBandwidthMhz",
+    "linkSyntheticArray", "linkDiffraction", "linkEdgeDiffraction",
+    "linkDiffractionLitRegion", "linkComputeTaps", "linkTapLMin",
+    "linkTapLMax", "linkTapFftSize",
+  ]);
+  const livePreviewIds = new Set([
+    "livePreviewEnabled", "livePreviewLinkSamples", "livePreviewPathsDelay",
+  ]);
+
+  function handleControlCommit(controlId) {
+    if (state.mode === "radar") return false;
+    const target = deviceTargets.get(controlId);
+    if (target) {
+      solver().readLinkInputs();
+      settings.publish("link-device");
+      picking().refreshPickStatus("link");
+      controller.handleLivePreviewDeviceUpdate(target, "change");
+      scene().renderAll();
+      return true;
     }
-
-    for (const input of [
-      inputs.linkSamplesPerSrc, inputs.linkMaxNumPaths, inputs.linkBandwidthMhz,
-      inputs.linkSyntheticArray, inputs.linkDiffraction, inputs.linkEdgeDiffraction,
-      inputs.linkDiffractionLitRegion, inputs.linkComputeTaps, inputs.linkTapLMin,
-      inputs.linkTapLMax, inputs.linkTapFftSize,
-    ]) {
-      input.addEventListener("change", () => {
-        if (state.mode === "radar") {
-          return;
-        }
-        solver().readLinkInputs();
-        settings.publish("link-channel");
-        scene().renderAll();
-      });
+    if (channelIds.has(controlId)) {
+      solver().readLinkInputs();
+      settings.publish("link-channel");
+      scene().renderAll();
+      return true;
     }
-
-    for (const input of [inputs.livePreviewEnabled, inputs.livePreviewLinkSamples, inputs.livePreviewPathsDelay]) {
-      input.addEventListener("change", () => {
-        if (state.mode === "radar") {
-          return;
-        }
-        solver().readLivePreviewInputs();
-        if (!state.livePreview.enabled) {
-          controller.cancelLivePreview();
-        }
-        scene().renderAll();
-      });
+    if (livePreviewIds.has(controlId)) {
+      solver().readLivePreviewInputs();
+      if (!state.livePreview.enabled) controller.cancelLivePreview();
+      scene().renderAll();
+      return true;
     }
-
-    inputs.linkSurfaceClearance.addEventListener("change", () => {
-      if (state.mode === "radar") {
-        return;
-      }
+    if (controlId === "linkSurfaceClearance") {
       const scope = context.picking.get(state.deviceControl.activeTarget)?.scope || "link";
       solver().readSurfaceClearanceInput(scope);
       settings.publish("surface-clearance");
       scene().renderAll();
-    });
+      return true;
+    }
+    return false;
+  }
+
+  function handleControlAction(actionId) {
+    if (actionId === "btnPickLinkTx") {
+      picking().openDevicePrecision("link-tx");
+      return true;
+    }
+    if (actionId === "btnPickLinkRx") {
+      picking().openDevicePrecision("link-rx");
+      return true;
+    }
+    if (actionId !== "btnSolveLink") return false;
+    return context.utilities.runSolveFromDock(
+      "btnSolveLink",
+      () => controller.runLinkSolve(),
+    ).catch((error) => {
+      scene().hideOverlay(null, true);
+      return context.utilities.showErrorDialog("Link Solve Failed", error);
+    }).then(() => true);
   }
 
   return {
     attachEvents,
+    handleControlAction,
+    handleControlCommit,
     applyPick(pick, target) {
       const position = shared.pickPositionWithSurfaceClearance(pick, target.scope);
       shared.setLogicalAndVisual(state.link, target.role, position);
@@ -104,6 +110,9 @@ export function createLinkFeature(context) {
     },
     render() {
       resultView.renderLinkResult();
+    },
+    dispose() {
+      resultView.dispose();
     },
   };
 }

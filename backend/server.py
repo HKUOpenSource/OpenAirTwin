@@ -36,6 +36,12 @@ from backend.scene.tile_scene_xml import (
     ensure_scene_layout,
 )
 from backend.scene.xml_catalog import SceneManifest, load_scene_manifest
+from backend.workbench import (
+    HASHED_ASSET_PATTERN,
+    WorkbenchBuildError,
+    configured_workbench_root,
+    load_workbench_build,
+)
 
 
 def resolve_under(root: Path, relative_path: str | Path) -> Path | None:
@@ -182,13 +188,23 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def send_file(self, file_path: Path, *, content_type: str = "application/octet-stream") -> None:
+    def send_file(
+        self,
+        file_path: Path,
+        *,
+        content_type: str = "application/octet-stream",
+        cache_control: str = "no-store",
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
         with open(file_path, "rb") as handle:
             size = os.fstat(handle.fileno()).st_size
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(size))
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control", cache_control)
+            self.send_header("X-Content-Type-Options", "nosniff")
+            for name, value in (extra_headers or {}).items():
+                self.send_header(name, value)
             self.end_headers()
             remaining = size
             while remaining > 0:
@@ -397,6 +413,38 @@ class RequestHandler(BaseHTTPRequestHandler):
         content_type, _ = mimetypes.guess_type(str(file_path))
         self.send_file(file_path, content_type=content_type or "application/octet-stream")
 
+    def serve_workbench_index(self) -> None:
+        try:
+            build = load_workbench_build()
+        except WorkbenchBuildError:
+            if config.REQUIRE_WORKBENCH_BUILD:
+                self.send_text("Production workbench build unavailable", code=503)
+                return
+            self.serve_static_file("index.html")
+            return
+        self.send_file(
+            build.index_path,
+            content_type="text/html; charset=utf-8",
+            extra_headers={"X-OpenAirTwin-Frontend-Build-ID": build.build_id},
+        )
+
+    def serve_workbench_asset(self, relative_path: str) -> None:
+        asset_root = configured_workbench_root() / "assets"
+        decoded_path = unquote(relative_path)
+        if not HASHED_ASSET_PATTERN.search(decoded_path):
+            self.send_text("Not Found", code=404)
+            return
+        file_path = resolve_under(asset_root, decoded_path)
+        if file_path is None or not file_path.is_file():
+            self.send_text("Not Found", code=404)
+            return
+        content_type, _ = mimetypes.guess_type(str(file_path))
+        self.send_file(
+            file_path,
+            content_type=content_type or "application/octet-stream",
+            cache_control="public, max-age=31536000, immutable",
+        )
+
     def serve_mesh(self, mesh_id: str) -> None:
         mesh = self.app_state.manifest_lookup.get(mesh_id)
         if mesh is None:
@@ -444,7 +492,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def _dispatch_get(self, path: str) -> None:
         if path in ("/", "/index.html"):
-            self.serve_static_file("index.html")
+            self.serve_workbench_index()
             return
 
         if path in ("/radar-demo", "/radar-demo.html"):
@@ -453,6 +501,10 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         if path.startswith("/assets/"):
             self.serve_static_file(path.removeprefix("/"))
+            return
+
+        if path.startswith("/workbench/assets/"):
+            self.serve_workbench_asset(path.removeprefix("/workbench/assets/"))
             return
         if path.startswith("/lib/"):
             self.serve_static_file(path.removeprefix("/"))
@@ -579,6 +631,8 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    if config.REQUIRE_WORKBENCH_BUILD:
+        load_workbench_build()
     app_state = AppState()
     server = None
     try:
@@ -589,6 +643,10 @@ def main() -> None:
         print(f"Scene root: {config.SCENE_ROOT}")
         print(f"Scene source: {config.SCENE_ROOT / COMMON_SCENE_RELATIVE_PATH} + {config.SCENE_ROOT / TILE_SCENE_RELATIVE_DIR}")
         print(f"Mesh root: {config.MESH_ROOT}")
+        try:
+            print(f"Workbench build: {load_workbench_build().root}")
+        except WorkbenchBuildError:
+            print(f"Workbench source fallback: {config.STATIC_ROOT / 'index.html'}")
         server.serve_forever()
     except KeyboardInterrupt:
         pass

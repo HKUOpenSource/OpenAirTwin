@@ -40,6 +40,8 @@ export function isDeepMimoDeviceTarget(target) {
 export function createDevicePickingController(context) {
   const {features, picking, state, ui, viewerRef} = context;
   let pickTapCandidate = null;
+  let pointerView = null;
+  let pointerEventsAttached = false;
 
   const solverControls = () => context.controllers.solver;
   const sceneRenderState = () => context.controllers.scene;
@@ -248,7 +250,7 @@ export function createDevicePickingController(context) {
 
   function releaseViewPointerCapture(pointerId) {
     try {
-      document.getElementById("view").releasePointerCapture(pointerId);
+      pointerView?.releasePointerCapture(pointerId);
     } catch {}
   }
 
@@ -346,14 +348,32 @@ export function createDevicePickingController(context) {
   }
 
   function attachPointerEvents(view) {
+    if (pointerEventsAttached) return;
+    pointerEventsAttached = true;
+    pointerView = view;
     view.addEventListener("pointerdown", handlePickPointerDown, {capture: true});
     window.addEventListener("pointermove", handlePickPointerMove, {capture: true});
     window.addEventListener("pointerup", handlePickPointerUp, {capture: true});
     window.addEventListener("pointercancel", clearPickTapCandidate);
     window.addEventListener("blur", clearPickTapCandidate);
-    window.addEventListener("hku-tx-orbit-change", () => {
-      sceneRenderState().renderAll();
-    });
+    window.addEventListener("hku-tx-orbit-change", handleTxOrbitChange);
+  }
+
+  function handleTxOrbitChange() {
+    sceneRenderState().renderAll();
+  }
+
+  function dispose() {
+    if (!pointerEventsAttached) return;
+    pointerEventsAttached = false;
+    pointerView?.removeEventListener("pointerdown", handlePickPointerDown, {capture: true});
+    window.removeEventListener("pointermove", handlePickPointerMove, {capture: true});
+    window.removeEventListener("pointerup", handlePickPointerUp, {capture: true});
+    window.removeEventListener("pointercancel", clearPickTapCandidate);
+    window.removeEventListener("blur", clearPickTapCandidate);
+    window.removeEventListener("hku-tx-orbit-change", handleTxOrbitChange);
+    pointerView = null;
+    clearPickTapCandidate();
   }
 
   context.featureServices.picking = Object.freeze({
@@ -363,6 +383,7 @@ export function createDevicePickingController(context) {
 
   return {
     attachPointerEvents,
+    dispose,
     clearActiveDevice,
     clearPickTapCandidate,
     closeDevicePrecision,
