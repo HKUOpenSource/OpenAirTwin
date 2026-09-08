@@ -283,6 +283,10 @@ const applicationJavaScript = javascriptFiles.filter(
 const basemapJavaScript = javascriptFiles.filter(isBasemapOutput);
 if (basemapJavaScript.length !== 1)
   fail("missing isolated vector basemap runtime");
+if (/[\u0080-\uffff]/.test(readFileSync(basemapJavaScript[0], "utf8")))
+  fail(
+    "vector basemap Unicode tables must use ASCII escapes for release packaging",
+  );
 const initialOutputs = new Set();
 collectInitialOutputs("js/app.js", manifest, new Set(), initialOutputs);
 if ([...initialOutputs].some(isBasemapOutput))

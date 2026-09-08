@@ -58,6 +58,8 @@ remains owned by Leaflet; the vector renderer owns only its tile-pane canvas.
 `entry-basemap.style.ts` applies the local light palette and label hierarchy
 through MapLibre's style transform before the first render, preserving provider
 sources, attribution and multilingual names.
+The build serializes the vendor basemap chunk with ASCII escapes for its Unicode
+tables, preserving multilingual rendering while satisfying the release text gate.
 Style, resource or WebGL failures and a 15-second startup timeout use the local
 overview image. The build verifies that the basemap runtime stays outside the
 initial module graph, with separate 300 KiB JavaScript and 12 KiB CSS gzip
