@@ -5,6 +5,14 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the entry map's unauthenticated CARTO raster tiles with OpenFreeMap
+  Positron vector tiles. No API key is required; Leaflet tile selection and the
+  local fallback map are retained.
+- Applied a custom light basemap palette with smaller gray-blue place labels,
+  regular typography and fewer minor labels at overview zoom levels.
+
 ## [1.1.0] - 2026-08-01
 
 ### Added

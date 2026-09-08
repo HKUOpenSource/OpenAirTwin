@@ -296,6 +296,10 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: /^leaflet$/,
+        replacement: resolve(workbenchRoot, "src/runtime/leaflet-runtime.ts"),
+      },
+      {
         find: "/@oat-catalog",
         replacement: resolve(workbenchRoot, "src/catalog"),
       },
@@ -348,6 +352,11 @@ export default defineConfig({
         codeSplitting: {
           includeDependenciesRecursively: false,
           groups: [
+            {
+              name: "basemap-runtime",
+              test: /(?:node_modules[\\/](?:maplibre-gl|@maplibre)[\\/]|src[\\/]runtime[\\/](?:entry-basemap|leaflet-runtime)\.)/,
+              priority: 25,
+            },
             {
               name: "react-runtime",
               test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/,

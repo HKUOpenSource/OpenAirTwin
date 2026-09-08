@@ -386,8 +386,8 @@
   backdrop-filter:blur(5px);
 }
 
-.entryMapScene .leaflet-tile {
-  filter:saturate(.86) contrast(.95) brightness(1.03);
+.entryMapScene .leaflet-gl-layer {
+  pointer-events:none;
 }
 
 .entryGridCanvasLayer {

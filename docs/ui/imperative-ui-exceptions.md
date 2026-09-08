@@ -7,6 +7,7 @@ The machine-readable registry is [imperative-ui-exceptions.json](imperative-ui-e
 | Category | Owner | Rationale | Lifecycle or removal condition |
 | --- | --- | --- | --- |
 | Leaflet Entry Map | `shell:entry-map` | Leaflet must manage panes, markers, tooltips, and the map host imperatively | React owns only the host; map adapter disposal performs cleanup |
+| OpenFreeMap vector basemap | `shell:entry-map`, `workbench/src/runtime/entry-basemap.ts` | The MapLibre Leaflet adapter owns the canvas inside Leaflet's tile pane; both engines share the existing Leaflet instance | Layer removal releases the renderer and event handlers, including partial WebGL startup; remove this adapter when replacing the basemap engine |
 | Three.js Viewer and picking | `shell:viewer` | WebGL canvas, controls, pointer capture, and the scene graph are imperative engines | React owns only the stable canvas host; Viewer disposal performs cleanup |
 | Canvas and SVG charts | Each feature | Pixel drawing, crosshairs, and tooltip coordinates are calculated from live chart layout | Chart adapter disposal; React retains a stable controlled host for the adapter lifecycle |
 | Radar 3D labels and connectors | `feature:radar` | Label projection, occlusion, scaling, color, and connector lines change every frame | Feature deactivate/dispose removes the layer and frame listener |

@@ -1,6 +1,6 @@
 import {
-  CARTO_LIGHT_ATTRIBUTION,
-  CARTO_LIGHT_URL,
+  ENTRY_BASEMAP_ATTRIBUTION,
+  ENTRY_BASEMAP_STYLE,
   ENTRY_MAP_GRID,
   ENTRY_MAP_IMAGE,
   ENTRY_MAP_INITIAL_ZOOM,
@@ -358,6 +358,8 @@ function enableEntryMapFallback(reason = "tile unavailable") {
     return;
   }
   entryMap.fallbackEnabled = true;
+  window.clearTimeout(entryMap.fallbackTimer);
+  entryMap.fallbackTimer = null;
   if (entryMap.tileLayer && entryMap.map.hasLayer(entryMap.tileLayer)) {
     entryMap.map.removeLayer(entryMap.tileLayer);
   }
@@ -627,28 +629,6 @@ function ensureEntryMap() {
   entryMap.tileLayerGroup = window.L.featureGroup().addTo(entryMap.map);
   bindEntryTileLayerEvents(entryMap.tileLayerGroup);
 
-  entryMap.tileLayer = window.L.tileLayer(CARTO_LIGHT_URL, {
-    attribution: CARTO_LIGHT_ATTRIBUTION,
-    subdomains: "abcd",
-    maxZoom: 19,
-    detectRetina: true,
-    crossOrigin: true,
-    className: "entryCartoTileLayer",
-  });
-  entryMap.tileLayer.on("tileload", () => {
-    entryMap.tilesLoaded += 1;
-    if (entryMap.fallbackTimer) {
-      window.clearTimeout(entryMap.fallbackTimer);
-      entryMap.fallbackTimer = null;
-    }
-  });
-  entryMap.tileLayer.on("tileerror", () => enableEntryMapFallback("online tile error"));
-  entryMap.tileLayer.addTo(entryMap.map);
-  entryMap.fallbackTimer = window.setTimeout(() => {
-    if (entryMap.tilesLoaded === 0) {
-      enableEntryMapFallback("online tile timeout");
-    }
-  }, 4000);
   entryMap.fallbackLayer = window.L.imageOverlay(
     ENTRY_MAP_IMAGE.path,
     latLngBoundsFromHk(entryFallbackImageBounds()),
@@ -658,6 +638,30 @@ function ensureEntryMap() {
       opacity: 1,
     },
   );
+
+  entryMap.fallbackTimer = window.setTimeout(() => {
+    if (!entryMap.basemapReady) {
+      enableEntryMapFallback("online basemap timeout");
+    }
+  }, 15000);
+  import("/@oat/runtime/entry-basemap.ts").then(({createEntryBasemap}) => {
+    if (entryMap.fallbackEnabled) return;
+    entryMap.tileLayer = createEntryBasemap(entryMap.map, {
+      style: ENTRY_BASEMAP_STYLE,
+      attribution: ENTRY_BASEMAP_ATTRIBUTION,
+      onReady: () => {
+        entryMap.basemapReady = true;
+        window.clearTimeout(entryMap.fallbackTimer);
+        entryMap.fallbackTimer = null;
+      },
+      onError: () => enableEntryMapFallback("online basemap error"),
+    });
+  }).catch(() => enableEntryMapFallback("online basemap unavailable"));
+  entryMap.map.once("unload", () => {
+    window.clearTimeout(entryMap.fallbackTimer);
+    entryMap.fallbackTimer = null;
+    entryMap.fallbackEnabled = true;
+  });
 
   entryMap.map.on("movestart zoomstart", () => {
     hideEntryMapTooltip();

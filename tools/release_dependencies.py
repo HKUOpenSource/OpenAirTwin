@@ -70,6 +70,15 @@ PYTHON_RUNTIME_DEPENDENCIES = (
 )
 
 BROWSER_RUNTIME_DEPENDENCIES = (
+    ReleaseDependency(
+        "maplibre-gl", "MapLibre GL JS", "5.24.0", "BSD-3-Clause",
+        "https://maplibre.org/", "pkg:npm/maplibre-gl@5.24.0",
+    ),
+    ReleaseDependency(
+        "@maplibre/maplibre-gl-leaflet", "MapLibre GL Leaflet", "0.1.4", "ISC",
+        "https://github.com/maplibre/maplibre-gl-leaflet",
+        "pkg:npm/%40maplibre/maplibre-gl-leaflet@0.1.4",
+    ),
     ReleaseDependency("react", "React", "19.2.8", "MIT", "https://react.dev/", "pkg:npm/react@19.2.8"),
     ReleaseDependency(
         "react-dom", "React DOM", "19.2.8", "MIT", "https://react.dev/", "pkg:npm/react-dom@19.2.8"
@@ -102,6 +111,7 @@ APPROVED_LICENSES = frozenset(
         "CC0-1.0",
         "ISC",
         "MIT",
+        "(MIT OR Apache-2.0)",
         "MIT-0",
         "MPL-2.0",
         "PSF-2.0",

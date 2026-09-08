@@ -51,13 +51,16 @@ const FORBIDDEN_UI_SOURCE_NAMES = [
 ];
 const BUDGETS = {
   initialGzip: 352 * 1024,
-  allJavaScriptGzip: 384 * 1024,
-  allCssGzip: 24 * 1024,
+  applicationJavaScriptGzip: 384 * 1024,
+  applicationCssGzip: 24 * 1024,
   reactRuntimeGzip: 68 * 1024,
   singleFeatureGzip: 30 * 1024,
   htmlGzip: 3 * 1024,
-  maxChunkRaw: 576 * 1024,
-  maxChunkGzip: 145 * 1024,
+  maxApplicationChunkRaw: 576 * 1024,
+  maxApplicationChunkGzip: 145 * 1024,
+  basemapJavaScriptGzip: 300 * 1024,
+  basemapJavaScriptRaw: 1100 * 1024,
+  basemapCssGzip: 12 * 1024,
 };
 const FEATURE_IDS = ["link", "mobility", "radiomap", "deepmimo", "radar"];
 
@@ -272,20 +275,37 @@ for (const stylesheet of CORE_STYLE_ORDER) {
 
 const javascriptFiles = files.filter((path) => path.endsWith(".js"));
 const cssFiles = files.filter((path) => path.endsWith(".css"));
+const isBasemapOutput = (path) =>
+  /\/basemap-runtime-[A-Za-z0-9_-]+\.(js|css)$/.test(toPosix(path));
+const applicationJavaScript = javascriptFiles.filter(
+  (path) => !isBasemapOutput(path),
+);
+const basemapJavaScript = javascriptFiles.filter(isBasemapOutput);
+if (basemapJavaScript.length !== 1)
+  fail("missing isolated vector basemap runtime");
 const initialOutputs = new Set();
 collectInitialOutputs("js/app.js", manifest, new Set(), initialOutputs);
+if ([...initialOutputs].some(isBasemapOutput))
+  fail("vector basemap must be loaded on demand");
 const reactRuntimeOutputs = new Set();
 for (const path of javascriptFiles) {
   if (REQUIRED_REACT_OUTPUT.test(toPosix(path))) reactRuntimeOutputs.add(path);
 }
 const sizes = {
   initialGzip: sumGzip(initialOutputs),
-  allJavaScriptGzip: sumGzip(javascriptFiles),
-  allCssGzip: sumGzip(cssFiles),
+  applicationJavaScriptGzip: sumGzip(applicationJavaScript),
+  applicationCssGzip: sumGzip(
+    cssFiles.filter((path) => !isBasemapOutput(path)),
+  ),
   reactRuntimeGzip: sumGzip(reactRuntimeOutputs),
   htmlGzip: gzipSize(indexPath),
-  maxChunkRaw: Math.max(...javascriptFiles.map((path) => statSync(path).size)),
-  maxChunkGzip: Math.max(...javascriptFiles.map(gzipSize)),
+  maxApplicationChunkRaw: Math.max(
+    ...applicationJavaScript.map((path) => statSync(path).size),
+  ),
+  maxApplicationChunkGzip: Math.max(...applicationJavaScript.map(gzipSize)),
+  basemapJavaScriptGzip: sumGzip(basemapJavaScript),
+  basemapJavaScriptRaw: statSync(basemapJavaScript[0]).size,
+  basemapCssGzip: sumGzip(cssFiles.filter(isBasemapOutput)),
 };
 for (const [name, actual] of Object.entries(sizes))
   checkBudget(name, actual, BUDGETS[name]);
