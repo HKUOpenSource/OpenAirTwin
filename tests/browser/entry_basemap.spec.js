@@ -238,6 +238,28 @@ test("WebGL initialization failure leaves an interactive local map", async ({
   await expect(page.locator(".leaflet-gl-layer")).toHaveCount(0);
 });
 
+test("fallback cancels a pending basemap resize frame", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.clock.install();
+  await page.route(styleUrl, (route) => route.fulfill({ json: fixtureStyle }));
+  await openEntryMap(page);
+  await expect.poll(() => mapState(page)).toMatchObject({ ready: true });
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await page.evaluate(async () => {
+    const { entryMap } =
+      await import("/js/app_state.js?v=20260723-radar-shared-groups");
+    entryMap.map.fire("resize");
+    entryMap.tileLayer.getMaplibreMap().fire("error", {
+      error: new Error("Basemap failure during resize"),
+    });
+  });
+  expect(await mapState(page)).toMatchObject({ fallback: true, online: false });
+  await page.clock.fastForward(1000);
+  await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("a stalled style times out and cannot replace the local fallback later", async ({
   page,
 }) => {

@@ -941,8 +941,16 @@ async function capturePhase0ComputedStyles(page) {
 
 async function capturePhase0ResourceSnapshot(page) {
   return page.evaluate(async () => {
-    const { viewerRef } =
+    const { entryMap, viewerRef } =
       await import("/js/app_state.js?v=20260723-radar-shared-groups");
+    const basemap = entryMap.tileLayer?.getMaplibreMap();
+    if (basemap) {
+      // Sample after the current frame's temporary abort subscription is removed.
+      await new Promise((resolve) => {
+        basemap.once("idle", resolve);
+        basemap.triggerRepaint();
+      });
+    }
     const probe = window.__oatPhase0ResourceProbe;
     return {
       activeIntervals: probe.activeIntervals.size,

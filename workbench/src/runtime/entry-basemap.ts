@@ -3,6 +3,7 @@ import type { Map as LeafletMap } from "leaflet";
 import type { Map as MapLibreMap } from "maplibre-gl";
 
 import { createEntryBasemapStyle } from "./entry-basemap.style.ts";
+import leaflet from "./leaflet-runtime.ts";
 import "./entry-basemap.css";
 
 interface EntryBasemapOptions {
@@ -12,17 +13,47 @@ interface EntryBasemapOptions {
   onError: () => void;
 }
 
+type ManagedBasemapLayer = ReturnType<typeof maplibreGL> & {
+  _transitionEnd: () => void;
+  _resizeContainer: () => void;
+  _zoomEnd: () => void;
+};
+
 export function createEntryBasemap(
   map: LeafletMap,
   { style, attribution, onReady, onError }: EntryBasemapOptions,
 ) {
+  let active = true;
+  let transitionFrame: number | undefined;
   const layer = maplibreGL({
     attributionControl: { customAttribution: attribution },
     interactive: false,
-  });
+  }) as ManagedBasemapLayer;
+  // The pinned adapter does not retain/cancel its deferred resize/zoom frame.
+  layer._transitionEnd = () => {
+    if (!active) return;
+    if (transitionFrame !== undefined)
+      leaflet.Util.cancelAnimFrame(transitionFrame);
+    transitionFrame = leaflet.Util.requestAnimFrame(() => {
+      transitionFrame = undefined;
+      if (!active) return;
+      const renderer = layer.getMaplibreMap();
+      const offset = map.latLngToContainerPoint(map.getBounds().getNorthWest());
+      layer._resizeContainer();
+      leaflet.DomUtil.setTransform(renderer.getCanvas(), offset, 1);
+      void renderer.once("moveend", () => {
+        if (active) layer._zoomEnd();
+      });
+      renderer.jumpTo({ center: map.getCenter(), zoom: map.getZoom() - 1 });
+    });
+  };
   // The upstream adapter assumes WebGL construction succeeded when removing.
   const remove = layer.onRemove.bind(layer);
   layer.onRemove = (owner) => {
+    active = false;
+    if (transitionFrame !== undefined)
+      leaflet.Util.cancelAnimFrame(transitionFrame);
+    transitionFrame = undefined;
     if (layer.getMaplibreMap() as MapLibreMap | undefined) remove(owner);
     else layer.getContainer().remove();
     return layer;
@@ -34,7 +65,6 @@ export function createEntryBasemap(
     throw error;
   }
   const renderer = layer.getMaplibreMap();
-  let active = true;
   const ready = () => {
     if (active) onReady();
   };

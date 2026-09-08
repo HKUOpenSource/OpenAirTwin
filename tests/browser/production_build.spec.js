@@ -63,7 +63,7 @@ test("production build is self-contained behind the Python server", async ({
     // SwiftShader reports MapLibre's GPU capability readback as a driver warning.
     if (
       message.type() === "warning" &&
-      /^\[\.WebGL-[^\]]+\]GL Driver Message .*GPU stall due to ReadPixels$/.test(
+      /^\[\.WebGL-[^\]]+\]GL Driver Message .*GPU stall due to ReadPixels(?: \(this message will no longer repeat\))?$/.test(
         message.text(),
       )
     )
