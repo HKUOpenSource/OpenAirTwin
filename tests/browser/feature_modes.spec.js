@@ -490,6 +490,22 @@ function radarResult(payload) {
 }
 
 async function openDeterministicApp(page) {
+  // Remote tile/font loading can register listeners during resource snapshots.
+  await page.route("https://tiles.openfreemap.org/styles/positron", (route) =>
+    route.fulfill({
+      json: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: "background",
+            type: "background",
+            paint: { "background-color": "#f7f8f8" },
+          },
+        ],
+      },
+    }),
+  );
   await page.route("**/api/rt/capabilities", (route) =>
     route.fulfill({ json: RT_CAPABILITIES }),
   );
@@ -501,6 +517,15 @@ async function openDeterministicApp(page) {
   );
   await page.goto("/");
   await expect(page.locator("#loadingScreen")).toBeHidden();
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const { entryMap } =
+          await import("/js/app_state.js?v=20260723-radar-shared-groups");
+        return entryMap.basemapReady;
+      }),
+    )
+    .toBe(true);
   await page.evaluate(async () => {
     const { state } =
       await import("/js/app_state.js?v=20260723-radar-shared-groups");
@@ -638,11 +663,42 @@ async function installPhase0ResourceProbe(page) {
       activeIntervals: new Set(),
     };
     const addEventListener = EventTarget.prototype.addEventListener;
+    const removeEventListener = EventTarget.prototype.removeEventListener;
+    const abortListeners = new WeakMap();
+    const captureFlag = (options) =>
+      typeof options === "boolean" ? options : !!options?.capture;
     EventTarget.prototype.addEventListener = function phase0AddEventListener(
       ...args
     ) {
-      probe.listenerRegistrations += 1;
+      // MapLibre adds/removes an abort listener per frame; count outstanding ones.
+      // Other targets retain the cumulative registration guard for UI rebinding.
+      if (this instanceof AbortSignal && args[0] === "abort" && args[1]) {
+        let listeners = abortListeners.get(this);
+        if (!listeners) abortListeners.set(this, (listeners = new Map()));
+        let captures = listeners.get(args[1]);
+        if (!captures) listeners.set(args[1], (captures = new Set()));
+        const capture = captureFlag(args[2]);
+        if (!captures.has(capture)) {
+          captures.add(capture);
+          probe.listenerRegistrations += 1;
+        }
+      } else {
+        probe.listenerRegistrations += 1;
+      }
       return addEventListener.apply(this, args);
+    };
+    EventTarget.prototype.removeEventListener = function phase0RemoveEventListener(
+      ...args
+    ) {
+      if (this instanceof AbortSignal && args[0] === "abort") {
+        const listeners = abortListeners.get(this);
+        const captures = listeners?.get(args[1]);
+        if (captures?.delete(captureFlag(args[2]))) {
+          probe.listenerRegistrations -= 1;
+          if (!captures.size) listeners.delete(args[1]);
+        }
+      }
+      return removeEventListener.apply(this, args);
     };
     const setInterval = window.setInterval.bind(window);
     const clearInterval = window.clearInterval.bind(window);
@@ -885,8 +941,16 @@ async function capturePhase0ComputedStyles(page) {
 
 async function capturePhase0ResourceSnapshot(page) {
   return page.evaluate(async () => {
-    const { viewerRef } =
+    const { entryMap, viewerRef } =
       await import("/js/app_state.js?v=20260723-radar-shared-groups");
+    const basemap = entryMap.tileLayer?.getMaplibreMap();
+    if (basemap) {
+      // Sample after the current frame's temporary abort subscription is removed.
+      await new Promise((resolve) => {
+        basemap.once("idle", resolve);
+        basemap.triggerRepaint();
+      });
+    }
     const probe = window.__oatPhase0ResourceProbe;
     return {
       activeIntervals: probe.activeIntervals.size,
@@ -900,6 +964,39 @@ async function capturePhase0ResourceSnapshot(page) {
     };
   });
 }
+
+test("resource probe tracks outstanding abort listeners and cumulative UI bindings", async ({
+  page,
+}) => {
+  await installPhase0ResourceProbe(page);
+  await page.goto("about:blank");
+  const counts = await page.evaluate(() => {
+    const probe = window.__oatPhase0ResourceProbe;
+    const initial = probe.listenerRegistrations;
+    const counts = [];
+    const record = () => counts.push(probe.listenerRegistrations - initial);
+    const signal = new AbortController().signal;
+    const listener = () => {};
+    signal.addEventListener("abort", listener);
+    record();
+    signal.addEventListener("abort", listener, { capture: false });
+    record();
+    signal.addEventListener("abort", listener, true);
+    record();
+    signal.removeEventListener("abort", listener);
+    record();
+    signal.removeEventListener("abort", listener);
+    record();
+    signal.removeEventListener("abort", listener, { capture: true });
+    record();
+    const button = document.createElement("button");
+    button.addEventListener("click", listener);
+    button.removeEventListener("click", listener);
+    record();
+    return counts;
+  });
+  expect(counts).toEqual([1, 1, 2, 1, 1, 0, 1]);
+});
 
 test("core CSS modules load in order and expose the desktop computed-style contract", async ({
   page,

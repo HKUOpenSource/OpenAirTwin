@@ -24,6 +24,8 @@ DeepMIMO is an optional-domain runtime dependency installed as a separate Python
 | Scheduler | MIT | https://github.com/facebook/react |
 | Three.js | MIT | https://threejs.org/ |
 | Leaflet | BSD-2-Clause | https://leafletjs.com/ |
+| MapLibre GL JS | BSD-3-Clause | https://maplibre.org/ |
+| MapLibre GL Leaflet | ISC | https://github.com/maplibre/maplibre-gl-leaflet |
 | PROJ4JS | MIT | https://github.com/proj4js/proj4js |
 
 The vendored Three.js license text is included at `backend/static/lib/THREE_LICENSE.txt`. Model-specific attribution and license metadata are included beside the applicable files under `backend/static/assets/`.

@@ -31,6 +31,7 @@
     "@testing-library/react": "16.3.2",
     "@testing-library/user-event": "14.6.1",
     "@types/node": "26.1.2",
+    "@types/leaflet": "1.9.21",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.5",
@@ -41,12 +42,16 @@
     "jsdom": "27.4.0",
     "prettier": "3.9.6",
     "stylelint": "17.14.1",
+    "terser": "5.51.2",
     "typescript": "6.0.3",
     "typescript-eslint": "8.65.0",
     "vite": "8.2.0",
     "vitest": "4.1.10"
   },
   "dependencies": {
+    "@maplibre/maplibre-gl-leaflet": "0.1.4",
+    "leaflet": "1.9.4",
+    "maplibre-gl": "5.24.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   }

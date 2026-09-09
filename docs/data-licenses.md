@@ -4,6 +4,17 @@ OpenAirTwin source code is licensed under Apache-2.0. Scene data, map downloads,
 government spatial data and other third-party assets are not automatically
 covered by that software license.
 
+## Entry Map Basemap
+
+The entry map uses the OpenFreeMap Positron vector basemap without an API key.
+Tiles, styles, sprites and fonts are fetched directly from OpenFreeMap. Keep
+the OpenMapTiles and OpenStreetMap attribution visible, including in screenshots.
+The public service has no availability guarantee; the application uses its
+local overview image if the online basemap fails to load.
+
+- [OpenFreeMap attribution and service information](https://openfreemap.org/)
+- [OpenStreetMap copyright and data license](https://www.openstreetmap.org/copyright)
+
 ## Bundled Sample Scene
 
 The optional sample archive contains runtime source data for four Open3Dhk tiles:

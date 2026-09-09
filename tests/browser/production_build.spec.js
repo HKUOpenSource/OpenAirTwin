@@ -60,9 +60,32 @@ test("production build is self-contained behind the Python server", async ({
 
   const browserErrors = [];
   page.on("console", (message) => {
+    // SwiftShader reports MapLibre's GPU capability readback as a driver warning.
+    if (
+      message.type() === "warning" &&
+      /^\[\.WebGL-[^\]]+\]GL Driver Message .*GPU stall due to ReadPixels(?: \(this message will no longer repeat\))?$/.test(
+        message.text(),
+      )
+    )
+      return;
     if (message.type() === "error" || message.type() === "warning")
       browserErrors.push(message.text());
   });
+  await page.route("https://tiles.openfreemap.org/styles/positron", (route) =>
+    route.fulfill({
+      json: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: "background",
+            type: "background",
+            paint: { "background-color": "#f5f5f5" },
+          },
+        ],
+      },
+    }),
+  );
   await page.goto("/");
   await expect(page).toHaveTitle("OpenAirTwin");
   await expect(page.locator("#entryScreen")).toBeVisible();

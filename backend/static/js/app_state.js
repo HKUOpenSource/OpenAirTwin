@@ -147,7 +147,7 @@ export const entryMap = {
   tileLayer: null,
   fallbackLayer: null,
   fallbackEnabled: false,
-  tilesLoaded: 0,
+  basemapReady: false,
   fallbackTimer: null,
   fittedOnce: false,
   hoveredTileId: null,

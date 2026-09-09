@@ -51,6 +51,20 @@ Compatibility facades such as the existing `api.js` exports, global state
 properties and legacy Viewer methods remain available for existing callers, but
 new Feature code should prefer the registry and layer interfaces.
 
+The entry map uses OpenFreeMap Positron through the lazy-loaded MapLibre GL
+Leaflet adapter in `workbench/src/runtime/entry-basemap.ts`. Vite resolves the
+adapter's Leaflet import to the existing `window.L` instance. Grid selection
+remains owned by Leaflet; the vector renderer owns only its tile-pane canvas.
+`entry-basemap.style.ts` applies the local light palette and label hierarchy
+through MapLibre's style transform before the first render, preserving provider
+sources, attribution and multilingual names.
+The build serializes the vendor basemap chunk with ASCII escapes for its Unicode
+tables, preserving multilingual rendering while satisfying the release text gate.
+Style, resource or WebGL failures and a 15-second startup timeout use the local
+overview image. The build verifies that the basemap runtime stays outside the
+initial module graph, with separate 300 KiB JavaScript and 12 KiB CSS gzip
+budgets; the existing application budgets remain unchanged.
+
 ### Core workbench CSS
 
 The desktop workbench loads native CSS modules directly from `index.html` in
