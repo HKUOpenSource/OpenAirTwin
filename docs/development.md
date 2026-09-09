@@ -84,6 +84,17 @@ jobs. Core browser tests use `npm run test:ci`; add `OAT_RUN_SOAK_TESTS=true` to
 include the long soak. Visual snapshots and local cold-start measurements remain
 separate checks for the documented desktop environment.
 
+Browser tests are grouped into independent feature, Radar workflow, label,
+asset and soak specs so the existing workers can share the work. CI prints
+individual test durations. Asset loading and Canvas tests use a minimal page
+with the production import map; they do not start the entry map or Workbench.
+Motion and power-scale calculations and mocked asset cache/disposal checks run
+in Vitest.
+Radar browser coverage retains editing and solve payloads, result selection,
+label projection, the target limit and viewer cleanup without freezing exact
+shadows, colors or component spacing. Label tests render a minimal GLB fixture;
+the asset specs separately verify every shipped drone model.
+
 Resource tests check active timers, viewer frame callbacks, canvases, DOM nodes
 and rendered labels. They do not count cumulative global event registrations,
 which include normal temporary subscriptions from rendering libraries. UI
@@ -358,10 +369,10 @@ The production build also copies the interactive architecture document to
 `dist/architecture/index.html`, which becomes the GitHub Pages
 `/OpenAirTwin/architecture/` route.
 
-GitHub Actions runs the lightweight Python suite, the full CPU runtime smoke
-suite, tutorial checks and deterministic browser contracts for every pull
-request and every push to `master`. The macOS visual snapshots remain a local
-review gate because raster output is platform-specific; run the full browser
+GitHub Actions runs Python tests and core browser contracts for every pull
+request. Runtime, tutorial, audit and packaging jobs follow the change scopes
+described above; pushes to `master` run all jobs. The macOS visual snapshots remain
+a local review gate because raster output is platform-specific; run the full browser
 suite before publishing a UI change.
 
 ## Configuration Changes
