@@ -60,14 +60,15 @@ async function installRadarJob(page, clutterCount = 0) {
   return () => submittedRadar;
 }
 
-test("Radar target editing submits normalized motion and monostatic coordinates", async ({
+test("Radar model picker wraps navigation and adds or removes the selected model", async ({
   page,
 }) => {
-  const submittedPayload = await installRadarJob(page);
+  await page.route("**/assets/radar/drones/manifest.json", (route) =>
+    route.fulfill({ json: RADAR_PREVIEW_MANIFEST }),
+  );
   await openDeterministicApp(page);
   await enableRealViewer(page);
   await activateMode(page, "radar");
-
   await page.locator("#radarTargetsGroup > summary").click();
   await expect(page.locator("#radarAssetPicker")).toHaveAttribute(
     "data-state",
@@ -88,16 +89,33 @@ test("Radar target editing submits normalized motion and monostatic coordinates"
     0,
   );
   await page.locator("#btnAddRadarTarget").click();
-  await page.locator("#btnPickRadarTx").click();
-  for (const [axis, value] of [
-    ["X", "72"],
-    ["Y", "32"],
-    ["Z", "40"],
-  ]) {
-    await page.locator("#radarTx" + axis).fill(value);
-  }
-  await page.locator("#radarTxZ").press("Tab");
-  await page.locator("#btnPickRadarTx").click();
+  await expect(page.locator("#radarTargetList .radarTargetCard")).toHaveCount(
+    1,
+  );
+  expect(
+    await page.evaluate(async () => {
+      const { state } =
+        await import("/js/app_state.js?v=20260723-radar-shared-groups");
+      return state.radar.targets[0].asset_id;
+    }),
+  ).toBe("dji-air-2s");
+});
+
+test("Radar target editing submits normalized motion and monostatic coordinates", async ({
+  page,
+}) => {
+  const submittedPayload = await installRadarJob(page);
+  await openDeterministicApp(page);
+  await enableRealViewer(page);
+  await configureRadarFixture(page);
+  await page.evaluate(async () => {
+    const { state } =
+      await import("/js/app_state.js?v=20260723-radar-shared-groups");
+    state.radar.targets = [state.radar.targets[0]];
+  });
+  await activateMode(page, "radar");
+
+  await page.locator("#radarTargetsGroup > summary").click();
   await page.locator("#radarTargetX").fill("96");
   await page.locator("#radarTargetY").fill("44");
   await page.locator("#radarTargetZ").fill("30");
