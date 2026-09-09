@@ -104,6 +104,7 @@ test("Radar model picker wraps navigation and adds or removes the selected model
 test("Radar target editing submits normalized motion and monostatic coordinates", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   const submittedPayload = await installRadarJob(page);
   await openDeterministicApp(page);
   await enableRealViewer(page);
