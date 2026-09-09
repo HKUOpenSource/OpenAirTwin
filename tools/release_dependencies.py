@@ -71,8 +71,8 @@ PYTHON_RUNTIME_DEPENDENCIES = (
 
 BROWSER_RUNTIME_DEPENDENCIES = (
     ReleaseDependency(
-        "maplibre-gl", "MapLibre GL JS", "5.24.0", "BSD-3-Clause",
-        "https://maplibre.org/", "pkg:npm/maplibre-gl@5.24.0",
+        "maplibre-gl", "MapLibre GL JS", "6.4.1", "BSD-3-Clause",
+        "https://maplibre.org/", "pkg:npm/maplibre-gl@6.4.1",
     ),
     ReleaseDependency(
         "@maplibre/maplibre-gl-leaflet", "MapLibre GL Leaflet", "0.1.4", "ISC",

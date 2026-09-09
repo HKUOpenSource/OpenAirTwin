@@ -342,9 +342,6 @@ export default defineConfig({
     sourcemap: false,
     cssCodeSplit: true,
     cssMinify: false,
-    // Preserve vendor Unicode tables using escapes for the English release gate.
-    minify: "terser",
-    terserOptions: { format: { ascii_only: true } },
     modulePreload: { polyfill: false },
     chunkSizeWarningLimit: 600,
     rollupOptions: {

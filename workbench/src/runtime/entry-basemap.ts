@@ -1,6 +1,7 @@
 import { maplibreGL } from "@maplibre/maplibre-gl-leaflet";
 import type { Map as LeafletMap } from "leaflet";
-import type { Map as MapLibreMap } from "maplibre-gl";
+import { setWorkerUrl, type Map as MapLibreMap } from "maplibre-gl";
+import basemapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
 import { createEntryBasemapStyle } from "./entry-basemap.style.ts";
 import leaflet from "./leaflet-runtime.ts";
@@ -23,6 +24,11 @@ export function createEntryBasemap(
   map: LeafletMap,
   { style, attribution, onReady, onError }: EntryBasemapOptions,
 ) {
+  // MapLibre 6 leaves a partially constructed map when WebGL2 is unavailable.
+  const context = document.createElement("canvas").getContext("webgl2");
+  if (!context) throw new Error("WebGL2 is unavailable");
+  context.getExtension("WEBGL_lose_context")?.loseContext();
+  setWorkerUrl(basemapWorkerUrl);
   let active = true;
   let transitionFrame: number | undefined;
   const layer = maplibreGL({

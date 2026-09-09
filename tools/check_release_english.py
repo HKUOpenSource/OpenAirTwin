@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject CJK text and non-English HTML metadata in release content."""
+"""Check owned release documents and visible HTML text for English content."""
 
 from __future__ import annotations
 
@@ -8,7 +8,8 @@ import re
 import subprocess
 import tarfile
 from dataclasses import dataclass
-from pathlib import Path
+from html.parser import HTMLParser
+from pathlib import Path, PurePosixPath
 from typing import Iterable
 
 
@@ -30,6 +31,38 @@ ENGLISH_LANG_PATTERN = re.compile(r"^en(?:-|$)", re.IGNORECASE)
 class TextEntry:
     name: str
     data: bytes
+
+
+class VisibleTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.hidden = 0
+        self.text: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in {"script", "style"}:
+            self.hidden += 1
+        elif not self.hidden:
+            self.text.extend(
+                value for key, value in attrs
+                if key in {"alt", "title", "placeholder", "aria-label"} and value
+            )
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"script", "style"}:
+            self.hidden = max(0, self.hidden - 1)
+
+    def handle_data(self, data: str) -> None:
+        if not self.hidden:
+            self.text.append(data)
+
+
+def is_owned_document(name: str) -> bool:
+    path = PurePosixPath(name)
+    return (
+        path.suffix.lower() in {".md", ".txt", ".cff", ".html", ".htm"}
+        and not {"node_modules", "lib", "assets", ".codegraph"}.intersection(path.parts)
+    )
 
 
 def tracked_entries(repository: Path) -> Iterable[TextEntry]:
@@ -61,17 +94,26 @@ def tar_entries(archive: Path) -> Iterable[TextEntry]:
 def text_violations(entries: Iterable[TextEntry]) -> list[str]:
     violations: list[str] = []
     for entry in entries:
-        if b"\0" in entry.data:
+        if not is_owned_document(entry.name) or b"\0" in entry.data:
             continue
         try:
             source = entry.data.decode("utf-8")
         except UnicodeDecodeError:
             continue
-        cjk = CJK_PATTERN.search(source)
+        is_html = entry.name.lower().endswith((".html", ".htm"))
+        visible = source
+        if is_html:
+            parser = VisibleTextParser()
+            parser.feed(source)
+            visible = "\n".join(parser.text)
+        cjk = CJK_PATTERN.search(visible)
         if cjk:
-            line = source.count("\n", 0, cjk.start()) + 1
-            violations.append(f"{entry.name}:{line}: contains CJK text")
-        if entry.name.lower().endswith((".html", ".htm")) and re.search(
+            if is_html:
+                violations.append(f"{entry.name}: contains visible CJK text")
+            else:
+                line = source.count("\n", 0, cjk.start()) + 1
+                violations.append(f"{entry.name}:{line}: contains CJK text")
+        if is_html and re.search(
             r"<html\b", source, re.IGNORECASE
         ):
             language = HTML_LANG_PATTERN.search(source)

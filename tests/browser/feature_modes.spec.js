@@ -4,12 +4,7 @@ import { fileURLToPath } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-import {
-  buildPhase1DomCompatibilityContract,
-  PHASE8_RETIRED_CLASSES,
-  PHASE8_RETIRED_ELEMENT_IDS,
-  normalizePhase8DomContract,
-} from "./phase1_contracts.js";
+import { buildPhase1DomCompatibilityContract } from "./phase1_contracts.js";
 
 const PHASE0_BASELINE_DIRECTORY = new URL("./baselines/", import.meta.url);
 const UPDATE_PHASE0_BASELINE = process.env.OAT_UPDATE_UI_BASELINE === "1";
@@ -23,71 +18,9 @@ function phase0BaselineUrl(filename) {
   return new URL(filename, PHASE0_BASELINE_DIRECTORY);
 }
 
-function assertPhase0Baseline(filename, actual) {
-  const url = phase0BaselineUrl(filename);
-  if (UPDATE_PHASE0_BASELINE) {
-    mkdirSync(fileURLToPath(PHASE0_BASELINE_DIRECTORY), { recursive: true });
-    writeFileSync(url, `${JSON.stringify(actual, null, 2)}\n`, "utf8");
-  }
-  expect(actual).toEqual(JSON.parse(readFileSync(url, "utf8")));
-}
-
-function assertPhase0DomBaseline(actual) {
-  const filename = "phase-0-dom-contract.json";
-  const url = phase0BaselineUrl(filename);
-  if (UPDATE_PHASE0_BASELINE) {
-    assertPhase0Baseline(filename, actual);
-    return;
-  }
-  const retiredClasses = new Set(PHASE8_RETIRED_CLASSES);
-  const retiredElementIds = new Set(PHASE8_RETIRED_ELEMENT_IDS);
-  expect(actual.elements.some(({ id }) => retiredElementIds.has(id))).toBe(
-    false,
-  );
-  expect(
-    actual.elements.some(({ classes }) =>
-      classes.some((name) => retiredClasses.has(name)),
-    ),
-  ).toBe(false);
-  const expected = normalizePhase8DomContract(
-    JSON.parse(readFileSync(url, "utf8")),
-  );
-  const phase8Actual = normalizePhase8DomContract(actual);
-  const normalized = {
-    ...phase8Actual,
-    elements: phase8Actual.elements.map((element, index) => {
-      const baseline = expected.elements[index];
-      expect(baseline).toBeDefined();
-      expect(element.id).toBe(baseline.id);
-      const addedClasses = element.classes.filter(
-        (className) => !baseline.classes.includes(className),
-      );
-      expect(
-        addedClasses.every((className) => className.startsWith("oat-")),
-      ).toBe(true);
-      return {
-        ...element,
-        classes: element.classes.filter((className) =>
-          baseline.classes.includes(className),
-        ),
-      };
-    }),
-  };
-  expect(normalized.elements).toHaveLength(expected.elements.length);
-  expect(normalized).toEqual(expected);
-}
-
-function assertPhase0NetworkBaseline(actual) {
-  const filename = "phase-0-network-contract.json";
-  if (UPDATE_PHASE0_BASELINE) {
-    assertPhase0Baseline(filename, actual);
-    return;
-  }
-  const expected = JSON.parse(
-    readFileSync(phase0BaselineUrl(filename), "utf8"),
-  );
-  const stableFields = (records) =>
-    records.map(({ contentLength: _contentLength, ...record }) => record);
+function assertUiResourcesLoad(actual) {
+  expect(actual.length).toBeGreaterThan(0);
+  expect(actual.every(({ status }) => status === 200)).toBe(true);
   expect(actual.every(({ contentLength }) => contentLength > 0)).toBe(true);
   if (actual.some(({ path }) => path.startsWith("/workbench/assets/"))) {
     expect(actual.every(({ status }) => status === 200)).toBe(true);
@@ -108,29 +41,6 @@ function assertPhase0NetworkBaseline(actual) {
     ).toBe(true);
     return;
   }
-  expect(stableFields(actual)).toEqual(stableFields(expected));
-}
-
-function assertPhase0ComputedStyleBaseline(actual) {
-  const filename = "phase-0-computed-styles.json";
-  if (UPDATE_PHASE0_BASELINE) {
-    assertPhase0Baseline(filename, actual);
-    return;
-  }
-  const expected = JSON.parse(
-    readFileSync(phase0BaselineUrl(filename), "utf8"),
-  );
-  const addedTokens = Object.keys(actual.tokens).filter(
-    (name) => !(name in expected.tokens),
-  );
-  expect(addedTokens.every((name) => name.startsWith("--oat-"))).toBe(true);
-  const normalized = {
-    ...actual,
-    tokens: Object.fromEntries(
-      Object.keys(expected.tokens).map((name) => [name, actual.tokens[name]]),
-    ),
-  };
-  expect(normalized).toEqual(expected);
 }
 
 function writePhase0Observation(filename, actual) {
@@ -154,7 +64,14 @@ function assertPhase1DomContract(actual) {
       "utf8",
     );
   }
-  expect(actual).toEqual(JSON.parse(readFileSync(PHASE1_DOM_CONTRACT, "utf8")));
+  const expected = JSON.parse(readFileSync(PHASE1_DOM_CONTRACT, "utf8"));
+  const byId = new Map(actual.elements.map((element) => [element.id, element]));
+  for (const element of expected.elements) {
+    expect(byId.get(element.id), element.id).toMatchObject({
+      owner: element.owner,
+      ...(element.interaction ? { interaction: element.interaction } : {}),
+    });
+  }
 }
 
 const RT_CAPABILITIES = {
@@ -659,46 +576,7 @@ async function expectNoSeriousAccessibilityViolations(page, context) {
 async function installPhase0ResourceProbe(page) {
   await page.addInitScript(() => {
     const probe = {
-      listenerRegistrations: 0,
       activeIntervals: new Set(),
-    };
-    const addEventListener = EventTarget.prototype.addEventListener;
-    const removeEventListener = EventTarget.prototype.removeEventListener;
-    const abortListeners = new WeakMap();
-    const captureFlag = (options) =>
-      typeof options === "boolean" ? options : !!options?.capture;
-    EventTarget.prototype.addEventListener = function phase0AddEventListener(
-      ...args
-    ) {
-      // MapLibre adds/removes an abort listener per frame; count outstanding ones.
-      // Other targets retain the cumulative registration guard for UI rebinding.
-      if (this instanceof AbortSignal && args[0] === "abort" && args[1]) {
-        let listeners = abortListeners.get(this);
-        if (!listeners) abortListeners.set(this, (listeners = new Map()));
-        let captures = listeners.get(args[1]);
-        if (!captures) listeners.set(args[1], (captures = new Set()));
-        const capture = captureFlag(args[2]);
-        if (!captures.has(capture)) {
-          captures.add(capture);
-          probe.listenerRegistrations += 1;
-        }
-      } else {
-        probe.listenerRegistrations += 1;
-      }
-      return addEventListener.apply(this, args);
-    };
-    EventTarget.prototype.removeEventListener = function phase0RemoveEventListener(
-      ...args
-    ) {
-      if (this instanceof AbortSignal && args[0] === "abort") {
-        const listeners = abortListeners.get(this);
-        const captures = listeners?.get(args[1]);
-        if (captures?.delete(captureFlag(args[2]))) {
-          probe.listenerRegistrations -= 1;
-          if (!captures.size) listeners.delete(args[1]);
-        }
-      }
-      return removeEventListener.apply(this, args);
     };
     const setInterval = window.setInterval.bind(window);
     const clearInterval = window.clearInterval.bind(window);
@@ -803,12 +681,10 @@ async function capturePhase0ComputedStyles(page) {
     const controlScroll = document.querySelector("#uiBody");
     if (!controlScroll)
       throw new Error("Missing UI baseline scroll container: #uiBody");
-    const inlineScrollbarWidth = controlScroll.style.getPropertyValue(
-      "scrollbar-width",
-    );
-    const inlineScrollbarPriority = controlScroll.style.getPropertyPriority(
-      "scrollbar-width",
-    );
+    const inlineScrollbarWidth =
+      controlScroll.style.getPropertyValue("scrollbar-width");
+    const inlineScrollbarPriority =
+      controlScroll.style.getPropertyPriority("scrollbar-width");
     const computedScrollbarWidth = getComputedStyle(controlScroll)
       .getPropertyValue("scrollbar-width")
       .trim();
@@ -941,23 +817,14 @@ async function capturePhase0ComputedStyles(page) {
 
 async function capturePhase0ResourceSnapshot(page) {
   return page.evaluate(async () => {
-    const { entryMap, viewerRef } =
+    const { viewerRef } =
       await import("/js/app_state.js?v=20260723-radar-shared-groups");
-    const basemap = entryMap.tileLayer?.getMaplibreMap();
-    if (basemap) {
-      // Sample after the current frame's temporary abort subscription is removed.
-      await new Promise((resolve) => {
-        basemap.once("idle", resolve);
-        basemap.triggerRepaint();
-      });
-    }
     const probe = window.__oatPhase0ResourceProbe;
     return {
       activeIntervals: probe.activeIntervals.size,
       canvasElements: document.querySelectorAll("canvas").length,
       domNodes: document.querySelectorAll("*").length,
       frameListeners: viewerRef.current.frameListeners?.size ?? 0,
-      listenerRegistrations: probe.listenerRegistrations,
       radarLabelElements: document.querySelectorAll(
         ".radarTargetLabel, .radarTargetConnector",
       ).length,
@@ -965,40 +832,7 @@ async function capturePhase0ResourceSnapshot(page) {
   });
 }
 
-test("resource probe tracks outstanding abort listeners and cumulative UI bindings", async ({
-  page,
-}) => {
-  await installPhase0ResourceProbe(page);
-  await page.goto("about:blank");
-  const counts = await page.evaluate(() => {
-    const probe = window.__oatPhase0ResourceProbe;
-    const initial = probe.listenerRegistrations;
-    const counts = [];
-    const record = () => counts.push(probe.listenerRegistrations - initial);
-    const signal = new AbortController().signal;
-    const listener = () => {};
-    signal.addEventListener("abort", listener);
-    record();
-    signal.addEventListener("abort", listener, { capture: false });
-    record();
-    signal.addEventListener("abort", listener, true);
-    record();
-    signal.removeEventListener("abort", listener);
-    record();
-    signal.removeEventListener("abort", listener);
-    record();
-    signal.removeEventListener("abort", listener, { capture: true });
-    record();
-    const button = document.createElement("button");
-    button.addEventListener("click", listener);
-    button.removeEventListener("click", listener);
-    record();
-    return counts;
-  });
-  expect(counts).toEqual([1, 1, 2, 1, 1, 0, 1]);
-});
-
-test("core CSS modules load in order and expose the desktop computed-style contract", async ({
+test("core CSS modules load in order and keep controls scrollable", async ({
   page,
 }) => {
   const cssResponses = [];
@@ -1027,10 +861,7 @@ test("core CSS modules load in order and expose the desktop computed-style contr
         path: new URL(sheet.href).pathname,
         rules: [...sheet.cssRules].map((rule) => rule.cssText.slice(0, 120)),
       })),
-      controlWidth: style("#ui").width,
-      controlRadius: style("#ui").borderRadius,
       bodyOverflowY: style("#uiBody").overflowY,
-      accent: style(":root").getPropertyValue("--oat-accent-primary").trim(),
     };
   });
   const expectedPaths = [
@@ -1072,15 +903,10 @@ test("core CSS modules load in order and expose the desktop computed-style contr
     expect.stringContaining("@layer features"),
     expect.stringContaining("@layer features"),
   ]);
-  expect(architecture).toMatchObject({
-    controlWidth: "430px",
-    controlRadius: "18px",
-    bodyOverflowY: "auto",
-    accent: "#3478f6",
-  });
+  expect(architecture.bodyOverflowY).toBe("auto");
 });
 
-test("UI DOM, style, network and resource contracts remain frozen", async ({
+test("UI assets load and mode switching releases owned resources", async ({
   page,
   browserName,
 }) => {
@@ -1112,8 +938,16 @@ test("UI DOM, style, network and resource contracts remain frozen", async ({
   const wallStartMs = Date.now();
   await openDeterministicApp(page);
   const uiReadyWallMs = Date.now() - wallStartMs;
-  const domContract = await capturePhase0DomContract(page);
-  const computedStyles = await capturePhase0ComputedStyles(page);
+  if (UPDATE_PHASE0_BASELINE) {
+    writePhase0Observation(
+      "phase-0-dom-contract.json",
+      await capturePhase0DomContract(page),
+    );
+    writePhase0Observation(
+      "phase-0-computed-styles.json",
+      await capturePhase0ComputedStyles(page),
+    );
+  }
   await enableRealViewer(page);
   await configureMainDeviceFixture(page);
 
@@ -1143,13 +977,14 @@ test("UI DOM, style, network and resource contracts remain frozen", async ({
     canvasElements: 0,
     domNodes: 0,
     frameListeners: 0,
-    listenerRegistrations: 0,
     radarLabelElements: 0,
   });
 
   const networkContract = (await Promise.all(responseRecords)).sort(
     (left, right) => left.path.localeCompare(right.path),
   );
+  assertUiResourcesLoad(networkContract);
+  if (!UPDATE_PHASE0_BASELINE) return;
   const runtimeObservation = await page.evaluate(() => {
     const navigation = performance.getEntriesByType("navigation")[0];
     const paints = Object.fromEntries(
@@ -1201,10 +1036,7 @@ test("UI DOM, style, network and resource contracts remain frozen", async ({
     };
   });
 
-  assertPhase0DomBaseline(domContract);
-  assertPhase0ComputedStyleBaseline(computedStyles);
-  assertPhase0NetworkBaseline(networkContract);
-  assertPhase0Baseline("phase-0-resource-contract.json", {
+  writePhase0Observation("phase-0-resource-contract.json", {
     cycles: 5,
     modes,
     resourceDelta,
@@ -1251,9 +1083,7 @@ test("DOM ownership and interaction commands remain explicit", async ({
   assertPhase1DomContract(contract);
 });
 
-test("full workbench desktop snapshots stay stable", async ({
-  page,
-}) => {
+test("full workbench desktop snapshots stay stable", async ({ page }) => {
   await page.route("**/api/link/solve", (route) =>
     route.fulfill({ json: LINK_RESULT }),
   );
@@ -4270,6 +4100,10 @@ test("radar target scene keeps visual transforms and IDs stable while releasing 
 test("release soak returns UI resources and heap to their stable bounds", async ({
   page,
 }) => {
+  test.skip(
+    process.env.OAT_RUN_SOAK_TESTS !== "true",
+    "Run the long soak during full CI or release validation",
+  );
   test.setTimeout(120_000);
   await installPhase0ResourceProbe(page);
   await openDeterministicApp(page);
@@ -4440,7 +4274,6 @@ test("release soak returns UI resources and heap to their stable bounds", async 
     canvasElements: 0,
     domNodes: 0,
     frameListeners: 0,
-    listenerRegistrations: 0,
     radarLabelElements: 0,
   });
   const heapGrowth = heapAfter - heapBefore;

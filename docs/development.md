@@ -58,12 +58,43 @@ remains owned by Leaflet; the vector renderer owns only its tile-pane canvas.
 `entry-basemap.style.ts` applies the local light palette and label hierarchy
 through MapLibre's style transform before the first render, preserving provider
 sources, attribution and multilingual names.
-The build serializes the vendor basemap chunk with ASCII escapes for its Unicode
-tables, preserving multilingual rendering while satisfying the release text gate.
 Style, resource or WebGL failures and a 15-second startup timeout use the local
 overview image. The build verifies that the basemap runtime stays outside the
-initial module graph, with separate 300 KiB JavaScript and 12 KiB CSS gzip
+initial module graph, with separate 300 KiB renderer, 160 KiB worker and 12 KiB CSS gzip
 budgets; the existing application budgets remain unchanged.
+MapLibre's module worker is bundled through Vite's worker URL import so the
+release includes a hashed, local worker asset. WebGL2 availability is checked
+before constructing the renderer to avoid its partial-initialization path.
+
+### Continuous integration
+
+Every pull request runs Workbench quality checks, unit tests, a verified
+production build, the Python suite and core browser behavior tests. Optional
+jobs are selected by `tools/ci_scope.py` using the complete pull request diff:
+
+- Tutorial changes run the website build and browser tests against that build.
+- Backend and runtime dependency changes run the real runtime smoke test.
+- Dependency and license changes run security and license audits.
+- Packaging, installer and build-tool changes run archive reproducibility and
+  clean installation checks, alongside the browser soak test.
+
+Pushes to `master`, manual workflow runs and the weekly scheduled run execute
+all jobs, including the soak test. Workflow or CI selector changes also run all
+jobs. Core browser tests use `npm run test:ci`; add `OAT_RUN_SOAK_TESTS=true` to
+include the long soak. Visual snapshots and local cold-start measurements remain
+separate checks for the documented desktop environment.
+
+Resource tests check active timers, viewer frame callbacks, canvases, DOM nodes
+and rendered labels. They do not count cumulative global event registrations,
+which include normal temporary subscriptions from rendering libraries. UI
+ownership checks protect stable IDs and commands without freezing visual styles
+or element order. Historical UI baselines are reference material for deliberate
+comparisons, not mandatory pixel or DOM structure contracts for every change.
+
+The English release check covers owned documentation and visible HTML text,
+including accessibility labels and language metadata. JavaScript, third-party
+assets and data files may contain Unicode. Review dynamically generated UI
+wording in code review; the language check does not infer it from source code.
 
 ### Core workbench CSS
 
