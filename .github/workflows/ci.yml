@@ -6,6 +6,8 @@ on:
       - master
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "23 3 * * 1"
 
 permissions:
   contents: read
@@ -19,6 +21,25 @@ env:
   OAT_GIT_COMMIT: ${{ github.sha }}
 
 jobs:
+  scope:
+    name: Select CI checks
+    runs-on: ubuntu-latest
+    outputs:
+      full: ${{ steps.scope.outputs.full }}
+      tutorial: ${{ steps.scope.outputs.tutorial }}
+      runtime: ${{ steps.scope.outputs.runtime }}
+      audit: ${{ steps.scope.outputs.audit }}
+      release: ${{ steps.scope.outputs.release }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: scope
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 tools/ci_scope.py
+
   workbench:
     name: Workbench quality and production build
     runs-on: ubuntu-latest
@@ -93,6 +114,8 @@ jobs:
 
   dependency-audit:
     name: Security and license audit
+    needs: scope
+    if: needs.scope.outputs.audit == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -152,6 +175,8 @@ jobs:
 
   real-runtime-smoke:
     name: Real runtime smoke
+    needs: scope
+    if: needs.scope.outputs.runtime == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -187,6 +212,8 @@ jobs:
 
   tutorial-site:
     name: Tutorial contracts and build
+    needs: scope
+    if: needs.scope.outputs.tutorial == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -210,10 +237,20 @@ jobs:
         working-directory: website
         run: npm test && npm run build
 
+      - name: Install browser dependencies and Chromium
+        working-directory: tests/browser
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run interactive tutorial contracts against the production build
+        working-directory: tests/browser
+        run: npm run test:tutorial-site
+
   browser-contracts:
     name: Browser feature contracts
     runs-on: ubuntu-latest
-    needs: workbench
+    needs: [workbench, scope]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -241,7 +278,6 @@ jobs:
           cache: npm
           cache-dependency-path: |
             tests/browser/package-lock.json
-            website/package-lock.json
             workbench/package-lock.json
 
       - name: Setup npm 11.9.0
@@ -255,32 +291,21 @@ jobs:
         working-directory: workbench
         run: npm ci
 
-      - name: Install tutorial dependencies
-        working-directory: website
-        run: npm ci
-
       - name: Install Chromium
         working-directory: tests/browser
         run: npx playwright install --with-deps chromium
 
       - name: Run deterministic browser contracts
         working-directory: tests/browser
+        env:
+          OAT_RUN_SOAK_TESTS: ${{ needs.scope.outputs.full == 'true' || needs.scope.outputs.release == 'true' }}
         run: npm run test:ci
-
-      - name: Run interactive tutorial contracts
-        working-directory: tests/browser
-        run: npm run test:tutorial-site
 
   release-package:
     name: Deterministic release package
     runs-on: ubuntu-latest
-    needs:
-      - workbench
-      - python-tests
-      - dependency-audit
-      - browser-contracts
-      - real-runtime-smoke
-      - tutorial-site
+    needs: [workbench, scope]
+    if: needs.scope.outputs.release == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v6

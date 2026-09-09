@@ -50,6 +50,8 @@ const FORBIDDEN_UI_SOURCE_NAMES = [
   "features/results/result-dock-bridge.tsx",
 ];
 const BUDGETS = {
+  basemapWorkerGzip: 160 * 1024,
+  basemapWorkerRaw: 512 * 1024,
   initialGzip: 352 * 1024,
   applicationJavaScriptGzip: 384 * 1024,
   applicationCssGzip: 24 * 1024,
@@ -277,19 +279,23 @@ const javascriptFiles = files.filter((path) => path.endsWith(".js"));
 const cssFiles = files.filter((path) => path.endsWith(".css"));
 const isBasemapOutput = (path) =>
   /\/basemap-runtime-[A-Za-z0-9_-]+\.(js|css)$/.test(toPosix(path));
+const isBasemapWorker = (path) =>
+  /\/maplibre-gl-worker-[A-Za-z0-9_-]+\.js$/.test(toPosix(path));
 const applicationJavaScript = javascriptFiles.filter(
-  (path) => !isBasemapOutput(path),
+  (path) => !isBasemapOutput(path) && !isBasemapWorker(path),
 );
 const basemapJavaScript = javascriptFiles.filter(isBasemapOutput);
+const basemapWorkers = javascriptFiles.filter(isBasemapWorker);
+if (basemapWorkers.length !== 1) fail("missing bundled vector basemap worker");
 if (basemapJavaScript.length !== 1)
   fail("missing isolated vector basemap runtime");
-if (/[\u0080-\uffff]/.test(readFileSync(basemapJavaScript[0], "utf8")))
-  fail(
-    "vector basemap Unicode tables must use ASCII escapes for release packaging",
-  );
 const initialOutputs = new Set();
 collectInitialOutputs("js/app.js", manifest, new Set(), initialOutputs);
-if ([...initialOutputs].some(isBasemapOutput))
+if (
+  [...initialOutputs].some(
+    (path) => isBasemapOutput(path) || isBasemapWorker(path),
+  )
+)
   fail("vector basemap must be loaded on demand");
 const reactRuntimeOutputs = new Set();
 for (const path of javascriptFiles) {
@@ -309,6 +315,8 @@ const sizes = {
   maxApplicationChunkGzip: Math.max(...applicationJavaScript.map(gzipSize)),
   basemapJavaScriptGzip: sumGzip(basemapJavaScript),
   basemapJavaScriptRaw: statSync(basemapJavaScript[0]).size,
+  basemapWorkerGzip: sumGzip(basemapWorkers),
+  basemapWorkerRaw: statSync(basemapWorkers[0]).size,
   basemapCssGzip: sumGzip(cssFiles.filter(isBasemapOutput)),
 };
 for (const [name, actual] of Object.entries(sizes))

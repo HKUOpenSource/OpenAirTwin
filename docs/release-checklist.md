@@ -24,7 +24,9 @@ support.
   browser reports, screenshots, traces, audit reports, generated Workbench
   output, scene data and runtime job output are not tracked.
 - [ ] Confirm migration-only planning material remains local and ignored.
-- [ ] Run `python3 tools/check_release_english.py` against tracked UTF-8 text.
+- [ ] Run `python3 tools/check_release_english.py` against owned documents and
+  visible HTML text. Review dynamically generated UI wording separately;
+  third-party Unicode tables and data are outside this check's scope.
 - [ ] Confirm every HTML entry point uses English language metadata.
 - [ ] Manually inspect user-facing images, GIFs and videos for non-English
   visible text.
@@ -50,7 +52,8 @@ support.
 - [ ] Confirm Critical and Serious Axe violations are zero for every Feature,
   dialogs and error states; verify keyboard focus restoration and reduced
   motion behavior.
-- [ ] Run the release soak and confirm listeners, timers, DOM nodes, canvases,
+- [ ] Run `OAT_RUN_SOAK_TESTS=true npm run test:ci` in `tests/browser/` and
+  confirm viewer callbacks, timers, DOM nodes, canvases,
   frames and Radar labels return to their starting counts. Confirm median heap
   growth after forced collection is no greater than both 8 MiB and 20 percent.
 - [ ] Run seven local cold starts in the fixed Chrome environment. Confirm

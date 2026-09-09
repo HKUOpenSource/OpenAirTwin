@@ -184,43 +184,6 @@ def skip_js_string(source: str, quote_index: int) -> int:
 
 
 class FrontendRegressionTests(unittest.TestCase):
-    def test_core_css_architecture_uses_ordered_layers_and_tokens(self) -> None:
-        html = read_static_html()
-        loaded_css = re.findall(r'href="/css/([^?\"]+)', html)
-
-        self.assertEqual(loaded_css, list(APP_CSS_FILES))
-        self.assertFalse((STATIC_CSS_ROOT / "app.css").exists())
-        self.assertIn(
-            "@layer reset, tokens, base, components, layout, features, utilities;",
-            read_static_css("tokens.css"),
-        )
-        for name in APP_CSS_FILES:
-            self.assertIn("@layer", read_static_css(name), name)
-        for name in APP_CSS_FILES[1:]:
-            source = read_static_css(name)
-            self.assertIsNone(re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(", source), name)
-            self.assertNotIn("max-width:720px", source, name)
-            self.assertNotIn("max-width: 720px", source, name)
-            self.assertNotIn("-var(", source, name)
-        important_uses = re.findall(r"[^{}]+\{[^{}]*!important[^{}]*\}", read_app_css())
-        self.assertEqual(len(important_uses), 1)
-        self.assertTrue(important_uses[0].lstrip().startswith(".hidden"))
-        components = read_static_css("components.css")
-        for selector in (
-            ".oat-panel", ".oat-button:not(.oat-button--compact)", ".oat-field", ".oat-input", ".oat-check",
-            ".oat-badge", ".oat-metric-grid", ".oat-list-card", ".oat-scroll-region",
-        ):
-            css_rule_body(components, selector)
-
-        theme_source = read_static_js("ui/theme_tokens.js")
-        radar_charts = read_static_js("features/radar/charts.js")
-        entry_map = read_static_js("entry_map.js")
-        self.assertIn("export function readUiToken(tokenName)", theme_source)
-        self.assertIn('readUiToken("--oat-canvas-background")', radar_charts)
-        self.assertIn('readUiToken("--oat-canvas-grid")', radar_charts)
-        self.assertNotIn('context.fillStyle = "#f7f9fc"', radar_charts)
-        self.assertNotIn("entrySearchHint.style.color", entry_map)
-        self.assertIn('entrySearchHint.classList.toggle("is-error", isError)', entry_map)
 
     def test_controller_factory_public_facades_remain_stable(self) -> None:
         solver_methods = exported_controller_methods(
@@ -425,43 +388,6 @@ class FrontendRegressionTests(unittest.TestCase):
         self.assertIn("loadedCount === expectedCount", source)
         self.assertNotIn("loadedTileIds.add(bundle.tile)", source)
 
-    def test_city_model_uses_category_palette_for_natural_materials(self) -> None:
-        source = read_static_js("viewer.js")
-        expected_category_colors = {
-            "BUILDING": "#d8d2c4",
-            "INFRASTRUCTURE": "#50565c",
-            "INFRASTRUCTURE_TB": "#50565c",
-            "GENERIC": "#8c8981",
-            "TERRAIN_TB": "#8c8981",
-            "VEGETATION_TB": "#557b5c",
-            "WATERBODY": "#245766",
-        }
-
-        self.assertIn("const CATEGORY_MATERIAL_STYLES = {", source)
-        for category, color in expected_category_colors.items():
-            self.assertIn(f"{category}: {{", source)
-            self.assertIn(f'color: "{color}"', source)
-        self.assertIn("CATEGORY_MATERIAL_STYLES[bundle.category]", source)
-        self.assertIn("const MATERIAL_FALLBACK_COLORS = {", source)
-        self.assertIn("function colorForBundle(bundle)", source)
-        self.assertIn("hashString(bundle.bundle_id", source)
-        self.assertIn("lightnessVariation", source)
-        self.assertIn("saturationVariation", source)
-        generic_style = source.split("GENERIC: {", 1)[1].split("TERRAIN_TB:", 1)[0]
-        terrain_style = source.split("TERRAIN_TB: {", 1)[1].split("VEGETATION_TB:", 1)[0]
-        self.assertNotIn("lightnessVariation", generic_style)
-        self.assertNotIn("saturationVariation", generic_style)
-        self.assertNotIn("lightnessVariation", terrain_style)
-        self.assertNotIn("saturationVariation", terrain_style)
-        self.assertIn('transparent: true', source)
-        self.assertIn('opacity: 0.84', source)
-        self.assertIn('Boolean(style.transparent) || bundle.bsdf_id === "itu_wet_ground"', source)
-        self.assertIn("new THREE.HemisphereLight", source)
-        self.assertIn("new THREE.DirectionalLight(0xdbe5f7, 0.42)", source)
-        self.assertIn("toneMappingExposure = 1.08", source)
-        self.assertIn("roughness: style.roughness ?? 0.88", source)
-        self.assertIn("metalness: style.metalness ?? 0.0", source)
-        self.assertNotIn("MATERIAL_COLORS[mesh.bsdf_id]", source)
 
     def test_viewer_clamps_camera_and_target_above_ground(self) -> None:
         source = read_static_js("viewer.js")

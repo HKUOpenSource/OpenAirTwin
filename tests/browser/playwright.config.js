@@ -14,6 +14,7 @@ export default defineConfig({
   timeout: 30_000,
   expect: {timeout: 5_000},
   fullyParallel: false,
+  reporter: "list",
   use: {
     baseURL,
     viewport: {width: 1440, height: 900},

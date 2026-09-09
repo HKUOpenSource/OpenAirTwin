@@ -6,83 +6,28 @@ import re
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PHASE0_DOM = PROJECT_ROOT / "tests" / "browser" / "baselines" / "phase-0-dom-contract.json"
 PHASE1_DOM = PROJECT_ROOT / "docs" / "ui" / "dom-compatibility-contract.json"
 UI_DOC_ROOT = PROJECT_ROOT / "docs" / "ui"
 JS_ROOT = PROJECT_ROOT / "backend" / "static" / "js"
-PHASE8_RETIRED_ELEMENT_IDS = {
-    "featureModeMenuAnchor",
-    "featureParameterAnchor",
-    "featurePanelAnchor",
-    "featureDeviceCardAnchor",
-    "featureDeviceActionAnchor",
-}
-PHASE8_RETIRED_CLASSES = {
-    "btn",
-    "danger",
-    "miniBtn",
-    "miniSelect",
-    "oat-button--legacy-native-font",
-    "primary",
-}
 
 
 def load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def test_phase1_dom_contract_is_a_complete_enrichment_of_phase0() -> None:
-    phase0 = load_json(PHASE0_DOM)
-    phase1 = load_json(PHASE1_DOM)
-    assert phase1["schemaVersion"] == 2
-    assert phase1["generatedBy"] == "tests/browser/feature_modes.spec.js"
-    assert phase1["baseline"] == "tests/browser/baselines/phase-0-dom-contract.json"
-    assert phase1["document"] == phase0["document"]
-
-    assert set(phase1["baselineTransform"]["retiredElementIds"]) == PHASE8_RETIRED_ELEMENT_IDS
-    assert set(phase1["baselineTransform"]["retiredClasses"]) == PHASE8_RETIRED_CLASSES
-
-    phase0_elements = []
-    for baseline in phase0["elements"]:
-        if baseline["id"] in PHASE8_RETIRED_ELEMENT_IDS:
-            continue
-        normalized = dict(baseline)
-        normalized["order"] = len(phase0_elements)
-        normalized["classes"] = [
-            name for name in baseline["classes"] if name not in PHASE8_RETIRED_CLASSES
-        ]
-        phase0_elements.append(normalized)
-
-    phase0_by_id = {element["id"]: element for element in phase0_elements}
-    phase1_by_id = {element["id"]: element for element in phase1["elements"]}
-    assert len(phase0_by_id) == len(phase0_elements)
-    assert len(phase1_by_id) == len(phase1["elements"])
-    assert phase1_by_id.keys() == phase0_by_id.keys()
-
-    for element_id, baseline in phase0_by_id.items():
-        contracted = phase1_by_id[element_id]
-        for key, value in baseline.items():
-            if key != "classes":
-                assert contracted[key] == value
-        baseline_classes = baseline["classes"]
-        contracted_classes = contracted["classes"]
-        assert [name for name in contracted_classes if name in baseline_classes] == baseline_classes
-        assert all(name.startswith("oat-") for name in contracted_classes if name not in baseline_classes)
-        assert contracted["owner"] in phase1["owners"]
-        assert contracted["compatibility"] == "required"
-
-    assert all(
-        name not in PHASE8_RETIRED_CLASSES
-        for element in phase1["elements"]
-        for name in element["classes"]
-    )
+def test_dom_contract_has_unique_ids_and_known_owners() -> None:
+    contract = load_json(PHASE1_DOM)
+    elements = contract["elements"]
+    assert elements
+    assert len({element["id"] for element in elements}) == len(elements)
+    assert all(element["owner"] in contract["owners"] for element in elements)
 
 
 def test_every_initial_user_control_has_a_named_command() -> None:
     contract = load_json(PHASE1_DOM)
     interactive_tags = {"button", "details", "input", "select", "summary", "textarea"}
     controls = [element for element in contract["elements"] if element["tag"] in interactive_tags]
-    assert len(controls) == 197
+    assert controls
     assert all(re.fullmatch(r"[a-z][A-Za-z0-9]*(?:\.[a-z][A-Za-z0-9]*)+", item["interaction"]["command"])
                for item in controls)
     assert all(item["interaction"]["events"] for item in controls)

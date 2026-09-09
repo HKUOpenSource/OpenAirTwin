@@ -1,7 +1,10 @@
 import { defineConfig } from "@playwright/test";
 
-const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-  ?? (process.platform === "darwin" ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : undefined);
+const executablePath =
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ??
+  (process.platform === "darwin"
+    ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    : undefined);
 const port = process.env.OAT_TUTORIAL_SITE_PORT ?? "4174";
 const baseURL = `http://127.0.0.1:${port}/OpenAirTwin/`;
 
@@ -27,10 +30,10 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: `npm run dev -- --host 127.0.0.1 --port ${port}`,
+    command: `npm run preview -- --host 127.0.0.1 --port ${port}`,
     cwd: "../../website",
     url: baseURL,
     timeout: 60_000,
-    reuseExistingServer: true,
+    reuseExistingServer: process.env.OAT_REUSE_TEST_SERVER === "1",
   },
 });

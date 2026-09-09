@@ -71,8 +71,25 @@ def test_release_language_gate_rejects_cjk_and_non_english_html() -> None:
     ]
 
 
-def test_release_language_module_has_no_repository_side_effect(tmp_path: Path) -> None:
-    assert list(tmp_path.iterdir()) == []
+def test_release_language_ignores_code_and_vendor_unicode_tables() -> None:
+    entries = [
+        TextEntry("backend/static/workbench/assets/map.js", "const chars = '\u4e00';".encode()),
+        TextEntry("backend/static/lib/NOTICE.txt", "\u4e00".encode()),
+        TextEntry("tests/fixture.json", '{"name":"\u4e00"}'.encode()),
+        TextEntry("index.html", '<html lang="en"><script>const chars = "\u4e00";</script><style>/* \u4e00 */</style><p>Map</p></html>'.encode()),
+    ]
+    assert text_violations(entries) == []
+
+
+def test_release_language_checks_visible_html_and_accessible_labels() -> None:
+    entries = [
+        TextEntry("index.html", '<html lang="en"><p>&#x4e00;</p></html>'.encode()),
+        TextEntry("page.html", '<html lang="en"><button aria-label="\u4e00"></button></html>'.encode()),
+    ]
+    assert text_violations(entries) == [
+        "index.html: contains visible CJK text",
+        "page.html: contains visible CJK text",
+    ]
 
 
 def test_release_document_scope_includes_contract_json_but_not_lockfiles() -> None:
