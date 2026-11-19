@@ -20,14 +20,15 @@ RADAR_VISUAL_INSTANCE_PREFIX = "radar-target-visual-"
 RADAR_CLUTTER_MODEL_METHOD = "sionna_diffuse_reflection"
 RADAR_CLUTTER_MODEL_PRESET = "urban-heuristic-v2"
 RADAR_CLUTTER_SCATTERING_COEFFICIENT = 0.30
-RADAR_CLUTTER_DIRECTIVE_ALPHA_R = 10.0
+# Sionna RT 2.2 requires integer exponents for DirectivePattern.
+RADAR_CLUTTER_DIRECTIVE_ALPHA_R = 10
 RADAR_CLUTTER_MATERIAL_PROFILES = (
-    (("vegetation", "foliage", "tree"), "vegetation", 0.60, 4.0),
-    (("concrete", "brick"), "masonry", 0.35, 10.0),
-    (("asphalt", "ground", "soil"), "ground", 0.25, 15.0),
-    (("glass",), "glass", 0.15, 20.0),
-    (("metal",), "metal", 0.10, 30.0),
-    (("water", "sea"), "water", 0.05, 40.0),
+    (("vegetation", "foliage", "tree"), "vegetation", 0.60, 4),
+    (("concrete", "brick"), "masonry", 0.35, 10),
+    (("asphalt", "ground", "soil"), "ground", 0.25, 15),
+    (("glass",), "glass", 0.15, 20),
+    (("metal",), "metal", 0.10, 30),
+    (("water", "sea"), "water", 0.05, 40),
 )
 
 Vector3 = tuple[float, float, float]
@@ -233,21 +234,28 @@ def capture_radar_scene_snapshot(
 class RadarSceneDependencies:
     transmitter_type: type
     receiver_type: type
-    scene_object_type: type
-    material_type: type
     array_factory: Callable[[dict], object]
+    target_factory: Callable[[DroneTarget], object]
     scattering_pattern_factory: Callable[..., object] | None = None
 
 
 def _radar_scene_dependencies() -> RadarSceneDependencies:
-    from sionna.rt import DirectivePattern, ITURadioMaterial, Receiver, SceneObject, Transmitter
+    from sionna.rt import DirectivePattern, Receiver, Transmitter
+    from sionna.rt.rcs import ConstantRCSSensingTarget
+
+    def create_target(target: DroneTarget):
+        asset = radar_asset_by_id(target.asset_id)
+        return ConstantRCSSensingTarget(
+            name=target.sionna_object_name,
+            sigma=target.effective_rcs_m2,
+            fname=str(RADAR_ASSET_ROOT / asset["radar"]["path"]),
+        )
 
     return RadarSceneDependencies(
         transmitter_type=Transmitter,
         receiver_type=Receiver,
-        scene_object_type=SceneObject,
-        material_type=ITURadioMaterial,
         array_factory=create_planar_array,
+        target_factory=create_target,
         scattering_pattern_factory=lambda alpha_r=RADAR_CLUTTER_DIRECTIVE_ALPHA_R: DirectivePattern(alpha_r=alpha_r),
     )
 
@@ -311,6 +319,20 @@ class RadarSceneBinding:
     @property
     def environment_material_count(self) -> int:
         return len(self._environment_material_states)
+
+    @property
+    def clutter_model(self) -> dict:
+        return {
+            "method": RADAR_CLUTTER_MODEL_METHOD,
+            "preset": RADAR_CLUTTER_MODEL_PRESET,
+            "enabled": self.environment_scattering_enabled,
+            "calibrated": False,
+            "scattering_coefficient": RADAR_CLUTTER_SCATTERING_COEFFICIENT,
+            "scattering_pattern": "directive",
+            "directive_alpha_r": RADAR_CLUTTER_DIRECTIVE_ALPHA_R,
+            "environment_material_count": self.environment_material_count,
+            "material_profile_counts": dict(self.environment_material_profile_counts),
+        }
 
     def _enable_environment_scattering(self) -> None:
         if not self.environment_scattering_enabled:
@@ -388,18 +410,7 @@ class RadarSceneBinding:
             self._device_names.append(RADAR_RX_DEVICE_NAME)
 
             for target in self.snapshot.targets:
-                asset = radar_asset_by_id(target.asset_id)
-                material = self.dependencies.material_type(
-                    name=f"{target.sionna_object_name}-metal",
-                    itu_type="metal",
-                    thickness=0.01,
-                )
-                scene_object = self.dependencies.scene_object_type(
-                    fname=str(RADAR_ASSET_ROOT / asset["radar"]["path"]),
-                    name=target.sionna_object_name,
-                    radio_material=material,
-                )
-                self._target_objects_pending.append(scene_object)
+                self._target_objects_pending.append(self.dependencies.target_factory(target))
 
             if self._target_objects_pending:
                 self.scene.edit(add=self._target_objects_pending)

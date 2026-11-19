@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-green"></a>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-blue">
-  <img alt="Sionna RT" src="https://img.shields.io/badge/Sionna_RT-2.0.1-brightgreen">
+  <img alt="Sionna RT" src="https://img.shields.io/badge/Sionna_RT-2.2.0-brightgreen">
   <img alt="React 19" src="https://img.shields.io/badge/React-19.2.8-61DAFB?logo=react&logoColor=black">
   <img alt="WebGL rendering" src="https://img.shields.io/badge/rendering-WebGL-4b8bbe">
   <a href="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/HKUOpenSource/OpenAirTwin/actions/workflows/ci.yml/badge.svg"></a>

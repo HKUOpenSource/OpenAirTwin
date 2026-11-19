@@ -254,8 +254,10 @@ shared in-process job infrastructure, Radar Sensing owns a bounded in-memory
 lifecycle.
 
 Radar Sensing exposes four asynchronous routes under `/api/radar/jobs` for
-creation, status polling, result retrieval and cancellation. Its service runs
-the independent Radar propagation solver followed by OFDM sensing processing.
+creation, status polling, result retrieval and cancellation. It uses Sionna RT's
+`RCSSolver` for target echoes and `PathSolver` for background paths, then runs
+the OFDM sensing processor. The target solver uses up to 4,096 samples and
+512 buffered path legs per scattering point.
 The frontend owns Radar-specific target, path and detection Viewer Layers and
 loads the four CC BY 4.0 drone assets through the shared Asset Manager. Radar
 results remain in memory and have no download route or generated result files.

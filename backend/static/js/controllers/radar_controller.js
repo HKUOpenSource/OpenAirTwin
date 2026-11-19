@@ -1,7 +1,7 @@
 import {requestFailureState} from "/js/api.js";
 
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
-const EXPECTED_RADAR_BUILD_ID = "radar-rs08-fix-20260722";
+const EXPECTED_RADAR_BUILD_ID = "radar-sionna-rt-2.2.0";
 
 function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));

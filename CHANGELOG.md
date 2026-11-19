@@ -7,6 +7,8 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ### Changed
 
+- Updated to Sionna RT 2.2.0 and switched Radar target propagation to its
+  native `RCSSolver`.
 - Replaced the entry map's unauthenticated CARTO raster tiles with OpenFreeMap
   Positron vector tiles. No API key is required; Leaflet tile selection and the
   local fallback map are retained.

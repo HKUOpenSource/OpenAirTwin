@@ -13,7 +13,6 @@ from backend.rt.radar_payload import SPEED_OF_LIGHT_MPS
 from backend.rt.runtime import SceneNotReady
 from backend.rt.solve_radar import (
     RADAR_PATH_CLASSIFICATION_RULE,
-    RADAR_TARGET_FALLBACK_METHOD,
     RadarPropagationDependencies,
     solve_radar_propagation,
 )
@@ -34,6 +33,7 @@ class FakeInteractionType(IntEnum):
     DIFFUSE = 2
     REFRACTION = 3
     DIFFRACTION = 4
+    SENSING = 8
 
 
 class FakePaths:
@@ -54,6 +54,10 @@ class FakePaths:
             np.ones(shape, dtype=float),
             np.zeros(shape, dtype=float),
         )
+
+    def cir(self, *, normalize_delays, out_type):
+        assert normalize_delays is False and out_type == "numpy"
+        return (self.a[0] + 1j * self.a[1])[..., None], self.tau
 
 
 class FakePathSolver:
@@ -91,39 +95,43 @@ def dependencies_for(
     paths: FakePaths,
     calls: list[dict],
     *,
-    directed_scatter_solver=lambda *_args, **_kwargs: None,
+    sensing_paths: FakePaths | None = None,
+    sensing_calls: list[dict] | None = None,
 ) -> RadarPropagationDependencies:
+    if sensing_paths is None:
+        sensing_paths = FakePaths(max_depth=paths.interactions.shape[0], path_count=0)
     return RadarPropagationDependencies(
         path_solver_factory=lambda: FakePathSolver(paths, calls),
+        rcs_solver_factory=lambda: FakePathSolver(sensing_paths, [] if sensing_calls is None else sensing_calls),
         interaction_type=FakeInteractionType,
         invalid_shape_id=INVALID_ID,
         invalid_primitive_id=INVALID_ID,
         scene_dependencies=FAKE_DEPENDENCIES,
-        directed_scatter_solver=directed_scatter_solver,
     )
 
 
 class RadarPropagationTests(unittest.TestCase):
-    def test_single_target_sbr_amplitude_scales_with_effective_rcs(self) -> None:
+    def test_native_target_coefficient_is_preserved(self) -> None:
         runtime = FakeRuntime()
-        target_value = drone_target("alpha", "dji-mini-3")
-        target_value["rcs_m2"] = 0.04
-        paths = FakePaths(max_depth=2, path_count=1)
-        paths.a = (np.asarray([[0.25]], dtype=float), np.asarray([[-0.2]], dtype=float))
-        paths.interactions[0, 0, 0] = FakeInteractionType.SPECULAR
-        paths.objects[0, 0, 0] = 100
-        paths.vertices[0, 0, 0] = [20.0, 0.0, 10.0]
+        target = drone_target("alpha", "dji-mini-3", rcs_m2=0.04)
+        background = FakePaths(max_depth=2, path_count=0)
+        echoes = FakePaths(max_depth=2)
+        echoes.a = (np.asarray([[0.25]]), np.asarray([[-0.2]]))
+        echoes.interactions[0, 0, 0] = FakeInteractionType.SENSING
+        echoes.objects[0, 0, 0] = 0
+        echoes.vertices[0, 0, 0] = target["position"]
 
         result = solve_radar_propagation(
             runtime,
-            propagation_payload(targets=[target_value]),
-            dependencies=dependencies_for(paths, []),
+            propagation_payload(targets=[target]),
+            dependencies=dependencies_for(background, [], sensing_paths=echoes),
         )
 
-        record = next(item for item in result["paths"] if item["classification"] == "target")
-        self.assertAlmostEqual(record["coefficient_abs"], 2.0 * math.hypot(0.25, -0.2))
-        self.assertEqual(record["coefficient_source"], "sionna_scaled_by_effective_rcs")
-        self.assertEqual(result["targets"][0]["observability"]["status"], "multipath")
+        record = result["paths"][0]
+        self.assertEqual(record["target_ids"], ["alpha"])
+        self.assertEqual(record["coefficient_source"], "sionna_rcs_solver")
+        self.assertAlmostEqual(record["coefficient_abs"], math.hypot(0.25, -0.2))
+        self.assertEqual(result["targets"][0]["observability"]["status"], "direct")
 
     def test_propagation_honors_queued_generation_and_reports_stage_progress(self) -> None:
         runtime = FakeRuntime(generation=6)
@@ -157,75 +165,54 @@ class RadarPropagationTests(unittest.TestCase):
                 expected_scene_generation=5,
             )
 
-    def test_point_plate_target_and_array_pairs_remain_distinct(self) -> None:
+    def test_sensing_target_indices_are_distinct_from_environment_object_ids(self) -> None:
         runtime = FakeRuntime()
-        payload = propagation_payload(
-            targets=[
-                drone_target("alpha", "dji-mini-3"),
-                drone_target("bravo", "dji-air-2s", position=[45.0, 3.0, 12.0]),
-            ]
-        )
-        paths = FakePaths(max_depth=2, pair_count=2, path_count=3)
-        paths.valid[1, 1:] = False
-        paths.a = (
-            np.asarray([[1.0, 0.5, 0.25], [0.75, 0.0, 0.0]], dtype=float),
-            np.asarray([[0.0, 0.1, -0.2], [0.0, 0.0, 0.0]], dtype=float),
-        )
-
-        # Path slot 0 is a point-like LOS leakage for both array pairs.
-        # Path slot 1 hits an environment plate only.
-        paths.interactions[0, 0, 1] = FakeInteractionType.SPECULAR
-        paths.objects[0, 0, 1] = 7
-        paths.primitives[0, 0, 1] = 11
-        paths.vertices[0, 0, 1] = [12.0, 4.0, 6.0]
-
-        # Path slot 2 hits two distinct drone objects in order.
-        paths.interactions[0, 0, 2] = FakeInteractionType.SPECULAR
-        paths.interactions[1, 0, 2] = FakeInteractionType.DIFFUSE
-        paths.objects[0, 0, 2] = 100
-        paths.objects[1, 0, 2] = 101
-        paths.primitives[0, 0, 2] = 21
-        paths.primitives[1, 0, 2] = 22
-        paths.vertices[0, 0, 2] = [20.0, 0.0, 10.0]
-        paths.vertices[1, 0, 2] = [45.0, 3.0, 12.0]
-        calls: list[dict] = []
+        targets = [drone_target("alpha"), drone_target("bravo", position=[45.0, 3.0, 12.0])]
+        background = FakePaths(max_depth=2, pair_count=2, path_count=2)
+        background.valid[1, 1] = False
+        background.a[0][1, 0] = 0.75
+        background.interactions[0, 0, 1] = FakeInteractionType.SPECULAR
+        background.objects[0, 0, 1] = 0
+        background.primitives[0, 0, 1] = 11
+        background.vertices[0, 0, 1] = [12.0, 4.0, 6.0]
+        echoes = FakePaths(max_depth=2, path_count=2)
+        echoes.interactions[:, 0, 0] = [FakeInteractionType.SPECULAR, FakeInteractionType.SENSING]
+        echoes.objects[:, 0, 0] = [0, 0]
+        echoes.vertices[:, 0, 0] = [[12.0, 4.0, 6.0], targets[0]["position"]]
+        echoes.interactions[0, 0, 1] = FakeInteractionType.SENSING
+        echoes.objects[0, 0, 1] = 1
+        echoes.vertices[0, 0, 1] = targets[1]["position"]
 
         result = solve_radar_propagation(
             runtime,
-            payload,
-            dependencies=dependencies_for(paths, calls),
+            propagation_payload(targets=targets),
+            dependencies=dependencies_for(background, [], sensing_paths=echoes),
         )
 
         self.assertEqual(result["classification_rule"], RADAR_PATH_CLASSIFICATION_RULE)
-        self.assertEqual(result["summary"]["valid_paths"], 4)
+        self.assertEqual(result["summary"]["valid_paths"], 5)
         self.assertEqual(result["summary"]["direct_path_count"], 2)
         self.assertEqual(result["summary"]["clutter_path_count"], 1)
-        self.assertEqual(result["summary"]["target_path_count"], 1)
+        self.assertEqual(result["summary"]["target_path_count"], 2)
         self.assertEqual(result["summary"]["deduplicated_paths"], 0)
+        self.assertEqual(result["target_object_ids"], {"alpha": 100, "bravo": 101})
+        self.assertEqual(len({record["path_id"] for record in result["paths"]}), 5)
 
         direct = [record for record in result["paths"] if record["classification"] == "direct"]
         self.assertEqual([record["array_pair_index"] for record in direct], [0, 1])
-        self.assertEqual(len({record["path_id"] for record in direct}), 2)
         self.assertNotEqual(direct[0]["coefficient_real"], direct[1]["coefficient_real"])
-
         clutter = next(record for record in result["paths"] if record["classification"] == "clutter")
         self.assertEqual(clutter["target_ids"], [])
-        self.assertEqual(clutter["object_chain"][0]["object_id"], 7)
+        self.assertEqual(clutter["object_chain"][0]["object_id"], 0)
         self.assertEqual(clutter["object_chain"][0]["primitive_id"], 11)
-
-        target = next(record for record in result["paths"] if record["classification"] == "target")
-        self.assertEqual(target["target_ids"], ["alpha", "bravo"])
-        self.assertEqual(
-            [interaction["object_id"] for interaction in target["object_chain"]],
-            [100, 101],
-        )
-        self.assertEqual(
-            [interaction["target_id"] for interaction in target["object_chain"]],
-            ["alpha", "bravo"],
-        )
-        self.assertEqual(len(target["polyline"]), 4)
-        self.assertAlmostEqual(target["coefficient_abs"], math.hypot(0.25, -0.2))
-        self.assertEqual(result["target_object_ids"], {"alpha": 100, "bravo": 101})
+        alpha, bravo = [record for record in result["paths"] if record["classification"] == "target"]
+        self.assertEqual([alpha["target_ids"], bravo["target_ids"]], [["alpha"], ["bravo"]])
+        self.assertEqual([entry["object_id"] for entry in alpha["object_chain"]], [0, 100])
+        self.assertEqual(len(alpha["polyline"]), 4)
+        self.assertEqual(result["targets"][0]["observability"], {
+            "status": "multipath", "tx_leg": {"status": "unknown"}, "rx_leg": {"status": "clear"},
+        })
+        self.assertEqual(result["targets"][1]["observability"]["status"], "direct")
         self.assertEqual(runtime.scene.objects, {})
         self.assertEqual(runtime.scene.devices, {})
 
@@ -233,18 +220,21 @@ class RadarPropagationTests(unittest.TestCase):
         runtime = FakeRuntime()
         paths = FakePaths(max_depth=2, path_count=0)
         calls: list[dict] = []
+        sensing_calls: list[dict] = []
+        payload = propagation_payload(targets=[drone_target("alpha")])
+        payload["solver"].update(samples_per_src=65536, max_num_paths_per_src=100000)
 
         solve_radar_propagation(
             runtime,
-            propagation_payload(),
-            dependencies=dependencies_for(paths, calls),
+            payload,
+            dependencies=dependencies_for(paths, calls, sensing_calls=sensing_calls),
         )
 
         self.assertEqual(len(calls), 1)
         kwargs = calls[0]["kwargs"]
         self.assertEqual(kwargs["seed"], 17)
-        self.assertEqual(kwargs["samples_per_src"], 321)
-        self.assertEqual(kwargs["max_num_paths_per_src"], 654)
+        self.assertEqual(kwargs["samples_per_src"], 65536)
+        self.assertEqual(kwargs["max_num_paths_per_src"], 100000)
         self.assertEqual(kwargs["max_depth"], 2)
         self.assertFalse(kwargs["synthetic_array"])
         self.assertEqual(set(kwargs), {
@@ -260,6 +250,12 @@ class RadarPropagationTests(unittest.TestCase):
             "edge_diffraction",
             "diffraction_lit_region",
             "seed",
+        })
+
+        self.assertEqual(len(sensing_calls), 1)
+        self.assertEqual(sensing_calls[0]["kwargs"], {
+            "seed": 17, "samples_per_sp": 4096, "buffer_size_per_sp": 512, "max_depth": 2,
+            "synthetic_array": False, "los": True, "specular_reflection": True, "refraction": False,
         })
 
     def test_same_scene_payload_and_seed_are_reproducible(self) -> None:
@@ -292,17 +288,18 @@ class RadarPropagationTests(unittest.TestCase):
             def __call__(self, _scene, **_kwargs):
                 raise RuntimeError("synthetic radar solver failure")
 
+        background = FakePaths(max_depth=2, path_count=0)
         dependencies = RadarPropagationDependencies(
-            path_solver_factory=FailingSolver,
+            path_solver_factory=lambda: FakePathSolver(background, []),
+            rcs_solver_factory=FailingSolver,
             interaction_type=FakeInteractionType,
             invalid_shape_id=INVALID_ID,
             invalid_primitive_id=INVALID_ID,
             scene_dependencies=FAKE_DEPENDENCIES,
-            directed_scatter_solver=lambda *_args, **_kwargs: None,
         )
 
         with self.assertRaisesRegex(RuntimeError, "synthetic radar solver failure"):
-            solve_radar_propagation(runtime, propagation_payload(), dependencies=dependencies)
+            solve_radar_propagation(runtime, propagation_payload(targets=[drone_target("alpha")]), dependencies=dependencies)
 
         self.assertEqual(runtime.scene.objects, {})
         self.assertEqual(runtime.scene.materials, {})
@@ -384,92 +381,35 @@ class RadarPropagationTests(unittest.TestCase):
         self.assertEqual(result["paths"], [])
         self.assertEqual(result["summary"]["filtered_nonfinite_path_count"], 3)
 
-    def test_single_drone_fallback_requires_identity_proof_and_builds_complex_coefficient(self) -> None:
+    def test_target_without_native_echo_has_no_visibility_claim(self) -> None:
+        paths = FakePaths(max_depth=2, path_count=0)
+        payload = propagation_payload(targets=[drone_target("alpha")])
+        propagation = solve_radar_propagation(FakeRuntime(), payload, dependencies=dependencies_for(paths, []))
+
+        self.assertFalse(propagation["paths"])
+        self.assertNotIn("observability", propagation["targets"][0])
+        self.assertIn("No simulated echo was found for target alpha", propagation["scene_health"]["warnings"])
+
+    def test_cancellation_after_native_solve_restores_scene(self) -> None:
         runtime = FakeRuntime()
         paths = FakePaths(max_depth=2, path_count=0)
-        calls: list[dict] = []
-        directed_calls: list[dict] = []
+        sensing_calls: list[dict] = []
 
-        def directed(validation_scene, **kwargs):
-            directed_calls.append({"scene": validation_scene, "kwargs": kwargs})
-            target_object_id = int(validation_scene.target_object.object_id)
-            path_length_m = 50.0
-            return {
-                "target_object_id": target_object_id,
-                "hit_proof": {
-                    "tx_object_id": target_object_id,
-                    "rx_object_id": target_object_id,
-                    "tx_surface_point_m": [19.8, 0.0, 10.0],
-                    "rx_surface_point_m": [20.2, 0.0, 10.0],
-                },
-                "delay_s": path_length_m / SPEED_OF_LIGHT_MPS,
-                "path_length_m": path_length_m,
-                "equivalent_range_m": path_length_m / 2.0,
-                "doppler_hz": -75.0,
-                "power_gain_linear": 1e-10,
-            }
+        def check_cancelled():
+            if sensing_calls:
+                raise RuntimeError("synthetic Radar cancellation")
 
-        result = solve_radar_propagation(
-            runtime,
-            propagation_payload(targets=[drone_target("single")]),
-            dependencies=dependencies_for(paths, calls, directed_scatter_solver=directed),
-        )
-
-        self.assertEqual(len(directed_calls), 1)
-        self.assertEqual(directed_calls[0]["kwargs"]["seed"], 17)
-        self.assertEqual(directed_calls[0]["kwargs"]["sample_budget"], 321)
-        record = result["paths"][0]
-        self.assertEqual(record["solver_method"], RADAR_TARGET_FALLBACK_METHOD)
-        self.assertEqual(record["classification"], "target")
-        self.assertEqual(record["target_ids"], ["single"])
-        self.assertEqual(record["object_chain"][0]["object_id"], 100)
-        self.assertEqual(record["hit_proof"]["tx_object_id"], 100)
-        self.assertAlmostEqual(record["coefficient_abs"], 1e-5)
-        self.assertAlmostEqual(
-            record["coefficient_real"] ** 2 + record["coefficient_imag"] ** 2,
-            1e-10,
-        )
-        self.assertEqual(record["doppler_hz"], -75.0)
-
-    def test_multi_drone_fallback_does_not_create_unproven_target_path(self) -> None:
-        runtime = FakeRuntime()
-        paths = FakePaths(max_depth=2, path_count=0)
-        calls: list[dict] = []
-
-        def directed(validation_scene, **_kwargs):
-            if validation_scene.asset_id == "dji-mini-3":
-                object_id = int(validation_scene.target_object.object_id)
-                return {
-                    "target_object_id": object_id,
-                    "hit_proof": {
-                        "tx_object_id": object_id,
-                        "rx_object_id": object_id,
-                        "tx_surface_point_m": [20.0, 0.0, 10.0],
-                        "rx_surface_point_m": [20.0, 0.0, 10.0],
-                    },
-                    "delay_s": 1e-7,
-                    "path_length_m": SPEED_OF_LIGHT_MPS * 1e-7,
-                    "equivalent_range_m": SPEED_OF_LIGHT_MPS * 0.5e-7,
-                    "doppler_hz": 0.0,
-                    "power_gain_linear": 1e-12,
-                }
-            return None
-
-        result = solve_radar_propagation(
-            runtime,
-            propagation_payload(
-                targets=[
-                    drone_target("proved", "dji-mini-3"),
-                    drone_target("occluded", "dji-air-2s", position=[50.0, 0.0, 10.0]),
-                ]
-            ),
-            dependencies=dependencies_for(paths, calls, directed_scatter_solver=directed),
-        )
-
-        self.assertEqual(result["summary"]["directed_target_attempt_count"], 2)
-        self.assertEqual(result["summary"]["deterministic_target_path_count"], 1)
-        self.assertEqual([record["target_ids"] for record in result["paths"]], [["proved"]])
-        self.assertFalse(any("occluded" in record["target_ids"] for record in result["paths"]))
+        with self.assertRaisesRegex(RuntimeError, "synthetic Radar cancellation"):
+            solve_radar_propagation(
+                runtime,
+                propagation_payload(targets=[drone_target("alpha")]),
+                dependencies=dependencies_for(paths, [], sensing_calls=sensing_calls),
+                cancel_check=check_cancelled,
+            )
+        self.assertFalse(runtime.scene.objects)
+        self.assertFalse(runtime.scene.materials)
+        self.assertFalse(runtime.scene.devices)
+        self.assertFalse(runtime.lock.locked())
 
 
 @unittest.skipUnless(importlib.util.find_spec("sionna"), "Sionna RT is not installed")

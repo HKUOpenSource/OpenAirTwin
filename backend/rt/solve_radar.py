@@ -8,57 +8,47 @@ from typing import Callable
 import numpy as np
 
 from backend.rt.common import linear_to_db, to_numpy
-from backend.rt.radar_assets import radar_asset_by_id
 from backend.rt.radar_payload import SPEED_OF_LIGHT_MPS, parse_radar_payload
 from backend.rt.radar_scene import (
-    RADAR_CLUTTER_DIRECTIVE_ALPHA_R,
-    RADAR_CLUTTER_MODEL_METHOD,
-    RADAR_CLUTTER_MODEL_PRESET,
-    RADAR_CLUTTER_SCATTERING_COEFFICIENT,
     RadarSceneBinding,
     RadarSceneDependencies,
     bind_radar_scene,
     capture_radar_scene_snapshot,
 )
-from backend.rt.radar_small_target import (
-    RADAR_SMALL_TARGET_MAX_SAMPLES_PER_SRC,
-    RadarSmallTargetScene,
-    inspect_target_visibility,
-    solve_target_directed_scatter,
-)
-from backend.rt.runtime import log_timing
+from backend.rt.runtime import log_timing, require_scene_generation
 
 
 RADAR_PROPAGATION_SCHEMA_VERSION = 1
 RADAR_PATH_CLASSIFICATION_RULE = (
-    "target when any active interaction object maps to a Radar target; "
+    "target when a SENSING interaction maps to a Radar target; "
     "otherwise direct when there are no active interactions; otherwise clutter"
 )
 RADAR_RANGE_DEFINITION = "equivalent one-way range: speed_of_light_mps * delay_s / 2"
-RADAR_TARGET_FALLBACK_METHOD = "deterministic_target_scatter"
+RADAR_RCS_SAMPLES_PER_POINT = 4096
+RADAR_RCS_MAX_LEGS_PER_POINT = 512
 
 
 @dataclass(frozen=True, slots=True)
 class RadarPropagationDependencies:
     path_solver_factory: Callable[[], object]
+    rcs_solver_factory: Callable[[], object]
     interaction_type: object
     invalid_shape_id: int
     invalid_primitive_id: int
     scene_dependencies: RadarSceneDependencies | None = None
-    directed_scatter_solver: Callable[..., dict | None] = solve_target_directed_scatter
-    visibility_inspector: Callable[[RadarSmallTargetScene], dict] | None = None
 
 
 def _radar_propagation_dependencies() -> RadarPropagationDependencies:
     from sionna.rt import InteractionType, PathSolver
     from sionna.rt.constants import INVALID_PRIMITIVE, INVALID_SHAPE
+    from sionna.rt.rcs import RCSSolver
 
     return RadarPropagationDependencies(
         path_solver_factory=PathSolver,
+        rcs_solver_factory=RCSSolver,
         interaction_type=InteractionType,
         invalid_shape_id=int(INVALID_SHAPE),
         invalid_primitive_id=int(INVALID_PRIMITIVE),
-        visibility_inspector=inspect_target_visibility,
     )
 
 
@@ -68,6 +58,8 @@ def _path_tensor(value, *, valid_shape: tuple[int, ...], name: str) -> np.ndarra
         return array
     if array.size == int(np.prod(valid_shape)):
         return array.reshape(valid_shape)
+    if len(valid_shape) == 5 and array.shape == valid_shape[::2]:
+        array = array[:, None, :, None, :]
     try:
         return np.broadcast_to(array, valid_shape)
     except ValueError:
@@ -90,6 +82,8 @@ def _depth_tensor(
         return array
     if array.size == int(np.prod(target_shape)):
         return array.reshape(target_shape)
+    if len(valid_shape) == 5 and array.shape == (max_depth, *valid_shape[::2], *trailing_shape):
+        array = array[:, :, None, :, None, ...]
     try:
         return np.broadcast_to(array, target_shape)
     except ValueError:
@@ -114,16 +108,6 @@ def _normalize_azimuth_deg(value_rad: float) -> float:
 
 def _normalize_zenith_deg(value_rad: float) -> float:
     return min(180.0, max(0.0, math.degrees(float(value_rad))))
-
-
-def _direction_angles(direction: tuple[float, float, float]) -> tuple[float, float]:
-    length = math.sqrt(sum(component * component for component in direction))
-    if length <= 0.0:
-        raise ValueError("Radar path direction must have positive length")
-    unit = tuple(component / length for component in direction)
-    azimuth_deg = _normalize_azimuth_deg(math.atan2(unit[1], unit[0]))
-    zenith_deg = _normalize_zenith_deg(math.acos(min(1.0, max(-1.0, unit[2]))))
-    return azimuth_deg, zenith_deg
 
 
 def _path_type(interaction_sequence: list[str]) -> str:
@@ -165,15 +149,31 @@ def _extract_sionna_paths(
     binding: RadarSceneBinding,
     params: dict,
     dependencies: RadarPropagationDependencies,
+    sensing_target_object_ids: tuple[int, ...] | None = None,
 ) -> tuple[list[dict], dict]:
     valid = np.asarray(to_numpy(paths.valid), dtype=bool)
     if valid.ndim == 0:
         valid = valid.reshape(1)
+    # Use the native carrier phase for target and background paths alike.
+    cir, _ = paths.cir(normalize_delays=False, out_type="numpy")
+    coefficient = cir[..., 0]
+    if valid.ndim == 3 and coefficient.ndim == 5:
+        valid = np.broadcast_to(valid[:, None, :, None, :], coefficient.shape)
+
     valid_shape = tuple(int(size) for size in valid.shape)
-    if not valid_shape:
-        raise ValueError("paths.valid must contain a path dimension")
     pair_shape = valid_shape[:-1]
     path_slot_count = valid_shape[-1]
+    pair_count = int(np.prod(pair_shape)) if pair_shape else 1
+    stats = {
+        "valid_tensor_shape": list(valid_shape),
+        "array_pair_shape": list(pair_shape),
+        "array_pair_count": pair_count,
+        "path_slot_count": path_slot_count,
+        "valid_slot_count": int(np.count_nonzero(valid)),
+        "filtered_nonfinite_path_count": 0,
+    }
+    if not stats["valid_slot_count"]:
+        return [], stats
     max_depth = int(params["solver"]["max_depth"])
 
     interactions = _depth_tensor(
@@ -207,18 +207,18 @@ def _extract_sionna_paths(
     phi_t = _path_tensor(paths.phi_t, valid_shape=valid_shape, name="paths.phi_t")
     theta_r = _path_tensor(paths.theta_r, valid_shape=valid_shape, name="paths.theta_r")
     phi_r = _path_tensor(paths.phi_r, valid_shape=valid_shape, name="paths.phi_r")
-    coefficient = paths.a
-    if not isinstance(coefficient, (tuple, list)) or len(coefficient) != 2:
-        raise ValueError("paths.a must contain real and imaginary coefficient tensors")
-    a_real = _path_tensor(coefficient[0], valid_shape=valid_shape, name="paths.a[0]")
-    a_imag = _path_tensor(coefficient[1], valid_shape=valid_shape, name="paths.a[1]")
+    coefficient = _path_tensor(coefficient, valid_shape=valid_shape, name="paths.cir coefficients")
 
     labels = _interaction_labels(dependencies.interaction_type)
+    is_rcs = sensing_target_object_ids is not None
+    if is_rcs:
+        labels[int(dependencies.interaction_type.SENSING)] = "SENSING"
+    solver_method = "sionna_rcs_solver" if is_rcs else "sionna_path_solver"
+    path_id_prefix = "rcs" if is_rcs else "sbr"
     none_code = int(dependencies.interaction_type.NONE)
     object_names = _object_names_by_id(binding)
     tx_position = tuple(float(value) for value in binding.snapshot.platform.tx.position)
     rx_position = tuple(float(value) for value in binding.snapshot.platform.rx.position)
-    pair_count = int(np.prod(pair_shape)) if pair_shape else 1
     records: list[dict] = []
     filtered_nonfinite_count = 0
 
@@ -233,8 +233,8 @@ def _extract_sionna_paths(
             if not bool(valid[tensor_index]):
                 continue
 
-            coefficient_real = float(a_real[tensor_index])
-            coefficient_imag = float(a_imag[tensor_index])
+            coefficient_real = float(coefficient[tensor_index].real)
+            coefficient_imag = float(coefficient[tensor_index].imag)
             delay_s = float(tau[tensor_index])
             doppler_hz = float(doppler[tensor_index])
             departure_zenith_deg = _normalize_zenith_deg(float(theta_t[tensor_index]))
@@ -280,7 +280,14 @@ def _extract_sionna_paths(
                 primitive_id = (
                     None if primitive_id_raw == dependencies.invalid_primitive_id else primitive_id_raw
                 )
-                target_id = binding.target_id_for_sionna_object(object_id) if object_id is not None else None
+                target_id = None
+                if sensing_target_object_ids is not None and interaction == "SENSING":
+                    # Sionna overloads objects/primitives for sensing interactions.
+                    if not 0 <= object_id_raw < len(sensing_target_object_ids):
+                        raise ValueError("Sionna sensing path has an invalid target index")
+                    object_id = sensing_target_object_ids[object_id_raw]
+                    primitive_id = None
+                    target_id = binding.target_id_for_sionna_object(object_id)
                 if target_id is not None and target_id not in target_ids:
                     target_ids.append(target_id)
                 interaction_sequence.append(interaction)
@@ -307,8 +314,8 @@ def _extract_sionna_paths(
             classification = _classification(target_ids, interaction_sequence)
             records.append(
                 {
-                    "path_id": f"sbr-{path_index:06d}-{pair_flat_index:06d}",
-                    "solver_method": "sionna_path_solver",
+                    "path_id": f"{path_id_prefix}-{path_index:06d}-{pair_flat_index:06d}",
+                    "solver_method": solver_method,
                     "path_index": path_index,
                     "array_pair_index": pair_flat_index,
                     "array_pair_tensor_index": list(pair_index),
@@ -338,151 +345,12 @@ def _extract_sionna_paths(
                     "arrival_azimuth_deg": arrival_azimuth_deg,
                     "arrival_zenith_deg": arrival_zenith_deg,
                     "signal_included": True,
-                    "coefficient_source": "sionna_path_solver",
+                    "coefficient_source": solver_method,
                 }
             )
 
-    return records, {
-        "valid_tensor_shape": list(valid_shape),
-        "array_pair_shape": list(pair_shape),
-        "array_pair_count": pair_count,
-        "path_slot_count": path_slot_count,
-        "valid_slot_count": int(np.count_nonzero(valid)),
-        "filtered_nonfinite_path_count": filtered_nonfinite_count,
-    }
-
-
-def _deterministic_target_record(
-    binding: RadarSceneBinding,
-    target_index: int,
-    *,
-    params: dict,
-    dependencies: RadarPropagationDependencies,
-) -> dict | None:
-    target = binding.snapshot.targets[target_index]
-    validation_scene = _target_validation_scene(binding, target_index)
-    solver = params["solver"]
-    scatter = dependencies.directed_scatter_solver(
-        validation_scene,
-        seed=int(solver["seed"]),
-        sample_budget=min(
-            int(solver["samples_per_src"]),
-            RADAR_SMALL_TARGET_MAX_SAMPLES_PER_SRC,
-        ),
-        effective_rcs_m2=target.effective_rcs_m2,
-    )
-    if scatter is None:
-        return None
-
-    tx = target.position
-    tx_origin = binding.snapshot.platform.tx.position
-    rx = binding.snapshot.platform.rx.position
-    departure_direction = tuple(tx[index] - tx_origin[index] for index in range(3))
-    arrival_direction = tuple(rx[index] - tx[index] for index in range(3))
-    try:
-        departure_azimuth_deg, departure_zenith_deg = _direction_angles(departure_direction)
-        arrival_azimuth_deg, arrival_zenith_deg = _direction_angles(arrival_direction)
-    except ValueError:
-        return None
-
-    delay_s = float(scatter["delay_s"])
-    path_gain_linear = float(scatter["power_gain_linear"])
-    coefficient_abs = math.sqrt(path_gain_linear)
-    phase_rad = math.remainder(
-        -2.0 * math.pi * binding.snapshot.platform.carrier_frequency_hz * delay_s,
-        2.0 * math.pi,
-    )
-    coefficient_real = coefficient_abs * math.cos(phase_rad)
-    coefficient_imag = coefficient_abs * math.sin(phase_rad)
-    target_object_id = int(scatter["target_object_id"])
-    hit_proof = dict(scatter["hit_proof"])
-    vertex = list(target.position)
-    path_gain_db = float(linear_to_db(np.asarray([path_gain_linear]))[0])
-    return {
-        "path_id": f"target-directed-{target_index:06d}",
-        "solver_method": RADAR_TARGET_FALLBACK_METHOD,
-        "path_index": None,
-        "array_pair_index": None,
-        "array_pair_tensor_index": [],
-        "array_pair_count": 1,
-        "array_pair_model": "device_phase_center",
-        "type": "TARGET_SCATTER",
-        "classification": "target",
-        "target_ids": [target.id],
-        "interaction_sequence": ["DETERMINISTIC_TARGET_SCATTER"],
-        "object_chain": [
-            {
-                "depth": 0,
-                "interaction": "DETERMINISTIC_TARGET_SCATTER",
-                "object_id": target_object_id,
-                "object_name": target.sionna_object_name,
-                "primitive_id": None,
-                "target_id": target.id,
-                "vertex_m": vertex,
-            }
-        ],
-        "hit_proof": hit_proof,
-        "polyline": [list(tx_origin), vertex, list(rx)],
-        "coefficient_real": coefficient_real,
-        "coefficient_imag": coefficient_imag,
-        "coefficient_abs": coefficient_abs,
-        "coefficient_phase_rad": phase_rad,
-        "coefficient_phase_deg": math.degrees(phase_rad),
-        "path_gain_linear": path_gain_linear,
-        "path_gain_db": path_gain_db,
-        "strongest_pair_power_linear": path_gain_linear,
-        "strongest_pair_power_db": path_gain_db,
-        "delay_s": delay_s,
-        "delay_ns": delay_s * 1e9,
-        "path_length_m": float(scatter["path_length_m"]),
-        "equivalent_range_m": float(scatter["equivalent_range_m"]),
-        "doppler_hz": float(scatter["doppler_hz"]),
-        "departure_azimuth_deg": departure_azimuth_deg,
-        "departure_zenith_deg": departure_zenith_deg,
-        "arrival_azimuth_deg": arrival_azimuth_deg,
-        "arrival_zenith_deg": arrival_zenith_deg,
-        "effective_rcs_m2": target.effective_rcs_m2,
-        "signal_included": True,
-        "coefficient_source": "effective_rcs_radar_equation",
-    }
-
-
-def _target_validation_scene(binding: RadarSceneBinding, target_index: int) -> RadarSmallTargetScene:
-    target = binding.snapshot.targets[target_index]
-    return RadarSmallTargetScene(
-        scene=binding.scene,
-        asset_id=target.asset_id,
-        asset=radar_asset_by_id(target.asset_id),
-        target_object=binding.target_objects[target_index],
-        target_position_m=target.position,
-        target_velocity_mps=target.velocity,
-        tx_position_m=binding.snapshot.platform.tx.position,
-        rx_position_m=binding.snapshot.platform.rx.position,
-        mode=binding.snapshot.platform.mode,
-        carrier_frequency_hz=binding.snapshot.platform.carrier_frequency_hz,
-    )
-
-
-def _scale_sbr_target_records(records: list[dict], target) -> None:
-    """Make the effective RCS control SBR target amplitudes reproducibly."""
-
-    default_rcs = float(radar_asset_by_id(target.asset_id)["default_effective_rcs_m2"])
-    amplitude_scale = math.sqrt(float(target.effective_rcs_m2) / default_rcs)
-    power_scale = amplitude_scale * amplitude_scale
-    for record in records:
-        if list(record.get("target_ids", [])) != [target.id]:
-            record["signal_included"] = False
-            record["coefficient_source"] = "multi_target_geometry_only"
-            continue
-        record["coefficient_real"] *= amplitude_scale
-        record["coefficient_imag"] *= amplitude_scale
-        record["coefficient_abs"] *= amplitude_scale
-        record["path_gain_linear"] *= power_scale
-        record["strongest_pair_power_linear"] *= power_scale
-        record["path_gain_db"] = float(linear_to_db(np.asarray([record["path_gain_linear"]]))[0])
-        record["strongest_pair_power_db"] = record["path_gain_db"]
-        record["effective_rcs_m2"] = float(target.effective_rcs_m2)
-        record["coefficient_source"] = "sionna_scaled_by_effective_rcs"
+    stats["filtered_nonfinite_path_count"] = filtered_nonfinite_count
+    return records, stats
 
 
 def _solver_kwargs(params: dict) -> dict:
@@ -512,21 +380,28 @@ def solve_radar_propagation(
     progress_cb: Callable[[float, str], None] | None = None,
     cancel_check: Callable[[], None] | None = None,
 ) -> dict:
-    """Compute independent, unmerged Radar propagation paths for one scene snapshot."""
-
+    """Compute Sionna background and native sensing paths for one scene snapshot."""
     if cancel_check is not None:
         cancel_check()
     if progress_cb is not None:
         progress_cb(0.03, "Validating Radar request")
-    deps = dependencies or _radar_propagation_dependencies()
+    started_at = perf_counter()
     params = parse_radar_payload(payload)
     snapshot = capture_radar_scene_snapshot(
-        rt_runtime,
-        payload,
-        expected_scene_generation=expected_scene_generation,
+        rt_runtime, payload, expected_scene_generation=expected_scene_generation
     )
-    total_started_at = perf_counter()
-    kwargs = _solver_kwargs(params)
+    deps = dependencies or _radar_propagation_dependencies()
+    solver = _solver_kwargs(params)
+    sensing_solver = {
+        "max_depth": solver["max_depth"],
+        "buffer_size_per_sp": min(solver["max_num_paths_per_src"], RADAR_RCS_MAX_LEGS_PER_POINT),
+        "samples_per_sp": min(solver["samples_per_src"], RADAR_RCS_SAMPLES_PER_POINT),
+        "synthetic_array": solver["synthetic_array"],
+        "los": solver["los"],
+        "specular_reflection": solver["specular_reflection"],
+        "refraction": solver["refraction"],
+        "seed": solver["seed"],
+    }
     if progress_cb is not None:
         progress_cb(0.08, "Binding Radar targets to RT scene")
 
@@ -534,157 +409,96 @@ def solve_radar_propagation(
         rt_runtime,
         snapshot,
         dependencies=deps.scene_dependencies,
-        environment_scattering_enabled=bool(params["solver"]["diffuse_reflection"]),
+        environment_scattering_enabled=solver["diffuse_reflection"],
     ) as binding:
-        clutter_model = {
-            "method": RADAR_CLUTTER_MODEL_METHOD,
-            "preset": RADAR_CLUTTER_MODEL_PRESET,
-            "enabled": bool(params["solver"]["diffuse_reflection"]),
-            "calibrated": False,
-            "scattering_coefficient": RADAR_CLUTTER_SCATTERING_COEFFICIENT,
-            "scattering_pattern": "directive",
-            "directive_alpha_r": RADAR_CLUTTER_DIRECTIVE_ALPHA_R,
-            "environment_material_count": binding.environment_material_count,
-            "material_profile_counts": dict(binding.environment_material_profile_counts),
-        }
         if cancel_check is not None:
             cancel_check()
         if progress_cb is not None:
-            progress_cb(0.15, "Solving Radar propagation paths")
-        solver_started_at = perf_counter()
-        sionna_paths = deps.path_solver_factory()(binding.scene, **kwargs)
+            progress_cb(0.15, "Solving Radar background paths")
+        clutter_model = binding.clutter_model
+        target_object_ids = dict(binding.target_id_to_sionna_object_id)
+        background_started_at = perf_counter()
+        paths = deps.path_solver_factory()(binding.scene, **solver)
         if cancel_check is not None:
             cancel_check()
-        solver_runtime_ms = (perf_counter() - solver_started_at) * 1_000.0
-        log_timing(
-            "radar_propagation_solver",
-            solver_started_at,
-            max_depth=kwargs["max_depth"],
-            samples=kwargs["samples_per_src"],
+        records, background_stats = _extract_sionna_paths(
+            paths, binding=binding, params=params, dependencies=deps,
         )
-        records, tensor_stats = _extract_sionna_paths(
-            sionna_paths,
-            binding=binding,
-            params=params,
-            dependencies=deps,
-        )
-        if cancel_check is not None:
-            cancel_check()
-        if progress_cb is not None:
-            progress_cb(0.50, "Classifying target and clutter paths")
+        del paths
+        background_ms = (perf_counter() - background_started_at) * 1_000.0
 
-        directed_started_at = perf_counter()
-        directed_attempt_count = 0
-        replaced_sbr_target_path_count = 0
-        target_observability: dict[str, dict] = {}
-        object_names = _object_names_by_id(binding)
-        for target_index, target in enumerate(snapshot.targets):
+        sensing_stats = None
+        sensing_ms = 0.0
+        if snapshot.targets:
             if cancel_check is not None:
                 cancel_check()
-            directed_attempt_count += 1
-            validation_scene = _target_validation_scene(binding, target_index)
-            visibility = None
-            if deps.visibility_inspector is not None:
-                visibility = deps.visibility_inspector(validation_scene)
-            record = _deterministic_target_record(
-                binding,
-                target_index,
+            if progress_cb is not None:
+                progress_cb(0.42, "Solving Radar target echoes")
+            sensing_started_at = perf_counter()
+            paths = deps.rcs_solver_factory()(binding.scene, **sensing_solver)
+            if cancel_check is not None:
+                cancel_check()
+            # RCSSolver numbers targets in the order returned by the scene.
+            object_ids = tuple(int(target.object_id) for target in binding.scene.sensing_targets.values())
+            echoes, sensing_stats = _extract_sionna_paths(
+                paths,
+                binding=binding,
                 params=params,
                 dependencies=deps,
+                sensing_target_object_ids=object_ids,
             )
-            if record is not None:
-                replaced = [
-                    existing
-                    for existing in records
-                    if existing.get("classification") == "target"
-                    and target.id in existing.get("target_ids", [])
-                ]
-                if replaced:
-                    replaced_ids = {id(existing) for existing in replaced}
-                    records = [existing for existing in records if id(existing) not in replaced_ids]
-                    replaced_sbr_target_path_count += len(replaced)
-                records.append(record)
-                status = "direct"
-            else:
-                target_sbr_records = [
-                    existing
-                    for existing in records
-                    if existing.get("classification") == "target"
-                    and target.id in existing.get("target_ids", [])
-                ]
-                if target_sbr_records:
-                    _scale_sbr_target_records(target_sbr_records, target)
-                    status = "multipath"
-                else:
-                    status = "blocked"
-
-            if visibility is None:
-                visibility = {
-                    "status": status,
-                    "tx_leg": {"status": "unknown", "object_id": None, "surface_point_m": None},
-                    "rx_leg": {"status": "unknown", "object_id": None, "surface_point_m": None},
-                }
-            visibility = dict(visibility)
-            visibility["status"] = status
-            for leg_name in ("tx_leg", "rx_leg"):
-                leg = dict(visibility.get(leg_name) or {})
-                object_id = leg.get("object_id")
-                leg["object_name"] = object_names.get(int(object_id)) if object_id is not None else None
-                visibility[leg_name] = leg
-            target_observability[target.id] = visibility
-        directed_runtime_ms = (perf_counter() - directed_started_at) * 1_000.0
-        target_object_ids = {
-            target_id: int(object_id)
-            for target_id, object_id in binding.target_id_to_sionna_object_id.items()
-        }
+            del paths
+            records.extend(echoes)
+            sensing_ms = (perf_counter() - sensing_started_at) * 1_000.0
 
     if cancel_check is not None:
         cancel_check()
+    require_scene_generation(rt_runtime, snapshot.scene_generation)
     if progress_cb is not None:
         progress_cb(0.62, "Radar propagation complete")
 
-    classification_counts = {
-        name: sum(1 for record in records if record["classification"] == name)
-        for name in ("target", "clutter", "direct")
-    }
+    classification_counts = dict.fromkeys(("target", "clutter", "direct"), 0)
+    representative_echoes: dict[str, dict] = {}
     near_platform_clutter_count = 0
     for record in records:
-        if record.get("classification") != "clutter" or len(record.get("polyline", [])) < 3:
-            continue
-        vertex = record["polyline"][1]
-        if min(math.dist(vertex, snapshot.platform.tx.position), math.dist(vertex, snapshot.platform.rx.position)) < 5.0:
-            near_platform_clutter_count += 1
-    warnings: list[str] = []
+        classification = record["classification"]
+        classification_counts[classification] += 1
+        if classification == "target":
+            for target_id in record["target_ids"]:
+                current = representative_echoes.get(target_id)
+                # Prefer a direct echo when reporting whether the target is visible.
+                if current is None or record["interaction_sequence"] == ["SENSING"]:
+                    representative_echoes[target_id] = record
+        elif classification == "clutter" and len(record["polyline"]) >= 3:
+            vertex = record["polyline"][1]
+            if min(math.dist(vertex, snapshot.platform.tx.position), math.dist(vertex, snapshot.platform.rx.position)) < 5.0:
+                near_platform_clutter_count += 1
+
+    warnings = []
     if snapshot.platform.mode == "bistatic" and classification_counts["direct"] == 0:
         warnings.append("No direct Tx-Rx path was found; verify platform line of sight")
     if near_platform_clutter_count:
         warnings.append(f"{near_platform_clutter_count} clutter paths interact within 5 m of the platform")
+    targets = []
     for target in snapshot.targets:
-        status = target_observability[target.id]["status"]
-        if status == "blocked":
-            warnings.append(f"Target {target.id} is blocked and has no simulated echo")
-    powers = np.asarray([record["path_gain_linear"] for record in records], dtype=float)
-    received_power_db = (
-        float(linear_to_db(np.asarray([float(np.sum(powers))]))[0])
-        if powers.size
-        else None
-    )
-    strongest_path_db = (
-        float(max(record["path_gain_db"] for record in records))
-        if records
-        else None
-    )
-    deterministic_count = sum(
-        1 for record in records if record["solver_method"] == RADAR_TARGET_FALLBACK_METHOD
-    )
-    total_runtime_ms = (perf_counter() - total_started_at) * 1_000.0
-    log_timing(
-        "radar_propagation_total",
-        total_started_at,
-        valid_paths=len(records),
-        target_paths=classification_counts["target"],
-    )
+        data = target.as_dict()
+        echo = representative_echoes.get(target.id)
+        if echo is None:
+            # A bounded search without an echo does not establish occlusion.
+            warnings.append(f"No simulated echo was found for target {target.id}")
+        else:
+            interactions = echo["interaction_sequence"]
+            sensing_depth = interactions.index("SENSING")
+            data["observability"] = {
+                "status": "direct" if len(interactions) == 1 else "multipath",
+                "tx_leg": {"status": "clear" if sensing_depth == 0 else "unknown"},
+                "rx_leg": {"status": "clear" if sensing_depth == len(interactions) - 1 else "unknown"},
+            }
+        targets.append(data)
 
+    total_power = sum(record["path_gain_linear"] for record in records)
+    total_runtime_ms = (perf_counter() - started_at) * 1_000.0
+    log_timing("radar_propagation_total", started_at, valid_paths=len(records), target_paths=classification_counts["target"])
     return {
         "ok": True,
         "schema_version": RADAR_PROPAGATION_SCHEMA_VERSION,
@@ -699,34 +513,30 @@ def solve_radar_propagation(
             "carrier_frequency_hz": snapshot.platform.carrier_frequency_hz,
             "clutter_model": clutter_model,
         },
-        "targets": [
-            {**target.as_dict(), "observability": target_observability[target.id]}
-            for target in snapshot.targets
-        ],
+        "targets": targets,
         "target_object_ids": target_object_ids,
-        "solver": {**kwargs},
+        "solver": solver,
+        "sensing_solver": sensing_solver,
         "summary": {
             "valid_paths": len(records),
             "raw_valid_paths": len(records),
             "display_paths": len(records),
             "deduplicated_paths": 0,
-            "array_pair_paths": sum(1 for record in records if record["array_pair_index"] is not None),
+            "array_pair_paths": len(records),
             "los_paths": classification_counts["direct"],
-            "received_power_db": received_power_db,
-            "strongest_path_db": strongest_path_db,
+            "received_power_db": float(linear_to_db(np.asarray([total_power]))[0]) if records else None,
+            "strongest_path_db": max((record["path_gain_db"] for record in records), default=None),
             "target_path_count": classification_counts["target"],
             "clutter_path_count": classification_counts["clutter"],
             "direct_path_count": classification_counts["direct"],
-            "sionna_path_count": len(records) - deterministic_count,
-            "deterministic_target_path_count": deterministic_count,
-            "directed_target_attempt_count": directed_attempt_count,
-            "replaced_sbr_target_path_count": replaced_sbr_target_path_count,
-            "filtered_nonfinite_path_count": tensor_stats["filtered_nonfinite_path_count"],
+            "sionna_path_count": len(records),
+            "filtered_nonfinite_path_count": background_stats["filtered_nonfinite_path_count"]
+            + (sensing_stats["filtered_nonfinite_path_count"] if sensing_stats is not None else 0),
         },
-        "tensor_statistics": tensor_stats,
+        "tensor_statistics": {"background": background_stats, "sensing": sensing_stats},
         "timing": {
-            "solver_runtime_ms": solver_runtime_ms,
-            "directed_target_runtime_ms": directed_runtime_ms,
+            "background_runtime_ms": background_ms,
+            "sensing_runtime_ms": sensing_ms,
             "total_runtime_ms": total_runtime_ms,
         },
         "scene_health": {
