@@ -141,6 +141,10 @@ class FakeScene:
     def get(self, name: str):
         return self.materials.get(name) or self.devices.get(name) or self.objects.get(name)
 
+    @property
+    def sensing_targets(self):
+        return self.objects
+
     def edit(self, *, add=None, remove=None) -> None:
         if add is not None:
             additions = list(add) if isinstance(add, list) else [add]
@@ -172,9 +176,12 @@ class FakeRuntime:
 FAKE_DEPENDENCIES = RadarSceneDependencies(
     transmitter_type=FakeDevice,
     receiver_type=FakeDevice,
-    scene_object_type=FakeSceneObject,
-    material_type=FakeMaterial,
     array_factory=lambda config: ("array", tuple(sorted(config.items()))),
+    target_factory=lambda target: FakeSceneObject(
+        fname=target.asset_id,
+        name=target.sionna_object_name,
+        radio_material=FakeMaterial(name=f"{target.sionna_object_name}-material"),
+    ),
     scattering_pattern_factory=lambda: {"kind": "directive", "alpha_r": 10.0},
 )
 
@@ -452,7 +459,7 @@ class RadarSceneBindingTests(unittest.TestCase):
 class RadarSceneSionnaTests(unittest.TestCase):
     def test_real_sionna_scene_object_ids_pose_velocity_and_cleanup(self) -> None:
         import numpy as np
-        from sionna.rt import load_scene
+        from sionna.rt import ITURadioMaterial, load_scene
 
         class Runtime:
             def __init__(self) -> None:
@@ -464,6 +471,10 @@ class RadarSceneSionnaTests(unittest.TestCase):
                 return self.scene
 
         runtime = Runtime()
+        masonry = ITURadioMaterial(name="test-concrete", itu_type="concrete", thickness=0.5)
+        runtime.scene.add(masonry)
+        original_scattering = masonry.scattering_coefficient
+        original_pattern = masonry.scattering_pattern
         snapshot = create_radar_scene_snapshot(
             radar_payload(
                 targets=[
@@ -485,8 +496,12 @@ class RadarSceneSionnaTests(unittest.TestCase):
             scene_generation=runtime.generation,
         )
 
-        with bind_radar_scene(runtime, snapshot) as binding:
+        with bind_radar_scene(runtime, snapshot, environment_scattering_enabled=True) as binding:
+            self.assertEqual(binding.environment_material_profile_counts, {"masonry": 1})
+            self.assertAlmostEqual(float(masonry.scattering_coefficient[0]), 0.35)
+            self.assertEqual(masonry.scattering_pattern.alpha_r, 10)
             self.assertEqual(set(binding.target_id_to_sionna_object_id), {"real-one", "real-two"})
+            self.assertEqual(set(runtime.scene.sensing_targets), {target.sionna_object_name for target in snapshot.targets})
             self.assertEqual(len(set(binding.target_id_to_sionna_object_id.values())), 2)
             for target, scene_object in zip(snapshot.targets, binding.target_objects, strict=True):
                 self.assertEqual(
@@ -496,6 +511,7 @@ class RadarSceneSionnaTests(unittest.TestCase):
                 np.testing.assert_allclose(np.asarray(scene_object.position).reshape(3), target.position)
                 np.testing.assert_allclose(np.asarray(scene_object.orientation).reshape(3), target.orientation)
                 np.testing.assert_allclose(np.asarray(scene_object.velocity).reshape(3), target.velocity)
+                self.assertAlmostEqual(float(scene_object.sigma[0]), target.effective_rcs_m2)
             self.assertIn(RADAR_TX_DEVICE_NAME, runtime.scene.transmitters)
             self.assertIn(RADAR_RX_DEVICE_NAME, runtime.scene.receivers)
 
@@ -503,6 +519,9 @@ class RadarSceneSionnaTests(unittest.TestCase):
         self.assertNotIn(RADAR_RX_DEVICE_NAME, runtime.scene.receivers)
         self.assertFalse(any(name.startswith("radar-target-") for name in runtime.scene.objects))
         self.assertFalse(any(name.startswith("radar-target-") for name in runtime.scene.radio_materials))
+        self.assertEqual(runtime.scene.sensing_targets, {})
+        self.assertEqual(masonry.scattering_coefficient, original_scattering)
+        self.assertIs(masonry.scattering_pattern, original_pattern)
 
         with bind_radar_scene(runtime, snapshot) as rebound:
             self.assertEqual(set(rebound.target_id_to_sionna_object_id), {"real-one", "real-two"})
