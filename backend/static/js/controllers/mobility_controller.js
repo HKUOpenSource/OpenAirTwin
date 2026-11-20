@@ -82,7 +82,7 @@ export function createMobilityController({
 
       showOverlay({
         title: "Running Mobility",
-        message: job.message || "Computing Rx trajectory with Sionna RT...",
+        message: job.message || "Computing trajectory...",
         indeterminate: true,
         owner: overlayOwner,
       });
@@ -119,7 +119,7 @@ export function createMobilityController({
     renderMobilityTrajectoryPreview();
     showOverlay({
       title: "Running Mobility",
-      message: "Submitting mobility job...",
+      message: "Submitting job...",
       indeterminate: true,
       owner: overlayOwner,
       force: true,

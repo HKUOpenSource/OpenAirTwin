@@ -10,7 +10,7 @@ function createResultView(context) {
   const shared = context.featureServices.solver;
   return createRadiomapResultView({
     state: context.state,
-    ui: context.ui,
+    shellUi: context.featureServices.shellUi,
     getViewer: shared.getViewer,
     radiomapColorRange: shared.radiomapColorRange,
     syncLivePreviewStatusUi: shared.syncLivePreviewStatusUi,
@@ -45,19 +45,14 @@ export const radiomapFeature = defineFeature({
   createResultView,
   createRenderer: createRadiomapRenderer,
   createFeature: createRadiomapFeature,
-  inputReader: "readRadiomapInputs",
   settingsDependencies: ["common-solver", "antenna"],
   sharedControlPolicy: {tx: true, rx: false, antenna: "tx"},
   ui: {
-    tabRef: "tabRadiomap",
-    panelRef: "radiomapPanel",
-    runButtonRef: "btnRunRadiomap",
     disableDuringTileLoad: true,
-    parameterGroups: ["radiomapOnlyParams"],
     resultMethod: "renderRadiomapResult",
   },
   pickingTargets: [
-    {id: "rm-tx", role: "tx", scope: "radiomap", prompt: "Click any surface to place Tx", buttonRef: "btnPickRmTx", cardRef: "rmTxDeviceCard", precisionTitle: "RM Tx", precision: true, clearance: true, readMethod: "readRadiomapInputs", applyMethod: "applyRadiomapPick"},
+    {id: "rm-tx", role: "tx", scope: "radiomap", prompt: "Click any surface to place Tx", precisionTitle: "Radio Map Tx", precision: true, clearance: true},
   ],
   renderLayers: ["radiomap", "surface-preview"],
 });

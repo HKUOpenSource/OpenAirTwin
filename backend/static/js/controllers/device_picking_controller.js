@@ -51,7 +51,7 @@ export function createDevicePickingController(context) {
   }
 
   function setPickStatus(message = "") {
-    ui.hintText.textContent = message || "Click a surface point or adjust coordinates.";
+    state.deviceControl.hintText = message || "Click a surface point or adjust coordinates.";
   }
 
   function targetDefinition(targetId = state.deviceControl.activeTarget) {

@@ -103,12 +103,17 @@ def test_imperative_dom_and_inline_styles_are_closed_allowlists() -> None:
 def test_phase1_adrs_are_accepted_and_development_guide_links_contracts() -> None:
     for name in (
         "0001-react-typescript-vite-workbench.md",
-        "0002-internal-ui-components-without-styled-framework.md",
+        "0003-adopt-astryx-design-system.md",
     ):
         source = (PROJECT_ROOT / "docs" / "adr" / name).read_text(encoding="utf-8")
         assert "- Status: Accepted" in source
         assert "## Decision" in source
         assert "## Consequences" in source
+
+    superseded = (
+        PROJECT_ROOT / "docs" / "adr" / "0002-internal-ui-components-without-styled-framework.md"
+    ).read_text(encoding="utf-8")
+    assert "Superseded by ADR 0003" in superseded
 
     development = (PROJECT_ROOT / "docs" / "development.md").read_text(encoding="utf-8")
     for target in (

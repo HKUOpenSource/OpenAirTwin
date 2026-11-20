@@ -298,7 +298,7 @@ def run(job_dir: Path) -> None:
     convert_scene_geometry = bool(config.DEEPMIMO_CONVERT_SCENE_GEOMETRY)
     convert_message = "Converting to DeepMIMO"
     if not convert_scene_geometry:
-        convert_message = "Converting to DeepMIMO without scene geometry"
+        convert_message = "Converting to DeepMIMO..."
     _write_progress(job_dir, "running", 0.9, convert_message)
 
     scenario_name = payload["export"]["scenario_name"]

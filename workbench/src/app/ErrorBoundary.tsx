@@ -1,4 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Badge } from "@astryxdesign/core/Badge";
+import { Card } from "@astryxdesign/core/Card";
+import { HStack } from "@astryxdesign/core/HStack";
+import { Text } from "@astryxdesign/core/Text";
+import { VStack } from "@astryxdesign/core/VStack";
 
 import { normalizeError } from "../runtime/error-reporting.ts";
 
@@ -15,14 +20,20 @@ interface ErrorBoundaryState {
 
 function defaultFallback(error: Error) {
   return (
-    <section className="oat-panel" role="alert">
-      <div className="oat-panel__header">
-        <strong className="oat-panel__title">
-          Unable to render this panel
-        </strong>
-        <span className="oat-badge oat-badge--error">Error</span>
-      </div>
-      <p className="oat-empty-state">{error.message}</p>
+    <section className="oat-bootstrap-error" role="alert">
+      <Card padding={3} elevation="med">
+        <VStack gap={2}>
+          <HStack hAlign="between" vAlign="center" gap={2}>
+            <Text type="label" weight="semibold">
+              Unable to render this panel
+            </Text>
+            <Badge label="Error" variant="error" />
+          </HStack>
+          <Text type="supporting" color="secondary">
+            {error.message}
+          </Text>
+        </VStack>
+      </Card>
     </section>
   );
 }

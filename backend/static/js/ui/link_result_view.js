@@ -258,7 +258,7 @@ export function drawLinkTapChart(svg, channel) {
   }
 }
 
-export function createLinkResultView({state, ui, getViewer, resultDock}) {
+export function createLinkResultView({state, shellUi, getViewer, resultDock}) {
   const unregisterCommands = resultDock.registerCommandHandler("link", (command) => {
     if (command.name !== "link.path.select") return;
     const result = state.link.result;
@@ -273,8 +273,12 @@ export function createLinkResultView({state, ui, getViewer, resultDock}) {
     const visible = state.livePreview.status !== "Idle"
       && state.livePreview.mode === "link"
       && state.mode === "link";
-    ui.livePreviewStatus.classList.toggle("hidden", !visible);
-    ui.livePreviewStatus.textContent = visible ? state.livePreview.status : "Idle";
+    const statusText = visible ? state.livePreview.status : "Idle";
+    const tone = /fail|error/i.test(statusText) ? "error" : visible ? "info" : "neutral";
+    shellUi?.patch((current) => ({
+      ...current,
+      livePreviewStatus: {visible, label: statusText, tone},
+    }));
   }
 
   function renderLinkResult() {
@@ -285,19 +289,22 @@ export function createLinkResultView({state, ui, getViewer, resultDock}) {
     const visible = state.mode === "link" && (Boolean(result) || liveActive);
     syncLivePreviewStatusUi();
     if (state.mode === "link") {
-      ui.linkChannelSection.classList.toggle("hidden", !visible);
-      ui.linkChannelSection.classList.remove("radarResultMode");
-      ui.linkChannelSection.setAttribute("aria-hidden", String(!visible));
-      if (visible) {
-        ui.resultDockTitle.textContent = "Link Results";
-        ui.resultDockSubtitle.textContent = "Path Gains & Taps";
-      } else if (!result) {
+      shellUi?.patch((current) => ({
+        ...current,
+        resultDock: {
+          visible,
+          title: visible ? "Link Results" : current.resultDock.title,
+          subtitle: visible ? "Path Gains & Taps" : current.resultDock.subtitle,
+        },
+      }));
+      if (!visible && !result) {
         getViewer().clearPaths();
       }
     } else if (!["mobility", "radiomap", "radar"].includes(state.mode)) {
-      ui.linkChannelSection.classList.add("hidden");
-      ui.linkChannelSection.classList.remove("radarResultMode");
-      ui.linkChannelSection.setAttribute("aria-hidden", "true");
+      shellUi?.patch((current) => ({
+        ...current,
+        resultDock: {...current.resultDock, visible: false},
+      }));
     }
     const hasLos = (result?.summary?.los_paths ?? 0) > 0;
     const channel = createChannelViewModel(result?.channel);

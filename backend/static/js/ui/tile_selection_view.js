@@ -1,6 +1,6 @@
 import {compareTileIds, toDisplayTileId} from "/js/tile_model.js?v=20260519-mode-isolation";
 
-export function createTileSelectionView({state, ui, shellUi, getViewer, syncEntryOverviewUi}) {
+export function createTileSelectionView({state, shellStore, getViewer, syncEntryOverviewUi}) {
   let tiles = [];
   let selectedTileIds = new Set();
 
@@ -16,38 +16,35 @@ export function createTileSelectionView({state, ui, shellUi, getViewer, syncEntr
     return {selected, loaded, toAdd, toRemove};
   }
 
-  function updateTileSummary(diff = tileDiff()) {
+  function formatTileSummary(diff = tileDiff()) {
     const {selected, loaded, toAdd, toRemove} = diff;
     const pending = toAdd.length + toRemove.length;
     if (state.tileLoadBusy) {
-      ui.tileSummary.textContent = "Syncing bundle changes...";
-      return;
+      return "Syncing bundle changes...";
     }
     if (!selected.size && !loaded.size) {
-      ui.tileSummary.textContent = "No tiles loaded yet. Choose tiles on the map to enter the 3D scene.";
-      return;
+      return "No tiles loaded yet. Choose tiles on the map to enter the 3D scene.";
     }
     if (!pending) {
-      ui.tileSummary.textContent = `${loaded.size} loaded · ${selected.size} selected · 0 pending`;
-      return;
+      return `${loaded.size} loaded · ${selected.size} selected · 0 pending`;
     }
     const segments = [];
     if (toAdd.length) segments.push(`${toAdd.length} to load`);
     if (toRemove.length) segments.push(`${toRemove.length} to unload`);
-    ui.tileSummary.textContent = `${loaded.size} loaded · ${selected.size} selected · ${pending} pending (${segments.join(" / ")})`;
+    return `${loaded.size} loaded · ${selected.size} selected · ${pending} pending (${segments.join(" / ")})`;
   }
 
   function tileStatus({selected, loaded, pendingAdd, pendingRemove}) {
-    if (pendingAdd) return {status: "Load", statusClassName: "tileStatus pendingAdd"};
-    if (pendingRemove) return {status: "Unload", statusClassName: "tileStatus pendingRemove"};
-    if (loaded) return {status: "Loaded", statusClassName: "tileStatus loaded"};
-    if (selected) return {status: "Ready", statusClassName: "tileStatus"};
-    return {status: "Idle", statusClassName: "tileStatus"};
+    if (pendingAdd) return "Load";
+    if (pendingRemove) return "Unload";
+    if (loaded) return "Loaded";
+    if (selected) return "Ready";
+    return "Idle";
   }
 
   function syncTileListUi() {
     const diff = tileDiff();
-    shellUi.updateTiles(tiles.map((tile) => {
+    const nextTiles = tiles.map((tile) => {
       const selected = diff.selected.has(tile.id);
       const loaded = diff.loaded.has(tile.id);
       const pendingAdd = selected && !loaded;
@@ -59,10 +56,18 @@ export function createTileSelectionView({state, ui, shellUi, getViewer, syncEntr
         pendingAdd,
         pendingRemove,
         disabled: state.tileLoadBusy,
-        ...tileStatus({selected, loaded, pendingAdd, pendingRemove}),
+        status: tileStatus({selected, loaded, pendingAdd, pendingRemove}),
       };
+    });
+    const summary = formatTileSummary(diff);
+    shellStore.patch((current) => ({
+      ...current,
+      tileLoadBusy: Boolean(state.tileLoadBusy),
+      loadedTileCount: diff.loaded.size,
+      selectedTileCount: diff.selected.size,
+      tileSummary: summary,
+      tiles: nextTiles,
     }));
-    updateTileSummary(diff);
     syncEntryOverviewUi();
   }
 

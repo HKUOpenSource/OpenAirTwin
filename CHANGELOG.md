@@ -7,6 +7,23 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ### Changed
 
+- Replaced the custom workbench UI system with Meta's Astryx React component
+  library (`@astryxdesign/core` and `@astryxdesign/theme-neutral`, high-density
+  light theme) and reorganized the workstation layout into a Top Workspace Bar,
+  collapsible Left Inspector, floating DeviceBar, and collapsible Right Analysis
+  Drawer (ADR 0003).
+- Refined workstation ergonomics and UI density: renamed the top-left `Tiles`
+  launcher to `Map`, simplified bottom DeviceBar controls to uniform `Tx` / `Rx`
+  labels (with coordinates shown in the expandable editor card), shortened
+  loading overlay status messages to fit on one line, fixed the FPS popover width
+  to eliminate horizontal scrolling, enabled native Astryx numeric stepper
+  buttons across parameters, added fixed-width gradient colorbar swatches across
+  all six Radio Map color scales (`Jet`, `Viridis`, `Plasma`, `Inferno`,
+  `Magma`, `Turbo`), and tightened hover tooltips across all control panels.
+- Removed `dom_refs.js`, `param_tooltips.js`, the legacy 7-file CSS chain, and
+  the retired development UI catalog in favor of pure unidirectional data flow
+  (`Domain State -> WorkbenchStore -> React/Astryx -> CommandBus`) and
+  `ImperativeHostRegistry`.
 - Updated to Sionna RT 2.2.0 and switched Radar target propagation to its
   native `RCSSolver`.
 - Replaced the entry map's unauthenticated CARTO raster tiles with OpenFreeMap
@@ -14,6 +31,12 @@ All notable changes to OpenAirTwin are recorded here. This project follows
   local fallback map are retained.
 - Applied a custom light basemap palette with smaller gray-blue place labels,
   regular typography and fewer minor labels at overview zoom levels.
+- Overhauled project documentation for open-source distribution: reorganized root
+  [`README.md`](README.md) with Mermaid architecture diagram, BibTeX citation,
+  and collapsible setup guides; added [`CONTRIBUTING.md`](CONTRIBUTING.md);
+  synchronized [`docs/openairtwin-architecture.html`](docs/openairtwin-architecture.html),
+  [`docs/development.md`](docs/development.md), and [`docs/ui/`](docs/ui/component-contracts.md)
+  with the current Astryx React workbench architecture.
 
 ## [1.1.0] - 2026-08-01
 

@@ -30,13 +30,20 @@ import {
 } from "/js/tile_model.js";
 
 export function createEntryMapController(context) {
-  const {state, entryMap, ui, viewerRef} = context;
-  const shellUi = context.featureServices.shellUi;
+  const {state, entryMap, hosts, viewerRef} = context;
+  const shellStore = context.featureServices.shellUi;
   const {createTileDownloadJob, getTileDownloadJob, cancelTileDownloadJob, getManifest} = context.api;
   const getViewer = () => viewerRef.current;
   const scene = () => context.controllers.scene;
   const dialogs = () => context.controllers.dialogs;
   const performancePanel = () => context.controllers.performance;
+
+  function patchEntry(updater) {
+    shellStore.patch((current) => ({
+      ...current,
+      entry: updater(current.entry),
+    }));
+  }
 
   function tileSelections() {
     return scene().tileSelections();
@@ -55,8 +62,21 @@ export function createEntryMapController(context) {
   }
 
 function setEntrySearchHint(message, isError = false) {
-  ui.entrySearchHint.textContent = message;
-  ui.entrySearchHint.classList.toggle("is-error", isError);
+  state.entry.search.hint = String(message || "");
+  state.entry.search.isError = Boolean(isError);
+  patchEntry((entry) => ({
+    ...entry,
+    searchHint: state.entry.search.hint,
+    searchError: state.entry.search.isError,
+  }));
+}
+
+function setEntrySearchQuery(query) {
+  state.entry.search.query = String(query ?? "");
+  patchEntry((entry) => ({
+    ...entry,
+    searchQuery: state.entry.search.query,
+  }));
 }
 
 
@@ -141,18 +161,19 @@ function placeResultMeta(result) {
 function clearEntryPlaceResults() {
   state.entry.search.results = [];
   state.entry.search.selectedIndex = -1;
-  shellUi.updateEntryPlaces([]);
+  patchEntry((entry) => ({...entry, searchResults: []}));
 }
 
 function renderEntryPlaceResults(results) {
   state.entry.search.results = results;
-  shellUi.updateEntryPlaces(results.map((result, index) => ({
+  const searchResults = results.map((result, index) => ({
     index,
     title: placeResultTitle(result),
     detail: placeResultDetail(result),
     meta: placeResultMeta(result),
     active: state.entry.search.selectedIndex === index,
-  })));
+  }));
+  patchEntry((entry) => ({...entry, searchResults}));
 }
 
 function clearEntrySearchFocus() {
@@ -230,11 +251,7 @@ function focusEntryPlaceResult(index) {
   setEntrySearchFocus(latLng, tileId);
   if (tileId) {
     syncEntryOverviewUi();
-    if (state.entry.overview?.tileById.has(tileId)) {
-      setEntrySearchHint(`Located in ${toDisplayTileId(tileId)}. Click the tile on the map to select it.`);
-    } else {
-      setEntrySearchHint(`Located in ${toDisplayTileId(tileId)}. Click the tile on the map to download it.`);
-    }
+    setEntrySearchHint("");
   } else {
     setEntrySearchHint("Located the place, but Open3DHK has no downloadable tile at that point.", true);
   }
@@ -255,7 +272,7 @@ function buildEntryPlaceSearchUrl(query) {
 }
 
 async function runEntryPlaceSearch() {
-  const query = ui.entryPlaceInput.value.trim();
+  const query = String(state.entry.search.query || "").trim();
   if (!query) {
     setEntrySearchHint("Enter a Hong Kong place name, for example HKU or Central.", true);
     clearEntryPlaceResults();
@@ -366,7 +383,7 @@ function enableEntryMapFallback(reason = "tile unavailable") {
   if (entryMap.fallbackLayer && !entryMap.map.hasLayer(entryMap.fallbackLayer)) {
     entryMap.fallbackLayer.addTo(entryMap.map);
   }
-  ui.entryMapFigure.classList.add("fallback");
+  hosts.get("entryMapFigure")?.classList.add("fallback");
   console.info(`Entry map using local fallback basemap: ${reason}`);
 }
 
@@ -406,42 +423,35 @@ function focusEntryMapTiles(tileIds) {
   return true;
 }
 
-function setEntryMapTooltipContent(parts) {
-  const tooltip = ui.entryMapTooltip;
-  const title = tooltip.querySelector("[data-entry-tooltip-title]");
-  const lineBreak = tooltip.querySelector("[data-entry-tooltip-break]");
-  const body = tooltip.querySelector("[data-entry-tooltip-body]");
-  title.textContent = parts.title;
-  body.textContent = parts.body || "";
-  lineBreak.classList.toggle("hidden", !parts.body);
-  body.classList.toggle("hidden", !parts.body);
-}
-
 function showEntryMapTooltip(clientX, clientY, parts) {
-  const viewport = ui.entryMapFigure.getBoundingClientRect();
-  setEntryMapTooltipContent(parts);
-  ui.entryMapTooltip.style.left = `${clientX - viewport.left + 14}px`;
-  ui.entryMapTooltip.style.top = `${clientY - viewport.top + 14}px`;
-  ui.entryMapTooltip.classList.remove("hidden");
+  const figure = hosts.get("entryMapFigure");
+  const viewport = figure ? figure.getBoundingClientRect() : {left: 0, top: 0};
+  patchEntry((entry) => ({
+    ...entry,
+    tooltip: {
+      visible: true,
+      title: String(parts.title || ""),
+      body: String(parts.body || ""),
+      x: Math.round(clientX - viewport.left + 14),
+      y: Math.round(clientY - viewport.top + 14),
+    },
+  }));
 }
 
 function hideEntryMapTooltip() {
-  ui.entryMapTooltip.classList.add("hidden");
+  patchEntry((entry) => (
+    entry.tooltip.visible
+      ? {...entry, tooltip: {...entry.tooltip, visible: false}}
+      : entry
+  ));
 }
 
-function updateEntryMapBadge({selectedCount = 0, loadedCount = 0, pendingCount = 0, downloadingCount = 0, meshCount = 0} = {}) {
-  ui.entryMapBadgeValue.textContent = `${selectedCount} selected`;
-  const detailParts = [
-    `${loadedCount} loaded`,
-    `${pendingCount} pending`,
-  ];
-  if (meshCount > 0) {
-    detailParts.push(`${meshCount.toLocaleString()} meshes`);
-  }
-  if (downloadingCount > 0) {
-    detailParts.push(`${downloadingCount} downloading`);
-  }
-  ui.entryMapBadgeDetail.textContent = detailParts.join(" · ");
+function updateEntryMapBadge({selectedCount = 0, downloadingCount = 0} = {}) {
+  patchEntry((entry) => ({
+    ...entry,
+    badgeValue: `${selectedCount} selected`,
+    badgeDetail: downloadingCount > 0 ? `${downloadingCount} downloading` : "",
+  }));
 }
 
 function entryMapTooltipParts(tileId) {
@@ -452,9 +462,15 @@ function entryMapTooltipParts(tileId) {
   }
   const tile = state.entry.overview?.tileById.get(tileId);
   if (tile) {
+    const isLoaded = getViewer().loadedTileIds.has(tileId);
+    const isSelected = tileSelections().includes(tileId);
     return {
       title,
-      body: `In scene: ${tile.mesh_count.toLocaleString()} meshes • ${tile.bundle_count} bundles`,
+      body: isLoaded
+        ? "Loaded in 3D scene"
+        : isSelected
+          ? "Selected to load"
+          : "Available — click to select",
     };
   }
   if (state.entry.overview?.coverageById.has(tileId)) {
@@ -596,9 +612,10 @@ function ensureEntryMap() {
   }
 
   assertEntryMapDeps();
-  ui.entryMapScene.replaceChildren();
+  const mapHost = hosts.require("entryMapScene");
+  mapHost.replaceChildren();
 
-  entryMap.map = window.L.map(ui.entryMapScene, {
+  entryMap.map = window.L.map(mapHost, {
     zoomControl: false,
     attributionControl: true,
     scrollWheelZoom: true,
@@ -669,10 +686,6 @@ function ensureEntryMap() {
   entryMap.map.on("moveend zoomend resize viewreset", () => {
     hideEntryMapTooltip();
   });
-  ui.btnEntryZoomIn.disabled = false;
-  ui.btnEntryZoomOut.disabled = false;
-  ui.btnEntryZoomIn.title = "Zoom into the OSM basemap and tile grid.";
-  ui.btnEntryZoomOut.title = "Zoom out from the OSM basemap and tile grid.";
   entryMap.initialized = true;
 }
 
@@ -720,7 +733,7 @@ function showEntryScreen({syncOverview = true} = {}) {
     return;
   }
   state.entry.visible = true;
-  ui.entryScreen.classList.remove("hidden");
+  shellStore.patch((current) => ({...current, screen: "entry"}));
   syncEntrySidebarUi();
   syncControlSidebarUi();
   syncPerformanceUi();
@@ -741,32 +754,16 @@ function showEntryScreen({syncOverview = true} = {}) {
 
 function hideEntryScreen() {
   state.entry.visible = false;
-  ui.entryScreen.classList.add("hidden");
+  shellStore.patch((current) => ({...current, screen: "scene"}));
   syncControlSidebarUi();
   syncPerformanceUi();
 }
 
 function syncEntrySidebarUi() {
-  const collapsed = state.entry.sidebarCollapsed;
-  ui.entryScreen.classList.toggle("sidebarCollapsed", collapsed);
-  ui.btnEntrySidebarToggle.setAttribute("aria-label", collapsed ? "Open search sidebar" : "Collapse search sidebar");
-  ui.btnEntrySidebarToggle.setAttribute("aria-expanded", String(!collapsed));
-  if (ui.entrySidebarStack) {
-    ui.entrySidebarStack.inert = collapsed;
-    ui.entrySidebarStack.setAttribute("aria-hidden", String(collapsed));
-  }
-}
-
-function syncControlSidebarUi() {
-  const collapsed = state.panelCollapsed;
-  const visible = ui.panel.style.display === "flex" && !state.entry.visible;
-  ui.panel.classList.toggle("panelCollapsed", collapsed);
-  ui.panelToggle.classList.toggle("panelCollapsed", collapsed);
-  ui.panelToggle.classList.toggle("hidden", !visible);
-  ui.panelToggle.setAttribute("aria-label", collapsed ? "Open control sidebar" : "Collapse control sidebar");
-  ui.panelToggle.setAttribute("aria-expanded", String(!collapsed));
-  ui.panel.inert = !visible || collapsed;
-  ui.panel.setAttribute("aria-hidden", String(!visible || collapsed));
+  patchEntry((entry) => ({
+    ...entry,
+    sidebarCollapsed: Boolean(state.entry.sidebarCollapsed),
+  }));
 }
 
 function syncEntryOverviewUi() {
@@ -779,27 +776,21 @@ function syncEntryOverviewUi() {
   const loaded = [...getViewer().loadedTileIds].filter((tileId) => overview.tileById.has(tileId)).sort(compareTileIds);
   const selectedSet = new Set(selected);
   const loadedSet = new Set(loaded);
-  const selectedMeshCount = selected.reduce((sum, tileId) => sum + overview.tileById.get(tileId).mesh_count, 0);
-  const selectedLoadedCount = selected.filter((tileId) => loadedSet.has(tileId)).length;
-  const pendingCount = Math.max(0, selected.length - selectedLoadedCount);
   const downloadingCount = state.entry.downloadingTileIds.size;
 
   updateEntryMapBadge({
     selectedCount: selected.length,
-    loadedCount: selected.length ? selectedLoadedCount : loaded.length,
-    pendingCount,
     downloadingCount,
-    meshCount: selectedMeshCount,
   });
-  const sceneActionDisabled = state.tileLoadBusy || downloadingCount > 0 || selected.length === 0;
-  const sceneActionLabel = state.entry.sceneReady ? "Apply Tile Selection" : "Load Selected Tiles";
-  ui.btnEnterScene.disabled = sceneActionDisabled;
-  ui.btnEnterScene.textContent = sceneActionLabel;
-  ui.btnEntryReturnScene.disabled = state.tileLoadBusy || !state.entry.sceneReady;
-  ui.btnEntrySearch.disabled = state.tileLoadBusy || state.entry.search.inFlight;
-  ui.entryPlaceInput.disabled = state.tileLoadBusy || state.entry.search.inFlight;
-  ui.btnEntryFocusSelection.disabled = selected.length === 0;
-  ui.btnOpenTileIndex.disabled = state.tileLoadBusy || downloadingCount > 0;
+  const canEnterScene = !state.tileLoadBusy && downloadingCount === 0 && selected.length > 0;
+  const enterButtonLabel = state.entry.sceneReady ? "Apply Tile Selection" : "Load Selected Tiles";
+  const canReturnScene = !state.tileLoadBusy && Boolean(state.entry.sceneReady);
+  patchEntry((entry) => ({
+    ...entry,
+    canEnterScene,
+    enterButtonLabel,
+    canReturnScene,
+  }));
 
   for (const [tileId, tileEntry] of entryMap.tilesById.entries()) {
     const inScene = overview.tileById.has(tileId);
@@ -898,11 +889,7 @@ async function downloadEntryMapTile(tileId) {
       return;
     }
     cancelRequested = true;
-    if (ui.btnLoadingCancel) {
-      ui.btnLoadingCancel.disabled = true;
-      ui.btnLoadingCancel.textContent = "Cancelling...";
-    }
-    scene().setProgress(NaN, `Cancelling ${displayTileId} and cleaning partial files...`, true);
+    scene().setProgress(NaN, `Cancelling ${displayTileId}...`, true);
     if (activeJobId) {
       await cancelTileDownloadJob(activeJobId).catch(() => {});
     }
@@ -956,7 +943,7 @@ function renderEntryOverview() {
     return;
   }
 
-  ui.entryMapTitle.textContent = "HKU Wireless Digital Twin";
+  patchEntry((entry) => ({...entry, mapTitle: "HKU Wireless Digital Twin"}));
 
   buildEntryMap(overview);
   syncEntryOverviewUi();
@@ -967,6 +954,7 @@ function renderEntryOverview() {
     renderEntryOverview,
     showEntryScreen,
     hideEntryScreen,
+    setEntrySearchQuery,
     syncEntrySidebarUi,
     syncEntryOverviewUi,
     runEntryPlaceSearch,

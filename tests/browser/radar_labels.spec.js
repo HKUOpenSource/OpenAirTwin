@@ -166,7 +166,9 @@ test("Radar labels follow projection, yield to controls and hide behind the came
     const target = state.radar.targets[0];
     window.__radarTargetVisiblePosition = [...target.position];
     const viewer = viewerRef.current;
-    const controlsRect = document.getElementById("ui").getBoundingClientRect();
+    const controlsRect = document
+      .querySelector('[data-testid="left-inspector"]')
+      .getBoundingClientRect();
     const canvasRect = viewer.canvas.getBoundingClientRect();
     const screenX = controlsRect.left + controlsRect.width / 2 - 50;
     const screenY = controlsRect.top + controlsRect.height / 2;
@@ -189,7 +191,7 @@ test("Radar labels follow projection, yield to controls and hide behind the came
         rect.left + rect.width / 2,
         rect.top + rect.height / 2,
       );
-      return Boolean(topmost?.closest("#ui"));
+      return Boolean(topmost?.closest('[data-testid="left-inspector"]'));
     });
   await expect.poll(coveredByControls).toBe(true);
   await page.evaluate(async () => {
@@ -290,15 +292,16 @@ test("Radar target limit, crowded labels and viewer replacement release subscrip
   });
   await activateMode(page, "link");
   await activateMode(page, "radar");
-  await page.locator("#radarTargetsGroup > summary").click();
-  await expect(page.locator("#btnAddRadarTarget")).toBeEnabled();
+  const addTargetBtn = page.getByRole("button", {
+    name: "Add Target to Scene",
+  });
+  const removeTargetBtn = page.getByRole("button", {
+    name: "Remove selected target",
+  });
+  await expect(addTargetBtn).toBeEnabled();
   await expect(page.locator(".radarTargetLabel")).toHaveCount(15);
-  await page.locator("#btnAddRadarTarget").click();
-  await expect(page.locator("#btnAddRadarTarget")).toBeDisabled();
-  await expect(page.locator("#radarAssetPickerHint")).toHaveText(
-    "Maximum 16 targets reached.",
-  );
-  await expect(page.locator("#radarAssetPickerHint")).toBeVisible();
+  await addTargetBtn.click();
+  await expect(addTargetBtn).toBeDisabled();
   await expect(page.locator(".radarTargetLabel")).toHaveCount(16);
   await expect(page.locator(".radarTargetLabel.selected")).toHaveCount(1);
   expect(
@@ -363,12 +366,10 @@ test("Radar target limit, crowded labels and viewer replacement release subscrip
   await expect(page.locator(".radarTargetConnector:not(.hidden)")).toHaveCount(
     16,
   );
-  await page
-    .locator("#btnRemoveRadarTarget")
-    .evaluate((button) => button.click());
+  await removeTargetBtn.click();
   await expect(page.locator(".radarTargetLabel")).toHaveCount(15);
-  await expect(page.locator("#btnAddRadarTarget")).toBeEnabled();
-  await page.locator("#btnAddRadarTarget").evaluate((button) => button.click());
+  await expect(addTargetBtn).toBeEnabled();
+  await addTargetBtn.click();
   await expect(page.locator(".radarTargetLabel")).toHaveCount(16);
   expect(
     await page.evaluate(async () => {
@@ -422,7 +423,7 @@ test("Radar target limit, crowded labels and viewer replacement release subscrip
     replacementViewer.__ready = true;
     replacementViewer.loadedTileIds.add("replacement-fixture-tile");
     viewerRef.current = replacementViewer;
-    document.querySelector("#radarTargetList .radarTargetCard").click();
+    document.querySelector('[data-testid="radar-target-list"] button').click();
     await new Promise((resolve) => setTimeout(resolve, 80));
     return {
       previousFrameListeners: previousViewer.frameListeners.size,

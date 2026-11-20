@@ -1,127 +1,98 @@
 # OpenAirTwin UI Component Contract
 
-> Status: Active production contract; the workbench is owned by one React `app-shell` root
+> Status: Active production contract; the workbench is owned by one React `app-shell` root powered by Astryx (`@astryxdesign/core` + `@astryxdesign/theme-neutral` in light mode)
 >
 > Scope: Core desktop workbench at `1280x720` and larger
 >
-> Visual reference: `1440x900`; this contract authorizes no visual changes
+> Visual reference: `1440x900`
 
 ## 1. Contract Rules
 
 1. A DOM subtree has exactly one rendering owner. Shared components, feature components, and imperative engines may not mutate the same subtree.
-2. Shared components accept semantic properties and stable `id` values only. They may not accept arbitrary colors, spacing, radii, shadows, or z-index values.
-3. Components render view models and emit commands. They do not read global state, call REST endpoints, or access sibling feature DOM.
-4. The [DOM compatibility contract](dom-compatibility-contract.json) freezes IDs, element semantics, labels, order, ARIA, keyboard behavior, and focus behavior.
-5. Shared CSS classes and `--oat-*` tokens own component geometry. Feature CSS may express domain-specific structure only.
-6. Every shared component covers default, hover, focus-visible, and disabled states. Interactive components cover active, pressed, busy, invalid, selected, and empty states when applicable.
-7. Controlled field values come from feature snapshots and changes are submitted only through named commands. Rendering may not write values back to state.
+2. Shared wrappers in `workbench/src/ui/` accept semantic domain properties and stable identifiers. Arbitrary inline styles for static spacing, colors, radii, shadows, or z-index values are prohibited (except closed runtime exceptions in [`imperative-ui-exceptions.md`](imperative-ui-exceptions.md)).
+3. Components render immutable snapshots from Workbench stores and emit typed `UiCommand` objects. They do not call REST endpoints or mutate sibling feature state directly.
+4. The [DOM compatibility contract](dom-compatibility-contract.json) and interaction tests protect key IDs, element semantics, ARIA attributes, keyboard navigation, and focus restoration.
+5. Styling lives in the Vite-bundled `@layer` stack (`reset, astryx-base, astryx-theme, oat-theme, oat-layout, oat-charts`) inside `workbench/src/styles/workbench.css`.
+6. Every shared component handles `hover`, `focus-visible`, and `disabled` states; interactive controls handle `busy`, `invalid`, `selected`, and `empty` states where applicable.
+7. Controlled field values flow unidirectionally from feature snapshots, and edits submit through `CommandBus` (`workbench.control.update` / `workbench.control.action`).
 
 ## 2. Shared Component API
 
-| Component | Required properties | Optional semantic properties | DOM and behavior contract | CSS owner |
+The machine-readable component registry is [`component-manifest.json`](component-manifest.json) (schema v7). Desktop primitives are provided by `@astryxdesign/core` and wrapped ergonomically in `workbench/src/ui/ParamFields.tsx` and `workbench/src/ui/WorkbenchChrome.tsx`:
+
+| Contract Component | Implementation Primitives | Optional semantic properties | Behavior and Accessibility Contract | Owner |
 | --- | --- | --- | --- | --- |
-| `Button` | `id`, `label`, `command` | `variant=default|primary|danger`, `size=default|compact`, `busy`, `disabled`, `pressed`, `icon` | Native `button[type=button]`; busy is disabled with `aria-busy=true`; icons use `aria-hidden` | `components.css` |
-| `IconButton` | `id`, `label`, `command`, `icon` | `pressed`, `disabled`, `danger` | Native button with an accessible name and stable square geometry | `components.css` |
-| `ButtonGroup` | `label`, `children` | `orientation` | `role=group`; does not intercept child-button focus | `components.css` |
-| `Field` | `id`, `label`, `control` | `unit`, `help`, `error`, `disabled`, `readOnly` | `label[for]` exactly matches the control ID; errors use `aria-describedby` and `aria-invalid` | `components.css` |
-| `NumberField` | `id`, `label`, `value`, `command` | `min`, `max`, `step`, `unit`, `disabled`, `readOnly` | Native number input; preserves current parsing, commit, and invalidation timing | `components.css` |
-| `TextField` | `id`, `label`, `value`, `command` | `placeholder`, `autocomplete`, `disabled`, `readOnly` | Native text input; an explicit command defines Enter behavior | `components.css` |
-| `SelectField` | `id`, `label`, `value`, `options`, `command` | `disabled`, `help` | Native select; option order and values remain compatible | `components.css` |
-| `UnitInput` | `field`, `unit` | `compact` | The unit is part of the field structure and never part of the input value | `components.css` |
-| `Checkbox` | `id`, `label`, `checked`, `command` | `mixed`, `disabled` | Native checkbox; label click and Space retain browser behavior | `components.css` |
-| `RadioGroup` | `name`, `label`, `value`, `options`, `command` | `disabled` | Fieldset and legend or equivalent group semantics; arrow-key behavior is preserved | `components.css` |
-| `RangeInput` | `id`, `label`, `value`, `command` | `min`, `max`, `step`, `disabled` | Native range input; the `input` event commits in real time | `components.css` |
-| `Panel` | `id`, `children` | `surface`, `hidden`, `ariaLabel` | Adds no unexpected wrapper that changes selectors or geometry; passes the ID through | `components.css` |
-| `PanelHeader` | `title` | `subtitle`, `actions` | Title and action order remain stable; actions do not take over the title's accessible name | `components.css` |
-| `CollapsibleGroup` | `id`, `summary`, `children` | `open`, `command` | Native details and summary; preserves Enter, Space, and toggle semantics | `components.css` |
-| `ScrollRegion` | `id`, `children` | `label`, `tabIndex` | Preserves the internal scroll boundary, scroll position, and shared scrollbar | `components.css` |
-| `Badge` / `StatusBadge` | `label`, `tone` | `live`, `busy` | Tone is limited to neutral, success, warning, and error; live status uses suitable live-region semantics | `components.css` |
-| `Progress` | `value`, `label` | `max`, `indeterminate` | Native progress or equivalent progressbar; value and busy state remain synchronized | `components.css` |
-| `MetricGrid` / `Metric` | `items` | `dense` | Stable label and value order; numeric updates do not change grid geometry | `components.css`, `results.css` |
-| `ListCard` | `title`, `meta` | `detail`, `selected`, `command`, `tone` | Selectable cards use buttons; selection is accessible and not color-only | `components.css`, `results.css` |
-| `EmptyState` | `message` | `action` | Does not nest another panel; loading text does not resize the container | `components.css`, `results.css` |
-| `Dialog` | `id`, `title`, `open`, `actions` | `variant`, `detail`, `onDismiss` | Preserves focus trap, Escape, backdrop, and focus restoration after close | `shell.css` |
-| `Tooltip` | `content`, `anchor` | `placement` | Available through hover and focus; closes on Escape, scroll, and resize; does not own business clicks | `shell.css` |
-| `LoadingOverlay` | `title`, `message`, `progress` | `cancellable` | Modal busy state; cancel command is enabled only while cancellation is available | `shell.css` |
-| `ChartFrame` | `id`, `title`, `host` | `legend`, `tooltip`, `empty`, `loading` | Canvas or SVG engine owns the host interior; ordinary component updates do not rebuild the engine | `results.css`, `radar.css` |
+| `Button` | `@astryxdesign/core/Button` | `variant=primary\|secondary\|ghost\|destructive`, `size`, `isDisabled`, `isLoading`, `icon`, `tooltip` | Native `button`; busy exposes `aria-busy=true`; icons marked `aria-hidden` | `@astryxdesign/core`, `workbench.css` |
+| `IconButton` | `@astryxdesign/core/IconButton` | `pressed`, `isDisabled`, `tooltip` | Native button with required accessible `label` and fixed square hit area | `@astryxdesign/core`, `workbench.css` |
+| `ButtonGroup` | `@astryxdesign/core/ToggleButtonGroup`, `MultiToggleRow` | `type`, `size` | Accessible toggle group preserving arrow/keyboard focus across items | `@astryxdesign/core`, `ParamFields.tsx` |
+| `Field` | `InspectorRow`, `@astryxdesign/core/Field` | `label`, `tooltip`, `units`, `status` | Aligned two-column CAD row (`104 px` label column with hover tooltip + flexible control column) | `ParamFields.tsx`, `workbench.css` |
+| `NumberField` | `ParamNumber` / `InlineNumberField` (`NumberInput`) | `min`, `max`, `step`, `units`, `prefix`, `isIntegerOnly`, `hasClear`, `hasNumberSteppers` | Built-in stepper buttons (`+`/`-` up/down), unit suffix, draft commit on blur/Enter | `@astryxdesign/core`, `ParamFields.tsx` |
+| `TextField` | `ParamText` (`TextInput`) | `placeholder`, `isDisabled`, `isReadOnly`, `hasClear` | Accessible text input with optional Enter commit handler and clear action | `@astryxdesign/core`, `ParamFields.tsx` |
+| `SelectField` | `ParamSelect` (`Selector`) | `isDisabled`, `renderValue`, `renderOption` | Keyboard-navigable listbox supporting custom swatches (fixed-width colormap bars + names) | `@astryxdesign/core`, `ParamFields.tsx`, `workbench.css` |
+| `UnitInput` | `ParamNumber` with `units` / `prefix` | `formatValue` | Units (`MHz`, `GHz`, `m`, `m/s`, `dB`, `°`) and axis badges sit inside field chrome, never in editable value | `ParamFields.tsx`, `number-format.ts` |
+| `Checkbox` | `@astryxdesign/core/CheckboxInput`, `ParamCheckbox` | `isDisabled`, `description` | Native checkbox semantics; preserves label click and Space toggle | `@astryxdesign/core`, `ParamFields.tsx` |
+| `RadioGroup` | `ModeSelector`, `SegmentedControl` | `size`, `layout`, `value` | Full-group radiogroup semantics and keyboard arrow navigation | `@astryxdesign/core` |
+| `RangeInput` | `SliderNumberRow` (`@astryxdesign/core/Slider` + `InlineNumberField`) | `min`, `max`, `step`, `units` | Synchronized fill slider paired with a width-locked stepped numeric input | `ParamFields.tsx`, `workbench.css` |
+| `Panel` | `.oat-left-rail`, `.oat-right-rail`, `DrawerSection` | `collapsible`, `collapsed` | Collapsible workstation rails with smooth open/close persistence | `AppShell.tsx`, `workbench.css` |
+| `PanelHeader` | Left/Right rail tab headers & section headers | `title`, `actions`, `icon` | Title and action buttons share one baseline without stealing accessible names | `WorkbenchChrome.tsx`, `LeftInspector.tsx`, `RightAnalysisDrawer.tsx` |
+| `CollapsibleGroup` | `InspectorSection` | `title`, `collapsible`, `defaultCollapsed`, `dividers` | Accordion section toggle preserving internal expand state across renders | `ParamFields.tsx` |
+| `ScrollRegion` | `.oat-left-rail-scroll`, `.oat-right-rail-scroll` | `flex` scroll container | Bounded vertical scroll region preserving scroll offset across state updates | `LeftInspector.tsx`, `RightAnalysisDrawer.tsx`, `workbench.css` |
+| `Badge` / `StatusBadge` | `@astryxdesign/core/Badge` | `variant=neutral\|info\|success\|warning\|error` | Semantic status pill; never relies on color alone to convey state | `@astryxdesign/core` |
+| `Progress` | `@astryxdesign/core/ProgressBar` | `value`, `max`, `isIndeterminate` | Accessible progressbar synchronized with async transfer and solver progress | `@astryxdesign/core`, `AppOverlays.tsx` |
+| `MetricGrid` / `Metric` | `MetricGrid` (`.oat-metric-grid`, `.oat-metric-card`) | `columns=2\|3`, `wide` | Fixed-column key-metric summary grid using `tabular-nums` alignment | `WorkbenchChrome.tsx`, `workbench.css` |
+| `ListCard` | `@astryxdesign/core/SelectableCard`, `.oat-list-row` | `selected`, `title`, `meta`, `detail` | Accessible card/button selection without color-only active indicators | `@astryxdesign/core`, `workbench.css` |
+| `EmptyState` | `@astryxdesign/core/EmptyState` | `message`, `icon`, `action` | Guides users before devices/waypoints/results are present without nesting panels | `@astryxdesign/core` |
+| `Dialog` | `@astryxdesign/core/Dialog` & `AlertDialog` | `variant`, `detail`, `onOpenChange` | Focus-trapped modal/confirm/error dialog supporting Escape and focus restoration | `AppOverlays.tsx` |
+| `Tooltip` | `@astryxdesign/core/Tooltip` | `placement`, `delay` | Pointer hover tooltips on inspector labels, sub-inputs, and toolbar controls (`focusTrigger="never"`) | `@astryxdesign/core`, `ParamFields.tsx` |
+| `LoadingOverlay` | `LoadingOverlay` (`.oat-loading-overlay`, `.oat-loading-card`) | `title`, `message`, `percent`, `cancellable` | Modal progress card with single-line ellipsized status text and cancel trigger | `AppOverlays.tsx`, `workbench.css` |
+| `ChartFrame` | `ChartFrame`, SVG/Canvas result containers | `id`, `title`, `legend`, `actions` | Provides stable host ref for imperative chart rendering without rebuilding canvas hosts | `WorkbenchChrome.tsx`, `RightAnalysisDrawer.tsx` |
 
-### 2.1 Shared CSS Class Mapping
+## 3. React Production Boundary & Shell Composition
 
-[component-manifest.json](component-manifest.json) is the machine-readable authority for the native implementation, and `tools/ui-catalog/index.html` displays every public variant and state. Shared classes include:
+All desktop chrome and forms mount through a single React root (`app-shell`) wrapped in `<Theme theme={neutralTheme} mode="light">` (`workbench/src/app/AppProviders.tsx`).
 
-- Structure: `oat-panel`, `oat-panel__header`, and `oat-panel__title`.
-- Actions: `oat-button`, `oat-button-group`, and `--primary / --compact / --icon / --danger / --block / --toolbar`.
-- Fields: `oat-field`, `oat-input`, `oat-input--compact`, and `oat-check`.
-- Data: `oat-badge`, `oat-metric-grid`, `oat-list-card`, and `oat-empty-state`.
-- Infrastructure: `oat-scroll-region` and `oat-icon`.
-
-The retired `.btn`, `.miniBtn`, `.miniSelect`, `.primary`, `.danger`, and internal compatibility font classes are prohibited in production. Production UI may use only shared `oat-*` classes. Features may no longer define or duplicate core button, field, or list-card geometry.
-
-### 2.2 React Implementation and Production Boundary
-
-Typed React primitives live in `workbench/src/design-system/components/` and continue to emit the same `oat-*` classes from section 2.1. The machine manifest's `reactSource` is the sole React source location for each shared component. Features may not copy primitives or establish a barrel entry point.
-
-React components observe these boundaries:
-
-- `Button`, fields, Checkbox, and selectable ListCard emit only `UiCommand` objects and never accept or pass HTMLElement or Event objects.
-- Field values come from props; input changes return the smallest payload through command factories.
-- `AppProviders` injects only command dispatch and error reporting. It does not become a second feature-state source.
-- Feature state exposes stable snapshots through `ObservableStateAdapter` and `useSyncExternalStore`.
-- Roots mount only into empty containers and `ReactRootRegistry` owns unmount, cleanup, and focus restoration.
-- Component exceptions render the shared error panel through an Error Boundary and enter the host error path through the root error hook.
-- `className` is only for domain layout composition. Arbitrary inline styles and design values are prohibited.
-- `component-manifest.json` declares `productionOwner` as `react`. The sole production root and boundary are both `app-shell`; Catalog and test roots remain development-only.
-- `ShellLayout` and `ControlSurface` are explicit JSX trees in one React root, composing the Control, Device, Result, and DeepMIMO Dataset subtrees. The production entry does not parse or inject HTML templates, and ordinary layout may not use portals.
-- Leaflet, Three.js, and Canvas or SVG charts remain imperative adapters that own only the interior of stable React-provided hosts. Ordinary Shell or view-model updates may not replace `#view`, the map host, or chart hosts.
-- `AppShell` lifecycle owns Shell document and window handlers, the performance interval, and named command routing. Features, the map, the Viewer, and Controllers must release their resources during page or feature disposal.
-- `Filter` and `ChartFrame` live in `ResultData.tsx`; together with `MetricGrid`, `ListCard`, and `EmptyState`, they form the shared result-component set.
-- The React result boundary accepts typed view models and emits frozen commands only. Chart adapters may write only inside registered SVG or Canvas hosts.
-- `ControlledField` preserves native input and select IDs, names, defaults, min/max/step, commit timing, and browser keyboard semantics. Text and number inputs update their draft on `input` and commit on `blur` or compatible native `change`; checkboxes, radio controls, and selects commit immediately.
-- `ControlCollections` is the sole DOM owner of Mobility waypoints and Radar targets. Feature runtimes handle only `workbench.control.*` commands and domain state; they do not create list nodes.
-- `control-surface-model`, `result-dock-model`, `deepmimo-dataset-model`, and `shell-ui-model` provide the sole typed snapshots and APIs. Controllers may read registered stable native-field references for domain parsing, but may not create, replace, or bind ordinary React-owned UI descendants.
-
-The development catalog renders native and React columns on one page to compare DOM state and computed styles item by item. Vite development service exposes the catalog; it is not part of the production entry or release bundle.
-
-## 3. Workbench Composite Components
-
-| Component | Current instance | Sole owner | Allowed composition |
+| Composite Module | DOM / Test Anchor | Owner | Composition |
 | --- | --- | --- | --- |
-| `ControlPanel` | `#ui` | `react:app-shell`; Controllers only read or synchronize registered references | PanelHeader, ModeSelector, ScrollRegion, FeaturePanel |
-| `ModeSelector` | `#modeSelector` | `react:app-shell` | CollapsibleGroup, feature-mode buttons |
-| `DeviceDock` / `DeviceCard` | `#deviceDock` and five mode device cards | `react:app-shell` | Field, IconButton, ButtonGroup |
-| `ResultDock` | `#linkChannelSection` | `react:app-shell` | FeatureResult, ScrollRegion, PanelHeader |
-| `PerformanceDock` | `#performanceDock` | `react:app-shell`; Viewer adapter performs domain side effects | Badge, MetricGrid, Checkbox, ButtonGroup |
-| `EntryMap` | `#entryScreen` | `react:app-shell`; Leaflet adapter exclusively owns the interior of `#entryMap` | Search, map host, tile list, primary action |
-| `AppDialog` | `#appDialog` | `react:app-shell`; Dialog Controller retains its queue and focus trap | Dialog |
-| `ParameterTooltip` | `#paramTooltipLayer` | `react:app-shell`; Tooltip adapter owns runtime positioning | Tooltip |
+| `ModeSelector` / Top Bar | `[data-testid="top-workspace-bar"]` | `TopWorkspaceBar.tsx` | Brand mark, `Map` launcher, 5-mode `SegmentedControl`, Datasets `Popover`, `PerformanceDock` `Popover`, drawer toggle |
+| Control Panel | `#ui` / `[data-testid="left-inspector"]` | `LeftInspector.tsx` | Collapsible left rail, tabbed workflow vs. `SharedSolverControls`, `ScrollRegion`, sticky action footer |
+| `DeviceDock` / Device Bar | `#deviceDock` / `[data-testid="device-bar"]` | `DeviceBar.tsx` | Compact `Tx` / `Rx` / `Draw ROI` / `Orbit Tx` pills + expandable coordinate precision editor card |
+| `ResultDock` / Right Drawer | `[data-testid="right-analysis-drawer"]` | `RightAnalysisDrawer.tsx` | Summary `MetricGrid`, `KeyValueList`, `ListCard` selection lists, SVG/Canvas `ChartFrame`, Radar/Radiomap telemetry |
+| `PerformanceDock` | `[data-testid="performance-panel"]` | `TopWorkspaceBar.tsx` | Fixed-width `328 px` FPS popover with Auto/Quality/Fast selector, material toggle, stats, single-line category checkboxes |
+| Entry Map Screen | `#entryScreen` / `[data-testid="entry-map-screen"]` | `EntryMapScreen.tsx` | Place search `SelectableCard` list, floating map controls, bottom `N selected` action bar, Leaflet/MapLibre host |
+| App Overlays | `#loadingScreen`, Alert/Modal dialogs | `AppOverlays.tsx` | `LoadingOverlay` (`ProgressBar` + single-line message) and Astryx `AlertDialog` / `Dialog` |
+
+State flows unidirectionally from domain runtime (`backend/static/js/`) via `ShellStore`, `ControlsStore`, `ResultDockModel`, and `DeepMimoDatasetStore` into React via `useSyncExternalStore`. Leaflet (`#entryMap`), OpenFreeMap Positron MapLibre GL adapter (`entry-basemap.ts`), Three.js (`#view`), and SVG/Canvas chart hosts remain isolated behind `ImperativeHostRegistry`.
 
 ## 4. Repeated Pattern Ownership
 
 | Production pattern | Shared component owner | Current consumers |
 | --- | --- | --- |
-| Default, primary, compact, icon, and danger buttons | `Button` / `IconButton` | All five features, Entry, Dialog, Performance |
-| Label plus input or select plus unit or help | `Field` and typed fields | All five features, shared Solver, device precision editing |
-| Checkbox, radio, and range | `Checkbox` / `RadioGroup` / `RangeInput` | Link, Mobility, Radio Map, DeepMIMO, Radar, Performance |
-| Collapsible parameter group | `CollapsibleGroup` | Shared Solver, Radar Geometry, Targets, Waveform, CFAR, Propagation |
-| Status badge and progress | `StatusBadge` / `Progress` | Loading, Live Preview, Radar Job, DeepMIMO Dataset |
-| Metric grid | `MetricGrid` | Link, Mobility, Radio Map, Radar, Performance |
-| Selectable result row | `ListCard` | Link paths, Mobility waypoints, DeepMIMO datasets, Radar targets, detections, truth, and paths |
-| Empty, loading, failed, cancelled, and retry states | `EmptyState` plus Status and Button | Every asynchronous feature and result region |
-| Chart shell, legend, and tooltip | `ChartFrame` / `Legend` / `ChartTooltip` | Link taps, Mobility timeline, Radio Map colorbar, Radar charts |
-| Panel and scroll boundary | `Panel` / `ScrollRegion` | Control, Result, Device, Performance, Dialog, Dataset panels |
+| Primary, secondary, ghost, icon & toggle actions | `Button` / `IconButton` / `ToggleButton` | All 5 features, Top Bar, DeviceBar, Entry Map, Overlays |
+| Labeled inspector row + tooltip + numeric/select input | `InspectorRow` + `ParamNumber` / `ParamSelect` | `Link`, `Mobility`, `Radio Map`, `DeepMIMO`, `Radar`, `SharedSolverControls`, `DeviceBar` |
+| Multi-select ray/propagation option chips | `MultiToggleRow` (`ToggleButtonGroup`) | `Link` ray options, `SharedSolverControls` propagation, `Radar` propagation |
+| Checkboxes, switches & density segments | `ParamCheckbox` / `ParamSwitch` / `SegmentedControl` | `Link`, `Mobility`, `Radio Map`, `DeepMIMO`, `Radar`, Performance popover |
+| Expandable parameter sections | `InspectorSection` | Solver, Tx/Rx Arrays, Target editor, OFDM waveform, CFAR detector |
+| Status badge & transfer progress | `Badge` / `ProgressBar` | Loading overlay, Radar job status, DeepMIMO queue, Entry Map selection count |
+| Telemetry grids & tabular details | `MetricGrid` / `KeyValueList` | Link, Mobility, Radio Map, Radar results, Performance popover |
+| Selectable paths, targets & search hits | `ListCard` / `SelectableCard` | Link paths, Mobility waypoints, DeepMIMO datasets, Radar targets/detections/paths, Map search |
+| Empty, loading, failed & cancelled states | `EmptyState` / `Badge` / `Button` | Async solvers (`Mobility`, `Radio Map`, `DeepMIMO`, `Radar`) and empty waypoint/target lists |
+| Scientific plot hosts & colormaps | `ChartFrame` + colorbar swatches | Link CIR taps, Mobility timeline, Radio Map colormap/legend, Radar Range–Doppler/Range profile |
 
-## 5. Feature-Specific Components
+## 5. Feature-Specific Domain Ownership
 
-The following patterns must not be merged merely because they look similar. Their domain semantics remain feature-owned:
+Feature-specific domain computation, transport calls, invalidation rules, and Viewer layer management remain cleanly separated inside `backend/static/js/features/<feature-id>/` and matching React view components (`workbench/src/features/controls/*.tsx` and `RightAnalysisDrawer.tsx`):
 
-- Link: path selection and CIR or tap-detail view models.
-- Mobility: waypoint editing, timeline playback state, and trajectory-sampling view models.
-- Radio Map: grid and mesh statistics, domain colormap, and scale range.
-- DeepMIMO: ROI, receiver-count estimation, Dataset Job, and download lifecycle.
-- Radar: target and asset editors, waveform, CFAR, Range-Doppler, detection/truth/path association, and the 3D label layer.
-
-Feature-specific components must still compose shared Button, Field, Badge, Metric, ListCard, ScrollRegion, and ChartFrame components. They may not duplicate shared core geometry or state styling.
+- **`Link`**: Synchronous path solve, discrete tap calculation, CIR Frequency/PDP charts, and live drag preview scheduling.
+- **`Mobility`**: Rx waypoint list, kinematic duration estimate, time-series polling, timeline scrubber, and trajectory playback.
+- **`Radio Map`**: Receiver patch dimensions, Auto `D1`–`D4` vs. cell-size grid, fixed-width gradient colormap picker, and terrain-mesh heatmap overlay.
+- **`DeepMIMO`**: Scenario naming, terrain-dragged rectangular ROI, receiver candidate estimator, chunked subprocess jobs, and downloadable dataset list.
+- **`Radar`**: Monostatic/bistatic Tx/Rx selection, 4-model 3D drone picker with GLB preview canvas, 6-DoF target parameters, OFDM grid & resolution derivations, CA-CFAR detector, Range–Doppler plots, and 3D projected labels.
 
 ## 6. Change and Acceptance Process
 
-Before adding UI, update the machine-readable component manifest and native component catalog. Then register either the shared component or the reason for feature-specific ownership in this file, and register its command in the [interaction contract](interaction-contracts.md). An unowned ID, unnamed user operation, cross-owner DOM mutation, unregistered inline style, or unexplained duplicate component blocks acceptance.
+When adding or modifying UI controls or views:
+
+1. Reuse `@astryxdesign/core` primitives and `workbench/src/ui/` wrappers rather than introducing one-off markup or imperative DOM builders.
+2. Register any intentional host or inline-style exception in [`imperative-ui-exceptions.json`](imperative-ui-exceptions.json) and [`imperative-ui-exceptions.md`](imperative-ui-exceptions.md).
+3. Keep [`component-manifest.json`](component-manifest.json) and [`dom-compatibility-contract.json`](dom-compatibility-contract.json) accurate if root boundaries, IDs, or command names change.
+4. Run `npm --prefix workbench test`, Python contract tests (`tests/test_ui_contracts.py`, `tests/test_ui_components.py`), and Playwright accessibility/behavior specs (`tests/browser/`).

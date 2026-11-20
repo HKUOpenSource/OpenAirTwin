@@ -15,7 +15,7 @@ function createResultView(context) {
   }
   return createMobilityResultView({
     state: context.state,
-    ui: context.ui,
+    shellUi: context.featureServices.shellUi,
     getViewer: shared.getViewer,
     renderAll: shared.renderAll,
     resultDock: context.featureServices.resultDock,
@@ -41,7 +41,6 @@ function createController(context) {
     mobilityEstimate: shared.mobilityEstimate,
     mobilityJobPayload: () => mobilityJobPayload({
       state: context.state,
-      inputs: context.inputs,
       linkDomain,
     }),
     showOverlay: shared.showOverlay,
@@ -63,20 +62,15 @@ export const mobilityFeature = defineFeature({
   createRenderer: createMobilityRenderer,
   createFeature: createMobilityFeature,
   dependencies: ["link-domain", "path-results"],
-  inputReader: "readMobilityInputs",
   settingsDependencies: ["common-solver", "antenna", "link-channel", "link-device", "surface-clearance"],
   sharedControlPolicy: {tx: true, rx: true, antenna: "both", channel: true},
   ui: {
-    tabRef: "tabMobility",
-    panelRef: "mobilityPanel",
-    runButtonRef: "btnRunMobility",
     disableDuringTileLoad: true,
-    parameterGroups: ["linkOnlyParams", "mobilityOnlyParams"],
     resultMethod: "renderMobilityResult",
   },
   pickingTargets: [
-    {id: "mobility-tx", role: "tx", scope: "mobility", prompt: "Click any surface to place Tx", buttonRef: "btnPickMobilityTx", cardRef: "mobilityTxDeviceCard", precisionTitle: "Tx", precision: true, clearance: true, readMethod: "readMobilityInputs", applyMethod: "applyMobilityPick"},
-    {id: "mobility-rx", role: "rx", scope: "mobility", prompt: "Click any surface to place Rx", buttonRef: "btnPickMobilityRx", cardRef: "mobilityRxDeviceCard", precisionTitle: "Rx", precision: true, clearance: true, readMethod: "readMobilityInputs", applyMethod: "applyMobilityPick"},
+    {id: "mobility-tx", role: "tx", scope: "mobility", prompt: "Click any surface to place Tx", precisionTitle: "Mobility Tx", precision: true, clearance: true},
+    {id: "mobility-rx", role: "rx", scope: "mobility", prompt: "Click any surface to place Rx", precisionTitle: "Mobility Rx", precision: true, clearance: true},
   ],
   renderLayers: ["paths", "trajectory"],
 });

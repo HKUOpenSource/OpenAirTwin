@@ -10,7 +10,6 @@ function createResultView(context) {
   const shared = context.featureServices.solver;
   return createDeepMimoDatasetView({
     state: context.state,
-    ui: context.ui,
     getViewer: shared.getViewer,
     deepMimoRoiBounds: shared.deepMimoRoiBounds,
     deepMimoReceiverEstimate: shared.deepMimoReceiverEstimate,
@@ -47,21 +46,15 @@ export const deepMimoFeature = defineFeature({
   createRenderer: createDeepMimoRenderer,
   createFeature: createDeepMimoFeature,
   dependencies: ["link-domain"],
-  inputReader: "readDeepMimoInputs",
   settingsDependencies: ["common-solver", "link-channel"],
   sharedControlPolicy: {tx: true, rx: false, antenna: "fixed"},
   ui: {
-    tabRef: "tabDeepMimo",
-    panelRef: "deepmimoPanel",
-    runButtonRef: "btnRunDeepMimo",
-    extraActionButtonRefs: ["btnDeepMimoClearRoi"],
-    parameterGroups: ["deepmimoOnlyParams"],
-    filteredParameterGroups: [{ref: "linkOnlyParams", className: "deepmimoAntennaParam"}],
+    disableDuringTileLoad: true,
     resultMethod: "renderDeepMimoState",
   },
   pickingTargets: [
-    {id: "deepmimo-tx", role: "tx", scope: "deepmimo", prompt: "Click any surface to place DeepMIMO Tx", buttonRef: "btnDeepMimoPickTx", cardRef: "deepMimoTxDeviceCard", precisionTitle: "DM Tx", precision: true, clearance: true, readMethod: "readDeepMimoInputs", applyMethod: "applyDeepMimoTxPick"},
-    {id: "deepmimo-roi", role: "roi", scope: "deepmimo", prompt: "Drag on the terrain to draw a rectangular DeepMIMO ROI", buttonRef: "btnDeepMimoPickRoi", precisionTitle: "ROI", precision: false, readMethod: "readDeepMimoInputs", applyMethod: "applyDeepMimoRoiPick", pointerAdapter: "rectangle-roi"},
+    {id: "deepmimo-tx", role: "tx", scope: "deepmimo", prompt: "Click any surface to place DeepMIMO Tx", precisionTitle: "DeepMIMO Tx", precision: true, clearance: true},
+    {id: "deepmimo-roi", role: "roi", scope: "deepmimo", prompt: "Drag on the terrain to draw a rectangular DeepMIMO ROI", precisionTitle: "ROI", precision: false, pointerAdapter: "rectangle-roi"},
   ],
   renderLayers: ["roi"],
 });

@@ -1,21 +1,13 @@
 # OpenAirTwin Documentation
 
-This directory contains the versioned documentation that accompanies the
-runtime and tutorial website.
+This directory contains versioned architecture, design-decision, licensing, and UI contract documentation accompanying the OpenAirTwin runtime and tutorial website.
 
-- [Interactive architecture map](https://hkuopensource.github.io/OpenAirTwin/architecture/)
-  visualizes the current frontend, REST, backend service, job and renderer
-  relationships. Its source is
-  [`openairtwin-architecture.html`](openairtwin-architecture.html).
-- [`development.md`](development.md) describes the modular Feature architecture,
-  test suites and contribution workflow.
-- [`release-checklist.md`](release-checklist.md) defines the local and GitHub
-  checks required before publishing a tag.
-- [`data-licenses.md`](data-licenses.md) records scene-data responsibilities and
-  third-party scene and Radar drone-model attribution requirements.
-- [`../CHANGELOG.md`](../CHANGELOG.md) records the v1.1.0 release
-  and future unreleased changes.
+- [Interactive Architecture Map](https://hkuopensource.github.io/OpenAirTwin/architecture/): explores frontend, REST transport, backend service, job manager, and 3D viewer relationships (source: [`openairtwin-architecture.html`](openairtwin-architecture.html)).
+- [Development Guide](development.md): modular-monolith Feature catalog architecture, extension workflow, CI scope, and test suites.
+- [UI Component & Interaction Contracts](ui/component-contracts.md): component ownership rules, Astryx design-system boundaries, and typed command contracts (alongside [`ui/interaction-contracts.md`](ui/interaction-contracts.md) and [`ui/icon-contracts.md`](ui/icon-contracts.md)).
+- [Architecture Decision Records (ADRs)](adr/0003-adopt-astryx-design-system.md): key technology choices including React + Vite workbench packaging (`0001`) and Astryx adoption (`0003`).
+- [Release Checklist](release-checklist.md): local and CI gates required before tagging a release.
+- [Scene Data and Third-Party Terms](data-licenses.md): Open3Dhk/CSDI spatial data responsibilities, OpenFreeMap basemap attribution, and CC BY 4.0 drone-model licensing.
+- [Contributor Guide](../CONTRIBUTING.md) & [Changelog](../CHANGELOG.md): setup instructions, style conventions, and versioned release notes.
 
-The tutorial website build copies `openairtwin-architecture.html` to
-`dist/architecture/index.html`. GitHub Pages therefore publishes it at the
-stable `/OpenAirTwin/architecture/` URL without maintaining a duplicate file.
+The tutorial website build validates and copies `openairtwin-architecture.html` to `website/dist/architecture/index.html`, publishing it on GitHub Pages at `/OpenAirTwin/architecture/`.

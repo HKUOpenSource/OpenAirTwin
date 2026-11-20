@@ -2,151 +2,142 @@ import { act, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { mountAppShell } from "../app-shell/app-shell-runtime.tsx";
-import { createInitialResultDockSnapshot } from "../features/results/contracts.ts";
-import { reactRootRegistry } from "../runtime/root-registry.tsx";
+import type { AnyUiCommand } from "../runtime/ui-command.ts";
 
 const mountedContainers: HTMLElement[] = [];
 
-function createShellHost(): HTMLElement {
-  const container = document.createElement("main");
+function mountContainer(): HTMLElement {
+  const container = document.createElement("div");
   document.body.append(container);
   mountedContainers.push(container);
   return container;
 }
 
 afterEach(() => {
-  reactRootRegistry.unmountAll();
   for (const container of mountedContainers.splice(0)) container.remove();
 });
 
-describe("AppShell runtime", () => {
-  it("owns the production UI through one root and routes shell commands", async () => {
-    const container = createShellHost();
-    const handler = vi.fn();
+describe("AppShellRuntime (Astryx workstation)", () => {
+  it("mounts the single app-shell root, registers imperative hosts, and dispatches topbar commands", async () => {
+    const container = mountContainer();
+    const commands: AnyUiCommand[] = [];
     let runtime!: ReturnType<typeof mountAppShell>;
-
     act(() => {
       runtime = mountAppShell({
         activeMode: "link",
         container,
         reportError: vi.fn(),
       });
-      runtime.setCommandHandler(handler);
+      runtime.setCommandHandler((cmd) => {
+        commands.push(cmd);
+      });
     });
 
-    expect(reactRootRegistry.size()).toBe(1);
-    expect(reactRootRegistry.has("app-shell")).toBe(true);
-    expect(container.querySelectorAll("#view")).toHaveLength(1);
+    expect(runtime.hosts.require("view")).toBeInstanceOf(HTMLCanvasElement);
+    expect(runtime.hosts.require("entryMapScene")).toBeInstanceOf(
+      HTMLDivElement,
+    );
     expect(
-      container.querySelector(".shell")?.getAttribute("data-oat-react-owner"),
-    ).toBe("app-shell");
-    expect(runtime.controls.element("cfgFrequency")).toBeInstanceOf(
-      HTMLInputElement,
-    );
-    expect(runtime.controls.element("btnPickLinkTx")).toBeInstanceOf(
-      HTMLButtonElement,
-    );
-    expect(runtime.results.element("linkResult")).toBeInstanceOf(HTMLElement);
-    expect(container.querySelector("#deepMimoDatasetTray")).not.toBeNull();
+      container.querySelector('[data-testid="top-workspace-bar"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="left-inspector"]'),
+    ).not.toBeNull();
 
-    const place = document.createElement("button");
-    place.dataset.entryPlaceIndex = "2";
-    runtime.element("entryPlaceResults").append(place);
-    fireEvent.click(runtime.element("panelToggle"));
-    fireEvent.click(runtime.element("tabMobility"));
-    fireEvent.click(place);
-    const modeSelector = runtime.element("modeSelector") as HTMLDetailsElement;
-    modeSelector.open = true;
-    fireEvent(modeSelector, new Event("toggle", { bubbles: true }));
+    // Switch mode via the top-bar SegmentedControl
+    const radarRadio = container.querySelector<HTMLElement>(
+      '[role="radio"][data-value="radar"], input[value="radar"]',
+    );
+    const radarButton =
+      radarRadio ??
+      [...container.querySelectorAll("button, [role='radio']")].find(
+        (el) => el.textContent.trim() === "Radar",
+      );
+    expect(radarButton).toBeTruthy();
+    if (radarButton) {
+      fireEvent.click(radarButton);
+    }
 
     await waitFor(() => {
-      expect(handler).toHaveBeenCalledWith({
-        name: "workbench.controls.toggle",
-        payload: undefined,
-      });
-      expect(handler).toHaveBeenCalledWith({
-        name: "workbench.mode.select",
-        payload: { mode: "mobility" },
-      });
-      expect(handler).toHaveBeenCalledWith({
-        name: "entry.place.select",
-        payload: { index: 2 },
-      });
-      expect(handler).toHaveBeenCalledWith({
-        name: "workbench.mode.toggle",
-        payload: { open: true },
-      });
-    });
-
-    act(() => {
-      runtime.dispose();
-    });
-    expect(reactRootRegistry.size()).toBe(0);
-    expect(container.childNodes).toHaveLength(0);
-  });
-
-  it("keeps the viewer canvas stable and cleans the shell timer", () => {
-    const clearIntervalSpy = vi.spyOn(window, "clearInterval");
-    const container = createShellHost();
-    let runtime!: ReturnType<typeof mountAppShell>;
-
-    act(() => {
-      runtime = mountAppShell({
-        activeMode: "link",
-        container,
-        reportError: vi.fn(),
-      });
-    });
-    const canvas = runtime.element("view");
-    const initial = createInitialResultDockSnapshot();
-
-    act(() => {
-      runtime.results.update(
-        "link",
-        { ...initial.link, visible: true, status: "success" },
-        "link",
-      );
-      runtime.controls.updateFields([{ id: "cfgFrequency", value: "5.8" }]);
-    });
-
-    expect(runtime.element("view")).toBe(canvas);
-    expect(
-      (runtime.controls.element("cfgFrequency") as HTMLInputElement).value,
-    ).toBe("5.8");
-
-    act(() => {
-      runtime.dispose();
-    });
-    expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps consecutive shell commands synchronous and ordered", () => {
-    const container = createShellHost();
-    const commands: string[] = [];
-    let runtime!: ReturnType<typeof mountAppShell>;
-
-    act(() => {
-      runtime = mountAppShell({
-        activeMode: "link",
-        container,
-        reportError: vi.fn(),
-      });
-      runtime.setCommandHandler((nextCommand) => {
-        const payload = nextCommand.payload as { mode?: string } | undefined;
-        commands.push(`${nextCommand.name}:${String(payload?.mode)}`);
-      });
-    });
-
-    act(() => {
-      runtime.element("tabMobility").click();
       expect(
-        commands.filter((entry) => entry.startsWith("workbench.mode")),
-      ).toEqual(["workbench.mode.select:mobility"]);
-      runtime.element("tabLink").click();
+        commands.some(
+          (cmd) =>
+            cmd.name === "workbench.mode.select" &&
+            (cmd.payload as { mode?: string } | undefined)?.mode === "radar",
+        ),
+      ).toBe(true);
     });
 
-    expect(
-      commands.filter((entry) => entry.startsWith("workbench.mode")),
-    ).toEqual(["workbench.mode.select:mobility", "workbench.mode.select:link"]);
+    // Toggle inspector collapse button
+    const collapseBtn = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Collapse inspector panel"]',
+    );
+    expect(collapseBtn).not.toBeNull();
+    if (collapseBtn) fireEvent.click(collapseBtn);
+    await waitFor(() => {
+      expect(
+        commands.some((cmd) => cmd.name === "workbench.controls.toggle"),
+      ).toBe(true);
+    });
+
+    act(() => {
+      runtime.dispose();
+    });
+    expect(runtime.hosts.get("view")).toBeNull();
+  });
+
+  it("renders loading overlay and dialog states purely from shellStore snapshots", () => {
+    const container = mountContainer();
+    let runtime!: ReturnType<typeof mountAppShell>;
+    act(() => {
+      runtime = mountAppShell({
+        activeMode: "link",
+        container,
+        reportError: vi.fn(),
+      });
+    });
+
+    act(() => {
+      runtime.shell.patch((current) => ({
+        ...current,
+        loading: {
+          visible: true,
+          title: "Solving Link",
+          message: "Tracing rays...",
+          percent: 42,
+          indeterminate: false,
+          cancellable: true,
+          cancelLabel: "Stop",
+        },
+      }));
+    });
+
+    const overlay = container.querySelector<HTMLElement>(
+      '[data-testid="loading-overlay"]',
+    );
+    expect(overlay?.dataset.hidden).toBe("false");
+    expect(overlay?.textContent).toContain("Solving Link");
+    expect(overlay?.textContent).toContain("42%");
+
+    act(() => {
+      runtime.shell.patch((current) => ({
+        ...current,
+        screen: "entry",
+        entry: {
+          ...current.entry,
+          badgeValue: "2 selected",
+          canEnterScene: true,
+        },
+      }));
+    });
+    const entryScreen = container.querySelector<HTMLElement>(
+      '[data-testid="entry-screen"]',
+    );
+    expect(entryScreen?.dataset.hidden).toBe("false");
+    expect(entryScreen?.textContent).toContain("2 selected");
+
+    act(() => {
+      runtime.dispose();
+    });
   });
 });

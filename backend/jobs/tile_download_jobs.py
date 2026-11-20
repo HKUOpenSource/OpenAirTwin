@@ -97,7 +97,7 @@ class TileDownloadJobManager:
             if job.status in {"queued", "running"}:
                 job.cancel_event.set()
                 job.status = "cancelling"
-                job.message = "Cancelling tile download and cleaning partial files"
+                job.message = "Cancelling download..."
                 job.updated_at = datetime.now(timezone.utc)
             return job
 

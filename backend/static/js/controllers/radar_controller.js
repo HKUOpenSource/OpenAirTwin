@@ -59,7 +59,7 @@ export function createRadarController({state, controls, transport, renderAll, sh
       if (!TERMINAL.has(job.status)) {
         showOverlay?.({
           title: "Radar Sensing",
-          message: job.message || "Processing Radar job…",
+          message: job.message || "Processing radar...",
           percent: Math.round(radar.progress * 100),
           indeterminate: false,
           owner,
@@ -112,8 +112,8 @@ export function createRadarController({state, controls, transport, renderAll, sh
     radar.jobId = null;
     radar.jobSceneGeneration = null;
     radar.failureKind = null;
-    setJobState({status: "submitting", progress: 0, message: "Submitting Radar job…"});
-    showOverlay?.({title: "Radar Sensing", message: "Submitting bounded in-memory job…", indeterminate: true, owner, force: true});
+    setJobState({status: "submitting", progress: 0, message: "Submitting job..."});
+    showOverlay?.({title: "Radar Sensing", message: "Submitting job...", indeterminate: true, owner, force: true});
     try {
       const created = await transport.createRadarJob(controls.solvePayload());
       if (radar.generation !== token) {

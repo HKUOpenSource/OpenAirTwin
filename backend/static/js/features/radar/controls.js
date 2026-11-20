@@ -1,4 +1,5 @@
 import {radarSolvePayload, radarSolverConfig} from "/js/solvers/solver_payloads.js?v=20260722-radar-display-cleanup";
+import {radarTargetColor} from "/js/features/radar/colors.js?v=20260722-radar-color-contract";
 import {
   RADAR_FALLBACK_ASSETS,
   radarAssetDisplayName,
@@ -31,7 +32,7 @@ function normalizeDirectionDeg(value) {
   return Object.is(normalized, -0) ? 0 : normalized;
 }
 
-function velocityToMotion(vector, fallbackDirectionDeg = 0) {
+export function velocityToMotion(vector, fallbackDirectionDeg = 0) {
   const velocity = vector.map(Number);
   const speed = vectorLength(velocity);
   const horizontal = Math.hypot(velocity[0], velocity[1]);
@@ -44,7 +45,7 @@ function velocityToMotion(vector, fallbackDirectionDeg = 0) {
   };
 }
 
-function motionToVelocity(speed, directionDeg, climbDeg) {
+export function motionToVelocity(speed, directionDeg, climbDeg) {
   const direction = directionDeg * Math.PI / 180;
   const climb = climbDeg * Math.PI / 180;
   const horizontal = speed * Math.cos(climb);
@@ -96,29 +97,8 @@ function alignTargetYaw(target) {
 }
 
 export function createRadarControls(context) {
-  const {dom, state} = context;
+  const {state} = context;
   const radar = state.radar;
-
-  function publishControlledFields() {
-    context.featureServices.controls.updateFields(
-      Object.values(dom)
-        .filter((field) => field instanceof HTMLInputElement || field instanceof HTMLSelectElement)
-        .map((field) => ({
-          id: field.id,
-          value: field.value,
-          disabled: field.disabled,
-          ...(field instanceof HTMLInputElement
-            ? {
-              checked: field.checked,
-              readOnly: field.readOnly,
-              min: field.min,
-              max: field.max,
-              step: field.step,
-            }
-            : {}),
-        })),
-    );
-  }
 
   function assets() {
     return radar.assets.length ? radar.assets : RADAR_FALLBACK_ASSETS;
@@ -128,42 +108,11 @@ export function createRadarControls(context) {
     return assets().find((asset) => asset.id === id) || null;
   }
 
-  function setSelectOptions(select, selectedId) {
-    const oldValue = selectedId || select.value;
-    const options = assets().map((asset) => ({
-      label: radarAssetDisplayName(assets(), asset.id),
-      value: asset.id,
-    }));
-    const selectedValue = options.some((option) => option.value === oldValue)
-      ? oldValue
-      : options[0]?.value || "";
-    context.featureServices.controls.updateSelectOptions(
-      select.id,
-      options,
-      selectedValue,
-    );
-  }
-
   function setAssets(manifest) {
     const manifestAssets = Array.isArray(manifest?.assets) ? manifest.assets : [];
     radar.assets = manifestAssets.filter((asset) => asset?.id && asset?.visual?.url);
     radar.assetsLoaded = true;
-    syncInputs();
     return radar.assets;
-  }
-
-  function setVectorInputs(inputs, values, digits = 2) {
-    if (!Array.isArray(values)) {
-      inputs.forEach((input) => { input.value = ""; });
-      return;
-    }
-    inputs.forEach((input, index) => { input.value = Number(values[index]).toFixed(digits); });
-  }
-
-  function readDeviceVector(inputs, label) {
-    const values = inputs.map((input) => input.value.trim());
-    if (values.some((value) => value === "")) return null;
-    return values.map((value, index) => finite(value, `${label} ${"XYZ"[index]}`, {min: -1e6, max: 1e6}));
   }
 
   function devicesReady() {
@@ -182,165 +131,204 @@ export function createRadarControls(context) {
     return "";
   }
 
-  function syncTargetList() {
-    context.featureServices.controls.updateRadarTargets(
-      radar.targets.map((target) => {
-        const range = equivalentRadarRange(radar, target.position);
-        return {
-          id: target.id,
-          name: radarAssetDisplayName(assets(), target.asset_id),
-          meta: `${radarTargetDisplayName(target.id)} · ${range === null ? "Set Tx/Rx" : `${range.toFixed(1)} m`} · ${vectorLength(target.velocity).toFixed(1)} m/s`,
-          selected: target.id === radar.selectedTargetId,
-        };
-      }),
-      `${radar.targets.length} / ${RADAR_MAX_TARGETS}`,
-    );
-  }
-
-  function syncTargetEditor() {
-    const target = selectedTarget(radar);
-    const editorControls = [dom.radarTargetAsset, dom.radarTargetX, dom.radarTargetY, dom.radarTargetZ, dom.radarTargetRoll, dom.radarTargetPitch, dom.radarTargetYaw, dom.radarTargetSpeed, dom.radarTargetDirection, dom.radarTargetClimb, dom.radarTargetRcs, dom.btnPickRadarTarget, dom.btnFocusRadarTarget, dom.btnRemoveRadarTarget];
-    dom.radarTargetEditor.classList.toggle("empty", !target);
-    dom.radarEditorTitle.textContent = target ? radarTargetDisplayName(target.id) : "No target selected";
-    dom.radarEditorAssetName.textContent = target ? radarAssetDisplayName(assets(), target.asset_id) : "Add a drone to edit";
-    setSelectOptions(dom.radarTargetAsset, target?.asset_id);
-    editorControls.forEach((control) => { control.disabled = !target; });
-    if (!target) {
-      setVectorInputs([dom.radarTargetX, dom.radarTargetY, dom.radarTargetZ], null);
-      setVectorInputs([dom.radarTargetRoll, dom.radarTargetPitch, dom.radarTargetYaw], null);
-      setVectorInputs([dom.radarTargetSpeed, dom.radarTargetDirection, dom.radarTargetClimb], null);
-      dom.radarTargetRcs.value = "";
-      dom.radarVelocityVectorPreview.textContent = "Velocity unavailable";
-      return;
-    }
-    setVectorInputs([dom.radarTargetX, dom.radarTargetY, dom.radarTargetZ], target.position);
-    const directionDeg = alignTargetYaw(target);
-    setVectorInputs([dom.radarTargetRoll, dom.radarTargetPitch], target.orientation.slice(0, 2).map((value) => value * 180 / Math.PI), 1);
-    dom.radarTargetYaw.value = directionDeg.toFixed(1);
-    const motion = velocityToMotion(target.velocity, directionDeg);
-    dom.radarTargetSpeed.value = motion.speed.toFixed(2);
-    dom.radarTargetDirection.value = motion.directionDeg.toFixed(1);
-    dom.radarTargetClimb.value = motion.climbDeg.toFixed(1);
-    dom.radarVelocityVectorPreview.textContent = `Velocity [${target.velocity.map((value) => Number(value).toFixed(1)).join(", ")}] m/s`;
-    dom.radarTargetRcs.value = String(target.rcs_m2);
-  }
-
-  function syncDerived() {
-    const frequencyHz = radar.waveform.carrierFrequencyGhz * 1e9;
-    const bandwidthHz = radar.waveform.bandwidthMhz * 1e6;
-    const spacingHz = bandwidthHz / radar.waveform.numSubcarriers;
-    const dopplerResolutionHz = spacingHz / radar.waveform.numSymbols;
-    dom.radarRangeResolutionPreview.textContent = `${(SPEED_OF_LIGHT_MPS / (2 * bandwidthHz)).toFixed(2)} m`;
-    dom.radarDopplerResolutionPreview.textContent = `${dopplerResolutionHz.toFixed(1)} Hz`;
-    dom.radarVelocityResolutionPreview.textContent = `${(SPEED_OF_LIGHT_MPS * dopplerResolutionHz / (2 * frequencyHz)).toFixed(2)} m/s`;
-  }
-
-  function syncInputs() {
+  function validateState() {
     radar.targets.forEach(alignTargetYaw);
-    dom.radarModeHint.textContent = radar.mode === "monostatic" ? "Rx is locked to Tx for a co-located monostatic radar." : "Tx and Rx are placed independently for bistatic sensing.";
-    // Precision coordinate cards are owned by the shared Picking controller. It
-    // must remain the only authority deciding whether the active Tx or Rx card is
-    // visible; otherwise bistatic input sync exposes both cards at once.
-    dom.btnPickRadarRx.classList.toggle("hidden", radar.mode === "monostatic" || state.mode !== "radar");
-    syncTargetList();
-    syncTargetEditor();
-    if (radar.tx || state.deviceControl.activeTarget !== "radar-tx") {
-      setVectorInputs([dom.radarTxX, dom.radarTxY, dom.radarTxZ], radar.tx, 1);
+    if (radar.mode === "monostatic") {
+      radar.rx = radar.tx ? [...radar.tx] : null;
+      radar.rxVisual = radar.rx ? [...radar.rx] : null;
     }
-    if (radar.rx || state.deviceControl.activeTarget !== "radar-rx") {
-      setVectorInputs([dom.radarRxX, dom.radarRxY, dom.radarRxZ], radar.rx, 1);
+    radar.waveform.carrierFrequencyGhz = finite(radar.waveform.carrierFrequencyGhz, "Carrier frequency", {min: 0.1, max: 300});
+    radar.waveform.bandwidthMhz = finite(radar.waveform.bandwidthMhz, "Bandwidth", {min: 1, max: 2000});
+    radar.waveform.numSubcarriers = finite(radar.waveform.numSubcarriers, "Subcarrier count", {min: 16, max: 2048, integer: true});
+    radar.waveform.numSymbols = finite(radar.waveform.numSymbols, "Symbol count", {min: 8, max: 1024, integer: true});
+    if (radar.waveform.numSubcarriers * radar.waveform.numSymbols > 1048576) {
+      throw new Error("OFDM subcarriers × symbols must not exceed 1,048,576 cells");
     }
-    dom.radarModeMonostatic.checked = radar.mode === "monostatic";
-    dom.radarModeBistatic.checked = radar.mode === "bistatic";
-    const values = {
-      radarCarrierFrequency: radar.waveform.carrierFrequencyGhz, radarBandwidth: radar.waveform.bandwidthMhz,
-      radarNumSubcarriers: radar.waveform.numSubcarriers, radarNumSymbols: radar.waveform.numSymbols,
-      radarTxPower: radar.signal.txPowerDbm, radarNoiseFigure: radar.signal.noiseFigureDb,
-      radarSystemLoss: radar.signal.systemLossDb, radarNoiseTemperature: radar.signal.noiseTemperatureK,
-      radarCfarGuardRange: radar.cfar.guardRange, radarCfarGuardDoppler: radar.cfar.guardDoppler,
-      radarCfarTrainingRange: radar.cfar.trainingRange, radarCfarTrainingDoppler: radar.cfar.trainingDoppler,
-      radarCfarPfa: radar.cfar.falseAlarmProbability, radarSamplesPerSrc: radar.solver.samplesPerSrc,
-      radarMaxPaths: radar.solver.maxNumPathsPerSrc, radarMaxDepth: radar.solver.maxDepth, radarSeed: radar.solver.seed,
-    };
-    Object.entries(values).forEach(([id, value]) => { dom[id].value = String(value); });
-    dom.radarDirectPathCancellation.checked = radar.signal.directPathCancellation;
-    dom.radarCfarEnabled.checked = radar.cfar.enabled;
-    dom.radarLos.checked = radar.solver.los;
-    dom.radarSpecular.checked = radar.solver.specularReflection;
-    dom.radarDiffuse.checked = radar.solver.diffuseReflection;
-    dom.radarRefraction.checked = radar.solver.refraction;
-    dom.radarDiffraction.checked = radar.solver.diffraction;
-    dom.radarSyntheticArray.checked = radar.solver.syntheticArray;
-    syncDerived();
-    publishControlledFields();
-  }
-
-  function readTargetEditor() {
-    const target = selectedTarget(radar);
-    if (!target) return;
-    target.asset_id = dom.radarTargetAsset.value;
-    target.position = [dom.radarTargetX, dom.radarTargetY, dom.radarTargetZ].map((input, index) => finite(input.value, `Target position ${"XYZ"[index]}`, {min: -1e6, max: 1e6}));
-    const [roll, pitch] = [dom.radarTargetRoll, dom.radarTargetPitch].map((input, index) => finite(input.value, `Target ${index ? "pitch" : "roll"}`, {min: -360, max: 360}) * Math.PI / 180);
-    const speed = finite(dom.radarTargetSpeed.value, "Target speed", {min: 0, max: 500});
-    const direction = normalizeDirectionDeg(finite(dom.radarTargetDirection.value, "Target direction", {min: -180, max: 360}));
-    const climb = finite(dom.radarTargetClimb.value, "Target climb angle", {min: -90, max: 90});
-    target.orientation = [roll, pitch, direction * Math.PI / 180];
-    target.velocity = motionToVelocity(speed, direction, climb);
-    dom.radarTargetDirection.value = direction.toFixed(1);
-    dom.radarTargetYaw.value = direction.toFixed(1);
-    dom.radarVelocityVectorPreview.textContent = `Velocity [${target.velocity.map((value) => value.toFixed(1)).join(", ")}] m/s`;
-    target.rcs_m2 = finite(dom.radarTargetRcs.value, "Effective RCS", {min: 1e-8, max: 10000});
-  }
-
-  function readInputs() {
-    radar.mode = dom.radarModeMonostatic.checked ? "monostatic" : "bistatic";
-    radar.tx = readDeviceVector([dom.radarTxX, dom.radarTxY, dom.radarTxZ], "Radar Tx");
-    radar.txVisual = radar.tx ? [...radar.tx] : null;
-    radar.rx = radar.mode === "monostatic"
-      ? (radar.tx ? [...radar.tx] : null)
-      : readDeviceVector([dom.radarRxX, dom.radarRxY, dom.radarRxZ], "Radar Rx");
-    radar.rxVisual = radar.rx ? [...radar.rx] : null;
-    readTargetEditor();
-    radar.targets.forEach(alignTargetYaw);
-    radar.waveform.carrierFrequencyGhz = finite(dom.radarCarrierFrequency.value, "Carrier frequency", {min: 0.1, max: 300});
-    radar.waveform.bandwidthMhz = finite(dom.radarBandwidth.value, "Bandwidth", {min: 1, max: 2000});
-    radar.waveform.numSubcarriers = finite(dom.radarNumSubcarriers.value, "Subcarrier count", {min: 16, max: 2048, integer: true});
-    radar.waveform.numSymbols = finite(dom.radarNumSymbols.value, "Symbol count", {min: 8, max: 1024, integer: true});
-    if (radar.waveform.numSubcarriers * radar.waveform.numSymbols > 1048576) throw new Error("OFDM subcarriers × symbols must not exceed 1,048,576 cells");
-    if (radar.waveform.bandwidthMhz * 1e6 >= 2 * radar.waveform.carrierFrequencyGhz * 1e9) throw new Error("Bandwidth must keep the occupied RF band above 0 Hz");
+    if (radar.waveform.bandwidthMhz * 1e6 >= 2 * radar.waveform.carrierFrequencyGhz * 1e9) {
+      throw new Error("Bandwidth must keep the occupied RF band above 0 Hz");
+    }
     const spacing = radar.waveform.bandwidthMhz * 1e6 / radar.waveform.numSubcarriers;
-    if (spacing < 1000 || spacing > 1e7) throw new Error("Derived subcarrier spacing must be between 1 kHz and 10 MHz");
-    radar.signal.txPowerDbm = finite(dom.radarTxPower.value, "Tx power", {min: -100, max: 100});
-    radar.signal.noiseFigureDb = finite(dom.radarNoiseFigure.value, "Noise figure", {min: 0, max: 50});
-    radar.signal.systemLossDb = finite(dom.radarSystemLoss.value, "System loss", {min: 0, max: 100});
-    radar.signal.noiseTemperatureK = finite(dom.radarNoiseTemperature.value, "Noise temperature", {min: 1, max: 1000});
-    radar.signal.directPathCancellation = dom.radarDirectPathCancellation.checked;
-    radar.cfar.enabled = dom.radarCfarEnabled.checked;
-    radar.cfar.guardRange = finite(dom.radarCfarGuardRange.value, "CFAR range guard", {min: 0, max: 64, integer: true});
-    radar.cfar.guardDoppler = finite(dom.radarCfarGuardDoppler.value, "CFAR Doppler guard", {min: 0, max: 64, integer: true});
-    radar.cfar.trainingRange = finite(dom.radarCfarTrainingRange.value, "CFAR range training", {min: 1, max: 128, integer: true});
-    radar.cfar.trainingDoppler = finite(dom.radarCfarTrainingDoppler.value, "CFAR Doppler training", {min: 1, max: 128, integer: true});
-    radar.cfar.falseAlarmProbability = finite(dom.radarCfarPfa.value, "CFAR false-alarm probability", {min: 1e-12, max: 0.1});
-    if (2 * (radar.cfar.guardRange + radar.cfar.trainingRange) + 1 > radar.waveform.numSubcarriers) throw new Error("CFAR range window must fit within the OFDM subcarriers");
-    if (2 * (radar.cfar.guardDoppler + radar.cfar.trainingDoppler) + 1 > radar.waveform.numSymbols) throw new Error("CFAR Doppler window must fit within the OFDM symbols");
-    radar.solver.samplesPerSrc = finite(dom.radarSamplesPerSrc.value, "Samples per source", {min: 1, max: 1e6, integer: true});
-    radar.solver.maxNumPathsPerSrc = finite(dom.radarMaxPaths.value, "Maximum paths", {min: 1, max: 1e6, integer: true});
-    radar.solver.maxDepth = finite(dom.radarMaxDepth.value, "Maximum depth", {min: 0, max: 8, integer: true});
-    radar.solver.seed = finite(dom.radarSeed.value, "Random seed", {min: 0, max: 2147483647, integer: true});
-    radar.solver.los = dom.radarLos.checked; radar.solver.specularReflection = dom.radarSpecular.checked;
-    radar.solver.diffuseReflection = dom.radarDiffuse.checked; radar.solver.refraction = dom.radarRefraction.checked;
-    radar.solver.diffraction = dom.radarDiffraction.checked; radar.solver.syntheticArray = dom.radarSyntheticArray.checked;
-    syncDerived();
+    if (spacing < 1000 || spacing > 1e7) {
+      throw new Error("Derived subcarrier spacing must be between 1 kHz and 10 MHz");
+    }
+    radar.signal.txPowerDbm = finite(radar.signal.txPowerDbm, "Tx power", {min: -100, max: 100});
+    radar.signal.noiseFigureDb = finite(radar.signal.noiseFigureDb, "Noise figure", {min: 0, max: 50});
+    radar.signal.systemLossDb = finite(radar.signal.systemLossDb, "System loss", {min: 0, max: 100});
+    radar.signal.noiseTemperatureK = finite(radar.signal.noiseTemperatureK, "Noise temperature", {min: 1, max: 1000});
+    radar.signal.directPathCancellation = Boolean(radar.signal.directPathCancellation);
+    radar.cfar.enabled = Boolean(radar.cfar.enabled);
+    radar.cfar.guardRange = finite(radar.cfar.guardRange, "CFAR range guard", {min: 0, max: 64, integer: true});
+    radar.cfar.guardDoppler = finite(radar.cfar.guardDoppler, "CFAR Doppler guard", {min: 0, max: 64, integer: true});
+    radar.cfar.trainingRange = finite(radar.cfar.trainingRange, "CFAR range training", {min: 1, max: 128, integer: true});
+    radar.cfar.trainingDoppler = finite(radar.cfar.trainingDoppler, "CFAR Doppler training", {min: 1, max: 128, integer: true});
+    radar.cfar.falseAlarmProbability = finite(radar.cfar.falseAlarmProbability, "CFAR false-alarm probability", {min: 1e-12, max: 0.1});
+    if (2 * (radar.cfar.guardRange + radar.cfar.trainingRange) + 1 > radar.waveform.numSubcarriers) {
+      throw new Error("CFAR range window must fit within the OFDM subcarriers");
+    }
+    if (2 * (radar.cfar.guardDoppler + radar.cfar.trainingDoppler) + 1 > radar.waveform.numSymbols) {
+      throw new Error("CFAR Doppler window must fit within the OFDM symbols");
+    }
+    radar.solver.samplesPerSrc = finite(radar.solver.samplesPerSrc, "Samples per source", {min: 1, max: 1e6, integer: true});
+    radar.solver.maxNumPathsPerSrc = finite(radar.solver.maxNumPathsPerSrc, "Maximum paths", {min: 1, max: 1e6, integer: true});
+    radar.solver.maxDepth = finite(radar.solver.maxDepth, "Maximum depth", {min: 0, max: 8, integer: true});
+    radar.solver.seed = finite(radar.solver.seed, "Random seed", {min: 0, max: 2147483647, integer: true});
     return radar;
   }
 
+  function updateSelectedTargetField(field, value) {
+    const target = selectedTarget(radar);
+    if (!target) return false;
+    if (field === "assetId") {
+      target.asset_id = String(value);
+      return true;
+    }
+    if (field === "x" || field === "y" || field === "z") {
+      const idx = field === "x" ? 0 : field === "y" ? 1 : 2;
+      target.position[idx] = finite(value, `Target position ${field.toUpperCase()}`, {min: -1e6, max: 1e6});
+      return true;
+    }
+    if (field === "rollDeg" || field === "pitchDeg") {
+      const idx = field === "rollDeg" ? 0 : 1;
+      target.orientation[idx] = finite(value, field, {min: -360, max: 360}) * Math.PI / 180;
+      return true;
+    }
+    if (field === "speed" || field === "directionDeg" || field === "climbDeg") {
+      const currentYawDeg = Number(target.orientation[2] || 0) * 180 / Math.PI;
+      const motion = velocityToMotion(target.velocity, currentYawDeg);
+      const nextSpeed = field === "speed" ? finite(value, "Target speed", {min: 0, max: 500}) : motion.speed;
+      const nextDirection = field === "directionDeg"
+        ? normalizeDirectionDeg(finite(value, "Target direction", {min: -180, max: 360}))
+        : motion.directionDeg;
+      const nextClimb = field === "climbDeg"
+        ? finite(value, "Target climb angle", {min: -90, max: 90})
+        : motion.climbDeg;
+      target.orientation[2] = nextDirection * Math.PI / 180;
+      target.velocity = motionToVelocity(nextSpeed, nextDirection, nextClimb);
+      return true;
+    }
+    if (field === "rcsM2") {
+      target.rcs_m2 = finite(value, "Effective RCS", {min: 1e-8, max: 10000});
+      return true;
+    }
+    return false;
+  }
+
+  function buildControlsViewModel() {
+    radar.targets.forEach(alignTargetYaw);
+    const activeAssets = assets();
+    const frequencyHz = Number(radar.waveform.carrierFrequencyGhz) * 1e9;
+    const bandwidthHz = Number(radar.waveform.bandwidthMhz) * 1e6;
+    const spacingHz = bandwidthHz / Math.max(1, Number(radar.waveform.numSubcarriers));
+    const dopplerResolutionHz = spacingHz / Math.max(1, Number(radar.waveform.numSymbols));
+
+    const target = selectedTarget(radar);
+    let selectedTargetVm = null;
+    if (target) {
+      const directionDeg = alignTargetYaw(target);
+      const motion = velocityToMotion(target.velocity, directionDeg);
+      selectedTargetVm = {
+        id: target.id,
+        title: radarTargetDisplayName(target.id),
+        assetId: target.asset_id,
+        assetName: radarAssetDisplayName(activeAssets, target.asset_id),
+        position: [Number(target.position[0]), Number(target.position[1]), Number(target.position[2])],
+        orientationDeg: [
+          Number((target.orientation[0] * 180 / Math.PI).toFixed(1)),
+          Number((target.orientation[1] * 180 / Math.PI).toFixed(1)),
+          Number(directionDeg.toFixed(1)),
+        ],
+        speed: Number(motion.speed.toFixed(2)),
+        directionDeg: Number(motion.directionDeg.toFixed(1)),
+        climbDeg: Number(motion.climbDeg.toFixed(1)),
+        velocityPreview: `[${target.velocity.map((v) => Number(v).toFixed(1)).join(", ")}] m/s`,
+        rcsM2: Number(target.rcs_m2),
+      };
+    }
+
+    const activeJob = ["submitting", "queued", "running", "cancelling"].includes(radar.status);
+    const picker = radar.picker || {};
+
+    return {
+      mode: radar.mode,
+      modeHint: radar.mode === "monostatic"
+        ? "Rx is locked to Tx for a co-located monostatic radar."
+        : "Tx and Rx are placed independently for bistatic sensing.",
+      job: {
+        visible: activeJob || radar.status === "failed",
+        status: radar.status,
+        failureKind: radar.failureKind || "",
+        message: radar.error || radar.message || "Ready",
+        progress: Math.max(0, Math.min(1, Number(radar.progress) || 0)),
+        canCancel: activeJob && Boolean(radar.jobId),
+        canRetry: radar.status === "failed",
+        active: activeJob,
+      },
+      assets: activeAssets.map((asset) => ({
+        id: asset.id,
+        label: radarAssetDisplayName(activeAssets, asset.id),
+      })),
+      pickerAssetId: picker.assetId || "",
+      pickerAssetName: picker.assetName || "No drone models",
+      pickerCountLabel: picker.countLabel || "0 / 0",
+      pickerStatus: picker.status || "",
+      pickerState: picker.state === "ready" || picker.state === "error" ? picker.state : "loading",
+      pickerHint: picker.hint || "",
+      hasMultipleAssets: Boolean(picker.hasMultipleAssets),
+      canAddTarget: Boolean(picker.canAddTarget),
+      addTargetDisabledReason: picker.addTargetDisabledReason || "",
+      targetCountLabel: `${radar.targets.length} / ${RADAR_MAX_TARGETS}`,
+      targets: radar.targets.map((item) => {
+        const range = equivalentRadarRange(radar, item.position);
+        return {
+          id: item.id,
+          title: radarAssetDisplayName(activeAssets, item.asset_id),
+          meta: `${radarTargetDisplayName(item.id)} · ${range === null ? "Set Tx/Rx" : `${range.toFixed(1)} m`} · ${vectorLength(item.velocity).toFixed(1)} m/s`,
+          color: radarTargetColor(item.id),
+          selected: item.id === radar.selectedTargetId,
+        };
+      }),
+      selectedTarget: selectedTargetVm,
+      waveform: {
+        carrierFrequencyGhz: Number(radar.waveform.carrierFrequencyGhz),
+        bandwidthMhz: Number(radar.waveform.bandwidthMhz),
+        numSubcarriers: Number(radar.waveform.numSubcarriers),
+        numSymbols: Number(radar.waveform.numSymbols),
+        rangeResolutionText: bandwidthHz > 0 ? `${(SPEED_OF_LIGHT_MPS / (2 * bandwidthHz)).toFixed(2)} m` : "--",
+        dopplerResolutionText: Number.isFinite(dopplerResolutionHz) ? `${dopplerResolutionHz.toFixed(1)} Hz` : "--",
+        velocityResolutionText: frequencyHz > 0 && Number.isFinite(dopplerResolutionHz)
+          ? `${(SPEED_OF_LIGHT_MPS * dopplerResolutionHz / (2 * frequencyHz)).toFixed(2)} m/s`
+          : "--",
+      },
+      signal: {...radar.signal},
+      cfar: {...radar.cfar},
+      solver: {
+        samplesPerSrc: Number(radar.solver.samplesPerSrc),
+        maxNumPathsPerSrc: Number(radar.solver.maxNumPathsPerSrc),
+        maxDepth: Number(radar.solver.maxDepth),
+        seed: Number(radar.solver.seed),
+        los: Boolean(radar.solver.los),
+        specularReflection: Boolean(radar.solver.specularReflection),
+        diffuseReflection: Boolean(radar.solver.diffuseReflection),
+        refraction: Boolean(radar.solver.refraction),
+        diffraction: Boolean(radar.solver.diffraction),
+        syntheticArray: Boolean(radar.solver.syntheticArray),
+      },
+      inputError: radar.error || "",
+      runDisabledReason: deviceRequirementMessage(),
+    };
+  }
+
   function nextTargetId() {
-    while (radar.targets.some((target) => target.id === `target-${radar.nextTargetNumber}`)) radar.nextTargetNumber += 1;
+    while (radar.targets.some((target) => target.id === `target-${radar.nextTargetNumber}`)) {
+      radar.nextTargetNumber += 1;
+    }
     return `target-${radar.nextTargetNumber++}`;
   }
 
   function addTarget(assetId = assets()[0]?.id) {
-    if (radar.targets.length >= RADAR_MAX_TARGETS) throw new Error(`Radar supports at most ${RADAR_MAX_TARGETS} targets`);
+    if (radar.targets.length >= RADAR_MAX_TARGETS) {
+      throw new Error(`Radar supports at most ${RADAR_MAX_TARGETS} targets`);
+    }
     const asset = assetFor(assetId) || assets()[0];
     if (!asset) throw new Error("No Radar drone asset is available");
     const id = nextTargetId();
@@ -355,7 +343,6 @@ export function createRadarControls(context) {
       rcs_m2: Number(asset.default_effective_rcs_m2 || 0.01),
     });
     radar.selectedTargetId = id;
-    syncInputs();
     return id;
   }
 
@@ -366,25 +353,34 @@ export function createRadarControls(context) {
     radar.selectedTargetId = radar.targets[Math.min(index, radar.targets.length - 1)]?.id || null;
     radar.selectedDetectionId = null;
     radar.selectedPath = -1;
-    syncInputs();
     return removed;
   }
 
   function selectTarget(id) {
     if (!radar.targets.some((target) => target.id === id)) return false;
     radar.selectedTargetId = id;
-    syncInputs();
     return true;
   }
 
   return Object.freeze({
-    addTarget, assetFor, deviceRequirementMessage, devicesReady, readInputs, readTargetEditor, removeSelectedTarget, selectTarget, selectedTarget: () => selectedTarget(radar), setAssets,
+    addTarget,
+    assetFor,
+    buildControlsViewModel,
+    deviceRequirementMessage,
+    devicesReady,
+    readInputs: validateState,
+    removeSelectedTarget,
+    selectTarget,
+    selectedTarget: () => selectedTarget(radar),
+    setAssets,
     solvePayload: () => {
-      radar.targets.forEach(alignTargetYaw);
+      validateState();
       const requirement = deviceRequirementMessage();
       if (requirement) throw new Error(requirement);
       return radarSolvePayload({state});
     },
-    solverConfig: () => radarSolverConfig({state}), syncInputs,
+    solverConfig: () => radarSolverConfig({state}),
+    syncInputs: () => {},
+    updateSelectedTargetField,
   });
 }

@@ -1,30 +1,22 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import AxeBuilder from "@axe-core/playwright";
 import { expect } from "@playwright/test";
 
-const PHASE0_BASELINE_DIRECTORY = new URL("./baselines/", import.meta.url);
-const UPDATE_PHASE0_BASELINE = process.env.OAT_UPDATE_UI_BASELINE === "1";
-const PHASE1_DOM_CONTRACT = new URL(
-  "../../docs/ui/dom-compatibility-contract.json",
-  import.meta.url,
-);
-const UPDATE_PHASE1_CONTRACT = process.env.OAT_UPDATE_DOM_CONTRACT === "1";
-
-function phase0BaselineUrl(filename) {
-  return new URL(filename, PHASE0_BASELINE_DIRECTORY);
-}
+const MODE_LABELS = {
+  link: "Link",
+  mobility: "Mobility",
+  radiomap: "Radio Map",
+  deepmimo: "DeepMIMO",
+  radar: "Radar",
+};
 
 function assertUiResourcesLoad(actual) {
   expect(actual.length).toBeGreaterThan(0);
   expect(actual.every(({ status }) => status === 200)).toBe(true);
   expect(actual.every(({ contentLength }) => contentLength > 0)).toBe(true);
   if (actual.some(({ path }) => path.startsWith("/workbench/assets/"))) {
-    expect(actual.every(({ status }) => status === 200)).toBe(true);
     expect(
       actual.some(({ path }) =>
-        /^\/workbench\/assets\/css\/.+-[A-Za-z0-9_-]{8,}\.css$/.test(path),
+        /^\/workbench\/assets\/.+-[A-Za-z0-9_-]{8,}\.css$/.test(path),
       ),
     ).toBe(true);
     expect(
@@ -37,38 +29,6 @@ function assertUiResourcesLoad(actual) {
         ({ path }) => !path.startsWith("/css/") && !path.startsWith("/js/"),
       ),
     ).toBe(true);
-    return;
-  }
-}
-
-function writePhase0Observation(filename, actual) {
-  if (!UPDATE_PHASE0_BASELINE) return;
-  mkdirSync(fileURLToPath(PHASE0_BASELINE_DIRECTORY), { recursive: true });
-  writeFileSync(
-    phase0BaselineUrl(filename),
-    `${JSON.stringify(actual, null, 2)}\n`,
-    "utf8",
-  );
-}
-
-function assertPhase1DomContract(actual) {
-  if (UPDATE_PHASE1_CONTRACT) {
-    mkdirSync(fileURLToPath(new URL("../../docs/ui/", import.meta.url)), {
-      recursive: true,
-    });
-    writeFileSync(
-      PHASE1_DOM_CONTRACT,
-      `${JSON.stringify(actual, null, 2)}\n`,
-      "utf8",
-    );
-  }
-  const expected = JSON.parse(readFileSync(PHASE1_DOM_CONTRACT, "utf8"));
-  const byId = new Map(actual.elements.map((element) => [element.id, element]));
-  for (const element of expected.elements) {
-    expect(byId.get(element.id), element.id).toMatchObject({
-      owner: element.owner,
-      ...(element.interaction ? { interaction: element.interaction } : {}),
-    });
   }
 }
 
@@ -94,11 +54,11 @@ const RT_CAPABILITIES = {
   },
 };
 
-const EMPTY_MANIFEST = {
+const FIXTURE_MANIFEST = {
   scene_id: "browser_fixture",
   mesh_count: 0,
   bundle_count: 0,
-  tiles: [],
+  tiles: [{ id: "11_SW_7A", mesh_count: 0, bundle_count: 0 }],
   bsdfs: {},
   integrity: {
     orphan_mesh_count: 0,
@@ -405,7 +365,6 @@ function radarResult(payload) {
 }
 
 async function openDeterministicApp(page) {
-  // Remote tile/font loading can register listeners during resource snapshots.
   await page.route("https://tiles.openfreemap.org/styles/positron", (route) =>
     route.fulfill({
       json: {
@@ -425,12 +384,24 @@ async function openDeterministicApp(page) {
     route.fulfill({ json: RT_CAPABILITIES }),
   );
   await page.route("**/api/scene/manifest", (route) =>
-    route.fulfill({ json: EMPTY_MANIFEST }),
+    route.fulfill({ json: FIXTURE_MANIFEST }),
   );
   await page.route("**/assets/open3dhk_tile_coverage.json", (route) =>
     route.fulfill({ json: { tile_count: 0, tiles: [] } }),
   );
+  await page.route("**/api/rt/scene-selection", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        status: "ready",
+        generation: 7,
+        selected_tile_ids: ["11_SW_7A"],
+        active_tile_ids: ["11_SW_7A"],
+      },
+    }),
+  );
   await page.goto("/");
+  await expect(page.locator("#entryScreen")).toBeVisible();
   await expect(page.locator("#loadingScreen")).toBeHidden();
   await expect
     .poll(() =>
@@ -441,54 +412,59 @@ async function openDeterministicApp(page) {
       }),
     )
     .toBe(true);
-  await page.evaluate(async () => {
-    const { state } =
+  // Click the fixture tile on the Leaflet map and load the scene
+  const tilePoint = await page.evaluate(async () => {
+    const { entryMap } =
       await import("/js/app_state.js?v=20260723-radar-shared-groups");
-    state.entry.visible = false;
-    document.getElementById("entryScreen").classList.add("hidden");
-    document.getElementById("entryScreen").setAttribute("aria-hidden", "true");
-    const ui = document.getElementById("ui");
-    ui.style.display = "flex";
-    ui.inert = false;
-    ui.setAttribute("aria-hidden", "false");
+    const tile = entryMap.tilesById.get("11_SW_7A");
+    const center = tile.layer.getBounds().getCenter();
+    entryMap.map.setView(center, 14, { animate: false });
+    const point = entryMap.map.latLngToContainerPoint(center);
+    const bounds = entryMap.map.getContainer().getBoundingClientRect();
+    return { x: bounds.x + point.x, y: bounds.y + point.y };
   });
+  await page.mouse.click(tilePoint.x, tilePoint.y);
+  const enterButton = page.getByRole("button", { name: "Load Selected Tiles" });
+  await expect(enterButton).toBeEnabled();
+  await enterButton.click();
+  await expect(page.locator("#entryScreen")).toBeHidden({ timeout: 15_000 });
+  await expect(page.locator("#loadingScreen")).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByTestId("top-workspace-bar")).toBeVisible();
+  await expect(page.getByTestId("device-bar")).toBeVisible();
 }
 
 async function activateMode(page, mode) {
-  await page.evaluate((nextMode) => {
-    document.getElementById("modeSelector").open = true;
-    document.querySelector(`[data-mode="${nextMode}"]`).click();
-  }, mode);
+  const label = MODE_LABELS[mode];
+  if (!label) throw new Error(`Unknown mode: ${mode}`);
+  await page
+    .getByTestId("top-workspace-bar")
+    .getByRole("radio", { name: label, exact: true })
+    .click();
+}
+
+async function syncUiAfterStateMutation(page) {
+  const activeMode = await page.evaluate(async () => {
+    const { state } =
+      await import("/js/app_state.js?v=20260723-radar-shared-groups");
+    return state.mode;
+  });
+  const other = activeMode === "link" ? "mobility" : "link";
+  await activateMode(page, other);
+  await activateMode(page, activeMode);
 }
 
 async function enableRealViewer(page) {
   await page.evaluate(async () => {
-    const [{ Viewer }, { state, viewerRef }] = await Promise.all([
-      import("/js/viewer.js"),
-      import("/js/app_state.js?v=20260723-radar-shared-groups"),
-    ]);
-    const viewer = new Viewer(document.getElementById("view"));
-    viewer.__ready = true;
-    viewer.loadedTileIds.add("fixture-tile");
-    viewerRef.current = viewer;
-    state.entry.visible = false;
-    document.querySelector('[data-mode="mobility"]').click();
-    document.querySelector('[data-mode="link"]').click();
+    const { viewerRef } =
+      await import("/js/app_state.js?v=20260723-radar-shared-groups");
+    viewerRef.current.__ready = true;
+    viewerRef.current.loadedTileIds.add("11_SW_7A");
   });
-  await expect(page.locator("#deviceDock")).toBeVisible();
+  await expect(page.getByTestId("device-bar")).toBeVisible();
 }
 
 async function enableViewerStub(page) {
-  await page.evaluate(async () => {
-    const { state, viewerRef } =
-      await import("/js/app_state.js?v=20260723-radar-shared-groups");
-    viewerRef.current.__ready = true;
-    viewerRef.current.loadedTileIds.add("fixture-tile");
-    state.entry.visible = false;
-    document.querySelector('[data-mode="mobility"]').click();
-    document.querySelector('[data-mode="link"]').click();
-  });
-  await expect(page.locator("#deviceDock")).toBeVisible();
+  return enableRealViewer(page);
 }
 
 async function configureRadarFixture(page, { targets = true } = {}) {
@@ -535,30 +511,14 @@ async function configureMainDeviceFixture(page) {
       radiomap: { tx: [72, 37, 40] },
       deepmimo: { tx: [72, 37, 40] },
     };
-    const inputGroups = {
-      link: {
-        tx: ["linkTxX", "linkTxY", "linkTxZ"],
-        rx: ["linkRxX", "linkRxY", "linkRxZ"],
-      },
-      mobility: {
-        tx: ["mobilityTxX", "mobilityTxY", "mobilityTxZ"],
-        rx: ["mobilityRxX", "mobilityRxY", "mobilityRxZ"],
-      },
-      radiomap: { tx: ["rmTxX", "rmTxY", "rmTxZ"] },
-      deepmimo: { tx: ["deepMimoTxX", "deepMimoTxY", "deepMimoTxZ"] },
-    };
     for (const [mode, roles] of Object.entries(devices)) {
       for (const [role, position] of Object.entries(roles)) {
         state[mode][role] = [...position];
         state[mode][`${role}Visual`] = [...position];
-        inputGroups[mode][role].forEach((id, index) => {
-          document.getElementById(id).value = String(position[index]);
-        });
       }
     }
-    document.querySelector('[data-mode="mobility"]').click();
-    document.querySelector('[data-mode="link"]').click();
   });
+  await syncUiAfterStateMutation(page);
 }
 
 async function expectNoSeriousAccessibilityViolations(page, context) {
@@ -596,223 +556,6 @@ async function installPhase0ResourceProbe(page) {
   });
 }
 
-async function capturePhase0DomContract(page) {
-  return page.evaluate(() => {
-    const normalizeText = (value) =>
-      String(value || "")
-        .replace(/\s+/g, " ")
-        .trim();
-    const elements = [...document.querySelectorAll("[id]")];
-    return {
-      document: {
-        lang: document.documentElement.lang,
-        title: document.title,
-      },
-      elements: elements.map((element, order) => {
-        const attributes = Object.fromEntries(
-          [...element.attributes]
-            .filter(
-              ({ name }) =>
-                name.startsWith("aria-") ||
-                name.startsWith("data-mode") ||
-                [
-                  "autocomplete",
-                  "for",
-                  "href",
-                  "max",
-                  "min",
-                  "name",
-                  "placeholder",
-                  "role",
-                  "step",
-                  "tabindex",
-                  "title",
-                  "type",
-                ].includes(name),
-            )
-            .map(({ name, value }) => [name, value])
-            .sort(([left], [right]) => left.localeCompare(right)),
-        );
-        const labels =
-          "labels" in element && element.labels
-            ? [...element.labels].map((label) =>
-                normalizeText(label.textContent),
-              )
-            : [];
-        const contract = {
-          id: element.id,
-          order,
-          tag: element.tagName.toLowerCase(),
-          classes: [...element.classList],
-          attributes,
-        };
-        if (labels.length) contract.labels = labels;
-        if (element.matches("button, summary, option"))
-          contract.text = normalizeText(element.textContent);
-        if (
-          element instanceof HTMLInputElement ||
-          element instanceof HTMLTextAreaElement
-        ) {
-          contract.defaultValue = element.defaultValue;
-          contract.defaultChecked = element.defaultChecked;
-          contract.disabled = element.disabled;
-        } else if (element instanceof HTMLSelectElement) {
-          contract.defaultValue =
-            [...element.options].find((option) => option.defaultSelected)
-              ?.value ??
-            element.options[0]?.value ??
-            "";
-          contract.disabled = element.disabled;
-        } else if (element instanceof HTMLButtonElement) {
-          contract.disabled = element.disabled;
-        } else if (element instanceof HTMLDetailsElement) {
-          contract.open = element.open;
-        }
-        return contract;
-      }),
-    };
-  });
-}
-
-async function capturePhase0ComputedStyles(page) {
-  return page.evaluate(() => {
-    const controlScroll = document.querySelector("#uiBody");
-    if (!controlScroll)
-      throw new Error("Missing UI baseline scroll container: #uiBody");
-    const inlineScrollbarWidth =
-      controlScroll.style.getPropertyValue("scrollbar-width");
-    const inlineScrollbarPriority =
-      controlScroll.style.getPropertyPriority("scrollbar-width");
-    const computedScrollbarWidth = getComputedStyle(controlScroll)
-      .getPropertyValue("scrollbar-width")
-      .trim();
-
-    // Exclude the platform-native scrollbar gutter from frozen geometry.
-    controlScroll.style.setProperty("scrollbar-width", "none");
-
-    const properties = [
-      "align-items",
-      "background-color",
-      "border-bottom-color",
-      "border-bottom-style",
-      "border-bottom-width",
-      "border-left-color",
-      "border-left-style",
-      "border-left-width",
-      "border-radius",
-      "border-right-color",
-      "border-right-style",
-      "border-right-width",
-      "border-top-color",
-      "border-top-style",
-      "border-top-width",
-      "box-shadow",
-      "box-sizing",
-      "color",
-      "column-gap",
-      "display",
-      "flex-direction",
-      "flex-wrap",
-      "font-family",
-      "font-size",
-      "font-weight",
-      "gap",
-      "grid-template-columns",
-      "height",
-      "justify-content",
-      "line-height",
-      "margin-bottom",
-      "margin-left",
-      "margin-right",
-      "margin-top",
-      "max-height",
-      "max-width",
-      "min-height",
-      "min-width",
-      "opacity",
-      "overflow-x",
-      "overflow-y",
-      "padding-bottom",
-      "padding-left",
-      "padding-right",
-      "padding-top",
-      "pointer-events",
-      "position",
-      "row-gap",
-      "scrollbar-width",
-      "text-align",
-      "transition-duration",
-      "transition-property",
-      "width",
-      "z-index",
-    ];
-    const targets = {
-      badge: "#radarTargetCount",
-      checkbox: "#radarModeMonostatic",
-      collapsibleGroup: ".propagationSolverGroup",
-      collapsibleSummary: ".propagationSolverGroup > summary",
-      compactButton: "#btnEntrySearch",
-      controlPanel: "#ui",
-      controlScroll: "#uiBody",
-      deviceDock: "#deviceDock",
-      dialog: "#appDialogCard",
-      entryPanel: "#entrySidebar",
-      numberInput: "#cfgFrequency",
-      performanceDock: "#performanceDock",
-      primaryButton: "#btnEnterScene",
-      radarField: "label[for='radarCarrierFrequency']",
-      resultDock: "#linkChannelSection",
-      scrollRegion: "#channelAnalysisScroll",
-      select: "#txArrayPattern",
-    };
-    try {
-      const components = Object.fromEntries(
-        Object.entries(targets).map(([name, selector]) => {
-          const element = document.querySelector(selector);
-          if (!element)
-            throw new Error(`Missing UI baseline style target: ${selector}`);
-          const style = getComputedStyle(element);
-          return [
-            name,
-            {
-              selector,
-              styles: Object.fromEntries(
-                properties.map((property) => [
-                  property,
-                  style.getPropertyValue(property),
-                ]),
-              ),
-            },
-          ];
-        }),
-      );
-      components.controlScroll.styles["scrollbar-width"] =
-        computedScrollbarWidth;
-      const rootStyle = getComputedStyle(document.documentElement);
-      const tokens = Object.fromEntries(
-        [...rootStyle]
-          .filter((property) => property.startsWith("--oat-"))
-          .sort()
-          .map((property) => [
-            property,
-            rootStyle.getPropertyValue(property).trim(),
-          ]),
-      );
-      return { components, tokens };
-    } finally {
-      if (inlineScrollbarWidth) {
-        controlScroll.style.setProperty(
-          "scrollbar-width",
-          inlineScrollbarWidth,
-          inlineScrollbarPriority,
-        );
-      } else {
-        controlScroll.style.removeProperty("scrollbar-width");
-      }
-    }
-  });
-}
-
 async function capturePhase0ResourceSnapshot(page) {
   return page.evaluate(async () => {
     const { viewerRef } =
@@ -829,29 +572,6 @@ async function capturePhase0ResourceSnapshot(page) {
     };
   });
 }
-
-export {
-  UPDATE_PHASE0_BASELINE,
-  assertUiResourcesLoad,
-  writePhase0Observation,
-  assertPhase1DomContract,
-  RADAR_PREVIEW_MANIFEST,
-  LINK_RESULT,
-  MOBILITY_RESULT,
-  RADIOMAP_RESULT,
-  radarResult,
-  openDeterministicApp,
-  activateMode,
-  enableRealViewer,
-  enableViewerStub,
-  configureRadarFixture,
-  configureMainDeviceFixture,
-  expectNoSeriousAccessibilityViolations,
-  installPhase0ResourceProbe,
-  capturePhase0DomContract,
-  capturePhase0ComputedStyles,
-  capturePhase0ResourceSnapshot,
-};
 
 export async function openModulePage(page) {
   const response = await page.request.get("/");
@@ -876,3 +596,22 @@ export async function openModulePage(page) {
   );
   await page.goto("/__test_modules__");
 }
+
+export {
+  assertUiResourcesLoad,
+  RADAR_PREVIEW_MANIFEST,
+  LINK_RESULT,
+  MOBILITY_RESULT,
+  RADIOMAP_RESULT,
+  radarResult,
+  openDeterministicApp,
+  activateMode,
+  syncUiAfterStateMutation,
+  enableRealViewer,
+  enableViewerStub,
+  configureRadarFixture,
+  configureMainDeviceFixture,
+  expectNoSeriousAccessibilityViolations,
+  installPhase0ResourceProbe,
+  capturePhase0ResourceSnapshot,
+};

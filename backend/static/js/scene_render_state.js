@@ -3,7 +3,8 @@ import {createLoadingOverlayController} from "/js/ui/loading_overlay_controller.
 import {createTileSelectionView} from "/js/ui/tile_selection_view.js?v=20260519-mode-isolation";
 
 export function createSceneRenderStateController(context) {
-  const {api, features, picking, state, ui, viewerRef} = context;
+  const {features, hosts, picking, state, viewerRef} = context;
+  const shellStore = context.featureServices.shellUi;
   const getViewer = () => viewerRef.current;
   const entry = () => context.controllers.entry;
   const performancePanel = () => context.controllers.performance;
@@ -18,15 +19,18 @@ export function createSceneRenderStateController(context) {
   }
 
   function syncResultDockUi() {
-    const expanded = Boolean(state.resultDock.expanded);
-    ui.linkChannelSection.classList.toggle("collapsed", !expanded);
-    ui.btnResultDockToggle.setAttribute("aria-expanded", String(expanded));
-    ui.btnResultDockToggle.setAttribute(
-      "aria-label",
-      expanded ? "Collapse results panel" : "Expand results panel",
-    );
-    ui.channelAnalysisScroll.setAttribute("aria-hidden", String(!expanded));
-    ui.channelAnalysisScroll.inert = !expanded;
+    shellStore.patch((current) => ({
+      ...current,
+      rightRailCollapsed: !state.resultDock.expanded,
+    }));
+  }
+
+  function syncControlSidebarUi() {
+    shellStore.patch((current) => ({
+      ...current,
+      leftRailCollapsed: Boolean(state.panelCollapsed),
+      screen: state.entry.visible ? "entry" : "scene",
+    }));
   }
 
   function applyPerformanceSettingsToViewer() {
@@ -34,7 +38,7 @@ export function createSceneRenderStateController(context) {
   }
 
   function syncNumericInputs() {
-    solver().syncNumericInputs();
+    solver().publishControls();
   }
 
   function syncViewerMarkers() {
@@ -49,10 +53,6 @@ export function createSceneRenderStateController(context) {
     entry().hideEntryScreen();
   }
 
-  function focusEntryMapTiles(tileIds, paddingScale) {
-    return entry().focusEntryMapTiles(tileIds, paddingScale);
-  }
-
   async function ensureViewer() {
     if (getViewer().__ready) {
       return getViewer();
@@ -61,7 +61,7 @@ export function createSceneRenderStateController(context) {
       viewerRef.modulePromise = import("/js/viewer.js?v=20260722-radar-screen-labels");
     }
     const {Viewer} = await viewerRef.modulePromise;
-    const realViewer = new Viewer(ui.view);
+    const realViewer = new Viewer(hosts.require("view"));
     realViewer.__ready = true;
     viewerRef.current = realViewer;
     applyPerformanceSettingsToViewer();
@@ -71,254 +71,146 @@ export function createSceneRenderStateController(context) {
     return realViewer;
   }
 
-const loadingOverlay = createLoadingOverlayController({
-  state,
-  ui,
-  onShow: () => {
-    syncModeUi();
-    syncPerformanceUi();
-  },
-  onHide: () => {
+  const loadingOverlay = createLoadingOverlayController({
+    state,
+    shellStore,
+    onShow: () => {
+      syncModeUi();
+      syncPerformanceUi();
+    },
+    onHide: () => {
+      syncModeUi();
+      syncControlSidebarUi();
+      syncPerformanceUi();
+    },
+  });
+
+  function setProgress(percent, message, indeterminate = false) {
+    return loadingOverlay.setProgress(percent, message, indeterminate);
+  }
+
+  function showOverlay(options = {}) {
+    return loadingOverlay.showOverlay(options);
+  }
+
+  function hideOverlay(owner = null, force = false) {
+    return loadingOverlay.hideOverlay(owner, force);
+  }
+
+  function cancelOverlay() {
+    return loadingOverlay.cancel();
+  }
+
+  const tileSelectionView = createTileSelectionView({
+    state,
+    shellStore,
+    getViewer,
+    syncEntryOverviewUi,
+  });
+
+  const sceneLoader = createSceneLoaderController(context, {
+    ensureViewer,
+    getViewer,
+    hideEntryScreen,
+    hideOverlay,
+    renderAll,
+    setProgress,
+    showOverlay,
+    solver,
+    syncControlSidebarUi,
+    syncPerformanceUi,
+    syncTileListUi,
+    syncViewerMarkers,
+    tileSelectionView,
+  });
+
+  function tileSelections() {
+    return tileSelectionView.tileSelections();
+  }
+
+  function tileDiff() {
+    return tileSelectionView.tileDiff();
+  }
+
+  function syncTileListUi() {
+    tileSelectionView.syncTileListUi();
+  }
+
+  function populateTileList(manifest) {
+    tileSelectionView.populateTileList(manifest);
+  }
+
+  function setTileSelection(nextTileIds) {
+    tileSelectionView.setTileSelection(nextTileIds);
+  }
+
+  function resetSelectionToLoadedTiles() {
+    tileSelectionView.resetSelectionToLoadedTiles();
+  }
+
+  function setTileChecked(tileId, checked) {
+    tileSelectionView.setTileChecked(tileId, checked);
+  }
+
+  function toggleTileChecked(tileId) {
+    tileSelectionView.toggleTileChecked(tileId);
+  }
+
+  function syncModeUi() {
+    const activeFeature = features.get(state.mode) || features.definitions()[0];
+    const activeTargetIds = new Set(picking.targetsFor(activeFeature.id).map((target) => target.id));
+    const sceneControlsVisible = Boolean(
+      getViewer().__ready
+      && !state.entry.visible
+      && state.sceneVisible
+      && !state.loading.visible,
+    );
+    if (!sceneControlsVisible) {
+      state.pickTarget = null;
+      state.deviceControl.activeTarget = null;
+    }
+    if (state.deviceControl.activeTarget && !activeTargetIds.has(state.deviceControl.activeTarget)) {
+      state.deviceControl.activeTarget = null;
+      state.pickTarget = null;
+    }
+    const activeTx = features.instance(activeFeature.id)?.markerPositions?.().tx;
+    const txReady = Array.isArray(activeTx) && activeTx.length === 3;
+    if (!txReady && getViewer().isTxOrbiting()) {
+      getViewer().stopTxOrbit();
+    }
+    shellStore.patch((current) => ({
+      ...current,
+      activeMode: state.mode,
+    }));
+  }
+
+  function renderAll() {
     syncModeUi();
     syncControlSidebarUi();
+    syncViewerMarkers();
+    syncModeVisuals();
+    syncTileListUi();
+    syncEntryOverviewUi();
     syncPerformanceUi();
-  },
-});
+    syncResultDockUi();
+    features.render(context);
+    solver().publishControls();
+  }
 
-function setProgress(percent, message, indeterminate = false) {
-  return loadingOverlay.setProgress(percent, message, indeterminate);
-}
-
-function showOverlay(options = {}) {
-  return loadingOverlay.showOverlay(options);
-}
-
-function hideOverlay(owner = null, force = false) {
-  return loadingOverlay.hideOverlay(owner, force);
-}
-
-function cancelOverlay() {
-  return loadingOverlay.cancel();
-}
-
-const tileSelectionView = createTileSelectionView({
-  state,
-  ui,
-  shellUi: context.featureServices.shellUi,
-  getViewer,
-  syncEntryOverviewUi,
-});
-
-const sceneLoader = createSceneLoaderController(context, {
-  ensureViewer,
-  getViewer,
-  hideEntryScreen,
-  hideOverlay,
-  renderAll,
-  setProgress,
-  showOverlay,
-  solver,
-  syncControlSidebarUi,
-  syncPerformanceUi,
-  syncTileListUi,
-  syncViewerMarkers,
-  tileSelectionView,
-});
-
-function tileSelections() {
-  return tileSelectionView.tileSelections();
-}
-
-function tileDiff() {
-  return tileSelectionView.tileDiff();
-}
-
-function syncTileListUi() {
-  tileSelectionView.syncTileListUi();
-}
-
-function populateTileList(manifest) {
-  tileSelectionView.populateTileList(manifest);
-}
-
-function setTileSelection(nextTileIds) {
-  tileSelectionView.setTileSelection(nextTileIds);
-}
-
-function resetSelectionToLoadedTiles() {
-  tileSelectionView.resetSelectionToLoadedTiles();
-}
-
-function setTileChecked(tileId, checked) {
-  tileSelectionView.setTileChecked(tileId, checked);
-}
-
-function toggleTileChecked(tileId) {
-  tileSelectionView.toggleTileChecked(tileId);
-}
-function syncControlSidebarUi() {
-  const collapsed = state.panelCollapsed;
-  const visible = ui.panel.style.display === "flex" && !state.entry.visible;
-  ui.panel.classList.toggle("panelCollapsed", collapsed);
-  ui.panelToggle.classList.toggle("panelCollapsed", collapsed);
-  ui.panelToggle.classList.toggle("hidden", !visible);
-  ui.panelToggle.setAttribute("aria-label", collapsed ? "Open control sidebar" : "Collapse control sidebar");
-  ui.panelToggle.setAttribute("aria-expanded", String(!collapsed));
-  ui.panel.inert = !visible || collapsed;
-  ui.panel.setAttribute("aria-hidden", String(!visible || collapsed));
-}
-function syncModeUi() {
-  const definitions = features.definitions();
-  const featureUiRef = (definition, ref) => features.uiRef(definition.id, ref, ui);
-  const requiredFeatureUiRef = (definition, ref) => {
-    const value = features.uiRef(definition.id, ref, ui);
-    if (value == null) {
-      throw new Error(`Missing UI ref "${ref}" for feature "${definition.id}"`);
+  async function enterScene() {
+    if (state.tileLoadBusy) {
+      return;
     }
-    return value;
-  };
-  const activeFeature = features.get(state.mode) || definitions[0];
-  const activeUi = activeFeature.ui || {};
-  const activeTargetIds = new Set(picking.targetsFor(activeFeature.id).map((target) => target.id));
-  const sceneControlsVisible = getViewer().__ready
-    && !state.entry.visible
-    && ui.panel.style.display === "flex"
-    && ui.loadingScreen.style.display === "none";
-  if (!sceneControlsVisible) {
-    state.pickTarget = null;
-    state.deviceControl.activeTarget = null;
-  }
-  const activeTarget = state.deviceControl.activeTarget;
-  const activeTargetAllowed = activeTargetIds.has(activeTarget);
-  if (activeTarget && !activeTargetAllowed) {
-    state.deviceControl.activeTarget = null;
-    state.pickTarget = null;
-  }
-  const nextActiveTarget = state.deviceControl.activeTarget;
-  const activeTargetMeta = picking.get(nextActiveTarget);
-  const hasPrecisionTarget = Boolean(activeTargetMeta?.precision);
-
-  for (const definition of definitions) {
-    const active = definition.id === activeFeature.id;
-    const button = requiredFeatureUiRef(definition, definition.ui.tabRef);
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", String(active));
-    requiredFeatureUiRef(definition, definition.ui.panelRef).classList.toggle("hidden", !active);
-  }
-  ui.modeSelectTitle.textContent = `Mode (${activeFeature.title})`;
-
-  const parameterGroupRefs = new Set();
-  for (const definition of definitions) {
-    for (const ref of definition.ui.parameterGroups || []) {
-      parameterGroupRefs.add(ref);
+    const selectedTileIds = tileSelections();
+    if (!selectedTileIds.length) {
+      return;
     }
-    for (const filtered of definition.ui.filteredParameterGroups || []) {
-      parameterGroupRefs.add(filtered.ref);
-    }
-  }
-  for (const ref of parameterGroupRefs) {
-    for (const node of featureUiRef(activeFeature, ref) || []) {
-      node.classList.add("hidden");
-    }
-  }
-  for (const ref of activeUi.parameterGroups || []) {
-    for (const node of featureUiRef(activeFeature, ref) || []) {
-      node.classList.remove("hidden");
-    }
-  }
-  for (const filtered of activeUi.filteredParameterGroups || []) {
-    for (const node of featureUiRef(activeFeature, filtered.ref) || []) {
-      if (node.classList.contains(filtered.className)) {
-        node.classList.remove("hidden");
-      }
-    }
+    return sceneLoader.enterScene();
   }
 
-  ui.deviceDock.classList.toggle("hidden", !sceneControlsVisible);
-  ui.deviceDock.setAttribute("aria-hidden", String(!sceneControlsVisible));
-  ui.devicePrecisionPanel.classList.toggle("hidden", !sceneControlsVisible || !hasPrecisionTarget);
-  ui.devicePrecisionPanel.setAttribute("aria-hidden", String(!sceneControlsVisible || !hasPrecisionTarget));
-
-  for (const definition of definitions) {
-    const isActive = definition.id === activeFeature.id;
-    for (const target of picking.targetsFor(definition.id)) {
-      if (target.cardRef) {
-        requiredFeatureUiRef(definition, target.cardRef).classList.toggle("hidden", nextActiveTarget !== target.id);
-      }
-      if (target.buttonRef) {
-        const button = requiredFeatureUiRef(definition, target.buttonRef);
-        button.classList.toggle("hidden", !isActive);
-        button.classList.toggle("active", nextActiveTarget === target.id);
-        button.classList.toggle("picking", state.pickTarget === target.id);
-      }
-    }
-    for (const ref of definition.ui.extraActionButtonRefs || []) {
-      requiredFeatureUiRef(definition, ref).classList.toggle("hidden", !isActive);
-    }
-    requiredFeatureUiRef(definition, definition.ui.runButtonRef).classList.toggle("hidden", !isActive);
+  async function loadScene() {
+    return sceneLoader.loadScene();
   }
-  ui.linkSurfaceClearanceField.classList.toggle("hidden", !activeTargetMeta?.clearance);
-
-  for (const definition of definitions) {
-    const button = requiredFeatureUiRef(definition, definition.ui.runButtonRef);
-    const requirement = features.instance(definition.id)?.runRequirementMessage?.() || "";
-    const busy = button.getAttribute("aria-busy") === "true";
-    const tileBlocked = Boolean(definition.ui.disableDuringTileLoad && state.tileLoadBusy);
-    button.disabled = busy || tileBlocked || Boolean(requirement);
-    if (requirement) button.title = requirement;
-    else button.removeAttribute("title");
-  }
-  const activeTx = features.instance(activeFeature.id)?.markerPositions?.().tx;
-  const txReady = Array.isArray(activeTx) && activeTx.length === 3;
-  if (!txReady && getViewer().isTxOrbiting()) {
-    getViewer().stopTxOrbit();
-  }
-  const orbitingTx = getViewer().isTxOrbiting();
-  ui.btnOrbitTx.disabled = !txReady;
-  if (txReady) ui.btnOrbitTx.removeAttribute("title");
-  else ui.btnOrbitTx.title = "Place Tx before orbiting.";
-  ui.btnOrbitTx.classList.toggle("active", orbitingTx);
-  ui.btnOrbitTx.setAttribute("aria-pressed", String(orbitingTx));
-  ui.btnOrbitTx.setAttribute("aria-label", orbitingTx ? "Stop transmitter orbit" : "Orbit around transmitter");
-  ui.btnOrbitTx.querySelector(".deviceActionText").textContent = orbitingTx ? "Stop" : "Orbit";
-  ui.devicePrecisionTitle.textContent = activeTargetMeta?.precisionTitle || "Tx";
-}
-function renderAll() {
-  syncModeUi();
-  syncControlSidebarUi();
-  syncViewerMarkers();
-  syncModeVisuals();
-  syncNumericInputs();
-  syncTileListUi();
-  syncEntryOverviewUi();
-  syncPerformanceUi();
-  syncResultDockUi();
-  features.render(context);
-  context.featureServices.controls?.syncFromAdapters(state.mode);
-}
-
-async function waitForRtSceneSelection(generation, tileIds) {
-  return sceneLoader.waitForRtSceneSelection(generation, tileIds);
-}
-
-async function syncRtSceneSelection(selectedTileIds) {
-  return sceneLoader.syncRtSceneSelection(selectedTileIds);
-}
-
-async function enterScene() {
-  if (state.tileLoadBusy) {
-    return;
-  }
-  const selectedTileIds = tileSelections();
-  if (!selectedTileIds.length) {
-    return;
-  }
-  return sceneLoader.enterScene();
-}
-
-async function loadScene() {
-  return sceneLoader.loadScene();
-}
 
   return {
     setProgress,

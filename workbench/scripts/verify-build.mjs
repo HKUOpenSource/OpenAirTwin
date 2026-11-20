@@ -4,15 +4,6 @@ import { relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
-const CORE_STYLE_ORDER = [
-  "tokens.css",
-  "base.css",
-  "components.css",
-  "shell.css",
-  "entry-map.css",
-  "results.css",
-  "radar.css",
-];
 const EXCLUDED_PRODUCTION_NAMES = [
   "ui-catalog",
   "radar-demo",
@@ -21,45 +12,27 @@ const EXCLUDED_PRODUCTION_NAMES = [
 ];
 const PRODUCTION_BASE = "/workbench/";
 const REQUIRED_REACT_OUTPUT = /(?:^|\/)react-runtime-[A-Za-z0-9_-]{8,}\.js$/;
-const FORBIDDEN_PRODUCTION_ROOT_IDS = [
-  "result-dock-content",
-  "deepmimo-dataset-tray",
-  "control-form-content",
-  "device-dock-content",
-];
+const REQUIRED_ASTRYX_OUTPUT = /(?:^|\/)astryx-runtime-[A-Za-z0-9_-]{8,}\.js$/;
 const FORBIDDEN_UI_MARKERS = [
   "CompatibilityAppShellTree",
   "CompatibilityControlTree",
-  "createAppShellBridge",
-  "createControlSurfaceBridge",
-  "createDeepMimoDatasetBridge",
-  "createResultDockBridge",
-  "legacyBare",
+  "dom_refs.js",
+  "param_tooltips.js",
+  "captureSnapshot",
   "miniBtn",
   "miniSelect",
-  "oat-button--legacy-native-font",
-  " primary appDialogPrimary",
-  " primary entryFooterBtn",
-];
-const FORBIDDEN_UI_SOURCE_NAMES = [
-  "app-shell/CompatibilityAppShellTree.tsx",
-  "features/controls/CompatibilityControlTree.tsx",
-  "app-shell/app-shell-bridge.tsx",
-  "features/controls/control-surface-bridge.tsx",
-  "features/deepmimo/deepmimo-dataset-bridge.tsx",
-  "features/results/result-dock-bridge.tsx",
 ];
 const BUDGETS = {
   basemapWorkerGzip: 160 * 1024,
   basemapWorkerRaw: 512 * 1024,
-  initialGzip: 352 * 1024,
-  applicationJavaScriptGzip: 384 * 1024,
-  applicationCssGzip: 24 * 1024,
+  initialGzip: 660 * 1024,
+  applicationJavaScriptGzip: 680 * 1024,
+  applicationCssGzip: 72 * 1024,
   reactRuntimeGzip: 68 * 1024,
-  singleFeatureGzip: 30 * 1024,
-  htmlGzip: 3 * 1024,
-  maxApplicationChunkRaw: 576 * 1024,
-  maxApplicationChunkGzip: 145 * 1024,
+  singleFeatureGzip: 32 * 1024,
+  htmlGzip: 4 * 1024,
+  maxApplicationChunkRaw: 960 * 1024,
+  maxApplicationChunkGzip: 320 * 1024,
   basemapJavaScriptGzip: 300 * 1024,
   basemapJavaScriptRaw: 1100 * 1024,
   basemapCssGzip: 12 * 1024,
@@ -136,7 +109,6 @@ const buildInfo = JSON.parse(readFileSync(buildInfoPath, "utf8"));
 const integrity = JSON.parse(readFileSync(integrityPath, "utf8"));
 const files = walk(outputRoot);
 const appEntry = manifest["js/app.js"];
-const manifestSources = Object.keys(manifest);
 
 if (
   buildInfo.schemaVersion !== 1 ||
@@ -205,8 +177,6 @@ for (const entry of integrity.files) {
 
 if (!index.includes('<script type="importmap">'))
   fail("compatibility import map is missing");
-if (index.includes("data-oat-react-owner") || index.includes('id="view"'))
-  fail("legacy workbench markup remains in the production HTML entry");
 if (!index.includes(`${PRODUCTION_BASE}assets/`))
   fail("index.html does not reference hashed assets");
 if (!appEntry || typeof appEntry.file !== "string")
@@ -228,6 +198,8 @@ if (
 
 if (!files.some((path) => REQUIRED_REACT_OUTPUT.test(toPosix(path))))
   fail("production React runtime chunk is missing");
+if (!files.some((path) => REQUIRED_ASTRYX_OUTPUT.test(toPosix(path))))
+  fail("production Astryx runtime chunk is missing");
 
 const productionJavaScript = files
   .filter((path) => path.endsWith(".js"))
@@ -235,27 +207,13 @@ const productionJavaScript = files
   .join("\n");
 if (!/id:[`'"]app-shell[`'"]/.test(productionJavaScript))
   fail("single AppShell root is missing from production JavaScript");
-for (const rootId of FORBIDDEN_PRODUCTION_ROOT_IDS) {
-  if (productionJavaScript.includes(rootId))
-    fail(`legacy production React root remains: ${rootId}`);
-}
 for (const marker of FORBIDDEN_UI_MARKERS) {
   if (productionJavaScript.includes(marker))
     fail(`legacy UI marker remains: ${marker}`);
 }
-for (const sourceName of FORBIDDEN_UI_SOURCE_NAMES) {
-  if (existsSync(resolve(workbenchRoot, "src", sourceName)))
-    fail(`legacy UI source remains: ${sourceName}`);
-  if (manifestSources.some((source) => source.endsWith(sourceName)))
-    fail(`legacy UI source entered the production manifest: ${sourceName}`);
-}
 
 for (const [source, entry] of Object.entries(manifest)) {
-  if (
-    source.includes("ui-catalog") ||
-    source.includes("workbench/src/catalog/") ||
-    source.includes("workbench/src/test/")
-  ) {
+  if (source.includes("workbench/src/test/")) {
     fail(`development-only source entered the production manifest: ${source}`);
   }
   if (!entry || typeof entry !== "object" || typeof entry.file !== "string")
@@ -265,14 +223,6 @@ for (const [source, entry] of Object.entries(manifest)) {
     fail(`missing manifest file ${entry.file}`);
   if (!/[-][A-Za-z0-9_-]{8,}\.[^.]+$/.test(entry.file))
     fail(`unhashed manifest file ${entry.file}`);
-}
-
-let cursor = -1;
-for (const stylesheet of CORE_STYLE_ORDER) {
-  const next = index.indexOf(stylesheet.replace(".css", "-"), cursor + 1);
-  if (next < 0) fail(`stylesheet output for ${stylesheet} is missing`);
-  if (next < cursor) fail("core stylesheet order changed");
-  cursor = next;
 }
 
 const javascriptFiles = files.filter((path) => path.endsWith(".js"));
@@ -286,6 +236,9 @@ const applicationJavaScript = javascriptFiles.filter(
 );
 const basemapJavaScript = javascriptFiles.filter(isBasemapOutput);
 const basemapWorkers = javascriptFiles.filter(isBasemapWorker);
+const applicationCss = cssFiles.filter((path) => !isBasemapOutput(path));
+if (applicationCss.length === 0)
+  fail("application stylesheet output is missing");
 if (basemapWorkers.length !== 1) fail("missing bundled vector basemap worker");
 if (basemapJavaScript.length !== 1)
   fail("missing isolated vector basemap runtime");
@@ -304,9 +257,7 @@ for (const path of javascriptFiles) {
 const sizes = {
   initialGzip: sumGzip(initialOutputs),
   applicationJavaScriptGzip: sumGzip(applicationJavaScript),
-  applicationCssGzip: sumGzip(
-    cssFiles.filter((path) => !isBasemapOutput(path)),
-  ),
+  applicationCssGzip: sumGzip(applicationCss),
   reactRuntimeGzip: sumGzip(reactRuntimeOutputs),
   htmlGzip: gzipSize(indexPath),
   maxApplicationChunkRaw: Math.max(

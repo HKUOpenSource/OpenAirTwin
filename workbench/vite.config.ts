@@ -1,28 +1,23 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
-import { CORE_STYLE_ORDER, PRODUCTION_BASE } from "./src/toolchain-contract.ts";
+import { PRODUCTION_BASE } from "./src/toolchain-contract.ts";
 
 const workbenchRoot = fileURLToPath(new URL(".", import.meta.url));
 const projectRoot = resolve(workbenchRoot, "..");
 const legacyRoot = resolve(projectRoot, "backend/static");
 const legacyJavaScriptRoot = resolve(legacyRoot, "js");
 const outputRoot = resolve(legacyRoot, "workbench");
-const toolsRoot = resolve(projectRoot, "tools");
-const catalogRoot = resolve(toolsRoot, "ui-catalog");
-const catalogIndexPath = resolve(catalogRoot, "index.html");
-const catalogStylePath = resolve(catalogRoot, "catalog.css");
 const LEGACY_PUBLIC_MODULE_SPECIFIERS = [
   "/js/app.js",
   "/js/app_state.js?v=20260723-radar-shared-groups",
   "/js/controllers/app_dialog_controller.js?v=20260604-app-dialog",
   "/js/controllers/scene_loader_controller.js?v=20260519-mode-isolation",
   "/js/core/feature_registry.js",
-  "/js/dom_refs.js?v=20260519-mode-isolation",
   "/js/features/radar/charts.js",
   "/js/features/radar/charts.js?v=20260722-radar-color-contract",
   "/js/features/radar/colors.js?v=20260722-radar-color-contract",
@@ -62,13 +57,6 @@ for (const absolutePath of legacyJavaScriptFiles) {
     "",
   );
   rollupInputs[entryName] = absolutePath;
-}
-for (const stylesheet of CORE_STYLE_ORDER) {
-  rollupInputs[`css/${stylesheet.replace(/\.css$/, "")}`] = resolve(
-    legacyRoot,
-    "css",
-    stylesheet,
-  );
 }
 
 function collectLegacySpecifiers(): Map<string, Set<string>> {
@@ -153,59 +141,6 @@ function normalizeLegacyModuleIdsPlugin(): Plugin {
   };
 }
 
-function developmentCatalogPlugin(): Plugin {
-  return {
-    name: "openairtwin-development-ui-catalog",
-    apply: "serve",
-    configureServer(server) {
-      server.middlewares.use((request, response, next) => {
-        const pathname = new URL(request.url ?? "/", "http://127.0.0.1")
-          .pathname;
-        if (pathname === "/ui-catalog") {
-          response.statusCode = 302;
-          response.setHeader("Location", "/ui-catalog/");
-          response.end();
-          return;
-        }
-        if (pathname.startsWith("/css/")) {
-          const stylesheet = pathname.slice("/css/".length);
-          if (CORE_STYLE_ORDER.some((candidate) => candidate === stylesheet)) {
-            response.statusCode = 200;
-            response.setHeader("Content-Type", "text/css; charset=utf-8");
-            response.setHeader("Cache-Control", "no-store");
-            response.end(
-              readFileSync(resolve(legacyRoot, "css", stylesheet), "utf8"),
-            );
-            return;
-          }
-        }
-        if (pathname === "/ui-catalog/catalog.css") {
-          response.statusCode = 200;
-          response.setHeader("Content-Type", "text/css; charset=utf-8");
-          response.setHeader("Cache-Control", "no-store");
-          response.end(readFileSync(catalogStylePath, "utf8"));
-          return;
-        }
-        if (pathname !== "/ui-catalog/") {
-          next();
-          return;
-        }
-        void server
-          .transformIndexHtml(pathname, readFileSync(catalogIndexPath, "utf8"))
-          .then((html) => {
-            response.statusCode = 200;
-            response.setHeader("Content-Type", "text/html; charset=utf-8");
-            response.setHeader("Cache-Control", "no-store");
-            response.end(html);
-          })
-          .catch((error: unknown) => {
-            next(error instanceof Error ? error : new Error(String(error)));
-          });
-      });
-    },
-  };
-}
-
 function productionImportMapPlugin(): Plugin {
   const aliasesByPath = collectLegacySpecifiers();
   const appSourcePath = resolve(legacyJavaScriptRoot, "app.js");
@@ -248,25 +183,7 @@ function productionImportMapPlugin(): Plugin {
         imports: Object.fromEntries(Object.entries(imports).sort()),
       }).replaceAll("<", "\\u003c");
       let indexSource = index.source;
-      for (const stylesheet of CORE_STYLE_ORDER) {
-        const output = Object.values(bundle).find(
-          (candidate) =>
-            candidate.type === "asset" &&
-            candidate.fileName.startsWith(
-              `assets/css/${stylesheet.replace(/\.css$/, "")}-`,
-            ) &&
-            candidate.fileName.endsWith(".css"),
-        );
-        if (!output) {
-          this.error(`Vite did not emit the ${stylesheet} stylesheet entry`);
-          return;
-        }
-        indexSource = indexSource.replace(
-          new RegExp(`href="/css/${stylesheet.replace(".", "\\.")}\\?[^"]*"`),
-          `href="${PRODUCTION_BASE}${output.fileName}"`,
-        );
-      }
-      const watchdogTag = `<script>(()=>{let ready=false;let timer;const cleanup=()=>{ready=true;clearTimeout(timer);window.removeEventListener("error",onError,true);window.removeEventListener("unhandledrejection",onRejection)};const render=()=>{if(ready||document.getElementById("oatBootstrapError"))return;ready=true;clearTimeout(timer);const panel=document.createElement("section");panel.id="oatBootstrapError";panel.className="oat-panel oat-bootstrap-error";panel.setAttribute("role","alert");const header=document.createElement("div");header.className="oat-panel__header";const title=document.createElement("strong");title.className="oat-panel__title";title.textContent="OpenAirTwin could not start";const badge=document.createElement("span");badge.className="oat-badge oat-badge--error";badge.textContent="Error";header.append(title,badge);const message=document.createElement("p");message.className="oat-bootstrap-error__message";message.textContent="A required application resource failed to load. Check the connection and reload the workbench.";const reload=document.createElement("button");reload.type="button";reload.className="oat-button oat-button--primary";reload.textContent="Reload";reload.addEventListener("click",()=>window.location.reload());panel.append(header,message,reload);document.body.replaceChildren(panel)};const onError=(event)=>{const target=event.target;if(target&&((target.src||"").includes("/workbench/")||(target.href||"").includes("/workbench/")))render()};const onRejection=(event)=>{const message=String(event.reason?.message||event.reason||"");if(/(?:chunk|module|import|load)/i.test(message))render()};window.addEventListener("openairtwin:ui-ready",cleanup,{once:true});window.addEventListener("error",onError,true);window.addEventListener("unhandledrejection",onRejection);timer=window.setTimeout(render,15000)})();</script>`;
+      const watchdogTag = `<script>(()=>{let ready=false;let timer;const cleanup=()=>{ready=true;clearTimeout(timer);window.removeEventListener("error",onError,true);window.removeEventListener("unhandledrejection",onRejection)};const render=()=>{if(ready||document.getElementById("oatBootstrapError"))return;ready=true;clearTimeout(timer);const panel=document.createElement("section");panel.id="oatBootstrapError";panel.className="oat-bootstrap-error";panel.setAttribute("role","alert");const title=document.createElement("strong");title.textContent="OpenAirTwin could not start";const message=document.createElement("p");message.textContent="A required application resource failed to load. Check the connection and reload the workbench.";const reload=document.createElement("button");reload.type="button";reload.textContent="Reload";reload.addEventListener("click",()=>window.location.reload());panel.append(title,message,reload);document.body.replaceChildren(panel)};const onError=(event)=>{const target=event.target;if(target&&((target.src||"").includes("/workbench/")||(target.href||"").includes("/workbench/")))render()};const onRejection=(event)=>{const message=String(event.reason?.message||event.reason||"");if(/(?:chunk|module|import|load)/i.test(message))render()};window.addEventListener("openairtwin:ui-ready",cleanup,{once:true});window.addEventListener("error",onError,true);window.addEventListener("unhandledrejection",onRejection);timer=window.setTimeout(render,15000)})();</script>`;
       const importMapTag = `<script type="importmap">${importMap}</script>`;
       const appScriptTag = `<script type="module" crossorigin src="${PRODUCTION_BASE}${appOutput.fileName}"></script>`;
       indexSource = indexSource.replace(
@@ -290,7 +207,6 @@ export default defineConfig({
   plugins: [
     normalizeLegacyModuleIdsPlugin(),
     react(),
-    developmentCatalogPlugin(),
     productionImportMapPlugin(),
   ],
   resolve: {
@@ -298,10 +214,6 @@ export default defineConfig({
       {
         find: /^leaflet$/,
         replacement: resolve(workbenchRoot, "src/runtime/leaflet-runtime.ts"),
-      },
-      {
-        find: "/@oat-catalog",
-        replacement: resolve(workbenchRoot, "src/catalog"),
       },
       {
         find: "/@oat",
@@ -321,12 +233,12 @@ export default defineConfig({
     ],
   },
   server: {
-    host: process.env.OAT_UI_CATALOG_HOST ?? "127.0.0.1",
-    port: Number.parseInt(process.env.OAT_UI_CATALOG_PORT ?? "5173", 10),
+    host: process.env.OAT_UI_HOST ?? "127.0.0.1",
+    port: Number.parseInt(process.env.OAT_UI_PORT ?? "5173", 10),
     strictPort: true,
     fs: {
       strict: true,
-      allow: [legacyRoot, workbenchRoot, toolsRoot],
+      allow: [legacyRoot, workbenchRoot],
     },
     proxy: {
       "/api": {
@@ -341,9 +253,9 @@ export default defineConfig({
     manifest: true,
     sourcemap: false,
     cssCodeSplit: true,
-    cssMinify: false,
+    cssMinify: true,
     modulePreload: { polyfill: false },
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       preserveEntrySignatures: "allow-extension",
       input: rollupInputs,
@@ -361,6 +273,11 @@ export default defineConfig({
               name: "react-runtime",
               test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/,
               priority: 20,
+            },
+            {
+              name: "astryx-runtime",
+              test: /node_modules[\\/](?:@astryxdesign|@stylexjs|lucide-react|intl-messageformat)[\\/]/,
+              priority: 18,
             },
             {
               name: "three-runtime",

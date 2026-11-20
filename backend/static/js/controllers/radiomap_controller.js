@@ -70,7 +70,7 @@ export function createRadiomapController({
 
       showOverlay({
         title: "Running Radio Map",
-        message: job.message || "Computing radio map with Sionna RT...",
+        message: job.message || "Computing radio map...",
         indeterminate: true,
         owner: overlayOwner,
       });
@@ -93,7 +93,7 @@ export function createRadiomapController({
     renderRadiomapResult();
     showOverlay({
       title: "Running Radio Map",
-      message: "Submitting radio map job...",
+      message: "Submitting job...",
       indeterminate: true,
       owner: overlayOwner,
       force: true,

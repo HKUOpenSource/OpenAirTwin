@@ -2,21 +2,25 @@ import { act, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { mountAppShell } from "../app-shell/app-shell-runtime.tsx";
-import { reactRootRegistry } from "../runtime/root-registry.tsx";
+import type { AnyUiCommand } from "../runtime/ui-command.ts";
 
 const mountedContainers: HTMLElement[] = [];
 
+function mountContainer(): HTMLElement {
+  const container = document.createElement("div");
+  document.body.append(container);
+  mountedContainers.push(container);
+  return container;
+}
+
 afterEach(() => {
-  reactRootRegistry.unmountAll();
   for (const container of mountedContainers.splice(0)) container.remove();
 });
 
-describe("React control surface model", () => {
-  it("owns fields and actions through the production AppShell tree", async () => {
-    const container = document.createElement("main");
-    document.body.append(container);
-    mountedContainers.push(container);
-    const handler = vi.fn();
+describe("Unidirectional ControlsStore and LeftInspector", () => {
+  it("projects feature mode snapshots into modular control views and dispatches typed run commands", async () => {
+    const container = mountContainer();
+    const commands: AnyUiCommand[] = [];
     let runtime!: ReturnType<typeof mountAppShell>;
     act(() => {
       runtime = mountAppShell({
@@ -24,85 +28,133 @@ describe("React control surface model", () => {
         container,
         reportError: vi.fn(),
       });
-      runtime.controls.setCommandHandler(handler);
+      runtime.setCommandHandler((cmd) => {
+        commands.push(cmd);
+      });
     });
-    const controls = runtime.controls;
 
-    const frequency = controls.element("cfgFrequency") as HTMLInputElement;
-    expect(frequency.defaultValue).toBe("3.5");
-    expect(frequency.step).toBe("0.1");
     expect(
-      [
-        ...(controls.element("txArrayPattern") as HTMLSelectElement).options,
-      ].find((option) => option.defaultSelected)?.value,
-    ).toBe("iso");
-    expect(controls.elements('input[name="radarMode"]')).toHaveLength(2);
+      container.querySelector('[data-testid="link-controls"]'),
+    ).not.toBeNull();
 
-    frequency.focus();
-    fireEvent.input(frequency, { target: { value: "4.2" } });
-    expect(document.activeElement).toBe(frequency);
-    fireEvent.blur(frequency);
-    await waitFor(() => {
-      expect(handler).toHaveBeenCalledWith({
-        name: "workbench.control.commit",
-        payload: { controlId: "cfgFrequency", value: "4.2" },
-      });
-    });
-
+    // Enable Link solve by clearing runDisabledReason and clicking Solve Link
     act(() => {
-      controls.updateFields([{ id: "cfgFrequency", value: "6.4" }]);
+      runtime.controls.patch((current) => ({
+        ...current,
+        link: { ...current.link, runDisabledReason: "" },
+      }));
     });
-    expect(frequency.value).toBe("6.4");
-    expect(frequency.defaultValue).toBe("3.5");
 
-    fireEvent.click(controls.element("radarModeMonostatic"));
+    const solveButton = [...container.querySelectorAll("button")].find(
+      (btn) => btn.textContent.trim() === "Solve Link",
+    );
+    expect(solveButton).toBeTruthy();
+    if (solveButton) fireEvent.click(solveButton);
+
     await waitFor(() => {
       expect(
-        (controls.element("radarModeMonostatic") as HTMLInputElement).checked,
+        commands.some(
+          (cmd) =>
+            cmd.name === "workbench.control.action" &&
+            (cmd.payload as { actionId?: string } | undefined)?.actionId ===
+              "btnSolveLink",
+        ),
       ).toBe(true);
-      expect(
-        (controls.element("radarModeBistatic") as HTMLInputElement).checked,
-      ).toBe(false);
     });
 
-    fireEvent.click(controls.element("btnSolveLink"));
-    await waitFor(() => {
-      expect(handler).toHaveBeenCalledWith({
-        name: "workbench.control.action",
-        payload: { actionId: "btnSolveLink" },
-      });
+    // Switch to Mobility mode and verify waypoint list updates declaratively
+    act(() => {
+      runtime.controls.patch((current) => ({
+        ...current,
+        activeMode: "mobility",
+        mobility: {
+          ...current.mobility,
+          estimateText: "42.0 m · 28.0 s · 29 / 1000 steps",
+          waypoints: [
+            {
+              index: 0,
+              label: "Waypoint 1",
+              coords: "1.0, 2.0, 3.0",
+              selected: true,
+            },
+          ],
+        },
+      }));
     });
 
-    act(() => {
-      controls.setActionBusy("btnSolveLink", true);
-    });
-    const solve = controls.element("btnSolveLink") as HTMLButtonElement;
-    expect(solve.getAttribute("aria-busy")).toBe("true");
-    expect(solve.disabled).toBe(true);
-    solve.disabled = false;
-    solve.classList.remove("busy");
-    solve.removeAttribute("aria-busy");
-    act(() => {
-      controls.syncFromAdapters();
-    });
-    expect(solve.getAttribute("aria-busy")).toBe("true");
-    expect(solve.disabled).toBe(true);
+    const mobilityEl = container.querySelector<HTMLElement>(
+      '[data-testid="mobility-controls"]',
+    );
+    expect(mobilityEl).not.toBeNull();
+    expect(mobilityEl?.textContent).toContain("42.0 m");
+    expect(mobilityEl?.textContent).toContain("1.0, 2.0, 3.0");
 
-    controls.element("mobilityEstimate").textContent = "Ready";
+    // Switch to Radar mode and verify preview canvas registers cleanly
     act(() => {
-      controls.updateMobilityWaypoints([
-        { index: 0, coordinate: "1.0, 2.0, 3.0", selected: true },
-      ]);
-      controls.syncFromAdapters("mobility");
+      runtime.controls.patch((current) => ({
+        ...current,
+        activeMode: "radar",
+        radar: {
+          ...current.radar,
+          pickerAssetName: "Quadcopter Drone",
+          targets: [
+            {
+              id: "target-1",
+              title: "Quadcopter Drone",
+              meta: "Target 1 · 55.0 m · 8.0 m/s",
+              color: "#e58a28",
+              selected: true,
+            },
+          ],
+        },
+      }));
     });
-    expect(controls.element("mobilityEstimate").textContent).toBe("Ready");
-    expect(controls.element("mobilityWaypointList").textContent).toContain(
-      "[1.0, 2.0, 3.0]",
+
+    expect(
+      container.querySelector('[data-testid="radar-workflow-controls"]'),
+    ).not.toBeNull();
+    expect(runtime.hosts.get("radarAssetPreviewCanvas")).toBeInstanceOf(
+      HTMLCanvasElement,
     );
 
     act(() => {
       runtime.dispose();
     });
-    expect(container.childNodes).toHaveLength(0);
+  });
+
+  it("renders bottom DeviceBar and opens coordinate precision card when activeTarget is set", () => {
+    const container = mountContainer();
+    let runtime!: ReturnType<typeof mountAppShell>;
+    act(() => {
+      runtime = mountAppShell({
+        activeMode: "link",
+        container,
+        reportError: vi.fn(),
+      });
+      runtime.controls.patch((current) => ({
+        ...current,
+        deviceBar: {
+          ...current.deviceBar,
+          visible: true,
+          activeTarget: "link-tx",
+          precisionTitle: "Link Tx",
+          txPosition: [10.5, 20.5, 15.0],
+          hintText: "Click any surface to place Tx",
+        },
+      }));
+    });
+
+    expect(
+      container.querySelector('[data-testid="device-bar"]'),
+    ).not.toBeNull();
+    const card = container.querySelector<HTMLElement>(
+      '[data-testid="device-precision-card"]',
+    );
+    expect(card).not.toBeNull();
+    expect(card?.textContent).toContain("Link Tx Coordinates");
+
+    act(() => {
+      runtime.dispose();
+    });
   });
 });

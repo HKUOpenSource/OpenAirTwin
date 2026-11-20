@@ -1,5 +1,7 @@
+import {normalizeColormapName} from "/js/colormaps.js";
+
 export function createRadiomapFeature(context) {
-  const {inputs, state, ui} = context;
+  const {state} = context;
   const {controller, resultView} = context;
   const shared = context.featureServices.solver;
   const solver = () => context.controllers.solver;
@@ -12,40 +14,34 @@ export function createRadiomapFeature(context) {
       : "Place Radio Map Tx before running the radio map.";
   }
 
-  function attachEvents() {
-    // Radio Map field and action events are emitted by the React control surface.
-  }
-
-  const deviceIds = new Set(["rmTxX", "rmTxY", "rmTxZ"]);
-  const surfaceIds = new Set([
-    "rmSizeX", "rmSizeY", "rmHeightOffset", "rmSamplesPerTx",
-    "rmCellSize", "rmDensityLevel",
-  ]);
-  const displayIds = new Set(["rmColorMin", "rmColorMax", "rmColormap"]);
-
-  function handleControlCommit(controlId) {
-    if (deviceIds.has(controlId)) {
-      solver().readRadiomapInputs();
-      controller.invalidateRadiomapResult();
-      picking().refreshPickStatus("radiomap");
-      scene().renderAll();
-      return true;
-    }
-    if (surfaceIds.has(controlId)) {
-      solver().readRadiomapInputs();
+  function handleControlUpdate(scope, field, value) {
+    if (scope === "radiomap.surface") {
+      if (field === "sizeX") state.radiomap.surface.size = [Number(value), state.radiomap.surface.size[1]];
+      else if (field === "sizeY") state.radiomap.surface.size = [state.radiomap.surface.size[0], Number(value)];
+      else if (field === "heightOffset") state.radiomap.surface.heightOffset = Number(value);
+      else if (field === "cellSize") state.radiomap.surface.cellSize = value === null ? null : Number(value);
+      else if (field === "densityLevel") state.radiomap.surface.densityLevel = Number(value);
+      else if (field === "samplesPerTx") state.radiomap.solver.samplesPerTx = Number(value);
+      else return false;
       controller.invalidateRadiomapResult();
       scene().renderAll();
       return true;
     }
-    if (!displayIds.has(controlId)) return false;
-    try {
-      solver().readRadiomapInputs();
-      solver().rerenderRadiomapOverlay();
-      resultView.renderRadiomapResult();
-    } catch (error) {
-      context.utilities.showErrorDialog("Radiomap Display Failed", error);
+    if (scope === "radiomap.display") {
+      if (field === "colormap") state.radiomap.display.colormap = normalizeColormapName(value);
+      else if (field === "colorMinDb") state.radiomap.display.colorMinDb = Number(value);
+      else if (field === "colorMaxDb") state.radiomap.display.colorMaxDb = Number(value);
+      else return false;
+      try {
+        solver().rerenderRadiomapOverlay();
+        resultView.renderRadiomapResult();
+        scene().renderAll();
+      } catch (error) {
+        context.utilities.showErrorDialog("Radiomap Display Failed", error);
+      }
+      return true;
     }
-    return true;
+    return false;
   }
 
   function handleControlAction(actionId) {
@@ -64,9 +60,9 @@ export function createRadiomapFeature(context) {
   }
 
   return {
-    attachEvents,
+    attachEvents() {},
     handleControlAction,
-    handleControlCommit,
+    handleControlUpdate,
     applyPick(pick, target) {
       const position = shared.pickPositionWithSurfaceClearance(pick, target.scope);
       shared.setLogicalAndVisual(state.radiomap, "tx", position);
@@ -75,9 +71,7 @@ export function createRadiomapFeature(context) {
     markerPositions() {
       return {tx: state.radiomap.txVisual, rx: null};
     },
-    readInputs() {
-      solver().readRadiomapInputs();
-    },
+    readInputs() {},
     runRequirementMessage,
     activate() {
       context.viewerRef.current.clearOverlay();

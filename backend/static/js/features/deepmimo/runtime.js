@@ -1,5 +1,5 @@
 export function createDeepMimoFeature(context) {
-  const {inputs, state, ui} = context;
+  const {state} = context;
   const {controller, resultView} = context;
   const shared = context.featureServices.solver;
   const solver = () => context.controllers.solver;
@@ -12,21 +12,37 @@ export function createDeepMimoFeature(context) {
       : "Place DeepMIMO Tx before exporting data.";
   }
 
-  function attachEvents() {
-    // DeepMIMO form and device actions are owned by the React control surface.
-  }
-
-  const fieldIds = new Set([
-    "deepMimoTxX", "deepMimoTxY", "deepMimoTxZ", "deepMimoScenarioName",
-    "deepMimoRoiCenterX", "deepMimoRoiCenterY", "deepMimoRoiWidth",
-    "deepMimoRoiLength", "deepMimoGridSpacing", "deepMimoRxHeight",
-    "deepMimoMaxReceivers", "deepMimoChunkSize", "deepMimoSamplesPerSrc",
-    "deepMimoMaxPaths", "deepMimoFilterBuildings",
-  ]);
-
-  function handleControlCommit(controlId) {
-    if (!fieldIds.has(controlId)) return false;
-    solver().readDeepMimoInputs();
+  function handleControlUpdate(scope, field, value) {
+    if (scope !== "deepmimo") return false;
+    if (field === "scenarioName") {
+      state.deepmimo.export.scenarioName = String(value ?? "");
+    } else if (field === "roiCenterX" || field === "roiCenterY" || field === "roiWidth" || field === "roiLength") {
+      const bounds = solver().deepMimoRoiBounds();
+      const centerX = field === "roiCenterX" ? Number(value) : (bounds?.center[0] ?? 0);
+      const centerY = field === "roiCenterY" ? Number(value) : (bounds?.center[1] ?? 0);
+      const width = field === "roiWidth" ? Number(value) : (bounds?.size[0] ?? 40);
+      const length = field === "roiLength" ? Number(value) : (bounds?.size[1] ?? 40);
+      if ([centerX, centerY, width, length].every(Number.isFinite) && width > 0 && length > 0) {
+        const z = Number.isFinite(Number(state.deepmimo.roi.visualZ)) ? Number(state.deepmimo.roi.visualZ) : 0;
+        solver().setDeepMimoRoiFromCenter(centerX, centerY, width, length, z);
+      }
+    } else if (field === "gridSpacing") {
+      state.deepmimo.rxGrid.spacing = Number(value);
+    } else if (field === "rxHeight") {
+      state.deepmimo.rxGrid.height = Number(value);
+    } else if (field === "maxReceivers") {
+      state.deepmimo.rxGrid.maxReceivers = Number(value);
+    } else if (field === "chunkSize") {
+      state.deepmimo.rxGrid.chunkSize = Number(value);
+    } else if (field === "filterBuildings") {
+      state.deepmimo.rxGrid.filterBuildings = Boolean(value);
+    } else if (field === "samplesPerSrc") {
+      state.deepmimo.solver.samplesPerSrc = Number(value);
+    } else if (field === "maxNumPathsPerSrc") {
+      state.deepmimo.solver.maxNumPathsPerSrc = Number(value);
+    } else {
+      return false;
+    }
     controller.invalidateDeepMimoResult();
     resultView.renderDeepMimoState();
     scene().renderAll();
@@ -57,9 +73,9 @@ export function createDeepMimoFeature(context) {
   }
 
   return {
-    attachEvents,
+    attachEvents() {},
     handleControlAction,
-    handleControlCommit,
+    handleControlUpdate,
     applyPick(pick, target) {
       if (target.role === "roi") {
         const position = Array.isArray(pick.surfacePosition) ? pick.surfacePosition : pick.logicalPosition;
@@ -91,9 +107,7 @@ export function createDeepMimoFeature(context) {
     markerPositions() {
       return {tx: state.deepmimo.txVisual, rx: null};
     },
-    readInputs() {
-      solver().readDeepMimoInputs();
-    },
+    readInputs() {},
     runRequirementMessage,
     closeTransientUi() {
       if (!state.deepmimo.datasetTrayOpen) {

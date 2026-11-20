@@ -4,12 +4,13 @@ function isEditableKeyboardTarget(target) {
 }
 
 export function createMobilityFeature(context) {
-  const {inputs, state, ui} = context;
+  const {state} = context;
   const {controller, resultView} = context;
   const shared = context.featureServices.solver;
   const solver = () => context.controllers.solver;
   const scene = () => context.controllers.scene;
   const picking = () => context.controllers.devicePicking;
+  let keydownHandler = null;
 
   function runRequirementMessage() {
     return Array.isArray(state.mobility.tx)
@@ -18,8 +19,9 @@ export function createMobilityFeature(context) {
   }
 
   function attachEvents() {
-    window.addEventListener("keydown", (event) => {
-      if (state.mode !== "mobility" || state.entry.visible || ui.loadingScreen.style.display !== "none" || isEditableKeyboardTarget(event.target)) {
+    if (keydownHandler) return;
+    keydownHandler = (event) => {
+      if (state.mode !== "mobility" || state.entry.visible || state.loading.visible || isEditableKeyboardTarget(event.target)) {
         return;
       }
       if (event.key === "Enter") {
@@ -29,27 +31,13 @@ export function createMobilityFeature(context) {
         event.preventDefault();
         solver().deleteMobilityWaypoint(state.mobility.selectedWaypointIndex);
       }
-    });
+    };
+    window.addEventListener("keydown", keydownHandler);
   }
 
-  const deviceIds = new Set([
-    "mobilityTxX", "mobilityTxY", "mobilityTxZ",
-    "mobilityRxX", "mobilityRxY", "mobilityRxZ",
-  ]);
-  const trajectoryIds = new Set([
-    "mobilityVelocity", "mobilityTimeStep", "mobilityMaxSteps",
-  ]);
-
-  function handleControlCommit(controlId) {
-    if (deviceIds.has(controlId)) {
-      solver().readMobilityInputs();
-      controller.invalidateMobilityResult();
-      picking().refreshPickStatus("mobility");
-      scene().renderAll();
-      return true;
-    }
-    if (!trajectoryIds.has(controlId)) return false;
-    solver().readMobilityInputs();
+  function handleControlUpdate(scope, field, value) {
+    if (scope !== "mobility" || !(field in state.mobility.trajectory)) return false;
+    state.mobility.trajectory[field] = Number(value);
     controller.invalidateMobilityResult();
     scene().renderAll();
     return true;
@@ -96,7 +84,7 @@ export function createMobilityFeature(context) {
   return {
     attachEvents,
     handleControlAction,
-    handleControlCommit,
+    handleControlUpdate,
     applyPick(pick, target) {
       const position = shared.pickPositionWithSurfaceClearance(pick, target.scope);
       shared.setLogicalAndVisual(state.mobility, target.role, position);
@@ -106,9 +94,7 @@ export function createMobilityFeature(context) {
       const sample = state.mobility.result?.samples?.[state.mobility.selectedStep];
       return {tx: state.mobility.txVisual, rx: sample?.rx_position || state.mobility.rxVisual};
     },
-    readInputs() {
-      solver().readMobilityInputs();
-    },
+    readInputs() {},
     runRequirementMessage,
     activate() {
       if (!state.mobility.tapsDefaulted) {
@@ -125,13 +111,14 @@ export function createMobilityFeature(context) {
       controller.invalidateMobilityResult();
     },
     render() {
-      const rxReady = Array.isArray(state.mobility.rx);
-      ui.btnMobilityAddRxPoint.disabled = !rxReady;
-      if (rxReady) ui.btnMobilityAddRxPoint.removeAttribute("title");
-      else ui.btnMobilityAddRxPoint.title = "Place Mobility Rx before adding a waypoint.";
+      solver().renderMobilityTrajectoryPreview();
       resultView.renderMobilityResult();
     },
     dispose() {
+      if (keydownHandler) {
+        window.removeEventListener("keydown", keydownHandler);
+        keydownHandler = null;
+      }
       resultView.dispose();
     },
   };

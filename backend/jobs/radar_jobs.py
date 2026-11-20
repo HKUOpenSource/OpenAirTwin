@@ -172,7 +172,7 @@ class RadarJobManager:
             if job.status == "queued":
                 self._finish_locked(job, status="cancelled", message="Cancelled")
             else:
-                job.message = "Cancellation requested; waiting for current Radar stage"
+                job.message = "Cancelling (waiting)..."
             return job
 
     def stored_job_count(self) -> int:
@@ -193,7 +193,7 @@ class RadarJobManager:
                 if job.status == "queued":
                     self._finish_locked(job, status="cancelled", message="Cancelled during shutdown")
                 else:
-                    job.message = "Cancellation requested; waiting for current Radar stage"
+                    job.message = "Cancelling (waiting)..."
         worker = self._worker
         if worker is not None and worker is not current_thread():
             worker.join(timeout=self.shutdown_timeout_seconds)

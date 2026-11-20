@@ -71,6 +71,46 @@ PYTHON_RUNTIME_DEPENDENCIES = (
 
 BROWSER_RUNTIME_DEPENDENCIES = (
     ReleaseDependency(
+        "@astryxdesign/core",
+        "Astryx Core",
+        "0.7.16",
+        "MIT",
+        "https://astryx.atmeta.com/",
+        "pkg:npm/%40astryxdesign/core@0.7.16",
+    ),
+    ReleaseDependency(
+        "@astryxdesign/theme-neutral",
+        "Astryx Neutral Theme",
+        "0.7.16",
+        "MIT",
+        "https://astryx.atmeta.com/",
+        "pkg:npm/%40astryxdesign/theme-neutral@0.7.16",
+    ),
+    ReleaseDependency(
+        "@stylexjs/stylex",
+        "StyleX",
+        "0.19.2",
+        "MIT",
+        "https://stylexjs.com/",
+        "pkg:npm/%40stylexjs/stylex@0.19.2",
+    ),
+    ReleaseDependency(
+        "lucide-react",
+        "Lucide React",
+        "1.76.0",
+        "ISC",
+        "https://lucide.dev/",
+        "pkg:npm/lucide-react@1.76.0",
+    ),
+    ReleaseDependency(
+        "intl-messageformat",
+        "Intl MessageFormat",
+        "11.2.15",
+        "BSD-3-Clause",
+        "https://formatjs.io/",
+        "pkg:npm/intl-messageformat@11.2.15",
+    ),
+    ReleaseDependency(
         "maplibre-gl", "MapLibre GL JS", "6.4.1", "BSD-3-Clause",
         "https://maplibre.org/", "pkg:npm/maplibre-gl@6.4.1",
     ),

@@ -10,21 +10,24 @@ function availableAssets(values) {
   return (Array.isArray(values) ? values : []).filter((asset) => asset?.id && asset?.visual?.url);
 }
 
-export function createRadarAssetPreview({dom, state, viewerRef}) {
+export function createRadarAssetPreview({hosts, state, viewerRef, onStateChange = () => {}}) {
   const radar = state.radar;
   let assets = [];
   let selectedIndex = 0;
   let active = false;
+  let groupOpen = true;
   let disposed = false;
   let scene = null;
   let camera = null;
   let webglRenderer = null;
   let orbitControls = null;
   let resizeObserver = null;
+  let mountedCanvas = null;
   let animationFrame = 0;
   let previousFrameTime = 0;
   let loadGeneration = 0;
   let loadState = "loading";
+  let statusMessage = "Loading drone models...";
   let currentRecord = null;
 
   function selectedAsset() {
@@ -40,55 +43,75 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
     return asset ? radarAssetDisplayName(assets, asset.id) : "No drone models";
   }
 
-  function updateMeta() {
+  function publishPickerState() {
     const asset = selectedAsset();
-    const name = assetName(asset);
-    dom.radarAssetPreviewName.textContent = name;
-    dom.radarAssetPreviewCount.textContent = asset ? `${selectedIndex + 1} / ${assets.length}` : "0 / 0";
-    dom.radarAssetPreviewCanvas.setAttribute("aria-label", asset ? `Interactive 3D preview of ${name}` : "Drone model preview unavailable");
-    const multiple = assets.length > 1;
-    dom.btnRadarAssetPrevious.disabled = !multiple;
-    dom.btnRadarAssetNext.disabled = !multiple;
+    const atLimit = radar.targets.length >= RADAR_MAX_TARGETS;
+    const canAdd = Boolean(asset) && loadState === "ready" && !atLimit;
+    let hint = "";
+    let addTargetDisabledReason = "";
+    if (atLimit) {
+      hint = `Maximum ${RADAR_MAX_TARGETS} targets reached.`;
+      addTargetDisabledReason = `Radar supports at most ${RADAR_MAX_TARGETS} targets.`;
+    } else if (loadState === "ready") {
+      hint = "Drag to rotate · Model turns automatically";
+    } else if (loadState === "error") {
+      hint = "Choose another model or return to this model to retry.";
+      addTargetDisabledReason = "The selected drone preview could not be loaded.";
+    } else {
+      hint = assets.length ? "Preparing the selected drone preview..." : "Add a compatible drone asset to continue.";
+      addTargetDisabledReason = "Drone preview is not ready yet.";
+    }
+
+    radar.picker = {
+      assetId: asset?.id || "",
+      assetName: assetName(asset),
+      countLabel: asset ? `${selectedIndex + 1} / ${assets.length}` : "0 / 0",
+      status: loadState === "ready" ? "" : statusMessage,
+      state: loadState === "ready" ? "ready" : loadState === "error" ? "error" : "loading",
+      hint,
+      hasMultipleAssets: assets.length > 1,
+      canAddTarget: canAdd,
+      addTargetDisabledReason,
+    };
+    onStateChange();
   }
 
   function setLoadState(nextState, message = "") {
     loadState = nextState;
-    dom.radarAssetPicker.dataset.state = nextState;
-    dom.radarAssetPreviewStatus.textContent = message;
-    dom.radarAssetPreviewStatus.classList.toggle("hidden", nextState === "ready");
-    syncState();
-  }
-
-  function syncState() {
-    if (disposed) return;
-    const atLimit = radar.targets.length >= RADAR_MAX_TARGETS;
-    const canAdd = Boolean(selectedAsset()) && loadState === "ready" && !atLimit;
-    dom.btnAddRadarTarget.disabled = !canAdd;
-    if (atLimit) {
-      dom.radarAssetPickerHint.textContent = `Maximum ${RADAR_MAX_TARGETS} targets reached.`;
-      dom.btnAddRadarTarget.title = `Radar supports at most ${RADAR_MAX_TARGETS} targets`;
-    } else if (loadState === "ready") {
-      dom.radarAssetPickerHint.textContent = "Drag to rotate · Model turns automatically";
-      dom.btnAddRadarTarget.removeAttribute("title");
-    } else if (loadState === "error") {
-      dom.radarAssetPickerHint.textContent = "Choose another model or return to this model to retry.";
-      dom.btnAddRadarTarget.title = "The selected drone preview could not be loaded";
-    } else {
-      dom.radarAssetPickerHint.textContent = assets.length ? "Preparing the selected drone preview…" : "Add a compatible drone asset to continue.";
-      dom.btnAddRadarTarget.removeAttribute("title");
-    }
+    statusMessage = message;
+    publishPickerState();
     syncAnimation();
   }
 
+  function teardownRenderer() {
+    resizeObserver?.disconnect();
+    resizeObserver = null;
+    orbitControls?.dispose();
+    orbitControls = null;
+    webglRenderer?.dispose();
+    webglRenderer = null;
+    mountedCanvas = null;
+    scene = null;
+    camera = null;
+  }
+
   function ensureRenderer() {
-    if (webglRenderer) return true;
+    const canvas = hosts?.get("radarAssetPreviewCanvas");
+    if (!canvas) return false;
+    if (webglRenderer && mountedCanvas === canvas) return true;
+    if (webglRenderer && mountedCanvas !== canvas) {
+      releaseCurrent();
+      teardownRenderer();
+    }
     try {
+      mountedCanvas = canvas;
       webglRenderer = new THREE.WebGLRenderer({
-        canvas: dom.radarAssetPreviewCanvas,
+        canvas,
         alpha: true,
         antialias: true,
         powerPreference: "low-power",
       });
+      webglRenderer.debug.checkShaderErrors = false;
       webglRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PREVIEW_PIXEL_RATIO_CAP));
       webglRenderer.setClearColor(0x000000, 0);
       webglRenderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -106,7 +129,7 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
       fillLight.position.set(4, 2, 2);
       scene.add(fillLight);
 
-      orbitControls = new OrbitControls(camera, dom.radarAssetPreviewCanvas);
+      orbitControls = new OrbitControls(camera, canvas);
       orbitControls.enableDamping = true;
       orbitControls.dampingFactor = 0.065;
       orbitControls.enablePan = false;
@@ -117,7 +140,7 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
       orbitControls.maxPolarAngle = Math.PI * 0.48;
 
       resizeObserver = new ResizeObserver(resize);
-      resizeObserver.observe(dom.radarAssetPreviewCanvas);
+      resizeObserver.observe(canvas);
       resize();
       return true;
     } catch (error) {
@@ -128,8 +151,8 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
   }
 
   function resize() {
-    if (!webglRenderer || !camera) return;
-    const rect = dom.radarAssetPreviewCanvas.getBoundingClientRect();
+    if (!webglRenderer || !camera || !mountedCanvas) return;
+    const rect = mountedCanvas.getBoundingClientRect();
     const width = Math.max(1, Math.round(rect.width));
     const height = Math.max(1, Math.round(rect.height));
     webglRenderer.setSize(width, height, false);
@@ -165,11 +188,12 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
 
   function shouldAnimate() {
     return active
-      && dom.radarTargetsGroup.open
+      && groupOpen
       && !document.hidden
       && loadState === "ready"
       && Boolean(currentRecord)
-      && Boolean(webglRenderer);
+      && Boolean(webglRenderer)
+      && Boolean(mountedCanvas && document.contains(mountedCanvas));
   }
 
   function renderFrame(timestamp = performance.now()) {
@@ -217,8 +241,11 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
       setLoadState("error", `Preview unavailable for ${assetName(asset)}.`);
       return;
     }
-    if (!ensureRenderer()) return;
-    setLoadState("loading", `Loading ${assetName(asset)}…`);
+    if (!ensureRenderer()) {
+      setLoadState("waiting", "Open Targets panel to preview drone.");
+      return;
+    }
+    setLoadState("loading", `Loading ${assetName(asset)}...`);
     try {
       const instance = await manager.instantiate(asset.id);
       if (disposed || generation !== loadGeneration) {
@@ -240,7 +267,7 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
   function selectOffset(offset) {
     if (assets.length < 2) return;
     selectedIndex = (selectedIndex + offset + assets.length) % assets.length;
-    updateMeta();
+    publishPickerState();
     loadSelected();
   }
 
@@ -249,7 +276,7 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
     assets = availableAssets(values);
     const preservedIndex = assets.findIndex((asset) => asset.id === previousId);
     selectedIndex = preservedIndex >= 0 ? preservedIndex : 0;
-    updateMeta();
+    publishPickerState();
     loadSelected();
   }
 
@@ -257,19 +284,13 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
     syncAnimation();
   }
 
-  function handleGroupToggle() {
-    if (dom.radarTargetsGroup.open && loadState === "waiting" && assetManager()) loadSelected();
-    syncAnimation();
-  }
-
   document.addEventListener("visibilitychange", handleVisibilityChange);
-  updateMeta();
-  setLoadState("loading", "Loading drone models…");
+  setLoadState("loading", "Loading drone models...");
 
   return Object.freeze({
     activate() {
       active = true;
-      if (assets.length && loadState === "waiting") loadSelected();
+      if (assets.length && (loadState === "waiting" || !mountedCanvas)) loadSelected();
       syncAnimation();
     },
     deactivate() {
@@ -283,9 +304,7 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
       loadGeneration += 1;
       syncAnimation();
       releaseCurrent();
-      resizeObserver?.disconnect();
-      orbitControls?.dispose();
-      webglRenderer?.dispose();
+      teardownRenderer();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     },
     next() {
@@ -295,11 +314,14 @@ export function createRadarAssetPreview({dom, state, viewerRef}) {
       selectOffset(-1);
     },
     syncGroup(open) {
-      dom.radarTargetsGroup.open = Boolean(open);
-      handleGroupToggle();
+      groupOpen = Boolean(open);
+      if (groupOpen && assets.length && (loadState === "waiting" || !mountedCanvas || !document.contains(mountedCanvas))) {
+        loadSelected();
+      }
+      syncAnimation();
     },
     selectedAssetId: () => selectedAsset()?.id || null,
     setAssets,
-    syncState,
+    syncState: publishPickerState,
   });
 }

@@ -27,39 +27,35 @@ function normalizeOptions(type, options) {
 }
 
 export function createAppDialogController(context) {
-  const {ui} = context;
+  const shellStore = context.featureServices.shellUi;
   const queue = [];
   let activeRequest = null;
-  let lastFocusedElement = null;
 
-  function focusableElements() {
-    return [
-      ui.appDialogClose,
-      ui.appDialogSecondary?.classList.contains("hidden") ? null : ui.appDialogSecondary,
-      ui.appDialogPrimary,
-    ].filter((element) => element && !element.disabled);
+  function publishClosed() {
+    shellStore.patch((current) => ({
+      ...current,
+      dialog: {
+        ...current.dialog,
+        open: false,
+        detail: "",
+      },
+    }));
   }
 
-  function focusPrimaryButton() {
-    ui.appDialogPrimary?.focus({preventScroll: true});
-  }
-
-  function restoreFocus() {
-    if (lastFocusedElement && document.contains(lastFocusedElement)) {
-      lastFocusedElement.focus({preventScroll: true});
-    }
-    lastFocusedElement = null;
-  }
-
-  function hideDialog() {
-    ui.appDialog.classList.add("hidden");
-    ui.appDialog.classList.remove("error", "warning", "info");
-    ui.appDialog.setAttribute("aria-hidden", "true");
-    ui.appDialogTitle.textContent = "";
-    ui.appDialogMessage.textContent = "";
-    ui.appDialogDetail.textContent = "";
-    ui.appDialogDetail.classList.add("hidden");
-    ui.appDialogSecondary.classList.add("hidden");
+  function publishRequest(request) {
+    shellStore.patch((current) => ({
+      ...current,
+      dialog: {
+        open: true,
+        type: request.type,
+        variant: request.variant,
+        title: request.title,
+        message: request.message,
+        detail: request.detail,
+        primaryLabel: request.type === "confirm" ? request.confirmLabel : request.okLabel,
+        secondaryLabel: request.cancelLabel,
+      },
+    }));
   }
 
   function finishDialog(result) {
@@ -68,8 +64,7 @@ export function createAppDialogController(context) {
     }
     const request = activeRequest;
     activeRequest = null;
-    hideDialog();
-    restoreFocus();
+    publishClosed();
     request.resolve(result);
     window.setTimeout(showNextDialog, 0);
   }
@@ -82,94 +77,39 @@ export function createAppDialogController(context) {
     finishDialog(activeRequest?.type === "confirm" ? true : undefined);
   }
 
-  function handleGlobalKeydown(event) {
-    if (!activeRequest) {
-      return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      cancelActiveDialog();
-      return;
-    }
-    if (event.key !== "Tab") {
-      return;
-    }
-    const focusable = focusableElements();
-    if (!focusable.length) {
-      event.preventDefault();
-      return;
-    }
-    const currentIndex = focusable.indexOf(document.activeElement);
-    const nextIndex = event.shiftKey
-      ? (currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1)
-      : (currentIndex === focusable.length - 1 ? 0 : currentIndex + 1);
-    event.preventDefault();
-    focusable[nextIndex].focus({preventScroll: true});
-  }
-
-  function handleFocusIn(event) {
-    if (!activeRequest || ui.appDialogCard.contains(event.target)) {
-      return;
-    }
-    focusPrimaryButton();
-  }
-
-  function renderDialog(request) {
-    lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    ui.appDialogTitle.textContent = request.title;
-    ui.appDialogMessage.textContent = request.message;
-    ui.appDialogDetail.textContent = request.detail;
-    ui.appDialogDetail.classList.toggle("hidden", !request.detail);
-    ui.appDialogPrimary.textContent = request.type === "confirm" ? request.confirmLabel : request.okLabel;
-    ui.appDialogSecondary.textContent = request.cancelLabel;
-    ui.appDialogSecondary.classList.toggle("hidden", request.type !== "confirm");
-    ui.appDialog.classList.remove("hidden", "error", "warning", "info");
-    ui.appDialog.classList.add(request.variant);
-    ui.appDialog.setAttribute("aria-hidden", "false");
-    window.setTimeout(focusPrimaryButton, 0);
-  }
-
   function showNextDialog() {
-    if (activeRequest || queue.length === 0) {
+    if (activeRequest || !queue.length) {
       return;
     }
     activeRequest = queue.shift();
-    renderDialog(activeRequest);
+    publishRequest(activeRequest);
   }
 
-  function enqueueDialog(request) {
+  function enqueueDialog(type, options) {
+    const normalized = normalizeOptions(type, options);
     return new Promise((resolve) => {
-      queue.push({...request, resolve});
+      queue.push({...normalized, resolve});
       showNextDialog();
     });
   }
 
-  document.addEventListener("keydown", handleGlobalKeydown, true);
-  document.addEventListener("focusin", handleFocusIn, true);
-  hideDialog();
-
   return {
-    cancelActiveDialog,
-    confirmActiveDialog,
-    finishDialog,
     alert(options) {
-      return enqueueDialog(normalizeOptions("alert", options)).then(() => {});
+      return enqueueDialog("alert", options);
     },
     confirm(options) {
-      return enqueueDialog(normalizeOptions("confirm", options)).then(Boolean);
+      return enqueueDialog("confirm", options);
+    },
+    confirmActiveDialog,
+    cancelActiveDialog,
+    finishDialog,
+    isOpen() {
+      return Boolean(activeRequest);
     },
     dispose() {
-      document.removeEventListener("keydown", handleGlobalKeydown, true);
-      document.removeEventListener("focusin", handleFocusIn, true);
-      if (activeRequest) {
-        const request = activeRequest;
-        activeRequest = null;
-        request.resolve(request.type === "confirm" ? false : undefined);
-      }
-      for (const request of queue.splice(0)) {
-        request.resolve(request.type === "confirm" ? false : undefined);
-      }
-      hideDialog();
+      queue.length = 0;
+      activeRequest = null;
+      publishClosed();
     },
   };
 }
