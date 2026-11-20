@@ -5,7 +5,7 @@ from email.utils import formatdate, parsedate_to_datetime
 import json
 import mimetypes
 import os
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as _ThreadingHTTPServer
 from pathlib import Path
 import sys
 import threading
@@ -628,6 +628,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
             self.send_json({"ok": False, "error": "Internal server error"}, code=500)
+
+
+class ThreadingHTTPServer(_ThreadingHTTPServer):
+    request_queue_size = 128
 
 
 def main() -> None:

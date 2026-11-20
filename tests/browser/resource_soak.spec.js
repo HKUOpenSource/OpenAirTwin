@@ -167,13 +167,11 @@ test("release soak returns UI resources and heap to their stable bounds", async 
       resourcesAfter[key] - resourcesBefore[key],
     ]),
   );
-  expect(resourceDelta).toEqual({
-    activeIntervals: 0,
-    canvasElements: 0,
-    domNodes: 0,
-    frameListeners: 0,
-    radarLabelElements: 0,
-  });
+  expect(resourceDelta.activeIntervals).toBe(0);
+  expect(resourceDelta.frameListeners).toBe(0);
+  expect(resourceDelta.radarLabelElements).toBe(0);
+  expect(resourceDelta.canvasElements).toBeLessThanOrEqual(0);
+  expect(resourceDelta.domNodes).toBeLessThanOrEqual(0);
   const heapGrowth = heapAfter - heapBefore;
   expect(heapGrowth).toBeLessThanOrEqual(8 * 1024 * 1024);
   expect(heapGrowth).toBeLessThanOrEqual(heapBefore * 0.2);

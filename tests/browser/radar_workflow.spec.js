@@ -6,7 +6,6 @@ import {
   activateMode,
   enableRealViewer,
   configureRadarFixture,
-  syncUiAfterStateMutation,
 } from "./workbench-fixture.js";
 
 async function installRadarJob(page, clutterCount = 0) {
@@ -192,7 +191,6 @@ test("Radar processing views, detection filters and scene selections stay linked
     });
   });
   await activateMode(page, "radar");
-  await syncUiAfterStateMutation(page);
 
   await page
     .getByTestId("left-inspector")

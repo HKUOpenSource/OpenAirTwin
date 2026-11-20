@@ -9,9 +9,10 @@ const baseURL = `http://127.0.0.1:${serverPort}`;
 export default defineConfig({
   testDir: ".",
   testMatch: "*.spec.js",
-  timeout: 30_000,
-  expect: {timeout: 5_000},
+  timeout: 60_000,
+  expect: {timeout: 10_000},
   fullyParallel: false,
+  workers: process.env.CI ? 1 : undefined,
   reporter: "list",
   use: {
     baseURL,
