@@ -12,16 +12,22 @@
     "test": "npm run check && node scripts/validate-tutorial.mjs"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^5.1.1",
-    "typescript": "^5.9.3",
-    "vite": "^7.2.7",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "@astryxdesign/core": "0.7.16",
+    "@astryxdesign/theme-neutral": "0.7.16",
+    "@stylexjs/stylex": "0.19.2",
+    "lucide-react": "1.76.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "three": "0.160.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3"
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "0.160.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
   },
   "engines": {
     "node": ">=20.19.0"

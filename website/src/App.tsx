@@ -1,302 +1,275 @@
-import { useState, type CSSProperties, type KeyboardEvent } from "react";
-import { WorkflowTutorial } from "./WorkflowTutorial";
+import { useCallback, useEffect, useState } from "react";
 import {
-  featureItems,
-  quickStart,
-  tutorialModes,
-} from "./tutorialData";
-import type { ModeId } from "./tutorialData";
+  ArrowRight,
+  Building2,
+  Database,
+  ExternalLink,
+  Radar,
+} from "lucide-react";
+import { Button } from "@astryxdesign/core/Button";
 
-const media = (fileName: string) => `${import.meta.env.BASE_URL}media/${fileName}`;
-const mainRepositoryUrl = "https://github.com/HKUOpenSource/OpenAirTwin";
-const architectureUrl = "https://hkuopensource.github.io/OpenAirTwin/architecture/";
+import { CapabilitiesGrid } from "./components/CapabilitiesGrid";
+import { PhysicsSandbox } from "./components/PhysicsSandbox";
+import { QuickStartSection } from "./components/QuickStartSection";
+import {
+  ARCHITECTURE_HREF,
+  LAB_MODES,
+  RELEASE_URL,
+  REPOSITORY_URL,
+  VALUE_PILLARS,
+  getModeFromUrl,
+  type LabModeId,
+} from "./data/siteData";
 
-function App() {
-  const activeMode = tutorialModes[0];
-  const accentStyle = { "--mode-accent": activeMode.accent } as CSSProperties;
+const media = (fileName: string) =>
+  `${import.meta.env.BASE_URL}media/${fileName}`;
+
+const PILLAR_ICONS = [Building2, Radar, Database] as const;
+
+export function App() {
+  const [activeModeId, setActiveModeId] = useState<LabModeId>(
+    () => getModeFromUrl() ?? "link",
+  );
+  const [sceneResetSignal, setSceneResetSignal] = useState<number>(0);
+
+  const selectMode = useCallback((modeId: LabModeId, pushHistory = true) => {
+    setActiveModeId(modeId);
+    if (pushHistory && typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("tutorial");
+      url.searchParams.set("mode", modeId);
+      url.hash = "lab";
+      window.history.pushState({}, "", url);
+    }
+  }, []);
+
+  const inspectScene = useCallback(() => {
+    selectMode("link", true);
+    setSceneResetSignal((n) => n + 1);
+  }, [selectMode]);
+
+  useEffect(() => {
+    const handleSelectMode = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (detail === "map") {
+        inspectScene();
+      } else if (LAB_MODES.some((m) => m.id === detail)) {
+        selectMode(detail as LabModeId, true);
+      }
+    };
+    window.addEventListener("openairtwin:select-mode", handleSelectMode);
+    return () =>
+      window.removeEventListener("openairtwin:select-mode", handleSelectMode);
+  }, [selectMode, inspectScene]);
 
   return (
-    <div className="site" style={accentStyle}>
+    <div className="oat-site">
       <Header />
+
       <main>
-        <section className="hero" id="home">
-          <div className="heroBackdrop" aria-hidden="true">
-            <span className="heroGrid"></span>
-            <span className="heroScan"></span>
-            <span className="heroGlow heroGlowOne"></span>
-            <span className="heroGlow heroGlowTwo"></span>
-          </div>
-          <div className="heroCopy">
-            <HeroTitleMedia />
-            <p>
-              An open-source digital twin platform for interactive wireless research
-            </p>
-            <div className="heroActions">
-              <a className="primaryAction" href="#features">
-                Get Started
-                <ArrowRightIcon />
-              </a>
+        {/* 1. Centered Hero & 3D Interactive Lab Showcase */}
+        <section className="oat-section oat-section--hero" id="home">
+          <div className="oat-container">
+            <div className="oat-hero-centered">
+              <p className="oat-hero-eyebrow">
+                Open-Source Wireless Digital Twin
+              </p>
+
+              <h1 className="oat-hero-title">
+                Real-world 3D cities for wireless research.
+              </h1>
+
+              <p className="oat-hero-subtitle">
+                Turn real urban geometry into open, physics-based digital twins
+                for wireless communication, sensing, and AI.
+              </p>
+
+              <div className="oat-hero-actions">
+                <Button
+                  endContent={<ArrowRight size={15} />}
+                  href="#lab"
+                  label="Try 3D Lab"
+                  size="lg"
+                  variant="primary"
+                />
+                <Button
+                  href="#get-started"
+                  label="Get Started"
+                  size="lg"
+                  variant="secondary"
+                />
+              </div>
+            </div>
+
+            <div className="oat-hero-stage" id="lab">
+              <PhysicsSandbox
+                activeModeId={activeModeId}
+                onModeChange={selectMode}
+                sceneResetSignal={sceneResetSignal}
+              />
             </div>
           </div>
         </section>
 
-        <section className="section" id="features">
-          <div className="sectionHead">
-            <h2>Features</h2>
-          </div>
-          <div className="featureGrid">
-            {featureItems.map((item, index) => {
-              const mode = tutorialModes.find((tutorialMode) => tutorialMode.id === item.modeId) ?? activeMode;
+        {/* 2. Platform Vision & Core Pillars */}
+        <section className="oat-section" id="why">
+          <div className="oat-container">
+            <div className="oat-section-header">
+              <p className="oat-section-eyebrow">Vision</p>
+              <h2 className="oat-section-title">
+                Site-specific. Unified. Open.
+              </h2>
+              <p className="oat-section-lead">
+                A shared foundation uniting physical 3D environments,
+                ray-traced physics, and open research ecosystems.
+              </p>
+            </div>
 
-              return (
-                <article className="featureCard" key={item.title} style={{ "--mode-accent": mode.accent } as CSSProperties}>
-                  <div className="featureMedia">
-                    {item.mediaType === "video" ? (
-                      <video
-                        aria-label={`${item.title} feature preview`}
-                        autoPlay={!window.matchMedia("(prefers-reduced-motion: reduce)").matches}
-                        loop
-                        muted
-                        playsInline
-                        preload="metadata"
-                        src={media(item.image)}
-                      />
-                    ) : (
-                      <img
-                        alt={`${item.title} feature preview`}
-                        decoding="async"
-                        loading="lazy"
-                        src={media(item.image)}
-                      />
-                    )}
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                  </div>
-                  <div className="featureCardBody">
-                    <h3>{item.title}</h3>
-                    <p>{item.body}</p>
-                    <a
-                      href={`?tutorial=${item.modeId}/${mode.steps[0].id}#workflow-tutorial`}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        requestTutorialMode(item.modeId);
-                        document.getElementById("workflow-tutorial")?.scrollIntoView();
-                      }}
-                    >
-                      Watch tutorial
-                      <ArrowRightIcon />
-                    </a>
-                  </div>
-                </article>
-              );
-            })}
+            <div className="oat-pillars-grid">
+              {VALUE_PILLARS.map((pillar, idx) => {
+                const Icon = PILLAR_ICONS[idx] ?? Building2;
+                return (
+                  <article className="oat-pillar-card" key={pillar.id}>
+                    <div className="oat-cap-top">
+                      <span className="oat-cap-icon" aria-hidden="true">
+                        <Icon size={16} strokeWidth={1.85} />
+                      </span>
+                      <span className="oat-cap-index oat-tabular">
+                        {pillar.index}
+                      </span>
+                    </div>
+                    <h3 className="oat-pillar-title">{pillar.title}</h3>
+                    <p className="oat-pillar-desc">{pillar.description}</p>
+                  </article>
+                );
+              })}
+            </div>
           </div>
         </section>
 
-        <section className="section workflowSection" id="workflow-tutorial">
-          <div className="sectionHead">
-            <h2>Tutorial</h2>
+        {/* 3. Platform Capabilities (Strict 3x2 Matrix) */}
+        <section className="oat-section oat-section--surface" id="workflows">
+          <div className="oat-container">
+            <div className="oat-section-header">
+              <p className="oat-section-eyebrow">Capabilities</p>
+              <h2 className="oat-section-title">
+                Core capabilities on one 3D foundation
+              </h2>
+              <p className="oat-section-lead">
+                Start with core propagation, sensing, and dataset workflows—and
+                extend effortlessly on a shared urban digital twin.
+              </p>
+            </div>
+
+            <CapabilitiesGrid
+              onInspectScene={inspectScene}
+              onSelectMode={(modeId) => selectMode(modeId, true)}
+            />
           </div>
-          <WorkflowTutorial modes={tutorialModes} />
         </section>
 
-        <section className="section" id="quick-start">
-          <div className="sectionHead">
-            <h2>Installation</h2>
+        {/* 4. Get Started */}
+        <section className="oat-section" id="get-started">
+          <div className="oat-container">
+            <div className="oat-section-header">
+              <p className="oat-section-eyebrow">Get Started</p>
+              <h2 className="oat-section-title">Launch locally in minutes</h2>
+              <p className="oat-section-lead">
+                Start experimenting out of the box with prebuilt assets and
+                sample 3D city scenes.
+              </p>
+            </div>
+
+            <QuickStartSection />
           </div>
-          <InstallationGuide />
         </section>
       </main>
+
       <Footer />
-    </div>
-  );
-}
-
-function requestTutorialMode(modeId: ModeId) {
-  window.dispatchEvent(new CustomEvent("openairtwin:set-mode", { detail: modeId }));
-}
-
-function ArrowRightIcon() {
-  return (
-    <svg aria-hidden="true" className="arrowIcon" fill="none" viewBox="0 0 20 20">
-      <path d="M4 10h11m-4-5 5 5-5 5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
-  );
-}
-
-function HeroTitleMedia() {
-  const [videoReady, setVideoReady] = useState(false);
-  const [videoFailed, setVideoFailed] = useState(false);
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  const className = [
-    "heroTitleMedia",
-    videoReady && !videoFailed ? "isVideoReady" : "",
-    videoFailed ? "isVideoFailed" : "",
-  ].filter(Boolean).join(" ");
-
-  return (
-    <div className={className}>
-      <h1 className="srOnly">OpenAirTwin</h1>
-      <video
-        aria-hidden="true"
-        autoPlay={!reduceMotion}
-        className="heroTitleVideo"
-        loop={!reduceMotion}
-        muted
-        onCanPlay={() => setVideoReady(true)}
-        onError={() => setVideoFailed(true)}
-        playsInline
-        preload="metadata"
-        src={media("hero_text_alpha_compact.webm")}
-      />
-      <div aria-hidden={!videoFailed} className="heroTitleFallback">
-        OpenAirTwin
-      </div>
     </div>
   );
 }
 
 function Header() {
   return (
-    <header className="topNav">
-      <a className="brand" href="#home" aria-label="OpenAirTwin tutorial home">
-        <BrandLogo decorative priority />
-      </a>
-      <nav aria-label="Tutorial navigation">
-        <a href="#features">Features</a>
-        <a href="#workflow-tutorial">Tutorial</a>
-        <a href="#quick-start">Setup</a>
-      </nav>
-      <a className="githubLink" href={mainRepositoryUrl}>
-        GitHub
-      </a>
+    <header className="oat-nav">
+      <div className="oat-container oat-nav-inner">
+        <a aria-label="OpenAirTwin home" className="oat-brand" href="#home">
+          <img
+            alt=""
+            className="oat-brand-logo"
+            decoding="async"
+            loading="eager"
+            src={media("openairtwin_logo.png")}
+          />
+        </a>
+
+        <nav aria-label="Primary navigation" className="oat-nav-links">
+          <a className="oat-nav-link" href="#lab">
+            3D Lab
+          </a>
+          <a className="oat-nav-link" href="#why">
+            Vision
+          </a>
+          <a className="oat-nav-link" href="#workflows">
+            Capabilities
+          </a>
+          <a className="oat-nav-link" href="#get-started">
+            Get Started
+          </a>
+          <a className="oat-nav-link" href={ARCHITECTURE_HREF}>
+            Architecture
+          </a>
+        </nav>
+
+        <div className="oat-nav-actions">
+          <Button
+            endContent={<ExternalLink size={13} />}
+            href={REPOSITORY_URL}
+            label="GitHub"
+            size="sm"
+            variant="secondary"
+          />
+        </div>
+      </div>
     </header>
   );
 }
 
 function Footer() {
   return (
-    <footer className="footer">
-      <div>
-        <BrandLogo />
-        <p>An open-source digital twin platform for interactive wireless research.</p>
-      </div>
-      <div>
-        <h3>Project</h3>
-        <a href={mainRepositoryUrl}>Repository</a>
-        <a href={`${mainRepositoryUrl}#installation-details`}>README</a>
-        <a href={`${mainRepositoryUrl}/blob/master/LICENSE`}>License</a>
-      </div>
-      <div>
-        <h3>Docs</h3>
-        <a href={architectureUrl}>Architecture</a>
-        <a href="#features">Features</a>
-        <a href="#workflow-tutorial">Tutorial</a>
-        <a href="#quick-start">Setup</a>
-      </div>
-      <div>
-        <h3>Community</h3>
-        <a href={`${mainRepositoryUrl}/issues`}>Issues</a>
-        <a href={`${mainRepositoryUrl}/pulls`}>Pull requests</a>
+    <footer className="oat-footer">
+      <div className="oat-container oat-footer-grid">
+        <div>
+          <img
+            alt="OpenAirTwin"
+            className="oat-brand-logo"
+            decoding="async"
+            loading="lazy"
+            src={media("openairtwin_logo.png")}
+          />
+          <p className="oat-footer-tagline">
+            An open 3D digital twin platform for next-generation wireless
+            research.
+          </p>
+        </div>
+
+        <div className="oat-footer-col">
+          <h3>Explore</h3>
+          <a href="#lab">3D Lab</a>
+          <a href="#why">Vision</a>
+          <a href="#workflows">Capabilities</a>
+          <a href={ARCHITECTURE_HREF}>Architecture</a>
+        </div>
+
+        <div className="oat-footer-col">
+          <h3>Open Source</h3>
+          <a href={REPOSITORY_URL}>GitHub</a>
+          <a href={RELEASE_URL}>Release v1.1.0</a>
+          <a href={`${REPOSITORY_URL}/blob/master/LICENSE`}>License</a>
+          <a href={`${REPOSITORY_URL}/issues`}>Issues</a>
+        </div>
       </div>
     </footer>
   );
 }
-
-function BrandLogo({ decorative = false, priority = false }: { decorative?: boolean; priority?: boolean }) {
-  return (
-    <img
-      className="brandLogo"
-      src={media("openairtwin_logo_dark.png")}
-      alt={decorative ? "" : "OpenAirTwin"}
-      decoding="async"
-      loading={priority ? "eager" : "lazy"}
-    />
-  );
-}
-
-type InstallPlatform = "unix" | "windows";
-
-function InstallationGuide() {
-  const [platform, setPlatform] = useState<InstallPlatform>("unix");
-  const platforms: Array<{ id: InstallPlatform; label: string }> = [
-    { id: "unix", label: "macOS / Linux" },
-    { id: "windows", label: "Windows PowerShell" },
-  ];
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    event.preventDefault();
-    const offset = event.key === "ArrowRight" ? 1 : -1;
-    const next = platforms[(index + offset + platforms.length) % platforms.length];
-    setPlatform(next.id);
-    window.requestAnimationFrame(() => document.getElementById(`install-tab-${next.id}`)?.focus());
-  };
-
-  return (
-    <div>
-      <div className="osTabs" role="tablist" aria-label="Installation operating system">
-        {platforms.map((item, index) => (
-          <button
-            aria-controls="installation-steps"
-            aria-selected={platform === item.id}
-            className={platform === item.id ? "active" : ""}
-            id={`install-tab-${item.id}`}
-            key={item.id}
-            onClick={() => setPlatform(item.id)}
-            onKeyDown={(event) => handleKeyDown(event, index)}
-            role="tab"
-            tabIndex={platform === item.id ? 0 : -1}
-            type="button"
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <div
-        aria-labelledby={`install-tab-${platform}`}
-        className="quickGrid"
-        id="installation-steps"
-        role="tabpanel"
-      >
-        {quickStart.map((item, index) => {
-          const command = item.code[platform];
-          return (
-            <article className="quickStep" key={item.title}>
-              <div className="quickStepRail"><span className="stepNumber">{index + 1}</span></div>
-              <div>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-                <div className="codePanel">
-                  <div className="codePanelTop">
-                    <span aria-hidden="true" className="windowDots"><i></i><i></i><i></i></span>
-                    <CopyButton text={command} />
-                  </div>
-                  <pre><code>{command}</code></pre>
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return <button className="copyButton" onClick={copy} type="button">{copied ? "Copied" : "Copy"}</button>;
-}
-
-export { App };

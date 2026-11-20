@@ -158,5 +158,5 @@ Before merging user-visible changes, verify:
 
 - root [`../README.md`](../README.md) accurately reflects installation, configuration, repository layout, and citation details;
 - [`openairtwin-architecture.html`](openairtwin-architecture.html) stays synchronized with active files, module connections, and REST flows;
-- [`website/`](../website/src/tutorialData.ts) matches current UI labels (`Map`, `Tx`, `Rx`, `Colormap`) and retains the nine `4064x2144` tutorial PNGs;
+- [`website/`](../website/src/data/siteData.ts) presents OpenAirTwin's centered-hero showcase, 3D interactive physics lab (`Link`, `Mobility`, `Radio Map`, `DeepMIMO`, `Radar`), and 3x2 capability matrix without static UI screenshot or GIF assets;
 - third-party datasets and models remain properly attributed in [`data-licenses.md`](data-licenses.md).
