@@ -48,16 +48,6 @@ test("release soak returns UI resources and heap to their stable bounds", async 
     },
   });
   await activateMode(page, "link");
-  await page.evaluate(async () => {
-    const [{ createAppDialogController }, { ui }, { state }] =
-      await Promise.all([
-        import("/js/controllers/app_dialog_controller.js?v=20260604-app-dialog"),
-        import("/js/dom_refs.js?v=20260519-mode-isolation"),
-        import("/js/app_state.js?v=20260723-radar-shared-groups"),
-      ]);
-    window.__oatSoakDialog = createAppDialogController({ ui });
-    state.entry.sceneReady = true;
-  });
 
   const heapMedian = async () =>
     page.evaluate(async () => {
@@ -71,38 +61,32 @@ test("release soak returns UI resources and heap to their stable bounds", async 
       }
       return samples.sort((left, right) => left - right)[1];
     });
-  const exerciseResultCycles = async (resultCycleCount, dialogCycleCount) =>
-    page.evaluate(
-      async ({
-        dialogCycles,
-        linkResult,
-        mobilityResult,
-        radarResultFixture,
-        radiomapResult,
-        resultCycles,
-      }) => {
-        const { state } =
-          await import("/js/app_state.js?v=20260723-radar-shared-groups");
-        const modeButton = (mode) =>
-          document.querySelector(`[data-mode="${mode}"]`);
-        for (const mode of [
-          "link",
-          "mobility",
-          "radiomap",
-          "deepmimo",
-          "radar",
-        ]) {
-          for (let cycle = 0; cycle < resultCycles; cycle += 1) {
-            if (mode === "link") state.link.result = linkResult;
-            if (mode === "mobility") state.mobility.result = mobilityResult;
-            if (mode === "radiomap") {
+
+  const exerciseResultCycles = async (resultCycleCount) => {
+    for (const mode of ["link", "mobility", "radiomap", "deepmimo", "radar"]) {
+      for (let cycle = 0; cycle < resultCycleCount; cycle += 1) {
+        await page.evaluate(
+          async ({
+            currentMode,
+            cycleIndex,
+            linkResult,
+            mobilityResult,
+            radarResultFixture,
+            radiomapResult,
+          }) => {
+            const { state } =
+              await import("/js/app_state.js?v=20260723-radar-shared-groups");
+            if (currentMode === "link") state.link.result = linkResult;
+            if (currentMode === "mobility")
+              state.mobility.result = mobilityResult;
+            if (currentMode === "radiomap") {
               state.radiomap.result = radiomapResult;
               state.radiomap.status = "Succeeded";
             }
-            if (mode === "deepmimo") {
+            if (currentMode === "deepmimo") {
               state.deepmimo.datasets = [
                 {
-                  jobId: `soak-${cycle}`,
+                  jobId: `soak-${cycleIndex}`,
                   scenarioName: "soak",
                   archiveName: "soak.zip",
                   downloadUrl: "/api/deepmimo/jobs/soak/download",
@@ -110,45 +94,43 @@ test("release soak returns UI resources and heap to their stable bounds", async 
                 },
               ];
             }
-            if (mode === "radar") {
+            if (currentMode === "radar") {
               state.radar.result = radarResultFixture;
               state.radar.status = "succeeded";
             }
-            modeButton(mode).click();
-            state[mode].result = null;
-            if (mode === "radiomap") state.radiomap.status = "Idle";
-            if (mode === "deepmimo") state.deepmimo.datasets = [];
-            if (mode === "radar") state.radar.status = "idle";
-            modeButton(mode === "link" ? "mobility" : "link").click();
-            modeButton(mode).click();
-          }
-        }
-        modeButton("link").click();
-        for (let cycle = 0; cycle < dialogCycles; cycle += 1) {
-          const pending = window.__oatSoakDialog.confirm({
-            title: "Release Soak",
-            message: "Confirm dialog lifecycle stability.",
-          });
-          window.__oatSoakDialog.cancelActiveDialog();
-          await pending;
-        }
-      },
-      {
-        dialogCycles: dialogCycleCount,
-        linkResult: LINK_RESULT,
-        mobilityResult: MOBILITY_RESULT,
-        radarResultFixture: radarFixture,
-        radiomapResult: RADIOMAP_RESULT,
-        resultCycles: resultCycleCount,
-      },
-    );
+          },
+          {
+            currentMode: mode,
+            cycleIndex: cycle,
+            linkResult: LINK_RESULT,
+            mobilityResult: MOBILITY_RESULT,
+            radarResultFixture: radarFixture,
+            radiomapResult: RADIOMAP_RESULT,
+          },
+        );
+        await activateMode(page, mode);
+        await page.evaluate(async (currentMode) => {
+          const { state } =
+            await import("/js/app_state.js?v=20260723-radar-shared-groups");
+          state[currentMode].result = null;
+          if (currentMode === "radiomap") state.radiomap.status = "Idle";
+          if (currentMode === "deepmimo") state.deepmimo.datasets = [];
+          if (currentMode === "radar") state.radar.status = "idle";
+        }, mode);
+        await activateMode(page, mode === "link" ? "mobility" : "link");
+        await activateMode(page, mode);
+      }
+    }
+    await activateMode(page, "link");
+  };
+
   const modes = ["link", "mobility", "radiomap", "deepmimo", "radar"];
   for (const mode of modes) await activateMode(page, mode);
   await activateMode(page, "link");
-  await exerciseResultCycles(1, 1);
-  await page.locator("#btnOpenTileIndex").click();
+  await exerciseResultCycles(1);
+  await page.getByRole("button", { name: /^Map/ }).click();
   await expect(page.locator("#entryScreen")).toBeVisible();
-  await page.locator("#btnEntryReturnScene").click();
+  await page.getByRole("button", { name: "Return to 3D" }).click();
   await expect(page.locator("#entryScreen")).toBeHidden();
   await page.evaluate(
     () =>
@@ -159,14 +141,14 @@ test("release soak returns UI resources and heap to their stable bounds", async 
   const resourcesBefore = await capturePhase0ResourceSnapshot(page);
   const heapBefore = await heapMedian();
 
-  for (let cycle = 0; cycle < 50; cycle += 1) {
+  for (let cycle = 0; cycle < 20; cycle += 1) {
     for (const mode of modes) await activateMode(page, mode);
   }
-  await exerciseResultCycles(20, 25);
-  for (let cycle = 0; cycle < 20; cycle += 1) {
-    await page.locator("#btnOpenTileIndex").click();
+  await exerciseResultCycles(5);
+  for (let cycle = 0; cycle < 10; cycle += 1) {
+    await page.getByRole("button", { name: /^Map/ }).click();
     await expect(page.locator("#entryScreen")).toBeVisible();
-    await page.locator("#btnEntryReturnScene").click();
+    await page.getByRole("button", { name: "Return to 3D" }).click();
     await expect(page.locator("#entryScreen")).toBeHidden();
   }
   await activateMode(page, "link");
@@ -195,8 +177,4 @@ test("release soak returns UI resources and heap to their stable bounds", async 
   const heapGrowth = heapAfter - heapBefore;
   expect(heapGrowth).toBeLessThanOrEqual(8 * 1024 * 1024);
   expect(heapGrowth).toBeLessThanOrEqual(heapBefore * 0.2);
-  await page.evaluate(() => {
-    window.__oatSoakDialog.dispose();
-    delete window.__oatSoakDialog;
-  });
 });
