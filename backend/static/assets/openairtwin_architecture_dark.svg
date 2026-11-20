@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="316" viewBox="0 0 960 316" role="img" aria-labelledby="archTitleDark archDescDark">
+  <title id="archTitleDark">OpenAirTwin System Architecture</title>
+  <desc id="archDescDark">Three-column architecture diagram showing Browser Workbench, Python Backend, and Simulation Runtime layers with equal-height module cards and REST/JSON and RT/Scene interfaces.</desc>
+  <style>
+    .col-header {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      fill: #8b949e;
+    }
+    .card-title {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      fill: #e6edf3;
+    }
+    .card-sub {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      font-weight: 400;
+      fill: #8b949e;
+    }
+    .edge-label {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      fill: #8b949e;
+    }
+  </style>
+
+  <!-- Column 1: Browser Workbench -->
+  <rect x="16" y="16" width="256" height="284" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <circle cx="36" cy="37" r="3.5" fill="#58a6ff"/>
+  <text x="47" y="41" class="col-header">BROWSER WORKBENCH</text>
+  <line x1="30" y1="58" x2="258" y2="58" stroke="#21262d" stroke-width="1"/>
+
+  <rect x="30" y="74" width="228" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <text x="144" y="100" text-anchor="middle" class="card-title">React + Astryx UI</text>
+  <text x="144" y="118" text-anchor="middle" class="card-sub">Inspector · Controls · Charts</text>
+
+  <rect x="30" y="148" width="228" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <text x="144" y="174" text-anchor="middle" class="card-title">Feature Runtime</text>
+  <text x="144" y="192" text-anchor="middle" class="card-sub">State · Picking · Renderers</text>
+
+  <rect x="30" y="222" width="228" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <text x="144" y="248" text-anchor="middle" class="card-title">3D &amp; Map Viewports</text>
+  <text x="144" y="266" text-anchor="middle" class="card-sub">Three.js · MapLibre GL</text>
+
+  <!-- Column 2: Python Backend -->
+  <rect x="352" y="16" width="256" height="284" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <circle cx="372" cy="37" r="3.5" fill="#a371f7"/>
+  <text x="383" y="41" class="col-header">PYTHON BACKEND</text>
+  <line x1="366" y1="58" x2="594" y2="58" stroke="#21262d" stroke-width="1"/>
+
+  <rect x="366" y="74" width="228" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <text x="480" y="100" text-anchor="middle" class="card-title">HTTP Server &amp; Loader</text>
+  <text x="480" y="118" text-anchor="middle" class="card-sub">server.py · workbench.py</text>
+
+  <rect x="366" y="148" width="228" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <text x="480" y="174" text-anchor="middle" class="card-title">Feature Services</text>
+  <text x="480" y="192" text-anchor="middle" class="card-sub">REST Routes · Validation</text>
+
+  <rect x="366" y="222" width="228" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <text x="480" y="248" text-anchor="middle" class="card-title">Async Job Workers</text>
+  <text x="480" y="266" text-anchor="middle" class="card-sub">In-Process · DeepMIMO · Radar</text>
+
+  <!-- Column 3: Simulation Runtime -->
+  <rect x="688" y="16" width="256" height="284" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <circle cx="708" cy="37" r="3.5" fill="#3fb950"/>
+  <text x="719" y="41" class="col-header">SIMULATION RUNTIME</text>
+  <line x1="702" y1="58" x2="930" y2="58" stroke="#21262d" stroke-width="1"/>
+
+  <rect x="702" y="74" width="228" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <text x="816" y="100" text-anchor="middle" class="card-title">Sionna RT 2.2.0</text>
+  <text x="816" y="118" text-anchor="middle" class="card-sub">PathSolver · RCSSolver</text>
+
+  <rect x="702" y="148" width="228" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <text x="816" y="174" text-anchor="middle" class="card-title">3D Scene &amp; Tile Core</text>
+  <text x="816" y="192" text-anchor="middle" class="card-sub">Open3Dhk Meshes · Scene XML</text>
+
+  <rect x="702" y="222" width="228" height="60" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+  <text x="816" y="248" text-anchor="middle" class="card-title">Compute Backends</text>
+  <text x="816" y="266" text-anchor="middle" class="card-sub">NVIDIA CUDA · LLVM CPU</text>
+
+  <!-- Bidirectional Connectors (aligned to Row 2 midline y=178) -->
+  <line x1="285" y1="178" x2="339" y2="178" stroke="#6e7681" stroke-width="1.5"/>
+  <polygon points="278,178 286,174 286,182" fill="#6e7681"/>
+  <polygon points="346,178 338,174 338,182" fill="#6e7681"/>
+  <text x="312" y="165" text-anchor="middle" class="edge-label">REST / JSON</text>
+
+  <line x1="621" y1="178" x2="675" y2="178" stroke="#6e7681" stroke-width="1.5"/>
+  <polygon points="614,178 622,174 622,182" fill="#6e7681"/>
+  <polygon points="682,178 674,174 674,182" fill="#6e7681"/>
+  <text x="648" y="165" text-anchor="middle" class="edge-label">RT / Scene</text>
+</svg>
