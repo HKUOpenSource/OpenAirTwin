@@ -54,7 +54,7 @@
   --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
   --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
 
-  /* Internal implementation variables; not part of the agent contract. */
+  /* Internal theme layout variables. */
   --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
@@ -79,7 +79,7 @@
   --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
   --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
 
-  /* Legacy aliases; not part of the current agent contract. */
+  /* Compatibility color token aliases. */
   --viz-bg: transparent;
   --viz-panel: var(--card);
   --viz-border: var(--border);
@@ -1074,6 +1074,33 @@ html&gt;body{padding:0}&lt;/style&gt;
       gap: 0.75rem;
     }
 
+    #openairtwin-architecture-map .arch-structure-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+      gap: 0.75rem;
+    }
+
+    #openairtwin-architecture-map .arch-structure-card {
+      padding: 0.85rem 0.95rem;
+      display: grid;
+      gap: 0.45rem;
+      align-content: start;
+    }
+
+    #openairtwin-architecture-map .arch-structure-card h3 {
+      font-size: var(--font-size-normal);
+      font-weight: 600;
+    }
+
+    #openairtwin-architecture-map .arch-structure-list {
+      margin: 0;
+      padding-inline-start: 1.05rem;
+      display: grid;
+      gap: 0.25rem;
+      color: var(--muted-foreground);
+      font-size: var(--font-size-small);
+    }
+
     @media (prefers-reduced-motion: reduce) {
       #openairtwin-architecture-map .arch-node,
       #openairtwin-architecture-map .arch-lines .edge {
@@ -1249,6 +1276,54 @@ html&gt;body{padding:0}&lt;/style&gt;
       &lt;/table&gt;
     &lt;/div&gt;
   &lt;/section&gt;
+  &lt;section class=&quot;arch-contract&quot; aria-labelledby=&quot;oatRepoStructureTitle&quot;&gt;
+    &lt;div class=&quot;arch-table-head&quot;&gt;
+      &lt;h2 id=&quot;oatRepoStructureTitle&quot;&gt;Repository &amp;amp; module structure&lt;/h2&gt;
+      &lt;p&gt;Directory layout linking the Python HTTP service, Feature runtime modules, React Astryx workbench, and static showcase.&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;arch-structure-grid&quot;&gt;
+      &lt;div class=&quot;arch-structure-card&quot;&gt;
+        &lt;h3&gt;Backend &amp;amp; Sionna Solver&lt;/h3&gt;
+        &lt;ul class=&quot;arch-structure-list&quot;&gt;
+          &lt;li&gt;&lt;code&gt;backend/server.py&lt;/code&gt; &amp;amp; &lt;code&gt;workbench.py&lt;/code&gt; &amp;mdash; HTTP server &amp;amp; verified workbench loader&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;backend/features/&lt;/code&gt; &amp;mdash; Link, Mobility, Radiomap, DeepMIMO, and Radar feature routers&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;backend/rt/&lt;/code&gt; &amp;mdash; Sionna RT solver pipelines &amp;amp; native &lt;code&gt;RCSSolver&lt;/code&gt; radar processing&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;backend/scene/&lt;/code&gt; &amp;mdash; Tile registry, geometry loader &amp;amp; mesh/scene builders&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;backend/jobs/&lt;/code&gt; &amp;mdash; Bounded background workers, job TTL &amp;amp; cancellation&lt;/li&gt;
+        &lt;/ul&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;arch-structure-card&quot;&gt;
+        &lt;h3&gt;React &amp;amp; Astryx Workbench&lt;/h3&gt;
+        &lt;ul class=&quot;arch-structure-list&quot;&gt;
+          &lt;li&gt;&lt;code&gt;workbench/src/app-shell/&lt;/code&gt; &amp;mdash; Top bar (&lt;code&gt;Map&lt;/code&gt;, FPS popover), &lt;code&gt;EntryMapScreen&lt;/code&gt;, &lt;code&gt;DeviceBar&lt;/code&gt; &amp;amp; overlays&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;workbench/src/features/controls/&lt;/code&gt; &amp;mdash; Left Inspector forms, Astryx steppers, gradient colormaps &amp;amp; tooltips&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;workbench/src/features/results/&lt;/code&gt; &amp;mdash; Right Analysis Drawer &amp;amp; docked result model&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;workbench/src/runtime/&lt;/code&gt; &amp;mdash; &lt;code&gt;CommandBus&lt;/code&gt;, &lt;code&gt;WorkbenchStore&lt;/code&gt;, &lt;code&gt;ImperativeHostRegistry&lt;/code&gt; &amp;amp; &lt;code&gt;entry-basemap.ts&lt;/code&gt;&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;workbench/src/ui/&lt;/code&gt; &amp;mdash; Shared Astryx parameter controls (&lt;code&gt;ParamFields.tsx&lt;/code&gt;)&lt;/li&gt;
+        &lt;/ul&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;arch-structure-card&quot;&gt;
+        &lt;h3&gt;Feature Catalog &amp;amp; Engines&lt;/h3&gt;
+        &lt;ul class=&quot;arch-structure-list&quot;&gt;
+          &lt;li&gt;&lt;code&gt;backend/static/js/app.js&lt;/code&gt; &amp;mdash; Imperative workbench bootstrap &amp;amp; command handlers&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;backend/static/js/core/&lt;/code&gt; &amp;mdash; &lt;code&gt;FeatureRegistry&lt;/code&gt;, lifecycle &amp;amp; capability bindings&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;backend/static/js/features/&lt;/code&gt; &amp;mdash; Isolated Link, Mobility, Radiomap, DeepMIMO &amp;amp; Radar engines&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;backend/static/js/viewer/&lt;/code&gt; &amp;mdash; Three.js 3D viewport, layer manager &amp;amp; drone asset loader&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;backend/static/js/colormaps.js&lt;/code&gt; &amp;mdash; Shared radio-map gradient LUTs &amp;amp; UI swatch presets&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;backend/static/js/controllers/&lt;/code&gt; &amp;mdash; Radar target picking &amp;amp; scene interaction controllers&lt;/li&gt;
+        &lt;/ul&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;arch-structure-card&quot;&gt;
+        &lt;h3&gt;Docs, Tests &amp;amp; Showcase&lt;/h3&gt;
+        &lt;ul class=&quot;arch-structure-list&quot;&gt;
+          &lt;li&gt;&lt;code&gt;docs/&lt;/code&gt; &amp;mdash; UI component/icon contracts, ADRs &amp;amp; interactive architecture map&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;tests/&lt;/code&gt; &amp;mdash; API, UI contract, architecture boundary &amp;amp; browser regression suites&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;tools/&lt;/code&gt; &amp;mdash; Scene build, production server launcher &amp;amp; release checks&lt;/li&gt;
+          &lt;li&gt;&lt;code&gt;website/&lt;/code&gt; &amp;mdash; Static project page, tutorial media &amp;amp; embedded architecture build&lt;/li&gt;
+        &lt;/ul&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
 
   &lt;script&gt;
     (() =&gt; {
@@ -1270,16 +1345,16 @@ html&gt;body{padding:0}&lt;/style&gt;
         {
           id: &quot;app-shell&quot;, label: &quot;React App Shell&quot;, category: &quot;core&quot;, x: 14, y: 10,
           scopes: [&quot;frontend&quot;, &quot;delivery&quot;],
-          summary: &quot;Single production React root with stable DOM and imperative-engine hosts.&quot;,
-          responsibilities: [&quot;Owns the Shell, Entry Map hosts, controls, devices, results, performance, Loading, Dialog, and Tooltip UI&quot;, &quot;Preserves public DOM IDs and dispatches typed UI commands&quot;, &quot;Leaves Leaflet, Three.js, SVG, and Canvas internals under their imperative adapters&quot;],
-          files: [&quot;workbench/src/app-shell/AppShell.tsx&quot;, &quot;workbench/src/app-shell/app-shell-runtime.tsx&quot;, &quot;workbench/src/app-shell/ShellLayout.tsx&quot;, &quot;backend/static/js/app.js&quot;],
+          summary: &quot;Single production React 19 root styled with Astryx design tokens and stable MapLibre / Three.js / Canvas hosts.&quot;,
+          responsibilities: [&quot;Owns the Top Workspace Bar (Map switcher and fixed-width FPS popover), Entry Map screen, Left Inspector, compact Tx/Rx Device Bar, Right Analysis Drawer, single-line Loading overlay, and Dialog UI via @astryxdesign/core&quot;, &quot;Renders declaratively from WorkbenchStore via shared ParamFields (Astryx steppers, hover tooltips, gradient selectors) and dispatches typed commands&quot;, &quot;Hosts Leaflet/MapLibre GL vector-tile basemaps (entry-basemap.ts), Three.js scene viewports, and 2D/D3 result canvases through ImperativeHostRegistry&quot;],
+          files: [&quot;workbench/src/app-shell/AppShell.tsx&quot;, &quot;workbench/src/app-shell/app-shell-runtime.tsx&quot;, &quot;workbench/src/app-shell/TopWorkspaceBar.tsx&quot;, &quot;workbench/src/app-shell/DeviceBar.tsx&quot;, &quot;workbench/src/app-shell/EntryMapScreen.tsx&quot;, &quot;workbench/src/app-shell/AppOverlays.tsx&quot;, &quot;workbench/src/styles/workbench.css&quot;, &quot;workbench/src/runtime/entry-basemap.ts&quot;, &quot;backend/static/js/app.js&quot;],
         },
         {
           id: &quot;feature-core&quot;, label: &quot;UI Bridge + Feature Core&quot;, shortLabel: &quot;UI / Feature Bridge&quot;, category: &quot;core&quot;, x: 42, y: 10,
           scopes: [&quot;frontend&quot;, &quot;link&quot;, &quot;mobility&quot;, &quot;radiomap&quot;, &quot;deepmimo&quot;, &quot;radar&quot;],
-          summary: &quot;Typed commands and observable models bridge React-owned UI to domain Feature lifecycles.&quot;,
-          responsibilities: [&quot;CommandBus and observable models synchronize React controls, results, datasets, and shell collections&quot;, &quot;FeatureRegistry registers, initializes, activates, and disposes domain Features&quot;, &quot;Feature modules retain isolated state, transport, controller adapters, picking, and scene renderers&quot;],
-          files: [&quot;workbench/src/runtime/ui-command.ts&quot;, &quot;workbench/src/features/controls/control-surface-model.ts&quot;, &quot;workbench/src/features/results/result-dock-model.ts&quot;, &quot;backend/static/js/core/feature_registry.js&quot;, &quot;backend/static/js/features/feature_catalog.js&quot;],
+          summary: &quot;Unidirectional stores, host registry, and typed CommandBus bridge React Astryx panels to isolated domain Feature lifecycles.&quot;,
+          responsibilities: [&quot;CommandBus, WorkbenchStore, and ImperativeHostRegistry synchronize Inspector/Solver controls, Right Analysis Drawer results, datasets, and shell state&quot;, &quot;FeatureRegistry registers, initializes, activates, and disposes domain Features without cross-feature state leakage&quot;, &quot;Shared ParamFields components provide consistent Astryx steppers, fixed-width controls, and concise parameter tooltips across Features&quot;],
+          files: [&quot;workbench/src/runtime/ui-command.ts&quot;, &quot;workbench/src/runtime/workbench-store.ts&quot;, &quot;workbench/src/runtime/host-registry.ts&quot;, &quot;workbench/src/ui/ParamFields.tsx&quot;, &quot;workbench/src/features/controls/LeftInspector.tsx&quot;, &quot;workbench/src/features/results/RightAnalysisDrawer.tsx&quot;, &quot;workbench/src/features/results/result-dock-model.ts&quot;, &quot;backend/static/js/core/feature_registry.js&quot;, &quot;backend/static/js/features/feature_catalog.js&quot;],
         },
         {
           id: &quot;viewer-core&quot;, label: &quot;Viewer Core&quot;, category: &quot;frontend&quot;, x: 70, y: 10,
@@ -1298,9 +1373,9 @@ html&gt;body{padding:0}&lt;/style&gt;
         {
           id: &quot;link-front&quot;, label: &quot;Link Feature&quot;, category: &quot;frontend&quot;, feature: &quot;link&quot;, x: 14, y: 22,
           scopes: [&quot;frontend&quot;, &quot;link&quot;],
-          summary: &quot;Standalone frontend module for synchronous link analysis that exposes domain capabilities to other Features.&quot;,
-          responsibilities: [&quot;Owns its state / transport / controller / result view / renderer / lifecycle&quot;, &quot;Provides link-domain and path-results&quot;, &quot;Manages Tx/Rx picking, live preview, and path selection&quot;],
-          files: [&quot;backend/static/js/features/link/index.js&quot;, &quot;backend/static/js/features/link/runtime.js&quot;, &quot;backend/static/js/features/link/transport.js&quot;, &quot;backend/static/js/features/link/renderer.js&quot;],
+          summary: &quot;Standalone frontend module for synchronous link analysis, Astryx inspector panels, and shared domain capabilities.&quot;,
+          responsibilities: [&quot;Owns its state, transport, renderer, lifecycle, and React LinkControls / SharedSolverControls views&quot;, &quot;Provides link-domain and path-results capabilities to Mobility and DeepMIMO&quot;, &quot;Manages Tx/Rx placement, integrated live-preview sync, and multipath ray selection&quot;],
+          files: [&quot;workbench/src/features/controls/LinkControls.tsx&quot;, &quot;workbench/src/features/controls/SharedSolverControls.tsx&quot;, &quot;backend/static/js/features/link/index.js&quot;, &quot;backend/static/js/features/link/runtime.js&quot;, &quot;backend/static/js/features/link/transport.js&quot;, &quot;backend/static/js/features/link/renderer.js&quot;],
         },
         {
           id: &quot;link-api&quot;, label: &quot;POST /api/link/solve&quot;, category: &quot;transport&quot;, feature: &quot;link&quot;, x: 42, y: 22,
@@ -1326,9 +1401,9 @@ html&gt;body{padding:0}&lt;/style&gt;
         {
           id: &quot;mobility-front&quot;, label: &quot;Mobility Feature&quot;, category: &quot;frontend&quot;, feature: &quot;mobility&quot;, x: 14, y: 37,
           scopes: [&quot;frontend&quot;, &quot;mobility&quot;],
-          summary: &quot;Standalone frontend module for trajectory sampling, polling, timeline control, and playback.&quot;,
-          responsibilities: [&quot;Consumes Link's link-domain and path-results capabilities&quot;, &quot;Manages trajectory points, the timeline, and playback state&quot;, &quot;Renders the trajectory, sample markers, and per-step paths&quot;],
-          files: [&quot;backend/static/js/features/mobility/index.js&quot;, &quot;backend/static/js/features/mobility/runtime.js&quot;, &quot;backend/static/js/features/mobility/transport.js&quot;, &quot;backend/static/js/features/mobility/renderer.js&quot;],
+          summary: &quot;Standalone frontend module for waypoint trajectories, Doppler/speed sampling, polling, and timeline playback.&quot;,
+          responsibilities: [&quot;Consumes Link's link-domain and path-results capabilities&quot;, &quot;Manages trajectory waypoints, speed inputs with non-truncating numeric fields, timeline, and playback state&quot;, &quot;Renders the 3D trajectory, sample markers, and per-step propagation paths&quot;],
+          files: [&quot;workbench/src/features/controls/MobilityControls.tsx&quot;, &quot;backend/static/js/features/mobility/index.js&quot;, &quot;backend/static/js/features/mobility/runtime.js&quot;, &quot;backend/static/js/features/mobility/transport.js&quot;, &quot;backend/static/js/features/mobility/renderer.js&quot;],
         },
         {
           id: &quot;mobility-api&quot;, label: &quot;/api/mobility/jobs&quot;, category: &quot;transport&quot;, feature: &quot;mobility&quot;, x: 42, y: 37,
@@ -1354,9 +1429,9 @@ html&gt;body{padding:0}&lt;/style&gt;
         {
           id: &quot;radiomap-front&quot;, label: &quot;Radiomap Feature&quot;, category: &quot;frontend&quot;, feature: &quot;radiomap&quot;, x: 14, y: 52,
           scopes: [&quot;frontend&quot;, &quot;radiomap&quot;],
-          summary: &quot;Radio-map submission, polling, color-scale, and heatmap-mesh module.&quot;,
-          responsibilities: [&quot;Independently manages Tx, surface, solver, and display state&quot;, &quot;Shares common-solver and Tx antenna settings&quot;, &quot;Owns invalidation rules for heatmap results and the color scale&quot;],
-          files: [&quot;backend/static/js/features/radiomap/index.js&quot;, &quot;backend/static/js/features/radiomap/runtime.js&quot;, &quot;backend/static/js/features/radiomap/transport.js&quot;, &quot;backend/static/js/features/radiomap/renderer.js&quot;],
+          summary: &quot;Radio-map submission, polling, fixed-width gradient colormap selector, and heatmap-mesh module.&quot;,
+          responsibilities: [&quot;Independently manages unified Tx, surface, solver, and display state via RadiomapControls&quot;, &quot;Shares common-solver and Tx antenna settings&quot;, &quot;Renders visual gradient colorbar swatches with fixed trigger width and owns heatmap invalidation rules&quot;],
+          files: [&quot;workbench/src/features/controls/RadiomapControls.tsx&quot;, &quot;backend/static/js/colormaps.js&quot;, &quot;backend/static/js/features/radiomap/index.js&quot;, &quot;backend/static/js/features/radiomap/runtime.js&quot;, &quot;backend/static/js/features/radiomap/transport.js&quot;, &quot;backend/static/js/features/radiomap/renderer.js&quot;],
         },
         {
           id: &quot;radiomap-api&quot;, label: &quot;/api/radiomap/jobs&quot;, category: &quot;transport&quot;, feature: &quot;radiomap&quot;, x: 42, y: 52,
@@ -1382,9 +1457,9 @@ html&gt;body{padding:0}&lt;/style&gt;
         {
           id: &quot;deepmimo-front&quot;, label: &quot;DeepMIMO Feature&quot;, category: &quot;frontend&quot;, feature: &quot;deepmimo&quot;, x: 14, y: 67,
           scopes: [&quot;frontend&quot;, &quot;deepmimo&quot;],
-          summary: &quot;Module for ROI selection, job cancellation, dataset listing, and download access.&quot;,
-          responsibilities: [&quot;Consumes Link's link-domain capability&quot;, &quot;Manages Tx and rectangular ROI picking&quot;, &quot;Submits, cancels, polls, and records downloadable datasets&quot;],
-          files: [&quot;backend/static/js/features/deepmimo/index.js&quot;, &quot;backend/static/js/features/deepmimo/runtime.js&quot;, &quot;backend/static/js/features/deepmimo/transport.js&quot;, &quot;backend/static/js/features/deepmimo/renderer.js&quot;],
+          summary: &quot;Module for Tx/ROI selection, job cancellation, dataset listing, and ZIP export access.&quot;,
+          responsibilities: [&quot;Consumes Link's link-domain capability&quot;, &quot;Manages unified Tx and rectangular ROI picking via DeepMimoControls&quot;, &quot;Submits, cancels, polls, and records downloadable datasets&quot;],
+          files: [&quot;workbench/src/features/controls/DeepMimoControls.tsx&quot;, &quot;backend/static/js/features/deepmimo/index.js&quot;, &quot;backend/static/js/features/deepmimo/runtime.js&quot;, &quot;backend/static/js/features/deepmimo/transport.js&quot;, &quot;backend/static/js/features/deepmimo/renderer.js&quot;],
         },
         {
           id: &quot;deepmimo-api&quot;, label: &quot;/api/deepmimo/jobs&quot;, category: &quot;transport&quot;, feature: &quot;deepmimo&quot;, x: 42, y: 67,
@@ -1411,8 +1486,8 @@ html&gt;body{padding:0}&lt;/style&gt;
           id: &quot;radar-front&quot;, label: &quot;Radar Sensing Feature&quot;, shortLabel: &quot;Radar Feature&quot;, category: &quot;frontend&quot;, feature: &quot;radar&quot;, x: 14, y: 82,
           scopes: [&quot;frontend&quot;, &quot;radar&quot;],
           summary: &quot;Standalone Radar target editing, job control, sensing results, and scene rendering module.&quot;,
-          responsibilities: [&quot;Owns Radar platform, waveform, detection, solver, and target state&quot;, &quot;Submits, polls, cancels, and invalidates Radar jobs&quot;, &quot;Renders isolated target, path, and detection layers&quot;],
-          files: [&quot;backend/static/js/features/radar/index.js&quot;, &quot;backend/static/js/controllers/radar_controller.js&quot;, &quot;backend/static/js/features/radar/transport.js&quot;, &quot;backend/static/js/features/radar/renderer.js&quot;],
+          responsibilities: [&quot;Owns Radar platform, waveform, detection, solver, and non-truncating x/y/z target state via RadarControls&quot;, &quot;Submits, polls, cancels, and invalidates Radar jobs&quot;, &quot;Renders isolated target, path, and detection layers&quot;],
+          files: [&quot;workbench/src/features/controls/RadarControls.tsx&quot;, &quot;backend/static/js/features/radar/index.js&quot;, &quot;backend/static/js/controllers/radar_controller.js&quot;, &quot;backend/static/js/features/radar/transport.js&quot;, &quot;backend/static/js/features/radar/renderer.js&quot;],
         },
         {
           id: &quot;radar-api&quot;, label: &quot;/api/radar/jobs&quot;, category: &quot;transport&quot;, feature: &quot;radar&quot;, x: 42, y: 82,
@@ -1431,15 +1506,15 @@ html&gt;body{padding:0}&lt;/style&gt;
         {
           id: &quot;radar-exec&quot;, label: &quot;Radar Job + Processing&quot;, shortLabel: &quot;Radar Worker&quot;, category: &quot;execution&quot;, feature: &quot;radar&quot;, x: 89, y: 82,
           scopes: [&quot;backend&quot;, &quot;radar&quot;],
-          summary: &quot;Single-worker Radar lifecycle with independent propagation and OFDM sensing processing.&quot;,
-          responsibilities: [&quot;Tracks queued, running, terminal, progress, cancellation, TTL, and capacity state&quot;, &quot;Calls solve_radar_propagation&quot;, &quot;Produces bounded in-memory sensing results without downloadable artifacts&quot;],
+          summary: &quot;Single-worker Radar lifecycle using native Sionna RT 2.2.0 RCSSolver + PathSolver and OFDM sensing.&quot;,
+          responsibilities: [&quot;Tracks queued, running, terminal, progress, cancellation, TTL, and capacity state&quot;, &quot;Calls solve_radar_propagation with native Sionna RT 2.2.0 RCSSolver and PathSolver&quot;, &quot;Produces bounded in-memory sensing results without downloadable artifacts&quot;],
           files: [&quot;backend/jobs/radar_jobs.py&quot;, &quot;backend/rt/solve_radar.py&quot;, &quot;backend/rt/process_radar.py&quot;],
         },
         {
           id: &quot;workbench-build&quot;, label: &quot;Vite Workbench Build&quot;, shortLabel: &quot;Workbench Build&quot;, category: &quot;core&quot;, x: 14, y: 95,
           scopes: [&quot;delivery&quot;],
-          summary: &quot;Compiles the React application and framework-independent runtime modules into one content-addressed production Workbench.&quot;,
-          responsibilities: [&quot;Builds the application entry and shared runtime chunks&quot;, &quot;Emits build-info, Vite manifest, and sorted SHA-256 integrity metadata&quot;, &quot;Enforces hashed assets, source ownership, and deterministic size budgets&quot;],
+          summary: &quot;Compiles the React 19 + Astryx application, MapLibre GL worker chunks, and runtime modules into one content-addressed production Workbench.&quot;,
+          responsibilities: [&quot;Builds the React 19 / Astryx entry, MapLibre GL basemap worker, and shared runtime chunks&quot;, &quot;Emits build-info, Vite manifest, and sorted SHA-256 integrity metadata&quot;, &quot;Enforces hashed assets, source ownership, and deterministic size budgets&quot;],
           files: [&quot;workbench/vite.config.ts&quot;, &quot;workbench/scripts/finalize-build.mjs&quot;, &quot;workbench/scripts/verify-build.mjs&quot;],
         },
         {

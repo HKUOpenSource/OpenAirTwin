@@ -1,405 +1,162 @@
 # OpenAirTwin Development Guide
 
-This guide describes the current modular-monolith architecture and the checks
-expected when changing an existing Feature or adding a new one.
+This guide describes OpenAirTwin's modular-monolith architecture, extension points, Astryx UI ownership boundaries, and the verification suites expected when changing code or adding a new Feature.
+
+> New contributors should also review [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for local toolchain setup and pull request guidelines.
 
 ## Architecture at a Glance
 
-OpenAirTwin uses a shared runtime with explicitly registered Features:
+OpenAirTwin connects a declarative React 19 + Astryx workstation UI to modular domain runtimes and Sionna RT 2.2.0 solvers through strict unidirectional data flow:
 
 ```text
-React App Shell
-  -> typed UI commands / observable view models
-  -> frontend Feature catalog and domain runtime
+React App Shell (@astryxdesign/core + WorkbenchStore)
+  -> typed UiCommand (CommandBus)
+  -> frontend Feature catalog & domain runtime
   -> Feature state / transport / controller adapters / renderer
-  -> existing REST contract
-  -> backend Feature catalog and route registry
+  -> REST API (sync or async job endpoints)
+  -> backend Feature catalog & route registry
   -> Feature service
   -> Sionna RT runtime or job manager
-  -> viewer layer / primitive output
+  -> Three.js Viewer layer / SVG & Canvas charts
 ```
 
-Open [`openairtwin-architecture.html`](openairtwin-architecture.html) in a browser
-for an interactive view of the current dependencies and direct connections.
+Open [`openairtwin-architecture.html`](openairtwin-architecture.html) in a browser (or view the hosted [Architecture Map](https://hkuopensource.github.io/OpenAirTwin/architecture/)) for an interactive module dependency graph.
 
 The current production catalog order is:
 
-1. Link
-2. Mobility
-3. Radiomap
-4. DeepMIMO
-5. Radar Sensing
+1. Link (`link`)
+2. Mobility (`mobility`)
+3. Radio Map (`radiomap`)
+4. DeepMIMO (`deepmimo`)
+5. Radar Sensing (`radar`)
 
 ## Main Extension Points
 
-### Frontend
+### Frontend Domain & Entry Map
 
-Frontend Features live under `backend/static/js/features/<feature-id>/`. Each
-Feature owns its state, transport, runtime/controller integration and renderer.
-Register production Features once in:
+Frontend Features live under `backend/static/js/features/<feature-id>/`. Each Feature owns its state, REST transport, controller/runtime integration, and Three.js renderer. Register production Features once in:
 
 ```text
 backend/static/js/features/feature_catalog.js
 ```
 
-Shared infrastructure belongs in `backend/static/js/core/` or
-`backend/static/js/viewer/`. New Features should use viewer layers, primitives
-and the Asset Manager instead of adding Feature-specific branches to `app.js` or
-`viewer.js`.
+Shared infrastructure belongs in `backend/static/js/core/` or `backend/static/js/viewer/`. New Features should use Viewer Layers, common primitives, and the shared Asset Manager instead of adding Feature-specific branches to `app.js` or `viewer.js`. Compatibility facades (`api.js` exports, global `state` properties, and Viewer helper methods) remain intact for existing callers.
 
-Compatibility facades such as the existing `api.js` exports, global state
-properties and legacy Viewer methods remain available for existing callers, but
-new Feature code should prefer the registry and layer interfaces.
+The Entry Map uses **OpenFreeMap Positron** through the lazy-loaded MapLibre GL Leaflet adapter in `workbench/src/runtime/entry-basemap.ts`. Vite resolves Leaflet imports to `window.L`; Leaflet retains tile-grid selection ownership while MapLibre owns only its tile-pane WebGL canvas. `entry-basemap.style.ts` transforms the map style into OpenAirTwin's muted light palette while preserving OpenMapTiles and OpenStreetMap attribution. Missing WebGL2, style errors, or a 15-second load timeout fall back gracefully to the local overview image. Separate Vite bundle budgets enforce that the basemap runtime stays outside the initial entry graph (`<= 300 KiB` renderer, `<= 160 KiB` worker, `<= 12 KiB` CSS gzip).
 
-The entry map uses OpenFreeMap Positron through the lazy-loaded MapLibre GL
-Leaflet adapter in `workbench/src/runtime/entry-basemap.ts`. Vite resolves the
-adapter's Leaflet import to the existing `window.L` instance. Grid selection
-remains owned by Leaflet; the vector renderer owns only its tile-pane canvas.
-`entry-basemap.style.ts` applies the local light palette and label hierarchy
-through MapLibre's style transform before the first render, preserving provider
-sources, attribution and multilingual names.
-Style, resource or WebGL failures and a 15-second startup timeout use the local
-overview image. The build verifies that the basemap runtime stays outside the
-initial module graph, with separate 300 KiB renderer, 160 KiB worker and 12 KiB CSS gzip
-budgets; the existing application budgets remain unchanged.
-MapLibre's module worker is bundled through Vite's worker URL import so the
-release includes a hashed, local worker asset. WebGL2 availability is checked
-before constructing the renderer to avoid its partial-initialization path.
+### Core Workbench UI & CSS (`workbench/`)
 
-### Continuous integration
+The desktop workbench uses Meta's **Astryx** design system (`@astryxdesign/core` with `@astryxdesign/theme-neutral` and `lucide-react` icons in light mode), bundled with React 19, TypeScript, and Vite from `workbench/src/styles/workbench.css` (see [`adr/0003-adopt-astryx-design-system.md`](adr/0003-adopt-astryx-design-system.md)).
 
-Every pull request runs Workbench quality checks, unit tests, a verified
-production build, the Python suite and core browser behavior tests. Optional
-jobs are selected by `tools/ci_scope.py` using the complete pull request diff:
+The global CSS Cascade Layer stack declared in `workbench/src/styles/workbench.css` is:
 
-- Tutorial changes run the website build and browser tests against that build.
-- Backend and runtime dependency changes run the real runtime smoke test.
-- Dependency and license changes run security and license audits.
-- Packaging, installer and build-tool changes run archive reproducibility and
-  clean installation checks, alongside the browser soak test.
-
-Pushes to `master`, manual workflow runs and the weekly scheduled run execute
-all jobs, including the soak test. Workflow or CI selector changes also run all
-jobs. Core browser tests use `npm run test:ci`; add `OAT_RUN_SOAK_TESTS=true` to
-include the long soak. Visual snapshots and local cold-start measurements remain
-separate checks for the documented desktop environment.
-
-Browser tests are grouped into independent feature, Radar workflow, label,
-asset and soak specs so the existing workers can share the work. CI prints
-individual test durations. Asset loading and Canvas tests use a minimal page
-with the production import map; they do not start the entry map or Workbench.
-Motion and power-scale calculations and mocked asset cache/disposal checks run
-in Vitest.
-Radar browser coverage retains editing and solve payloads, result selection,
-label projection, the target limit and viewer cleanup without freezing exact
-shadows, colors or component spacing. Label tests render a minimal GLB fixture;
-the asset specs separately verify every shipped drone model.
-
-Resource tests check active timers, viewer frame callbacks, canvases, DOM nodes
-and rendered labels. They do not count cumulative global event registrations,
-which include normal temporary subscriptions from rendering libraries. UI
-ownership checks protect stable IDs and commands without freezing visual styles
-or element order. Historical UI baselines are reference material for deliberate
-comparisons, not mandatory pixel or DOM structure contracts for every change.
-
-The English release check covers owned documentation and visible HTML text,
-including accessibility labels and language metadata. JavaScript, third-party
-assets and data files may contain Unicode. Review dynamically generated UI
-wording in code review; the language check does not infer it from source code.
-
-### Core workbench CSS
-
-The desktop workbench loads native CSS modules directly from `index.html` in
-this fixed order:
-
-1. `tokens.css` declares the layer order and every `--oat-*` design token.
-2. `base.css` owns reset, document defaults, the canvas and utilities.
-3. `components.css` owns reusable controls, fields, badges, metric grids, list
-   cards and scroll regions.
-4. `shell.css` owns the control/results shell, device dock, performance panel,
-   loading state and dialogs.
-5. `entry-map.css` owns the map entry experience and first-party Leaflet
-   overrides.
-6. `results.css` owns result UI shared by Link, Mobility, Radio Map and
-   DeepMIMO.
-7. `radar.css` owns only Radar-specific target editing, waveform, CFAR,
-   Range-Doppler and scene-label UI.
-
-The global Cascade Layer order is `reset, tokens, base, components, layout,
-features, utilities`. Every rule must belong to one of those layers. Do not
-change the HTML load order to resolve a specificity problem.
-
-All reusable design values use the `--oat-*` namespace. Color literals are
-allowed only in `tokens.css`; other modules consume colors through `var()`.
-Dynamic runtime properties such as `--analysis-dock-bottom-reserve`, Radar
-label scale, legend colors and chart crosshair coordinates remain component
-inputs rather than design tokens. Canvas UI chrome must use `readUiToken()`;
-Feature data palettes remain in their JavaScript domain modules.
-
-Prefer these public classes before adding a Feature-specific component:
-`oat-panel`, `oat-button` and its modifiers, `oat-field`, `oat-input`,
-`oat-check`, `oat-badge`, `oat-metric-grid`, `oat-list-card`, and
-`oat-scroll-region`. Preserve DOM IDs and Feature semantic classes because they
-are lifecycle and JavaScript hooks. Add a Feature rule only when the behavior is
-domain-specific, then place it in `results.css`, `radar.css`, or a future
-Feature module with a clearly documented owner.
-
-The core workbench is desktop-only. Its supported contract starts at
-`1280x720`; `1440x900` is the visual-regression reference. Do not add mobile
-breakpoints to these files. The tutorial website has a separate responsive
-stylesheet and test suite.
-
-The frozen UI compatibility evidence is documented in
-[`ui-regression-baseline.md`](ui-regression-baseline.md). It includes DOM, computed
-style, network and resource contracts plus full-workbench snapshots at both
-supported reference sizes. Do not regenerate these artifacts during component
-or framework work unless the contract change is explicit, reviewed and listed
-in the corresponding pull request.
-
-UI work is contract-first. Before implementing or changing a reusable
-component, read [`ui/component-contracts.md`](ui/component-contracts.md), map
-every user action to a named command in
-[`ui/interaction-contracts.md`](ui/interaction-contracts.md), and preserve the
-browser-generated [`ui/dom-compatibility-contract.json`](ui/dom-compatibility-contract.json).
-Command-style DOM and runtime inline styles are a closed allowlist documented in
-[`ui/imperative-ui-exceptions.md`](ui/imperative-ui-exceptions.md). Framework
-and component-library decisions are recorded under `docs/adr/`.
-
-The machine-readable
-[`ui/component-manifest.json`](ui/component-manifest.json), the icon rules in
-[`ui/icon-contracts.md`](ui/icon-contracts.md), and the retired Alias record in
-[`ui/legacy-aliases.md`](ui/legacy-aliases.md). New UI must use the public
-`oat-*` classes and appear in the native component catalog before it is used by
-a Feature. Start the development-only catalog separately; the production Python
-server intentionally does not expose it:
-
-```bash
-.venv/bin/python tools/serve_ui_catalog.py
+```text
+reset, astryx-base, astryx-theme, oat-theme, oat-layout, oat-charts
 ```
 
-Then open `http://127.0.0.1:8091/ui-catalog/`. The Playwright configuration
-starts this catalog automatically and verifies its public variants, states,
-accessible names, and contract-only test Feature.
+- `reset`, `astryx-base`, and `astryx-theme` import `@astryxdesign/core/reset.css`, `@astryxdesign/core/astryx.css`, and `@astryxdesign/theme-neutral/theme.css`.
+- `oat-theme` sets high-density light workstation variables and offline system font stacks.
+- `oat-layout` defines the workstation shell geometry (`44 px` Top Workspace Bar with `Map` launcher, 5-mode switcher, Datasets popover, and fixed-width FPS popover; collapsible `356 px` Left Inspector with stepped inputs and concise hover tooltips; full-bleed center 3D viewport with compact `Tx`/`Rx`/`Orbit Tx` DeviceBar; collapsible `392 px` Right Analysis Drawer; and Entry Map screen).
+- `oat-charts` styles SVG/Canvas chart framing, fixed-width gradient colormap swatches, Leaflet overrides, and Radar 3D projected target labels.
 
-Production uses one React root named `app-shell`. It owns the Shell,
-Entry Map host, result and performance docks, control and device surfaces,
-Loading, Dialog and Tooltip hosts. Leaflet, Three.js and chart adapters retain
-exclusive ownership of their host internals. Install and verify the locked
-toolchain with:
+Dynamic runtime custom properties (Radar label scale, legend colors, chart crosshair positions) remain runtime inputs on closed exception containers. The desktop workbench contract targets `1280x720` and larger (`1440x900` primary reference); do not add mobile breakpoints here (the separate tutorial site in `website/` manages responsive layouts).
+
+UI development is contract-first. Review these specifications before changing workbench markup or styles:
+
+- [`ui/component-contracts.md`](ui/component-contracts.md) & [`ui/component-manifest.json`](ui/component-manifest.json)
+- [`ui/interaction-contracts.md`](ui/interaction-contracts.md)
+- [`ui/dom-compatibility-contract.json`](ui/dom-compatibility-contract.json)
+- [`ui/imperative-ui-exceptions.md`](ui/imperative-ui-exceptions.md) & [`ui/icon-contracts.md`](ui/icon-contracts.md)
+
+Production mounts one React root (`app-shell`) wrapped in `<Theme theme={neutralTheme} mode="light">` via `ReactRootRegistry`, owning all shell panels, controls, DeviceBar, Right Analysis Drawer, LoadingOverlay, and Alert/Modal Dialogs. Run the Workbench toolchain with:
 
 ```bash
 cd workbench
 npm ci
-npm test
+npm test   # typecheck (tsc), eslint, stylelint, prettier, vitest unit tests & verified production build
 ```
 
-The development catalog command above delegates to Vite and renders Native
-and React implementations side by side. Its browser test compares 28
-representative states for element semantics, ARIA, classes and computed style,
-then proves that React controls dispatch typed Commands. The production build
-loads `backend/static/js/app.js` as its application bootstrap; the manifest and
-compiled JavaScript must contain only the `app-shell` React root; any other
-production root, Catalog source and test source are rejected.
+React UI components obey these ownership rules:
 
-Result UI ownership is defined by `workbench/src/features/results/` and
-`workbench/src/features/deepmimo/`. Control ownership is defined by
-`workbench/src/features/controls/` and the shared controlled field in
-`workbench/src/design-system/components/ControlledField.tsx`. Result adapters
-may build ViewModels, handle Commands and draw into stable SVG/Canvas
-hosts, but must not create, replace or directly mutate React-owned rows.
-Feature runtimes may validate and apply typed control Commands, but must not
-bind click/change handlers or create control/list DOM inside the React roots.
+1. Compose controls from `@astryxdesign/core` and thin domain wrappers in `workbench/src/ui/` (`ParamFields.tsx`, `WorkbenchChrome.tsx`).
+2. Receive immutable snapshots as Props and dispatch typed `UiCommand` actions through `CommandBus`; never issue raw `fetch` requests or import mutable feature globals directly inside TSX.
+3. Bridge domain state into React strictly through `ObservableStateAdapter` + `useSyncExternalStore`.
+4. Mount production UI once as `app-shell`; clean up all listeners and timers on dispose and let unmount/dialog dismiss restore focus.
+5. Keep imperative engines (Three.js 3D viewer, Leaflet + MapLibre GL entry map, SVG/Canvas plots, Radar GLB asset preview) outside React via `ImperativeHostRegistry`.
+6. Maintain one React renderer per production subtree without parallel DOM factories, templates, `dom_refs.js`, or hidden scraping bridges.
 
-React UI code follows these ownership rules:
+### Backend (`backend/`)
 
-1. Import components directly from their source file; do not add barrel files.
-2. Components receive typed Props and emit `UiCommand`; they do not call REST or
-   import mutable Feature state.
-3. Expose Feature state through `ObservableStateAdapter` and
-   `useSyncExternalStore`, with immutable snapshots between notifications.
-4. Mount production UI only once through `ReactRootRegistry` as `app-shell`;
-   register every external subscription or timer for cleanup and let unmount
-   restore focus.
-5. Keep imperative Three.js, Leaflet and Canvas engines outside React. A React
-   component may own their stable host, never their internal DOM or resources.
-6. Every production subtree has one React renderer. Do not add a parallel
-   Template, DOM factory, secondary Root or compatibility flag.
-7. Do not add production Portals for ordinary layout. A Portal requires an
-   approved floating-layer target and a documented focus/cleanup contract.
-
-When the existing DOM intentionally changes, regenerate the DOM compatibility contract
-with the real browser and review the diff; never edit the generated JSON by
-hand:
-
-```bash
-cd tests/browser
-OAT_TEST_PYTHON=.venv/bin/python OAT_UPDATE_DOM_CONTRACT=1 \
-  npx playwright test feature_modes.spec.js --grep "DOM ownership and interaction commands"
-```
-
-### Backend
-
-Backend Features live under `backend/features/`. A Feature defines its service
-factory, existing REST routes and required shared resources through a
-`BackendFeatureDefinition`. Register it once in:
+Backend Features live under `backend/features/`. Each Feature declares its service factory, REST routes, and required resources through `BackendFeatureDefinition` and registers once in:
 
 ```text
 backend/features/catalog.py
 ```
 
-Core static files, scene endpoints and tile downloads are server capabilities,
-not analysis Features. Link remains synchronous. Mobility and Radiomap use the
-shared in-process job infrastructure, Radar Sensing owns a bounded in-memory
-`RadarJobManager`, and DeepMIMO retains its dedicated subprocess and download
-lifecycle.
+Core static serving, scene selection/manifest endpoints, and Open3Dhk tile downloads remain server core capabilities rather than analysis Features:
 
-Radar Sensing exposes four asynchronous routes under `/api/radar/jobs` for
-creation, status polling, result retrieval and cancellation. It uses Sionna RT's
-`RCSSolver` for target echoes and `PathSolver` for background paths, then runs
-the OFDM sensing processor. The target solver uses up to 4,096 samples and
-512 buffered path legs per scattering point.
-The frontend owns Radar-specific target, path and detection Viewer Layers and
-loads the four CC BY 4.0 drone assets through the shared Asset Manager. Radar
-results remain in memory and have no download route or generated result files.
+- **Link** (`POST /api/link/solve`): synchronous Sionna RT `PathSolver` execution.
+- **Mobility** & **Radiomap**: shared `InProcessJobManager` queue (`/api/mobility/jobs`, `/api/radiomap/jobs`) tracking queued/running/succeeded/failed states with TTL eviction.
+- **Radar Sensing**: bounded in-memory `RadarJobManager` (`/api/radar/jobs`) combining Sionna RT 2.2.0 `RCSSolver` (target echoes, up to 4,096 samples and 512 buffered legs per scattering point) and `PathSolver` (clutter/direct paths) with OFDM + CA-CFAR post-processing, isolated 3D Viewer Layers, and 4 CC BY 4.0 drone models. Results stay in memory with no export route.
+- **DeepMIMO**: dedicated worker subprocess (`/api/deepmimo/jobs`) supporting cancellation, persistent job metadata across restarts, and ZIP download leases.
 
 ## Adding a Feature
 
-Before implementation, define the REST contract, state ownership, settings
-dependencies, picking targets and scene output. Then:
-
-1. Create `backend/static/js/features/<feature-id>/` with state, transport,
-   runtime/controller integration and renderer modules.
-2. Define the Feature View Model and named Commands, then map its UI to the
-   public component contract before writing markup.
-3. Render into existing shell anchors without adding CSS-affecting wrapper
-   elements unless the UI change is intentional.
-4. Register picking targets through the shared picking registry.
-5. Render scene output through Feature-owned viewer layers and common
-   primitives. Use a custom renderer only when the common primitives are
-   insufficient.
-6. Add a backend module under `backend/features/` and declare its service,
-   routes and shared resources.
-7. Use the common in-process job manager for ordinary queued work. Use a
-   dedicated subprocess manager only when process isolation or downloadable
-   artifacts require it.
-8. Add the frontend and backend definitions to their catalogs.
-9. Add protocol, lifecycle, isolation and visual regression tests, then update
-   the generated DOM/interaction contract.
-
-Do not access a sibling Feature's DOM, state object or viewer layer directly.
-Cross-Feature domain reuse should be exposed as an explicit capability, as
-Mobility does with Link-domain payload and path rendering behavior.
+1. Define the REST contract, immutable snapshot shape, `UiCommand` actions, solver/antenna dependencies, picking targets, and Viewer layer contract.
+2. Create `backend/static/js/features/<feature-id>/` with isolated `index.js`, `state.js`, `transport.js`, `runtime.js`, `renderer.js`, and UI view adapters.
+3. Build TSX controls (`workbench/src/features/controls/`) and result views (`RightAnalysisDrawer.tsx`) over `ParamFields.tsx` and `WorkbenchChrome.tsx`, registering picking targets cleanly in `PickingRegistry`.
+4. Implement the backend module under `backend/features/` + `backend/rt/` (reusing `InProcessJobManager` unless dedicated subprocess isolation or downloadable archives require otherwise), then register both frontend and backend definitions in their catalogs.
+5. Add unit, contract, lifecycle, accessibility (`axe-core`), and end-to-end Playwright tests covering the new Feature.
 
 ## Compatibility Expectations
 
-Unless a change deliberately introduces a versioned contract, preserve:
+Unless deliberately versioning a public contract, preserve:
 
-- REST URL, method, status code and JSON field names;
-- synchronous versus asynchronous behavior;
-- polling interval and job terminal states;
-- current DOM IDs, control order, labels and operation sequence;
-- Feature result invalidation rules;
-- Three.js scene output and layer isolation;
-- existing facade exports used by tests and external callers.
+- REST endpoint paths, HTTP methods, status codes, polling semantics, and JSON field names;
+- synchronous vs. asynchronous execution guarantees;
+- Feature result invalidation behavior across device moves and scene selection changes;
+- Three.js Viewer layer isolation and resource cleanup invariants;
+- public compatibility exports expected by regression tests and external callers.
 
-## Tests
+## Continuous Integration & Testing
 
-### Python unit and contract suite
+Pull requests run Workbench quality checks, unit tests, verified production build checks, the Python suite, and core browser behavior tests. `tools/ci_scope.py` selects optional jobs based on changed files:
 
-```bash
-python3 -m unittest discover -s tests -p 'test_*.py'
-```
+- Website or docs changes build and verify `website/`.
+- Backend or requirement changes trigger real Sionna RT CPU smoke tests.
+- Dependency/license changes trigger `pip-audit`, `npm audit`, and SPDX license audits.
+- Installer, packaging, or build tool changes run reproducible archive smoke checks and browser soak tests.
+- Pushes to `master` and manual/scheduled workflows run the full matrix.
 
-The Python suite covers configuration, server hardening, route contracts, scene
-generation, solver validation, runtime cleanup and job lifecycles.
-
-### Real runtime smoke suite
-
-The lightweight suite skips tests that require Sionna RT, Mitsuba, Dr.Jit and
-DeepMIMO. Install the full pinned runtime and opt in to the CPU smoke suite:
+### Commands
 
 ```bash
-python3 -m pip install --requirement requirements.txt
-OAT_RUN_REAL_RUNTIME_TESTS=1 python3 -m unittest discover -s tests -p 'test_real_runtime.py' -v
+# Python unit, contract, hardening & architecture tests (pytest or unittest)
+./.venv/bin/python -m pytest -q tests/
+./.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+
+# Real Sionna RT CPU smoke suite (requires full runtime dependencies + LLVM)
+OAT_RUN_REAL_RUNTIME_TESTS=1 ./.venv/bin/python -m unittest discover -s tests -p 'test_real_runtime.py' -v
+
+# Workbench lint, typecheck, unit tests & production build
+npm --prefix workbench test
+
+# Playwright browser suite (with optional OAT_RUN_SOAK_TESTS=true)
+cd tests/browser && npm ci && npx playwright install chromium && npm run test:ci
+
+# Tutorial website & architecture copy check
+npm --prefix website ci && npm --prefix website test && npm --prefix website run build
 ```
 
-These tests use Sionna's bundled floor mesh and temporary directories to run a
-real link solve with channel taps, a two-cell radio map and a one-receiver
-DeepMIMO export. They do not require the sample scene or an NVIDIA GPU, but the
-Dr.Jit LLVM backend must be available.
+Visual snapshot baselines in `tests/browser/` remain a local macOS (`1440x900` / `1280x720`) review gate; use `npm run test:update` only after manually inspecting changed images. Resource soak tests track active timers, frame callbacks, canvases, DOM nodes, and Radar projected labels across consecutive mode cycles.
 
-### Browser and visual regression suite
+## Configuration & Documentation Checks
 
-```bash
-cd tests/browser
-npm ci
-npx playwright install chromium
-npm test
-```
+Runtime `OAT_*` options are defined and bounds-checked in `backend/config.py`. Treat changes binding beyond loopback (`127.0.0.1`), enlarging request limits, or raising job queue limits as security changes.
 
-Use `npm run test:update` only after intentionally reviewing every changed
-snapshot. Do not update snapshots merely to make a failing visual test pass.
+Before merging user-visible changes, verify:
 
-### Tutorial site
-
-```bash
-cd website
-npm ci
-npm test
-npm run build
-```
-
-The production tutorial uses nine manually reviewed 4064x2144 PNG interface
-states in `website/public/media/tutorial/manual/`: four Map Selection states
-and one state for each analysis Feature. Keep the dedicated Feature-card media
-separate from these approved tutorial images, and do not reintroduce MP4 or
-WebVTT walkthrough assets.
-
-Run the interactive browser contracts after changing tutorial layout, steps,
-hotspots, progress handling or media:
-
-```bash
-cd tests/browser
-npm run test:tutorial-site
-```
-
-This suite starts the Vite site and verifies deep links, history, v2 progress
-migration, compound hotspots, image failure fallback, keyboard behavior and
-responsive layouts at 1440, 768 and 375 pixels.
-
-The production build also copies the interactive architecture document to
-`dist/architecture/index.html`, which becomes the GitHub Pages
-`/OpenAirTwin/architecture/` route.
-
-GitHub Actions runs Python tests and core browser contracts for every pull
-request. Runtime, tutorial, audit and packaging jobs follow the change scopes
-described above; pushes to `master` run all jobs. The macOS visual snapshots remain
-a local review gate because raster output is platform-specific; run the full browser
-suite before publishing a UI change.
-
-## Configuration Changes
-
-All runtime environment settings are defined in `backend/config.py`. When adding
-or changing an `OAT_*` value:
-
-1. choose a safe local default;
-2. validate bounds at the request boundary when user-controlled;
-3. add or update configuration tests;
-4. update the common-options table in the root README when users are likely to
-   set it directly;
-5. document security or resource-consumption consequences.
-
-The server is unauthenticated and defaults to loopback. Treat changes that bind
-to broader interfaces, increase request sizes, or relax queue limits as security
-and resource-management changes.
-
-## Documentation Checks
-
-Before merging a user-visible change, verify that:
-
-- the root README still provides a working first-run path;
-- the tutorial matches current labels and control order;
-- the nine approved tutorial screenshots remain 4064x2144 and no legacy
-  MP4/VTT walkthrough files are present;
-- the architecture map reflects new registration and runtime connections;
-- third-party data or model sources are recorded with their applicable terms.
+- root [`../README.md`](../README.md) accurately reflects installation, configuration, repository layout, and citation details;
+- [`openairtwin-architecture.html`](openairtwin-architecture.html) stays synchronized with active files, module connections, and REST flows;
+- [`website/`](../website/src/tutorialData.ts) matches current UI labels (`Map`, `Tx`, `Rx`, `Colormap`) and retains the nine `4064x2144` tutorial PNGs;
+- third-party datasets and models remain properly attributed in [`data-licenses.md`](data-licenses.md).

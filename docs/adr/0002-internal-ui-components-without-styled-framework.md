@@ -1,6 +1,6 @@
 # ADR 0002: Use an Internal Component Library Without a Styled Third-Party Framework
 
-- Status: Accepted
+- Status: Superseded by ADR 0003
 - Date: 2026-07-30
 - Decision scope: Core desktop workbench components and styles
 

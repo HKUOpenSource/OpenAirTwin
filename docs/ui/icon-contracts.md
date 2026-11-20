@@ -2,22 +2,21 @@
 
 > Status: Active production contract
 
-Icons are governed by `oat-icon` and the `--oat-icon-*` tokens in `tokens.css`. Features may select a registered size but may not redefine the fill, stroke, line cap, or line join of shared SVG icons.
+Desktop workbench icons are sourced from `lucide-react` and composed through `@astryxdesign/core` (`Button`, `IconButton`, `ToggleButton`, `NumberInput`, `Tooltip`) and domain wrappers in `workbench/src/ui/`. Axis indicators (`X`, `Y`, `Z`, `Min`, `Max`, `L0`, `L1`, `V`, `H`, `R`, `C`, `P`, `D`) use compact `lucide-react` glyphs or monospaced prefix badges defined in `workbench/src/ui/ParamFields.tsx`.
 
-## Size and Stroke
+## Sizing and Stroke Consistency
 
-| Use | Size token | Stroke token |
+| Context | Typical Size | Notes |
 | --- | --- | --- |
-| Compact chevron | `--oat-icon-size-xs` / `--oat-icon-size-sm` | `--oat-icon-stroke-chevron` |
-| Default action icon | `--oat-icon-size-md` / `--oat-icon-size-base` | `--oat-icon-stroke-default` |
-| Toolbar and navigation icon | `--oat-icon-size-lg` / `--oat-icon-size-xl` | `--oat-icon-stroke-medium` / `--oat-icon-stroke-strong` |
-| Large shortcut action | `--oat-icon-size-2xl` | `--oat-icon-stroke-light` |
+| Compact field prefix & inline badge | `12 px` (`--text-supporting-size`) | Compact axis badges (`X`, `Y`, `Z`, `Min`, `Max`, `V`, `H`) stay vertically aligned inside `size="sm"` controls |
+| Toolbar, inspector action & card icon | `14 px` | Standard size (`size={14}`) across `TopWorkspaceBar`, `DeviceBar`, `LeftInspector`, `RadarControls`, and `EntryMapScreen` |
+| Panel trigger & navigation button | `14–16 px` | Matches compact `28 px` desktop control rhythm (`workbench.css`) |
 
-All icons use `currentColor`, `fill:none`, and round line caps and joins. An icon inside a button must occupy a stable centered container and must not change the button dimensions.
+Icons inherit `currentColor` with uniform stroke geometry (`fill: none`, round caps and joins via Lucide). Placing an icon inside a button must not shift adjacent text baselines or inflate control height.
 
 ## Accessibility
 
-- Icon-only buttons must provide `aria-label`; the SVG itself uses `aria-hidden="true"`.
-- When an icon appears with visible text, the SVG uses `aria-hidden="true"` and the text provides the accessible name.
-- Data-bearing chart SVGs are not decorative icons; they retain `role="img"` and a specific `aria-label`.
-- Selected, error, or busy state must never be communicated only through icon color.
+- Icon-only buttons (`IconButton` or icon-only controls) must provide a descriptive `label` / `aria-label`; decorative SVGs use `aria-hidden="true"`.
+- When an icon accompanies visible text, the icon uses `aria-hidden="true"` so screen readers announce the visible label only once.
+- Data-bearing chart SVGs (such as Link tap plots and Radar target connector overlays) retain appropriate `role="img"` / ARIA semantics rather than decorative icon treatment.
+- Interactive state (selected, error, disabled, or busy) must never rely solely on icon color.
