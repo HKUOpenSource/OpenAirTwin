@@ -16,7 +16,7 @@
 </p>
 
 <p>
-  <a href="https://hkuopensource.github.io/OpenAirTwin/">Tutorial</a> ·
+  <a href="https://hkuopensource.github.io/OpenAirTwin/">Website</a> ·
   <a href="https://hkuopensource.github.io/OpenAirTwin/architecture/">Architecture</a> ·
   <a href="docs/development.md">Development</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
@@ -95,7 +95,7 @@ Explore the full dependency graph, Feature boundaries, and module paths in the *
 .
 ├── backend/       # Python HTTP server, Sionna RT 2.2.0 solvers, job managers, scene pipeline & UI assets
 ├── workbench/     # React + TypeScript + Astryx workstation UI source
-├── website/       # Interactive 6-mode tutorial & embedded architecture documentation site
+├── website/       # Astryx official landing page, interactive physics lab & embedded architecture docs
 ├── docs/          # Architecture map, development guide, data notices & UI contracts
 ├── tests/         # Python unit/integration suites and Playwright browser tests
 ├── tools/         # Scene build, local launch & packaging utilities
