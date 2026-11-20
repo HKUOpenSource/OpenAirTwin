@@ -9,7 +9,7 @@ const MOBILITY_METRICS = {
 
 export function createMobilityResultView({
   state,
-  ui,
+  shellUi,
   getViewer,
   renderAll,
   resultDock,
@@ -165,13 +165,15 @@ export function createMobilityResultView({
     const result = state.mobility.result;
     const visible = state.mode === "mobility" && Boolean(result);
     if (state.mode === "mobility") {
-      ui.linkChannelSection.classList.toggle("hidden", !visible);
-      ui.linkChannelSection.classList.remove("radarResultMode");
-      ui.linkChannelSection.setAttribute("aria-hidden", String(!visible));
-      if (visible) {
-        ui.resultDockTitle.textContent = "Mobility Results";
-        ui.resultDockSubtitle.textContent = "Trajectory & Taps";
-      } else {
+      shellUi?.patch((current) => ({
+        ...current,
+        resultDock: {
+          visible,
+          title: visible ? "Mobility Results" : current.resultDock.title,
+          subtitle: visible ? "Trajectory & Taps" : current.resultDock.subtitle,
+        },
+      }));
+      if (!visible) {
         getViewer().clearPaths();
       }
     } else {

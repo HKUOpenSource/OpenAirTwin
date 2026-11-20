@@ -75,7 +75,7 @@ export function createDeepMimoDatasetView({
   function renderDeepMimoState() {
     const bounds = deepMimoRoiBounds();
     const estimate = deepMimoReceiverEstimate(bounds);
-    ui.deepMimoRxCandidates.value = bounds && Number.isFinite(estimate)
+    state.deepmimo.rxCandidatesText = bounds && Number.isFinite(estimate)
       ? formatCount(estimate)
       : "--";
     if (bounds && state.mode === "deepmimo") {

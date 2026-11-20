@@ -255,6 +255,7 @@ export class Viewer {
       antialias: true,
       powerPreference: "high-performance",
     });
+    this.renderer.debug.checkShaderErrors = false;
     this.performanceMode = DEFAULT_PERFORMANCE_MODE;
     this.lightweightMaterials = true;
     this.hiddenCategories = new Set();

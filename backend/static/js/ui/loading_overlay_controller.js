@@ -1,38 +1,41 @@
 export function createLoadingOverlayController({
   state,
-  ui,
+  shellStore,
   onShow = () => {},
   onHide = () => {},
 } = {}) {
   let overlayCancelHandler = null;
   let overlayOwner = null;
 
+  function publish() {
+    shellStore.patch((current) => ({
+      ...current,
+      loading: {...state.loading},
+    }));
+  }
+
   function setProgress(percent, message, indeterminate = false) {
-    const nextMessage = String(message ?? "");
+    state.loading.message = String(message ?? "");
     if (indeterminate || !Number.isFinite(percent)) {
-      ui.progressBar.classList.add("indeterminate");
-      if (ui.progressBar.style.width !== "38%") {
-        ui.progressBar.style.width = "38%";
-      }
+      state.loading.indeterminate = true;
+      state.loading.percent = 0;
     } else {
-      const nextWidth = `${Math.max(0, Math.min(100, percent))}%`;
-      ui.progressBar.classList.remove("indeterminate");
-      if (ui.progressBar.style.width !== nextWidth) {
-        ui.progressBar.style.width = nextWidth;
-      }
+      state.loading.indeterminate = false;
+      state.loading.percent = Math.max(0, Math.min(100, Number(percent)));
     }
-    if (ui.loadingPhase.textContent !== nextMessage) {
-      ui.loadingPhase.textContent = nextMessage;
-    }
+    publish();
+  }
+
+  function setCancelState({cancellable = false, cancelLabel = "Cancel"} = {}) {
+    state.loading.cancellable = Boolean(cancellable);
+    state.loading.cancelLabel = String(cancelLabel || "Cancel");
+    publish();
   }
 
   function clearOverlayCancel() {
     overlayCancelHandler = null;
-    if (ui.btnLoadingCancel) {
-      ui.btnLoadingCancel.classList.add("hidden");
-      ui.btnLoadingCancel.disabled = false;
-      ui.btnLoadingCancel.textContent = "Cancel";
-    }
+    state.loading.cancellable = false;
+    state.loading.cancelLabel = "Cancel";
   }
 
   function showOverlay({
@@ -45,9 +48,6 @@ export function createLoadingOverlayController({
     owner = null,
     force = false,
   } = {}) {
-    // When the overlay is already owned, only the owner (or an explicit
-    // `force: true` escape hatch) may update it. Without this guard an
-    // ownerless caller could clobber an in-flight solver overlay.
     if (!force && overlayOwner && overlayOwner !== owner) {
       return false;
     }
@@ -55,31 +55,30 @@ export function createLoadingOverlayController({
     state.pickTarget = null;
     state.deviceControl.activeTarget = null;
     clearOverlayCancel();
-    ui.loadingTitle.textContent = title;
-    setProgress(percent, message, indeterminate);
-    if (onCancel && ui.btnLoadingCancel) {
-      ui.btnLoadingCancel.textContent = cancelLabel || "Cancel";
-      ui.btnLoadingCancel.classList.remove("hidden");
+    state.loading.title = String(title || "Working");
+    state.loading.visible = true;
+    if (onCancel) {
+      state.loading.cancellable = true;
+      state.loading.cancelLabel = cancelLabel || "Cancel";
       overlayCancelHandler = onCancel;
     }
-    ui.loadingScreen.style.display = "flex";
+    setProgress(percent, message, indeterminate);
     onShow();
     return true;
   }
 
   function hideOverlay(owner = null, force = false) {
-    // Same invariant as showOverlay: ownerless callers must not tear down an
-    // owned overlay unless they pass `force: true`.
     if (!force && overlayOwner && overlayOwner !== owner) {
       return false;
     }
     overlayOwner = null;
     clearOverlayCancel();
-    ui.loadingScreen.style.display = "none";
-    ui.loadingTitle.textContent = "Loading Scene";
-    ui.loadingPhase.textContent = "Initializing...";
-    ui.progressBar.classList.remove("indeterminate");
-    ui.progressBar.style.width = "0%";
+    state.loading.visible = false;
+    state.loading.title = "Loading Scene";
+    state.loading.message = "Initializing...";
+    state.loading.percent = 0;
+    state.loading.indeterminate = false;
+    publish();
     onHide();
     return true;
   }
@@ -92,6 +91,7 @@ export function createLoadingOverlayController({
       overlayOwner = null;
       clearOverlayCancel();
     },
+    setCancelState,
     setProgress,
     showOverlay,
     hideOverlay,

@@ -14,10 +14,10 @@
     "dev": "node scripts/dev.mjs",
     "dev:catalog": "vite",
     "dev:ui": "vite",
-    "format": "prettier --write . ../tools/ui-catalog/index.html ../tools/ui-catalog/catalog.css ../tests/browser/ui_catalog.spec.js",
-    "format:check": "prettier --check . ../tools/ui-catalog/index.html ../tools/ui-catalog/catalog.css ../tests/browser/ui_catalog.spec.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings 0",
-    "lint:css": "stylelint \"../backend/static/css/*.css\" \"../tools/ui-catalog/catalog.css\" --max-warnings 0",
+    "lint:css": "stylelint \"src/styles/*.css\" --max-warnings 0",
     "test": "npm run check && npm run test:unit && npm run build",
     "test:e2e": "npm run build && npm --prefix ../tests/browser test",
     "test:unit": "vitest run",
@@ -26,12 +26,13 @@
     "verify:build": "node scripts/verify-build.mjs"
   },
   "devDependencies": {
+    "@astryxdesign/cli": "0.7.16",
     "@eslint/js": "10.0.1",
     "@testing-library/dom": "10.4.1",
     "@testing-library/react": "16.3.2",
     "@testing-library/user-event": "14.6.1",
-    "@types/node": "26.1.2",
     "@types/leaflet": "1.9.21",
+    "@types/node": "26.1.2",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.5",
@@ -48,8 +49,12 @@
     "vitest": "4.1.11"
   },
   "dependencies": {
+    "@astryxdesign/core": "0.7.16",
+    "@astryxdesign/theme-neutral": "0.7.16",
     "@maplibre/maplibre-gl-leaflet": "0.1.4",
+    "@stylexjs/stylex": "0.19.2",
     "leaflet": "1.9.4",
+    "lucide-react": "1.76.0",
     "maplibre-gl": "6.4.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"

@@ -314,17 +314,17 @@ def download_tile_zip(
                             if total_size:
                                 fraction = min(downloaded / total_size, 1.0)
                                 progress = 0.05 + 0.50 * fraction
-                                message = f"Downloading GLTF archive: {_format_bytes(downloaded)} / {_format_bytes(total_size)}"
+                                message = f"Downloading: {_format_bytes(downloaded)} / {_format_bytes(total_size)}"
                             else:
                                 progress = 0.08
-                                message = f"Downloading GLTF archive: {_format_bytes(downloaded)}"
+                                message = f"Downloading: {_format_bytes(downloaded)}"
                             _report(progress_cb, progress, message)
 
                 if total_size and downloaded < total_size:
                     raise OSError(f"Incomplete download: got {downloaded} of {total_size} bytes")
 
                 _promote_downloaded_zip(temp_path, target_path)
-                _report(progress_cb, 0.55, f"Downloaded GLTF archive ({_format_bytes(downloaded)})")
+                _report(progress_cb, 0.55, f"Downloaded ({_format_bytes(downloaded)})")
                 return target_path, url
         except TileDownloadCancelled:
             temp_path.unlink(missing_ok=True)

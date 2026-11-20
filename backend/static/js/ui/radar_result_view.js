@@ -24,8 +24,8 @@ const MAX_LIST_PATHS = 120;
 const MAX_KEY_CLUTTER_DETECTIONS = 10;
 const PROCESSING_OPTIONS = [
   {id: "raw", label: "Raw"},
-  {id: "mean_subtracted", label: "Mean-subtracted"},
-  {id: "ideal_clutter_cancelled", label: "Ideal Clutter-cancelled"},
+  {id: "mean_subtracted", label: "Mean Sub"},
+  {id: "ideal_clutter_cancelled", label: "Ideal"},
 ];
 
 function fmt(value, digits = 2, suffix = "") {
@@ -98,7 +98,7 @@ function emptyModel() {
   };
 }
 
-export function createRadarResultView({state, ui, renderAll, focusTarget, resultDock}) {
+export function createRadarResultView({state, shellUi, renderAll, focusTarget, resultDock}) {
   const radar = state.radar;
   let chartLayout = null;
   let rangeDopplerView = "focus";
@@ -241,29 +241,32 @@ export function createRadarResultView({state, ui, renderAll, focusTarget, result
     });
   }
 
-  function restoreOtherResultSections() {
-    ui.linkChannelSection.classList.remove("radarResultMode");
-  }
-
   function renderRadarResult() {
     if (state.mode !== "radar") {
-      restoreOtherResultSections();
       resultDock.update("radar", emptyModel(), ["link", "mobility", "radiomap", "radar"].includes(state.mode) ? state.mode : null);
       return;
     }
-    ui.resultDockTitle.textContent = "Radar Sensing Results";
-    ui.resultDockSubtitle.textContent = "Range–Doppler & CA-CFAR";
     const result = radar.result;
     if (!result) {
-      restoreOtherResultSections();
-      ui.linkChannelSection.classList.add("hidden");
-      ui.linkChannelSection.setAttribute("aria-hidden", "true");
+      shellUi?.patch((current) => ({
+        ...current,
+        resultDock: {
+          visible: false,
+          title: "Radar Sensing Results",
+          subtitle: "Range–Doppler & CA-CFAR",
+        },
+      }));
       resultDock.update("radar", emptyModel(), "radar");
       return;
     }
-    ui.linkChannelSection.classList.remove("hidden");
-    ui.linkChannelSection.classList.add("radarResultMode");
-    ui.linkChannelSection.setAttribute("aria-hidden", "false");
+    shellUi?.patch((current) => ({
+      ...current,
+      resultDock: {
+        visible: true,
+        title: "Radar Sensing Results",
+        subtitle: "Range–Doppler & CA-CFAR",
+      },
+    }));
     if (renderedResult !== result) {
       renderedResult = result;
       radar.processingView = "raw";
@@ -370,7 +373,7 @@ export function createRadarResultView({state, ui, renderAll, focusTarget, result
       const crosshair = resultDock.element("radarChartCrosshair");
       hover.textContent = cell
         ? `Range ${fmt(cell.rangeM, 2, " m")} · Doppler ${fmt(cell.dopplerHz, 1, " Hz")} · Power ${fmt(cell.powerDbm, 1, " dBm")}`
-        : "Hover for range, Doppler, and power.";
+        : "";
       crosshair.classList.toggle("hidden", !cell);
       if (cell) {
         crosshair.style.setProperty("--radar-crosshair-x", `${x}px`);
@@ -382,7 +385,7 @@ export function createRadarResultView({state, ui, renderAll, focusTarget, result
       }
     }, {signal});
     canvas.addEventListener("mouseleave", () => {
-      resultDock.element("radarRdHover").textContent = "Hover for range, Doppler, and power.";
+      resultDock.element("radarRdHover").textContent = "";
       resultDock.element("radarChartCrosshair").classList.add("hidden");
     }, {signal});
     canvas.addEventListener("click", (event) => {
@@ -405,5 +408,5 @@ export function createRadarResultView({state, ui, renderAll, focusTarget, result
     unregisterCommands();
   }
 
-  return Object.freeze({attachEvents, dispose, renderRadarResult, restoreOtherResultSections, selectDetection, selectPath, selectTarget});
+  return Object.freeze({attachEvents, dispose, renderRadarResult, restoreOtherResultSections: () => {}, selectDetection, selectPath, selectTarget});
 }

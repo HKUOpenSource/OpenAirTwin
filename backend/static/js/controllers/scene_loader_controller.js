@@ -18,13 +18,6 @@ function formatByteRate(bytesPerSecond) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB/s`;
 }
 
-function bundleDisplayName(bundle) {
-  if (!bundle) {
-    return "bundle";
-  }
-  return `${bundle.tile} / ${bundle.category}`;
-}
-
 function loadProgressPercent(event) {
   const bytePercent = event.totalBytes > 0 && !event.hasUnknownBytes
     ? Math.min(100, (event.downloadedBytes / event.totalBytes) * 100)
@@ -36,34 +29,17 @@ function loadProgressPercent(event) {
   return countPercent;
 }
 
-function compressionSummary(event) {
-  const originalTotalBytes = Number(event.originalTotalBytes);
-  const totalBytes = Number(event.totalBytes);
-  if (!event.hasCompressedBundles || !Number.isFinite(originalTotalBytes) || !Number.isFinite(totalBytes)) {
-    return "";
-  }
-  if (originalTotalBytes <= totalBytes) {
-    return "";
-  }
-  return ` (${formatBytes(originalTotalBytes)} raw)`;
-}
-
-function resolvingSizeSummary(event) {
-  return event.hasUnknownBytes ? " · resolving sizes" : "";
-}
-
 function loadProgressMessage(event) {
   if (event.phase === "idle") {
-    return "Tile bundles already in sync";
+    return "Bundles in sync";
   }
   if (event.phase === "start") {
-    const totalSize = event.totalBytes > 0
-      ? `${formatBytes(event.totalBytes)} transfer${compressionSummary(event)}${resolvingSizeSummary(event)}`
-      : `resolving sizes`;
-    return `Applying ${event.total} bundle changes · ${event.added || 0} downloads · ${totalSize}`;
+    return event.totalBytes > 0
+      ? `Preparing ${event.total} bundles (${formatBytes(event.totalBytes)})...`
+      : `Preparing ${event.total} bundles...`;
   }
   if (event.phase === "removing") {
-    return `Removing ${bundleDisplayName(event.bundle)} · ${event.completed}/${event.total}`;
+    return `Removing ${event.bundle?.tile || "bundle"} (${event.completed}/${event.total})...`;
   }
 
   const activeBundles = Array.isArray(event.activeBundles) ? event.activeBundles : [];
@@ -71,10 +47,10 @@ function loadProgressMessage(event) {
   const bundleTotal = event.added || 0;
   const visibleBundleCount = Math.min(bundleTotal, (event.completedDownloads || 0) + activeCount);
   const totalSize = event.totalBytes > 0
-    ? `${formatBytes(event.downloadedBytes)} / ${formatBytes(event.totalBytes)}${compressionSummary(event)}${resolvingSizeSummary(event)}`
-    : `${formatBytes(event.downloadedBytes)} downloaded${resolvingSizeSummary(event)}`;
+    ? `${formatBytes(event.downloadedBytes)}/${formatBytes(event.totalBytes)}`
+    : formatBytes(event.downloadedBytes);
   const rate = formatByteRate(event.speedBytesPerSec);
-  return `Loading ${visibleBundleCount}/${bundleTotal} bundles · ${totalSize} · ${rate}`;
+  return `Loading ${visibleBundleCount}/${bundleTotal} · ${totalSize} · ${rate}`;
 }
 
 function createLoadProgressRenderer({setProgress}) {
@@ -180,7 +156,7 @@ export function createSceneLoaderController(context, {
       }
       showOverlay({
         title: "Loading Scene",
-        message: status.message || "Load scene...",
+        message: status.message || "Loading scene...",
         indeterminate: true,
         force: true,
       });
@@ -192,7 +168,7 @@ export function createSceneLoaderController(context, {
     const tileIds = [...selectedTileIds].sort(compareTileIds);
     showOverlay({
       title: "Loading Scene",
-      message: "Load scene...",
+      message: "Loading scene...",
       indeterminate: true,
       force: true,
     });
@@ -229,7 +205,7 @@ export function createSceneLoaderController(context, {
       state.entry.sceneReady = true;
       context.features.activate("link", context);
       state.pickTarget = null;
-      ui.panel.style.display = "flex";
+      state.sceneVisible = true;
       state.panelCollapsed = false;
       syncControlSidebarUi();
       hideEntryScreen();
@@ -265,10 +241,10 @@ export function createSceneLoaderController(context, {
     try {
       if (!diff.toAdd.length && !diff.toRemove.length) {
         syncTileListUi();
-        showOverlay({title: "Loading Scene", message: "Tile bundles already in sync", percent: 100, force: true});
+        showOverlay({title: "Loading Scene", message: "Bundles in sync", percent: 100, force: true});
         await new Promise((resolve) => window.setTimeout(resolve, 160));
       } else {
-        showOverlay({title: "Loading Scene", message: "Syncing tile bundles...", percent: 0, force: true});
+        showOverlay({title: "Loading Scene", message: "Syncing bundles...", percent: 0, force: true});
         const loadProgressRenderer = createLoadProgressRenderer({setProgress});
 
         try {

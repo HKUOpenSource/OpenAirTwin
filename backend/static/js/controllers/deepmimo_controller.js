@@ -41,11 +41,11 @@ export function createDeepMimoController({
       }
       const preservingCancel = state.deepmimo.status === "cancelling" && !TERMINAL_DEEPMIMO_STATUSES.has(job.status);
       if (preservingCancel) {
-        state.deepmimo.message = "Cancelling DeepMIMO export...";
+        state.deepmimo.message = "Cancelling export...";
         renderDeepMimoState();
         showOverlay({
           title: "Exporting DeepMIMO Dataset",
-          message: "Cancelling DeepMIMO export...",
+          message: "Cancelling export...",
           indeterminate: true,
           owner: overlayOwner,
         });
@@ -104,7 +104,7 @@ export function createDeepMimoController({
       }
       showOverlay({
         title: "Exporting DeepMIMO Dataset",
-        message: job.message || "Preparing DeepMIMO dataset...",
+        message: job.message || "Exporting dataset...",
         percent: Math.round(Math.max(0, Math.min(1, Number(job.progress || 0))) * 100),
         cancelLabel: "Cancel Export",
         onCancel: () => {
@@ -124,11 +124,11 @@ export function createDeepMimoController({
       return;
     }
     state.deepmimo.status = "cancelling";
-    state.deepmimo.message = "Cancelling DeepMIMO export...";
+    state.deepmimo.message = "Cancelling export...";
     renderDeepMimoState();
     showOverlay({
       title: "Exporting DeepMIMO Dataset",
-      message: "Cancelling DeepMIMO export...",
+      message: "Cancelling export...",
       indeterminate: true,
       owner: runOwner,
       force: true,
@@ -200,14 +200,14 @@ export function createDeepMimoController({
     state.deepmimo.status = "Queued";
     state.deepmimo.failureKind = null;
     state.deepmimo.progress = 0;
-    state.deepmimo.message = "Submitting DeepMIMO export job...";
+    state.deepmimo.message = "Submitting export...";
     state.deepmimo.jobId = null;
     state.deepmimo.result = null;
     state.deepmimo.pendingDataset = null;
     renderDeepMimoState();
     showOverlay({
       title: "Exporting DeepMIMO Dataset",
-      message: "Submitting DeepMIMO export job...",
+      message: "Submitting export...",
       percent: 0,
       owner: overlayOwner,
       force: true,

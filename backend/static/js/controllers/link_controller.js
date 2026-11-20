@@ -47,7 +47,7 @@ export function createLinkController({
     getViewer().clearOverlay();
     showOverlay({
       title: "Solving Link",
-      message: "Computing link paths with Sionna RT...",
+      message: "Solving link paths...",
       indeterminate: true,
       owner: overlayOwner,
       force: true,
@@ -101,7 +101,7 @@ export function createLinkController({
     readLivePreviewInputs();
     if (
       !state.livePreview.enabled
-      || ui.loadingScreen.style.display !== "none"
+      || state.loading.visible
       || !Array.isArray(state.link.tx)
       || !Array.isArray(state.link.rx)
     ) {

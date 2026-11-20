@@ -20,6 +20,11 @@ DeepMIMO is an optional-domain runtime dependency installed as a separate Python
 
 | Component | License | Project |
 | --- | --- | --- |
+| Astryx Core | MIT | https://astryx.atmeta.com/ |
+| Astryx Neutral Theme | MIT | https://astryx.atmeta.com/ |
+| StyleX | MIT | https://stylexjs.com/ |
+| Lucide React | ISC | https://lucide.dev/ |
+| Intl MessageFormat | BSD-3-Clause | https://formatjs.io/ |
 | React and React DOM | MIT | https://react.dev/ |
 | Scheduler | MIT | https://github.com/facebook/react |
 | Three.js | MIT | https://threejs.org/ |

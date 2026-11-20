@@ -1,8 +1,5 @@
-import { AppShell } from "./AppShell.tsx";
-import {
-  createControlSurfaceModel,
-  type ControlSurfaceApi,
-} from "../features/controls/control-surface-model.ts";
+import "../styles/workbench.css";
+
 import {
   createDeepMimoDatasetModel,
   type DeepMimoDatasetApi,
@@ -11,29 +8,39 @@ import {
   createResultDockModel,
   type ResultDockApi,
 } from "../features/results/result-dock-model.ts";
-import type { WorkbenchFeatureId } from "../features/controls/contracts.ts";
 import type { RootErrorReporter } from "../runtime/error-reporting.ts";
+import {
+  createImperativeHostRegistry,
+  type ImperativeHostRegistry,
+} from "../runtime/host-registry.ts";
 import { reactRootRegistry } from "../runtime/root-registry.tsx";
 import { CommandBus, type AnyUiCommand } from "../runtime/ui-command.ts";
-import { createShellUiModel, type ShellUiModel } from "./shell-ui-model.ts";
+import {
+  createControlsStore,
+  createShellStore,
+  type ControlsStoreController,
+  type ShellStoreController,
+  type WorkbenchFeatureId,
+} from "../runtime/workbench-store.ts";
+import { AppShell } from "./AppShell.tsx";
 
 export type AppShellCommandHandler = (
   command: AnyUiCommand,
 ) => void | Promise<void>;
 
 export interface AppShellRuntime {
-  readonly controls: ControlSurfaceApi;
+  readonly shell: ShellStoreController;
+  readonly controls: ControlsStoreController;
   readonly datasets: DeepMimoDatasetApi;
   readonly results: ResultDockApi;
-  readonly shell: ShellUiModel;
+  readonly hosts: ImperativeHostRegistry;
   readonly element: (id: string) => HTMLElement;
-  readonly elements: (selector: string) => readonly HTMLElement[];
   readonly setCommandHandler: (handler: AppShellCommandHandler | null) => void;
   readonly setDatasetToggleHandler: (handler: (() => void) | null) => void;
   readonly dispose: () => void;
 }
 
-const shellCommandNames = new Set([
+const SHELL_AND_CONTROL_COMMANDS = new Set([
   "dialog.close",
   "dialog.primary",
   "dialog.secondary",
@@ -46,6 +53,7 @@ const shellCommandNames = new Set([
   "entry.scene.enter",
   "entry.scene.open",
   "entry.scene.return",
+  "entry.search.query",
   "entry.search.submit",
   "entry.sidebar.toggle",
   "entry.tile.toggle",
@@ -53,22 +61,26 @@ const shellCommandNames = new Set([
   "performance.categories.hideHeavy",
   "performance.categories.showAll",
   "performance.category.toggle",
-  "performance.dock.toggle",
   "performance.lightMaterials.toggle",
   "performance.mode.select",
   "performance.tick",
   "results.dock.toggle",
   "viewer.precision.escape",
+  "workbench.control.action",
+  "workbench.control.group.toggle",
+  "workbench.control.update",
   "workbench.controls.toggle",
+  "workbench.device.coord",
   "workbench.mode.select",
-  "workbench.mode.toggle",
   "workbench.resize",
   "workbench.transient.dismiss",
 ]);
 
-function owner(container: ParentNode, name: string): Element {
-  const element = container.querySelector(`[data-oat-react-owner="${name}"]`);
-  if (!element) throw new Error(`AppShell owner is missing: ${name}`);
+function resolveResultOwner(container: ParentNode): Element {
+  const element = container.querySelector(
+    '[data-oat-react-owner="result-dock"]',
+  );
+  if (!element) throw new Error("Result dock host is missing");
   return element;
 }
 
@@ -82,73 +94,67 @@ export function mountAppShell({
   readonly reportError: RootErrorReporter;
 }): AppShellRuntime {
   const commandBus = new CommandBus();
-  const shellModel = createShellUiModel();
+  const hosts = createImperativeHostRegistry();
+  const shellStore = createShellStore(activeMode);
+  const controlsStore = createControlsStore(activeMode);
   let commandHandler: AppShellCommandHandler | null = null;
   let datasetToggleHandler: (() => void) | null = null;
-  const resolveOwner = (name: string) => owner(container, name);
-  const controls = createControlSurfaceModel({
-    activeMode,
-    commandBus,
-    resolveContainers: () => [
-      resolveOwner("control-form"),
-      resolveOwner("device-dock"),
-    ],
-  });
+
   const results = createResultDockModel({
     commandBus,
-    resolveContainer: () => resolveOwner("result-dock"),
+    resolveContainer: () => resolveResultOwner(container),
   });
   const datasets = createDeepMimoDatasetModel({
     commandBus,
     onToggle: () => datasetToggleHandler?.(),
   });
-  // Exact subscriptions run before feature-wide wildcard adapters. This keeps
-  // shell state, especially mode selection, observable before click() returns.
-  const unsubscribeShellCommands = [...shellCommandNames].map((commandName) =>
+
+  const unsubscribes = [...SHELL_AND_CONTROL_COMMANDS].map((commandName) =>
     commandBus.subscribe(commandName, (nextCommand) =>
       commandHandler?.(nextCommand),
     ),
   );
+
   container.replaceChildren();
   const root = reactRootRegistry.mount({
     id: "app-shell",
     container,
     children: (
       <AppShell
-        controlModel={controls}
+        shellStore={shellStore}
+        controlsStore={controlsStore}
         datasetModel={datasets}
         resultModel={results}
-        shellModel={shellModel}
+        hosts={hosts}
       />
     ),
     commandBus,
     reportError,
     synchronous: true,
   });
-  controls.initializeFromRenderedSurface();
+
   root.registerCleanup(() => {
     commandHandler = null;
     datasetToggleHandler = null;
-    for (const unsubscribe of unsubscribeShellCommands) unsubscribe();
+    for (const unsubscribe of unsubscribes) unsubscribe();
     datasets.dispose();
     results.dispose();
-    controls.dispose();
-    shellModel.dispose();
+    controlsStore.dispose();
+    shellStore.dispose();
+    hosts.clear();
     commandBus.dispose();
   });
 
   return {
-    controls,
+    shell: shellStore,
+    controls: controlsStore,
     datasets,
     results,
-    shell: shellModel,
+    hosts,
     element(id) {
       const element = container.querySelector<HTMLElement>(`#${id}`);
       if (!element) throw new Error(`AppShell element is missing: ${id}`);
       return element;
-    },
-    elements(selector) {
-      return [...container.querySelectorAll<HTMLElement>(selector)];
     },
     setCommandHandler(handler) {
       commandHandler = handler;

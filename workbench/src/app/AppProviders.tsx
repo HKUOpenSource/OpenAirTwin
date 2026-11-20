@@ -1,4 +1,6 @@
 import { useCallback, useMemo, type ReactNode } from "react";
+import { Theme } from "@astryxdesign/core/theme";
+import { neutralTheme } from "@astryxdesign/theme-neutral/built";
 
 import type { RootErrorReporter } from "../runtime/error-reporting.ts";
 import { normalizeError } from "../runtime/error-reporting.ts";
@@ -37,8 +39,10 @@ export function AppProviders({
     [dispatch, reportError],
   );
   return (
-    <AppRuntimeContext.Provider value={value}>
-      {children}
-    </AppRuntimeContext.Provider>
+    <Theme theme={neutralTheme} mode="light">
+      <AppRuntimeContext.Provider value={value}>
+        {children}
+      </AppRuntimeContext.Provider>
+    </Theme>
   );
 }

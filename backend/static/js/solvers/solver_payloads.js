@@ -12,14 +12,15 @@ function requireDevicePosition(position, message) {
 }
 
 export function commonSolverConfig({state, inputs, includeTxArray = true} = {}) {
+  const solver = state?.solver;
   const solverConfig = {
-    frequency_hz: Number(inputs.cfgFrequency.value) * 1e9,
-    max_depth: Number(inputs.cfgMaxDepth.value),
-    los: inputs.cfgLos.checked,
-    specular_reflection: inputs.cfgSpecular.checked,
-    diffuse_reflection: inputs.cfgDiffuse.checked,
-    refraction: inputs.cfgRefraction.checked,
-    seed: Number(inputs.cfgSeed.value),
+    frequency_hz: Number(solver ? solver.frequencyGhz : inputs.cfgFrequency.value) * 1e9,
+    max_depth: Number(solver ? solver.maxDepth : inputs.cfgMaxDepth.value),
+    los: Boolean(solver ? solver.los : inputs.cfgLos.checked),
+    specular_reflection: Boolean(solver ? solver.specularReflection : inputs.cfgSpecular.checked),
+    diffuse_reflection: Boolean(solver ? solver.diffuseReflection : inputs.cfgDiffuse.checked),
+    refraction: Boolean(solver ? solver.refraction : inputs.cfgRefraction.checked),
+    seed: Number(solver ? solver.seed : inputs.cfgSeed.value),
   };
   if (includeTxArray) {
     solverConfig.tx_array = antennaArrayPayload(state.antenna.txArray);

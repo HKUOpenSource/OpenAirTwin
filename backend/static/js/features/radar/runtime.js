@@ -1,7 +1,7 @@
 import {createRadarAssetPreview} from "/js/features/radar/asset_preview.js?v=20260723-radar-empty-scene";
 
 export function createRadarFeature(context) {
-  const {controller, dom, renderer, resultView, state, transport} = context;
+  const {controller, hosts, renderer, resultView, state, transport} = context;
   const radar = state.radar;
   const controls = context.featureServices.radarControls;
   const shared = context.featureServices.solver;
@@ -10,7 +10,15 @@ export function createRadarFeature(context) {
   let manifestPromise = null;
   let targetPointer = null;
   let pointerCanvas = null;
-  const assetPreview = createRadarAssetPreview({dom, state, viewerRef: context.viewerRef});
+
+  const assetPreview = createRadarAssetPreview({
+    hosts,
+    state,
+    viewerRef: context.viewerRef,
+    onStateChange: () => {
+      context.controllers.solver?.publishControls?.();
+    },
+  });
 
   function reportActionError(title, error) {
     scene().hideOverlay(null, true);
@@ -20,6 +28,7 @@ export function createRadarFeature(context) {
   function inputChanged() {
     controller.handleInputChanged();
     renderer.render();
+    scene().renderAll();
   }
 
   function loadAssets() {
@@ -36,6 +45,7 @@ export function createRadarFeature(context) {
           renderer.registerAssets(manifest);
           assetPreview.setAssets(radar.assets);
           renderer.render();
+          scene().renderAll();
           return radar.assets;
         })
         .catch((error) => {
@@ -70,7 +80,7 @@ export function createRadarFeature(context) {
   function attachEvents() {
     resultView.attachEvents();
     if (pointerCanvas) return;
-    pointerCanvas = context.ui.view;
+    pointerCanvas = hosts.require("view");
     pointerCanvas.addEventListener("pointerdown", handleTargetPointerDown);
     pointerCanvas.addEventListener("pointerup", handleTargetPointerUp);
   }
@@ -85,45 +95,50 @@ export function createRadarFeature(context) {
     renderer.dispose();
   }
 
-  const deviceIds = new Set([
-    "radarTxX", "radarTxY", "radarTxZ", "radarRxX", "radarRxY", "radarRxZ",
-  ]);
-  const modeIds = new Set(["radarModeMonostatic", "radarModeBistatic"]);
-  const targetIds = new Set([
-    "radarTargetAsset", "radarTargetX", "radarTargetY", "radarTargetZ",
-    "radarTargetRoll", "radarTargetPitch", "radarTargetSpeed",
-    "radarTargetDirection", "radarTargetClimb", "radarTargetRcs",
-  ]);
-  const parameterIds = new Set([
-    "radarCarrierFrequency", "radarBandwidth", "radarNumSubcarriers",
-    "radarNumSymbols", "radarTxPower", "radarNoiseFigure", "radarSystemLoss",
-    "radarNoiseTemperature", "radarDirectPathCancellation", "radarCfarEnabled",
-    "radarCfarGuardRange", "radarCfarGuardDoppler", "radarCfarTrainingRange",
-    "radarCfarTrainingDoppler", "radarCfarPfa", "radarSamplesPerSrc",
-    "radarMaxPaths", "radarMaxDepth", "radarSeed", "radarLos",
-    "radarSpecular", "radarDiffuse", "radarRefraction", "radarDiffraction",
-    "radarSyntheticArray",
-  ]);
-
-  function handleControlCommit(controlId) {
-    if (deviceIds.has(controlId)) {
-      inputChanged();
-      context.settings.publish("radar-device");
-      picking().refreshPickStatus("radar");
-      return true;
-    }
-    if (modeIds.has(controlId)) {
-      inputChanged();
-      if (radar.mode === "monostatic" && state.deviceControl.activeTarget === "radar-rx") {
-        picking().closeDevicePrecision();
+  function handleControlUpdate(scope, field, value) {
+    if (scope === "radar" && field === "mode") {
+      radar.mode = value === "monostatic" ? "monostatic" : "bistatic";
+      if (radar.mode === "monostatic") {
+        radar.rx = radar.tx ? [...radar.tx] : null;
+        radar.rxVisual = radar.rx ? [...radar.rx] : null;
+        if (state.deviceControl.activeTarget === "radar-rx") {
+          picking().closeDevicePrecision();
+        }
       }
-      controls.syncInputs();
-      scene().renderAll();
+      inputChanged();
       return true;
     }
-    if (!targetIds.has(controlId) && !parameterIds.has(controlId)) return false;
-    inputChanged();
-    return true;
+    if (scope === "radar.target") {
+      try {
+        controls.updateSelectedTargetField(field, value);
+        radar.error = null;
+      } catch (error) {
+        radar.error = error.message;
+      }
+      inputChanged();
+      return true;
+    }
+    if (scope === "radar.waveform" && field in radar.waveform) {
+      radar.waveform[field] = Number(value);
+      inputChanged();
+      return true;
+    }
+    if (scope === "radar.signal" && field in radar.signal) {
+      radar.signal[field] = field === "directPathCancellation" ? Boolean(value) : Number(value);
+      inputChanged();
+      return true;
+    }
+    if (scope === "radar.cfar" && field in radar.cfar) {
+      radar.cfar[field] = field === "enabled" ? Boolean(value) : Number(value);
+      inputChanged();
+      return true;
+    }
+    if (scope === "radar.solver" && field in radar.solver) {
+      radar.solver[field] = typeof radar.solver[field] === "boolean" ? Boolean(value) : Number(value);
+      inputChanged();
+      return true;
+    }
+    return false;
   }
 
   async function handleControlAction(actionId, value) {
@@ -158,6 +173,7 @@ export function createRadarFeature(context) {
     if (actionId === "btnAddRadarTarget") {
       try {
         controls.addTarget(assetPreview.selectedAssetId());
+        assetPreview.syncState();
         controller.invalidateRadarResult();
         renderer.render();
         scene().renderAll();
@@ -168,6 +184,7 @@ export function createRadarFeature(context) {
     }
     if (actionId === "btnRemoveRadarTarget") {
       controls.removeSelectedTarget();
+      assetPreview.syncState();
       controller.invalidateRadarResult();
       renderer.render();
       scene().renderAll();
@@ -205,7 +222,6 @@ export function createRadarFeature(context) {
       const position = pick.surfacePosition || pick.logicalPosition;
       if (!selected || !Array.isArray(position)) return;
       selected.position = position.map(Number);
-      controls.syncInputs();
       controller.invalidateRadarResult();
       renderer.render();
       return;
@@ -217,60 +233,40 @@ export function createRadarFeature(context) {
       radar.rx = [...radar.tx];
       radar.rxVisual = [...radar.txVisual];
     }
-    controls.syncInputs();
     controller.invalidateRadarResult();
     renderer.render();
-  }
-
-  function renderStatus() {
-    const activeJob = ["submitting", "queued", "running", "cancelling"].includes(radar.status);
-    const deviceRequirement = controls.deviceRequirementMessage();
-    dom.radarJobBar.classList.toggle("hidden", !activeJob && radar.status !== "failed");
-    dom.radarJobBar.dataset.status = radar.status;
-    dom.radarJobBar.dataset.failureKind = radar.failureKind || "";
-    dom.radarJobStatus.textContent = radar.status.toUpperCase();
-    dom.radarJobStatus.className = `radarStatusPill status-${radar.status}`;
-    dom.radarJobMessage.textContent = radar.error || radar.message;
-    dom.radarJobProgress.value = Math.max(0, Math.min(1, Number(radar.progress) || 0));
-    dom.btnCancelRadar.classList.toggle("hidden", !activeJob || !radar.jobId);
-    dom.btnRetryRadar.classList.toggle("hidden", radar.status !== "failed");
-    dom.radarInputError.textContent = radar.error || "";
-    dom.radarInputError.classList.toggle("hidden", !radar.error);
-    dom.btnSolveRadar.disabled = activeJob || state.tileLoadBusy || !controls.devicesReady();
-    dom.btnSolveRadar.setAttribute("aria-busy", String(activeJob));
-    if (deviceRequirement) dom.btnSolveRadar.title = deviceRequirement;
-    else dom.btnSolveRadar.removeAttribute("title");
   }
 
   return {
     attachEvents,
     handleControlAction,
-    handleControlCommit,
+    handleControlUpdate,
     handleControlGroupToggle,
     applyPick,
-    markerPositions() { return {tx: radar.txVisual, rx: radar.mode === "monostatic" ? radar.txVisual : radar.rxVisual}; },
-    readInputs() { controls.readInputs(); },
-    runRequirementMessage: controls.deviceRequirementMessage,
-    syncInputs() { controls.syncInputs(); },
+    markerPositions() {
+      return {tx: radar.txVisual, rx: radar.mode === "monostatic" ? null : radar.rxVisual};
+    },
+    readInputs: () => controls.readInputs(),
+    runRequirementMessage: () => controls.deviceRequirementMessage(),
+    invalidateRadarResult: (options) => controller.invalidateRadarResult(options),
     activate() {
-      dom.radarPanel.parentElement?.classList.add("radarFullMode");
-      if (dom.radarPanel.parentElement) dom.radarPanel.parentElement.scrollTop = 0;
       context.viewerRef.current.clearOverlay();
-      renderer.activate();
-      assetPreview.activate();
-      controls.syncInputs();
       loadAssets();
+      assetPreview.activate();
+      renderer.activate();
     },
     deactivate() {
-      dom.radarPanel.parentElement?.classList.remove("radarFullMode");
-      if (radar.autoCollapsedPanel && state.panelCollapsed) state.panelCollapsed = false;
-      radar.autoCollapsedPanel = false;
       assetPreview.deactivate();
       renderer.deactivate();
-      resultView.restoreOtherResultSections();
     },
-    onSettingsChanged() { controller.invalidateRadarResult(); renderer.clearResult(); },
-    render() { renderStatus(); resultView.renderRadarResult(); renderer.render(); assetPreview.syncState(); },
+    onSettingsChanged() {
+      controller.invalidateRadarResult();
+    },
+    render() {
+      assetPreview.syncState();
+      renderer.render();
+      resultView.renderRadarResult();
+    },
     dispose,
   };
 }

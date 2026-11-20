@@ -1,8 +1,7 @@
 export function createLinkFeature(context) {
-  const {inputs, settings, state, ui} = context;
+  const {settings, state} = context;
   const {controller, resultView} = context;
   const shared = context.featureServices.solver;
-  const solver = () => context.controllers.solver;
   const scene = () => context.controllers.scene;
   const picking = () => context.controllers.devicePicking;
 
@@ -15,52 +14,27 @@ export function createLinkFeature(context) {
     return "";
   }
 
-  function attachEvents() {
-    // Link controls are owned by the React control surface. This lifecycle hook
-    // remains for symmetry with features that still attach imperative engines.
-  }
-
-  const deviceTargets = new Map([
-    ["linkTxX", "link-tx"], ["linkTxY", "link-tx"], ["linkTxZ", "link-tx"],
-    ["linkRxX", "link-rx"], ["linkRxY", "link-rx"], ["linkRxZ", "link-rx"],
-  ]);
-  const channelIds = new Set([
-    "linkSamplesPerSrc", "linkMaxNumPaths", "linkBandwidthMhz",
-    "linkSyntheticArray", "linkDiffraction", "linkEdgeDiffraction",
-    "linkDiffractionLitRegion", "linkComputeTaps", "linkTapLMin",
-    "linkTapLMax", "linkTapFftSize",
-  ]);
-  const livePreviewIds = new Set([
-    "livePreviewEnabled", "livePreviewLinkSamples", "livePreviewPathsDelay",
-  ]);
-
-  function handleControlCommit(controlId) {
-    if (state.mode === "radar") return false;
-    const target = deviceTargets.get(controlId);
-    if (target) {
-      solver().readLinkInputs();
-      settings.publish("link-device");
-      picking().refreshPickStatus("link");
-      controller.handleLivePreviewDeviceUpdate(target, "change");
-      scene().renderAll();
-      return true;
-    }
-    if (channelIds.has(controlId)) {
-      solver().readLinkInputs();
+  function handleControlUpdate(scope, field, value) {
+    if (scope === "link" && field in state.link.advanced) {
+      state.link.advanced[field] = typeof state.link.advanced[field] === "boolean"
+        ? Boolean(value)
+        : Number(value);
+      const bwHz = Number(state.link.advanced.bandwidthMhz) * 1e6;
+      const fft = Number(state.link.advanced.tapFftSize);
+      if (Number.isFinite(bwHz) && Number.isFinite(fft) && fft > 0) {
+        state.link.advanced.tapSubcarrierSpacingHz = bwHz / fft;
+      }
       settings.publish("link-channel");
       scene().renderAll();
       return true;
     }
-    if (livePreviewIds.has(controlId)) {
-      solver().readLivePreviewInputs();
-      if (!state.livePreview.enabled) controller.cancelLivePreview();
-      scene().renderAll();
-      return true;
-    }
-    if (controlId === "linkSurfaceClearance") {
-      const scope = context.picking.get(state.deviceControl.activeTarget)?.scope || "link";
-      solver().readSurfaceClearanceInput(scope);
-      settings.publish("surface-clearance");
+    if (scope === "livePreview") {
+      if (field === "enabled") {
+        state.livePreview.enabled = Boolean(value);
+        if (!state.livePreview.enabled) controller.cancelLivePreview();
+      } else if (field === "previewSamplesPerSrc" || field === "pathsDelayS") {
+        state.livePreview.link[field] = Number(value);
+      }
       scene().renderAll();
       return true;
     }
@@ -87,9 +61,9 @@ export function createLinkFeature(context) {
   }
 
   return {
-    attachEvents,
+    attachEvents() {},
     handleControlAction,
-    handleControlCommit,
+    handleControlUpdate,
     applyPick(pick, target) {
       const position = shared.pickPositionWithSurfaceClearance(pick, target.scope);
       shared.setLogicalAndVisual(state.link, target.role, position);
@@ -98,9 +72,7 @@ export function createLinkFeature(context) {
     markerPositions() {
       return {tx: state.link.txVisual, rx: state.link.rxVisual};
     },
-    readInputs() {
-      solver().readLinkInputs();
-    },
+    readInputs() {},
     runRequirementMessage,
     activate() {
       context.viewerRef.current.clearOverlay();

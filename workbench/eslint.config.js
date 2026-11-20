@@ -31,7 +31,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/{app,catalog,design-system}/**/*.tsx"],
+    files: ["src/{app,app-shell,features,ui}/**/*.tsx"],
     plugins: {
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
