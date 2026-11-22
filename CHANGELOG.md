@@ -7,6 +7,7 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ### Changed
 
+- Redesigned `website/` into OpenAirTwin's Astryx `centered-hero` official landing page featuring a Three.js 3D interactive propagation and OFDM radar physics lab (`Link`, `Mobility`, `Radio Map`, `DeepMIMO`, `Radar`), workflow capability matrix, architecture layer explorer link, and platform Quick Start guide—removing ~70 MB of static tutorial screenshots, feature GIF/MP4 media, and WebM hero videos.
 - Replaced the custom workbench UI system with Meta's Astryx React component
   library (`@astryxdesign/core` and `@astryxdesign/theme-neutral`, high-density
   light theme) and reorganized the workstation layout into a Top Workspace Bar,
