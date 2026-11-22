@@ -54,12 +54,12 @@ jobs:
       - name: Test tutorial contracts
         run: npm test
 
+      - name: Build
+        run: npm run build
+
       - name: Test interactive tutorial
         working-directory: tests/browser
         run: npm run test:tutorial-site
-
-      - name: Build
-        run: npm run build
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v5
