@@ -1,7 +1,7 @@
-# v1.1.0 Release Checklist
+# v1.2.0 Release Checklist
 
-This checklist defines the release contract for OpenAirTwin `1.1.0`, dated
-2026-08-01. The supported Workbench target is desktop Chromium or Chrome at
+This checklist defines the release contract for OpenAirTwin `1.2.0`, dated
+2026-11-22. The supported Workbench target is desktop Chromium or Chrome at
 1280x720 or larger. This release does not add mobile, Safari or Firefox
 support.
 
@@ -9,10 +9,10 @@ support.
 
 - [ ] Confirm `backend.__version__`, Workbench metadata, tutorial metadata,
   `CITATION.cff`, `CHANGELOG.md` and the application manifest all report
-  `1.1.0`.
+  `1.2.0`.
 - [ ] Build with the full lowercase 40-character Git commit from `HEAD`.
 - [ ] Confirm the frontend Build ID is
-  `1.1.0+<first-12-characters-of-the-commit>`.
+  `1.2.0+<first-12-characters-of-the-commit>`.
 - [ ] Confirm the tracked tree is clean before packaging and that the packaged
   commit is the exact tested commit.
 - [ ] Confirm all commit subjects and bodies created for the release are in
@@ -73,14 +73,14 @@ support.
 
 ## Deterministic application package
 
-- [ ] Build the Workbench once with `OAT_RELEASE_VERSION=1.1.0` and the
+- [ ] Build the Workbench once with `OAT_RELEASE_VERSION=1.2.0` and the
   exact `OAT_GIT_COMMIT`; all later jobs must consume that same output.
 - [ ] Confirm `build-info.json`, `.vite/manifest.json` and `integrity.json`
   agree on the Build ID and every production file.
-- [ ] Build `openairtwin-1.1.0.tar.gz` twice from the same commit and
+- [ ] Build `openairtwin-1.2.0.tar.gz` twice from the same commit and
   confirm the archives are byte-for-byte identical.
-- [ ] Verify `openairtwin-1.1.0.tar.gz.sha256`,
-  `openairtwin-1.1.0.cdx.json` and the archive's
+- [ ] Verify `openairtwin-1.2.0.tar.gz.sha256`,
+  `openairtwin-1.2.0.cdx.json` and the archive's
   `release-manifest.json`.
 - [ ] Extract into a new temporary directory, run the packaged installer with
   Python 3.11 and start the server with a PATH that does not contain Node.js.
@@ -97,7 +97,7 @@ maintainer performs them only after reviewing the local commits and artifacts.
 
 - [ ] Push the reviewed release branch.
 - [ ] Open and merge the release pull request without changing the tested tree.
-- [ ] Create an annotated `v1.1.0` tag.
+- [ ] Create an annotated `v1.2.0` tag.
 - [ ] Publish the English release notes and attach the archive, checksum and
   SBOM to the GitHub Release.
 - [ ] Verify the published digest, Build ID, CI checks, tutorial and
