@@ -799,11 +799,23 @@ export function resolveSafeUavAltitude(
   return safeAltitude;
 }
 
+export function radarNormalizedCoords(
+  rangeM: number,
+  velocityMs: number,
+  maxRangeM: number,
+  maxVelocityMs: number,
+): { readonly u: number; readonly v: number } {
+  const u = Math.max(0, Math.min(1, velocityMs / (2 * maxVelocityMs) + 0.5));
+  const v = Math.max(0, Math.min(1, 1 - rangeM / maxRangeM));
+  return { u, v };
+}
+
 export function computeRadarScene(
   bistatic: boolean,
   velocityScale: number,
   cfarThresholdDb: number,
   phase: number,
+  clutterSuppression = true,
 ): RadarSimulationResult {
   const tx: Point2D = { x: 18, y: 40 };
   const rx: Point2D = bistatic ? { x: 138, y: 61 } : { x: 18, y: 40 };
@@ -826,7 +838,7 @@ export function computeRadarScene(
       rxRadius: 8.5,
       ryRadius: 3.0,
       altitudeM: 56,
-      speedBase: 14.5,
+      speedBase: 22.0,
       phaseOffset: 0.2,
       rcsDbsm: -9.5,
     },
@@ -854,7 +866,7 @@ export function computeRadarScene(
       rxRadius: 11.5,
       ryRadius: 3.5,
       altitudeM: 25,
-      speedBase: 9.8,
+      speedBase: 15.0,
       phaseOffset: 1.5,
       rcsDbsm: -11.8,
     },
@@ -881,8 +893,8 @@ export function computeRadarScene(
 
   const maxRangeM = 520;
   const maxVelocityMs = 30;
-  const rdCols = 36;
-  const rdRows = 36;
+  const rdCols = 120;
+  const rdRows = 48;
 
   const tx3: Point3D = { x: tx.x, y: tx.y, zM: txHeightM };
   const rx3: Point3D = { x: rx.x, y: rx.y, zM: rxHeightM };
@@ -900,7 +912,7 @@ export function computeRadarScene(
     const d2 = polylineDistance3DM([rx3, tgt3]);
     const rangeM = 0.5 * (d1 + d2);
     const radialVelocityMs =
-      spec.speedBase * velocityScale * Math.cos(theta * 0.5 + 0.4);
+      spec.speedBase * velocityScale * Math.cos(theta - 0.4);
     const headingDeg = ((theta * 180) / Math.PI + 90) % 360;
     // Enforce conservative visual + physical 3D clearance so beams never clip building edges
     const txLos = isLineOfSightClear3D(tx3, tgt3, undefined, -0.35, 1.0);
@@ -930,26 +942,27 @@ export function computeRadarScene(
   const detections: RadarDetection[] = [];
 
   for (let rRow = 0; rRow < rdRows; rRow += 1) {
-    const rangeM = ((rdRows - 1 - rRow + 0.5) / rdRows) * maxRangeM;
+    const vCell = (rRow + 0.5) / rdRows;
+    const rangeM = (1 - vCell) * maxRangeM;
     for (let dCol = 0; dCol < rdCols; dCol += 1) {
-      const velMs = ((dCol + 0.5) / rdCols - 0.5) * 2 * maxVelocityMs;
+      const uCell = (dCol + 0.5) / rdCols;
+      const velMs = (uCell - 0.5) * 2 * maxVelocityMs;
       const hash =
         Math.sin(rRow * 12.9898 + dCol * 78.233) * 43758.5453;
-      const noise = (hash - Math.floor(hash)) * 3.8;
-      const clutter =
-        26 *
-        Math.exp(-(velMs * velMs) / 5.5) *
-        Math.exp(-rangeM / 280);
+      const noise = (hash - Math.floor(hash)) * 3.2;
+      const clutter = clutterSuppression
+        ? 4 * Math.exp(-(velMs * velMs) / 1.8) * Math.exp(-rangeM / 280)
+        : 28 * Math.exp(-(velMs * velMs) / 4.5) * Math.exp(-rangeM / 280);
       let signal = -96 + noise + clutter;
 
       for (const target of targets) {
-        const dr = (rangeM - target.rangeM) / 18;
-        const dv = (velMs - target.radialVelocityMs) / 2.6;
+        const dr = (rangeM - target.rangeM) / 22;
+        const dv = (velMs - target.radialVelocityMs) / 1.5;
         const peakAmp =
-          (target.occluded ? 10 : 40) + (target.rcsDbsm + 10) * 0.85;
+          (target.occluded ? 6 : 42) + (target.rcsDbsm + 10) * 0.85;
         signal = Math.max(
           signal,
-          -92 + peakAmp * Math.exp(-(dr * dr + dv * dv)) + noise * 0.4,
+          -92 + peakAmp * Math.exp(-(dr * dr + dv * dv)) + noise * 0.3,
         );
       }
       rdMatrixDb[rRow * rdCols + dCol] = Math.max(-98, Math.min(-42, signal));

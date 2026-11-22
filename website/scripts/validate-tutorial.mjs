@@ -186,10 +186,16 @@ const urbanModelJs = ts.transpileModule(urbanModel, {
     target: ts.ScriptTarget.ES2022,
   },
 }).outputText;
-const { computeRadarScene, hasUavBuildingCollision, isLineOfSightClear3D, WORLD_W, WORLD_H } =
-  await import(
-    `data:text/javascript;base64,${Buffer.from(urbanModelJs, "utf8").toString("base64")}`
-  );
+const {
+  computeRadarScene,
+  hasUavBuildingCollision,
+  isLineOfSightClear3D,
+  radarNormalizedCoords,
+  WORLD_W,
+  WORLD_H,
+} = await import(
+  `data:text/javascript;base64,${Buffer.from(urbanModelJs, "utf8").toString("base64")}`
+);
 for (const bistatic of [false, true]) {
   let clearTotal = 0;
   let occludedTotal = 0;
@@ -299,6 +305,46 @@ for (const bistatic of [false, true]) {
     for (const det of sim.detections) {
       const matched = sim.targets.find((t) => t.id === det.targetId);
       assert.ok(matched && !matched.occluded, "Occluded UAV must not produce CA-CFAR detection.");
+
+      // Verify exact Range-Doppler peak alignment with detection marker normalized coordinates
+      const { u, v } = radarNormalizedCoords(
+        det.rangeM,
+        det.velocityMs,
+        sim.maxRangeM,
+        sim.maxVelocityMs,
+      );
+      const cCol = Math.min(sim.rdCols - 1, Math.max(0, Math.floor(u * sim.rdCols)));
+      const cRow = Math.min(sim.rdRows - 1, Math.max(0, Math.floor(v * sim.rdRows)));
+      const cellDb = sim.rdMatrixDb[cRow * sim.rdCols + cCol];
+      assert.ok(
+        cellDb >= -65,
+        `Range-Doppler energy at mapped bin for ${det.targetId} is too weak (${cellDb.toFixed(1)} dB)`,
+      );
+      let peakCol = cCol;
+      let peakRow = cRow;
+      let peakDb = -Infinity;
+      for (let r = Math.max(0, cRow - 2); r <= Math.min(sim.rdRows - 1, cRow + 2); r += 1) {
+        for (let c = Math.max(0, cCol - 2); c <= Math.min(sim.rdCols - 1, cCol + 2); c += 1) {
+          const valDb = sim.rdMatrixDb[r * sim.rdCols + c];
+          if (valDb > peakDb) {
+            peakDb = valDb;
+            peakCol = c;
+            peakRow = r;
+          }
+        }
+      }
+      assert.ok(
+        peakDb >= -65,
+        `Range-Doppler peak for ${det.targetId} is too weak (${peakDb.toFixed(1)} dB)`,
+      );
+      assert.ok(
+        Math.abs((peakCol + 0.5) / sim.rdCols - u) <= 1.0 / sim.rdCols,
+        `Range-Doppler column peak misaligned for ${det.targetId} (bistatic=${bistatic}, step=${i})`,
+      );
+      assert.ok(
+        Math.abs((peakRow + 0.5) / sim.rdRows - v) <= 1.0 / sim.rdRows,
+        `Range-Doppler row peak misaligned for ${det.targetId} (bistatic=${bistatic}, step=${i})`,
+      );
     }
   }
 

@@ -40,6 +40,7 @@ import {
   computeRadarScene,
   computeRadioMapGrid,
   nudgePointOutsideBuildings,
+  radarNormalizedCoords,
   sampleMobilityTrajectory,
   type Point2D,
 } from "../physics/urbanModel";
@@ -183,9 +184,10 @@ export function PhysicsSandbox({
     () =>
       computeRadarScene(
         bistatic,
-        clutterSuppression ? 1.0 : 0.75,
+        clutterSuppression ? 1.0 : 0.85,
         clutterSuppression ? cfarThresholdDb : Math.max(8, cfarThresholdDb - 2),
         radarPhase,
+        clutterSuppression,
       ),
     [bistatic, clutterSuppression, cfarThresholdDb, radarPhase],
   );
@@ -203,15 +205,7 @@ export function PhysicsSandbox({
     const minDb = -98;
     const maxDb = -46;
     for (let i = 0; i < rdCols * rdRows; i += 1) {
-      let valDb = rdMatrixDb[i];
-      if (clutterSuppression) {
-        const col = i % rdCols;
-        const centerDist = col - (rdCols - 1) / 2;
-        valDb = Math.max(
-          minDb,
-          valDb - 22 * Math.exp(-(centerDist * centerDist) / 2.2),
-        );
-      }
+      const valDb = rdMatrixDb[i];
       const norm = (valDb - minDb) / (maxDb - minDb);
       const { r, g, b } = colorForColormap("turbo", norm);
       const offset = i * 4;
@@ -221,7 +215,7 @@ export function PhysicsSandbox({
       img.data[offset + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-  }, [activeModeId, radarSim, clutterSuppression]);
+  }, [activeModeId, radarSim]);
 
   const handleNudgeKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     const step = 4;
@@ -819,48 +813,42 @@ export function PhysicsSandbox({
                     ref={radarCanvasRef}
                     width={radarSim.rdCols}
                   />
-                  <svg
+                  <div
                     aria-label="CA-CFAR detection overlay"
-                    viewBox="0 0 120 60"
+                    className="oat-radar-overlay"
                   >
-                    <line
-                      stroke="rgba(255,255,255,0.45)"
-                      strokeDasharray="2 2"
-                      strokeWidth={0.6}
-                      x1={60}
-                      x2={60}
-                      y1={0}
-                      y2={60}
-                    />
+                    <div className="oat-radar-zero-line" aria-hidden="true" />
                     {radarSim.detections.map((det) => {
-                      const xCoord =
-                        (det.velocityMs / (2 * radarSim.maxVelocityMs) + 0.5) *
-                        120;
-                      const yCoord =
-                        (1 - det.rangeM / radarSim.maxRangeM) * 60;
+                      const { u, v } = radarNormalizedCoords(
+                        det.rangeM,
+                        det.velocityMs,
+                        radarSim.maxRangeM,
+                        radarSim.maxVelocityMs,
+                      );
                       return (
-                        <g key={det.targetId}>
-                          <circle
-                            cx={xCoord}
-                            cy={yCoord}
-                            fill="none"
-                            r={3.5}
-                            stroke="#ffffff"
-                            strokeWidth={0.9}
-                          />
-                          <text
-                            fill="#ffffff"
-                            fontSize={3.8}
-                            fontWeight={700}
-                            x={Math.min(104, xCoord + 4.8)}
-                            y={Math.max(8, yCoord + 1.2)}
+                        <div
+                          className="oat-radar-marker"
+                          data-testid={`radar-marker-${det.targetId}`}
+                          key={det.targetId}
+                          style={{
+                            left: `${(u * 100).toFixed(3)}%`,
+                            top: `${(v * 100).toFixed(3)}%`,
+                          }}
+                        >
+                          <span className="oat-radar-ring" />
+                          <span
+                            className={
+                              u > 0.84
+                                ? "oat-radar-tag oat-radar-tag--left"
+                                : "oat-radar-tag"
+                            }
                           >
                             {det.shortLabel}
-                          </text>
-                        </g>
+                          </span>
+                        </div>
                       );
                     })}
-                  </svg>
+                  </div>
                 </div>
               </div>
             ) : null}
