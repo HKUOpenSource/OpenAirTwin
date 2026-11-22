@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(root, "..");
@@ -179,8 +180,16 @@ console.log(
 );
 
 // 7. 3D Radar LoS, collision clearance, sector alignment, and 3D spatial dispersion sweep
+const urbanModelJs = ts.transpileModule(urbanModel, {
+  compilerOptions: {
+    module: ts.ModuleKind.ESNext,
+    target: ts.ScriptTarget.ES2022,
+  },
+}).outputText;
 const { computeRadarScene, hasUavBuildingCollision, isLineOfSightClear3D, WORLD_W, WORLD_H } =
-  await import("../src/physics/urbanModel.ts");
+  await import(
+    `data:text/javascript;base64,${Buffer.from(urbanModelJs, "utf8").toString("base64")}`
+  );
 for (const bistatic of [false, true]) {
   let clearTotal = 0;
   let occludedTotal = 0;
