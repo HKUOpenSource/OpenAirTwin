@@ -264,7 +264,7 @@ function Footer() {
         <div className="oat-footer-col">
           <h3>Open Source</h3>
           <a href={REPOSITORY_URL}>GitHub</a>
-          <a href={RELEASE_URL}>Release v1.1.0</a>
+          <a href={RELEASE_URL}>Release v1.2.0</a>
           <a href={`${REPOSITORY_URL}/blob/master/LICENSE`}>License</a>
           <a href={`${REPOSITORY_URL}/issues`}>Issues</a>
         </div>

@@ -5,39 +5,27 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-22
+
+### Added
+
+- Upgraded the official website (`website/`) to an Astryx `centered-hero` landing page featuring a Three.js WebGL interactive 3D Lab (`Link`, `Mobility`, `Radio Map`, `DeepMIMO`, `Radar`), capability matrix, architecture map link, and cross-platform Quick Start guide, replacing ~70 MB of static screenshots, GIFs, and videos.
+- Stratified the 3D Lab `Radar` mode airspace with collision-free 3D UAV orbits dispersed across X–Y, azimuth, and altitude tiers, synchronized Tx detection sector coverage, exact 3D line-of-sight occlusion filtering, and a unified `Range–Doppler · CA-CFAR` overlay aligned 1:1 with heatmap peaks.
+
 ### Changed
 
-- Redesigned `website/` into OpenAirTwin's Astryx `centered-hero` official landing page featuring a Three.js 3D interactive propagation and OFDM radar physics lab (`Link`, `Mobility`, `Radio Map`, `DeepMIMO`, `Radar`), workflow capability matrix, architecture layer explorer link, and platform Quick Start guide—removing ~70 MB of static tutorial screenshots, feature GIF/MP4 media, and WebM hero videos.
-- Replaced the custom workbench UI system with Meta's Astryx React component
-  library (`@astryxdesign/core` and `@astryxdesign/theme-neutral`, high-density
-  light theme) and reorganized the workstation layout into a Top Workspace Bar,
-  collapsible Left Inspector, floating DeviceBar, and collapsible Right Analysis
-  Drawer (ADR 0003).
-- Refined workstation ergonomics and UI density: renamed the top-left `Tiles`
-  launcher to `Map`, simplified bottom DeviceBar controls to uniform `Tx` / `Rx`
-  labels (with coordinates shown in the expandable editor card), shortened
-  loading overlay status messages to fit on one line, fixed the FPS popover width
-  to eliminate horizontal scrolling, enabled native Astryx numeric stepper
-  buttons across parameters, added fixed-width gradient colorbar swatches across
-  all six Radio Map color scales (`Jet`, `Viridis`, `Plasma`, `Inferno`,
-  `Magma`, `Turbo`), and tightened hover tooltips across all control panels.
-- Removed `dom_refs.js`, `param_tooltips.js`, the legacy 7-file CSS chain, and
-  the retired development UI catalog in favor of pure unidirectional data flow
-  (`Domain State -> WorkbenchStore -> React/Astryx -> CommandBus`) and
-  `ImperativeHostRegistry`.
-- Updated to Sionna RT 2.2.0 and switched Radar target propagation to its
-  native `RCSSolver`.
-- Replaced the entry map's unauthenticated CARTO raster tiles with OpenFreeMap
-  Positron vector tiles. No API key is required; Leaflet tile selection and the
-  local fallback map are retained.
-- Applied a custom light basemap palette with smaller gray-blue place labels,
-  regular typography and fewer minor labels at overview zoom levels.
-- Overhauled project documentation for open-source distribution: reorganized root
-  [`README.md`](README.md) with Mermaid architecture diagram, BibTeX citation,
-  and collapsible setup guides; added [`CONTRIBUTING.md`](CONTRIBUTING.md);
-  synchronized [`docs/openairtwin-architecture.html`](docs/openairtwin-architecture.html),
-  [`docs/development.md`](docs/development.md), and [`docs/ui/`](docs/ui/component-contracts.md)
-  with the current Astryx React workbench architecture.
+- Upgraded the ray-tracing runtime stack in `requirements.txt` to **Sionna RT `2.2.0`** (`mitsuba==3.9.1`, `drjit==1.5.0`) and switched Radar target propagation to Sionna's native `RCSSolver`. Re-running `install.py` is recommended when upgrading an existing environment.
+- Replaced the custom workbench UI system with Meta's Astryx React component library (`@astryxdesign/core` and `@astryxdesign/theme-neutral`, high-density light theme) and reorganized the workstation layout into a Top Workspace Bar, collapsible Left Inspector, floating DeviceBar, and collapsible Right Analysis Drawer (`ADR-0003`).
+- Refined workstation ergonomics and UI density: renamed `Tiles` to `Map`, simplified bottom DeviceBar controls to uniform `Tx` / `Rx` labels, shortened single-line loading overlays, fixed FPS popover width, enabled numeric steppers, and added gradient colorbar swatches across all six Radio Map colormaps.
+- Adopted unidirectional data flow (`Domain State -> WorkbenchStore -> React/Astryx -> CommandBus`) and `ImperativeHostRegistry`, removing legacy CSS chains, `dom_refs.js`, `param_tooltips.js`, and the retired development UI catalog.
+- Replaced CARTO raster tiles on the entry map with custom-styled OpenFreeMap Positron vector tiles (no API key required; Leaflet tile selection and local fallback map retained).
+- Overhauled [`README.md`](README.md), added [`CONTRIBUTING.md`](CONTRIBUTING.md), updated [`docs/openairtwin-architecture.html`](docs/openairtwin-architecture.html), [`docs/development.md`](docs/development.md), and [`docs/ui/component-contracts.md`](docs/ui/component-contracts.md) for the Astryx workbench architecture, and added scoped CI execution (`tools/ci_scope.py`).
+
+### Fixed
+
+- Fixed `.github/workflows/deploy-pages.yml` step ordering so `npm run build` runs before `npm run test:tutorial-site`, ensuring `vite preview` serves a built `website/dist/` bundle on GitHub Pages deployments.
+- Transpiled `website/src/physics/urbanModel.ts` in-memory via TypeScript inside `website/scripts/validate-tutorial.mjs` for Node.js 22 compatibility.
+- Fixed Range–Doppler spectral peak vs. CA-CFAR marker misalignment by eliminating SVG aspect-ratio letterboxing, unifying coordinate transforms, and computing clutter suppression inside `computeRadarScene`.
 
 ## [1.1.0] - 2026-08-01
 
@@ -127,6 +115,7 @@ All notable changes to OpenAirTwin are recorded here. This project follows
 - Existing global state, API exports and Viewer methods remain available as
   compatibility facades.
 
-[Unreleased]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/HKUOpenSource/OpenAirTwin/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.0.0

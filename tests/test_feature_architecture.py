@@ -255,7 +255,7 @@ def test_architecture_map_documents_react_bridge_and_production_delivery() -> No
         "workbench/src/runtime/ui-command.ts",
         "backend/workbench.py",
         "backend/static/js/controllers/radar_controller.js",
-        "Reviewed for OpenAirTwin 1.1.0",
+        "Reviewed for OpenAirTwin 1.2.0",
     )
     for expected in expected_contract:
         assert expected in source

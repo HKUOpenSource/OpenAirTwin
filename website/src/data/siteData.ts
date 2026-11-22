@@ -55,7 +55,7 @@ export interface QuickStartStep {
 
 export const REPOSITORY_URL = "https://github.com/HKUOpenSource/OpenAirTwin";
 export const RELEASE_URL =
-  "https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.1.0";
+  "https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.2.0";
 export const ARCHITECTURE_HREF = "./architecture/";
 
 export const VALUE_PILLARS: readonly ValuePillar[] = [

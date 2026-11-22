@@ -131,15 +131,15 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/development.md`](docs/develo
 
 If OpenAirTwin supports your research, please cite:
 
-> Wang, Z., Zhou, Z., &amp; Zhao, Z. (2026). OpenAirTwin (Version 1.1.0) [Computer software]. https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.1.0
+> Wang, Z., Zhou, Z., &amp; Zhao, Z. (2026). OpenAirTwin (Version 1.2.0) [Computer software]. https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.2.0
 
 ```bibtex
 @software{wang2026openairtwin,
   author  = {Wang, Zhaolin and Zhou, Zihao and Zhao, Zongyao},
   title   = {OpenAirTwin},
-  version = {1.1.0},
+  version = {1.2.0},
   year    = {2026},
-  url     = {https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.1.0},
+  url     = {https://github.com/HKUOpenSource/OpenAirTwin/releases/tag/v1.2.0},
   license = {Apache-2.0}
 }
 ```
