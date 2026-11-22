@@ -14,13 +14,14 @@ assert.ok(
   "QuickStartAndCitation.tsx must remain removed.",
 );
 
-const [main, app, siteData, sandbox, scene3d, capabilities, quickStart, css, html] =
+const [main, app, siteData, sandbox, scene3d, urbanModel, capabilities, quickStart, css, html] =
   await Promise.all([
     read("src/main.tsx"),
     read("src/App.tsx"),
     read("src/data/siteData.ts"),
     read("src/components/PhysicsSandbox.tsx"),
     read("src/components/UrbanScene3D.tsx"),
+    read("src/physics/urbanModel.ts"),
     read("src/components/CapabilitiesGrid.tsx"),
     read("src/components/QuickStartSection.tsx"),
     read("src/styles.css"),
@@ -124,6 +125,9 @@ assert.doesNotMatch(
 );
 assert.match(scene3d, /from\s+"three"/);
 assert.match(scene3d, /OrbitControls/);
+assert.match(urbanModel, /txLos:\s*boolean/);
+assert.match(urbanModel, /rxLos:\s*boolean/);
+assert.match(scene3d, /if\s*\(target\.txLos\)/);
 assert.match(sandbox, /<UrbanScene3D/);
 assert.match(sandbox, /role="tablist"/);
 assert.match(sandbox, /role="tabpanel"/);
@@ -173,3 +177,161 @@ for (const documentPath of [
 console.log(
   `Website contracts passed: Astryx centered-hero + Three.js 3D Lab (5 modes), zero Citation bloat (${Math.round(totalMediaBytes / 1024)} KB media).`,
 );
+
+// 7. 3D Radar LoS, collision clearance, sector alignment, and 3D spatial dispersion sweep
+const { computeRadarScene, hasUavBuildingCollision, isLineOfSightClear3D, WORLD_W, WORLD_H } =
+  await import("../src/physics/urbanModel.ts");
+for (const bistatic of [false, true]) {
+  let clearTotal = 0;
+  let occludedTotal = 0;
+  let saw2Detections = false;
+  let saw3Detections = false;
+  const trackMap = new Map();
+
+  for (let i = 0; i < 100; i += 1) {
+    const sim = computeRadarScene(bistatic, 1.0, 12, i / 100);
+    if (i === 0) {
+      for (let k = 0; k <= 40; k += 1) {
+        const ang =
+          sim.sector.startAngleRad +
+          (k / 40) * (sim.sector.endAngleRad - sim.sector.startAngleRad);
+        const sx = sim.tx.x + sim.sector.radiusUnits * Math.cos(ang);
+        const sy = sim.tx.y + sim.sector.radiusUnits * Math.sin(ang);
+        assert.ok(
+          sx >= 0 && sx <= WORLD_W && sy >= 0 && sy <= WORLD_H,
+          `Tx radar sector boundary spills outside urban plinth at (${sx.toFixed(1)}, ${sy.toFixed(1)})`,
+        );
+      }
+      for (const target of sim.targets) {
+        assert.equal(
+          target.orbitPath.length,
+          48,
+          `UAV ${target.id} orbitPath must contain 48 samples`,
+        );
+        for (const pt of target.orbitPath) {
+          assert.equal(
+            hasUavBuildingCollision({ x: pt.x, y: pt.y }, pt.zM, 3.6, 5.0),
+            false,
+            `UAV ${target.id} orbitPath collides with a building`,
+          );
+        }
+      }
+    }
+
+    const tx3 = { x: sim.tx.x, y: sim.tx.y, zM: sim.txHeightM };
+    const rx3 = { x: sim.rx.x, y: sim.rx.y, zM: sim.rxHeightM };
+    for (const target of sim.targets) {
+      assert.equal(
+        hasUavBuildingCollision(target.pos, target.altitudeM, 3.6, 5.0),
+        false,
+        `UAV ${target.id} collides with a building (step=${i})`,
+      );
+      const dx = target.pos.x - sim.tx.x;
+      const dy = target.pos.y - sim.tx.y;
+      const polarDist = Math.hypot(dx, dy);
+      const polarAng = Math.atan2(dy, dx);
+      assert.ok(
+        polarDist <= sim.sector.radiusUnits - 4.0,
+        `UAV ${target.id} leaves Tx radar sector range (${polarDist.toFixed(1)} > ${sim.sector.radiusUnits - 4})`,
+      );
+      assert.ok(
+        polarAng >= sim.sector.startAngleRad + 0.04 &&
+          polarAng <= sim.sector.endAngleRad - 0.04,
+        `UAV ${target.id} leaves Tx radar sector azimuth (${polarAng.toFixed(3)} rad)`,
+      );
+
+      let entry = trackMap.get(target.id);
+      if (!entry) {
+        entry = {
+          pts: [],
+          minZ: Infinity,
+          maxZ: -Infinity,
+          minAng: Infinity,
+          maxAng: -Infinity,
+        };
+        trackMap.set(target.id, entry);
+      }
+      entry.pts.push({ x: target.pos.x, y: target.pos.y });
+      entry.minZ = Math.min(entry.minZ, target.altitudeM);
+      entry.maxZ = Math.max(entry.maxZ, target.altitudeM);
+      entry.minAng = Math.min(entry.minAng, polarAng);
+      entry.maxAng = Math.max(entry.maxAng, polarAng);
+
+      const tgt3 = { x: target.pos.x, y: target.pos.y, zM: target.altitudeM };
+      assert.equal(
+        target.txLos,
+        isLineOfSightClear3D(tx3, tgt3, undefined, -0.35, 1.0),
+        `Radar txLos mismatch for ${target.id} (bistatic=${bistatic}, step=${i})`,
+      );
+      if (target.txLos) {
+        assert.ok(
+          isLineOfSightClear3D(tx3, tgt3),
+          `Unoccluded tx leg intersects a building for ${target.id}`,
+        );
+      }
+      if (bistatic) {
+        assert.equal(
+          target.rxLos,
+          isLineOfSightClear3D(rx3, tgt3, undefined, -0.35, 1.0),
+          `Radar rxLos mismatch for ${target.id} (bistatic=${bistatic}, step=${i})`,
+        );
+        if (target.rxLos) {
+          assert.ok(
+            isLineOfSightClear3D(rx3, tgt3),
+            `Unoccluded rx leg intersects a building for ${target.id}`,
+          );
+        }
+      }
+      if (target.occluded) occludedTotal += 1;
+      else clearTotal += 1;
+    }
+    if (sim.detections.length === 2) saw2Detections = true;
+    if (sim.detections.length === 3) saw3Detections = true;
+    for (const det of sim.detections) {
+      const matched = sim.targets.find((t) => t.id === det.targetId);
+      assert.ok(matched && !matched.occluded, "Occluded UAV must not produce CA-CFAR detection.");
+    }
+  }
+
+  const tracks = Array.from(trackMap.entries());
+  assert.equal(tracks.length, 3, "Radar scene must contain 3 UAV tracks.");
+  for (let a = 0; a < tracks.length; a += 1) {
+    for (let b = a + 1; b < tracks.length; b += 1) {
+      const [idA, trA] = tracks[a];
+      const [idB, trB] = tracks[b];
+      let minXyDist = Infinity;
+      for (const pa of trA.pts) {
+        for (const pb of trB.pts) {
+          minXyDist = Math.min(minXyDist, Math.hypot(pa.x - pb.x, pa.y - pb.y));
+        }
+      }
+      assert.ok(
+        minXyDist >= 12.0,
+        `UAV tracks ${idA} and ${idB} are too close horizontally (${minXyDist.toFixed(1)} < 12.0 units)`,
+      );
+      const zGap = Math.max(0, trA.minZ - trB.maxZ, trB.minZ - trA.maxZ);
+      assert.ok(
+        zGap >= 10.0,
+        `UAV tracks ${idA} and ${idB} lack distinct altitude tiers (zGap=${zGap.toFixed(1)}m < 10m)`,
+      );
+      const azGap = Math.max(0, trA.minAng - trB.maxAng, trB.minAng - trA.maxAng);
+      assert.ok(
+        azGap >= 0.1,
+        `UAV tracks ${idA} and ${idB} overlap in Tx azimuth (${azGap.toFixed(3)} rad < 0.10 rad)`,
+      );
+    }
+  }
+
+  assert.ok(clearTotal > 0 && occludedTotal > 0, "Radar sweep must cover both LoS and occluded states.");
+  if (!bistatic) {
+    assert.ok(
+      saw2Detections && saw3Detections,
+      "Monostatic Radar orbital sweep must dynamically transition between 2 and 3 detections.",
+    );
+  }
+}
+const monoDefault = computeRadarScene(false, 1.0, 12, 0.18);
+const biDefault = computeRadarScene(true, 1.0, 12, 0.18);
+assert.ok(monoDefault.detections.length >= 2, "Default Monostatic Radar must show >= 2 detections.");
+assert.ok(biDefault.detections.length >= 2, "Default Bistatic Radar must show >= 2 detections.");
+

@@ -80,7 +80,7 @@ export function App() {
               </h1>
 
               <p className="oat-hero-subtitle">
-                Turn real urban geometry into open, physics-based digital twins
+                Transform urban geometry into open, physics-based digital twins
                 for wireless communication, sensing, and AI.
               </p>
 
@@ -120,8 +120,8 @@ export function App() {
                 Site-specific. Unified. Open.
               </h2>
               <p className="oat-section-lead">
-                A shared foundation uniting physical 3D environments,
-                ray-traced physics, and open research ecosystems.
+                One shared foundation uniting real-world 3D geometry, ray-traced
+                propagation, and open research workflows.
               </p>
             </div>
 
@@ -153,11 +153,11 @@ export function App() {
             <div className="oat-section-header">
               <p className="oat-section-eyebrow">Capabilities</p>
               <h2 className="oat-section-title">
-                Core capabilities on one 3D foundation
+                Core workflows on a shared 3D twin
               </h2>
               <p className="oat-section-lead">
-                Start with core propagation, sensing, and dataset workflows—and
-                extend effortlessly on a shared urban digital twin.
+                Explore propagation, sensing, mobility, and AI datasets today,
+                with a modular architecture built to grow with your research.
               </p>
             </div>
 
@@ -173,10 +173,10 @@ export function App() {
           <div className="oat-container">
             <div className="oat-section-header">
               <p className="oat-section-eyebrow">Get Started</p>
-              <h2 className="oat-section-title">Launch locally in minutes</h2>
+              <h2 className="oat-section-title">Run locally in minutes</h2>
               <p className="oat-section-lead">
-                Start experimenting out of the box with prebuilt assets and
-                sample 3D city scenes.
+                Install once and start exploring immediately with a bundled 3D
+                sample scene.
               </p>
             </div>
 
@@ -249,8 +249,7 @@ function Footer() {
             src={media("openairtwin_logo.png")}
           />
           <p className="oat-footer-tagline">
-            An open 3D digital twin platform for next-generation wireless
-            research.
+            Open-source 3D digital twins for next-generation wireless research.
           </p>
         </div>
 

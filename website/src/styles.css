@@ -294,7 +294,7 @@
   .oat-lab-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.72fr) minmax(320px, 1fr);
-    height: 596px;
+    height: 544px;
   }
 
   .oat-lab-stage-pane {
@@ -346,7 +346,7 @@
     align-items: center;
     gap: 8px;
     max-width: calc(100% - 210px);
-    padding: 5px 12px 5px 6px;
+    padding: 6px 12px;
     border: 1px solid var(--site-border);
     border-radius: 9999px;
     background: rgba(255, 255, 255, 0.9);
@@ -451,13 +451,70 @@
     line-height: 1;
   }
 
+  .oat-hud-radar-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .oat-hud-radar-items {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+  }
+
+  .oat-hud-radar-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--site-ink-secondary);
+    line-height: 1.2;
+  }
+
+  .oat-hud-swatch {
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .oat-hud-swatch--tx {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: #0074e2;
+  }
+
+  .oat-hud-swatch--rx {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: #0d9488;
+  }
+
+  .oat-hud-swatch--los {
+    width: 12px;
+    height: 2.5px;
+    border-radius: 2px;
+    background: #c0262c;
+  }
+
+  .oat-hud-swatch--sector {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: rgba(0, 116, 226, 0.16);
+    border: 1px solid rgba(0, 116, 226, 0.45);
+  }
+
   /* Right Inspector Pane */
   .oat-lab-control-pane {
-    padding: 16px 20px;
+    padding: 16px 18px;
     background: var(--site-surface-subtle);
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     min-width: 0;
     height: 100%;
     overflow-y: auto;
@@ -509,11 +566,16 @@
     padding-top: 2px;
   }
 
+  .oat-lab-btn-row button {
+    height: 32px;
+    border-radius: 8px;
+  }
+
   .oat-lab-action-btn {
-    height: 28px;
-    padding: 0 10px;
+    height: 32px;
+    padding: 0 12px;
     border: 1px solid var(--site-border-strong);
-    border-radius: 7px;
+    border-radius: 8px;
     background: var(--site-surface-subtle);
     color: var(--site-ink);
     font-size: 12.5px;
@@ -646,10 +708,56 @@
     height: 48px;
   }
 
-  .oat-pill-wrap {
+  .oat-split-bar {
+    display: flex;
+    width: 100%;
+    height: 8px;
+    border-radius: 9999px;
+    overflow: hidden;
+    background: rgba(17, 17, 17, 0.08);
+    gap: 1.5px;
+  }
+
+  .oat-split-seg {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+  }
+
+  .oat-split-seg--los {
+    background: #0d9488;
+  }
+
+  .oat-split-seg--nlos {
+    background: #0074e2;
+  }
+
+  .oat-split-seg--outage {
+    background: #cbd5e1;
+  }
+
+  .oat-split-legend {
+    margin-top: 8px;
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    align-items: center;
+    gap: 6px 14px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--site-ink-secondary);
+  }
+
+  .oat-split-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .oat-split-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
   }
 
   .oat-radar-mini-wrap {
@@ -670,22 +778,6 @@
     display: block;
   }
 
-  .oat-colorbar-legend {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    color: var(--site-ink-secondary);
-  }
-
-  .oat-colorbar-track {
-    height: 9px;
-    border-radius: 3px;
-    border: 1px solid var(--site-border-strong);
-  }
-
   .oat-telemetry-list {
     margin: 0;
     border-top: 1px solid var(--site-border);
@@ -699,6 +791,11 @@
     padding: 7px 0;
     border-bottom: 1px solid var(--site-border);
     font-size: 12px;
+  }
+
+  .oat-telemetry-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
   }
 
   .oat-telemetry-row dt {
@@ -819,17 +916,6 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-  }
-
-  .oat-code-pill {
-    display: inline-block;
-    padding: 4px 8px;
-    border: 1px solid var(--site-border);
-    border-radius: 6px;
-    background: var(--site-surface-subtle);
-    font-family: var(--font-family-code);
-    font-size: 11px;
-    color: var(--site-ink);
   }
 
   /* Quick Start */

@@ -33,7 +33,7 @@ export function QuickStartSection() {
         <Button
           endContent={<ExternalLink size={13} />}
           href={`${REPOSITORY_URL}#installation-details`}
-          label="Full setup on GitHub"
+          label="Setup guide on GitHub"
           size="sm"
           variant="ghost"
         />
@@ -58,7 +58,7 @@ export function QuickStartSection() {
                 isWrapped
                 language={platform === "unix" ? "bash" : powershell}
                 size="sm"
-                title={platform === "unix" ? "bash" : "PowerShell"}
+                title={platform === "unix" ? "Bash" : "PowerShell"}
                 width="100%"
               />
             </div>

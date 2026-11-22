@@ -47,6 +47,12 @@ import { UrbanScene3D } from "./UrbanScene3D";
 
 const NLOS_TEST_RX: Point2D = { x: 70, y: 63 };
 
+function formatSigned(value: number, decimals = 1): string {
+  return value < 0
+    ? `−${Math.abs(value).toFixed(decimals)}`
+    : value.toFixed(decimals);
+}
+
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined" || !window.matchMedia) return false;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -268,7 +274,7 @@ export function PhysicsSandbox({
         </div>
 
         <span className="oat-lab-scene-meta oat-tabular">
-          640 × 400 m · 3D Scene
+          640 × 400 m · Urban Twin
         </span>
       </div>
 
@@ -319,7 +325,7 @@ export function PhysicsSandbox({
               <>
                 <Slider
                   formatValue={(v) => `${v.toFixed(1)} GHz`}
-                  label="Carrier Frequency"
+                  label="Frequency"
                   max={28}
                   min={2.4}
                   onChange={setFreqGhz}
@@ -329,8 +335,8 @@ export function PhysicsSandbox({
                   width="100%"
                 />
                 <Slider
-                  formatValue={(v) => `${v} bounces`}
-                  label="Interaction Depth"
+                  formatValue={(v) => `${v}`}
+                  label="Max Bounces"
                   max={2}
                   min={0}
                   onChange={setMaxDepth}
@@ -341,7 +347,7 @@ export function PhysicsSandbox({
                 />
                 <Slider
                   formatValue={(v) => `${v.toFixed(0)} m`}
-                  label="Rx Antenna Height"
+                  label="Rx Height"
                   max={32}
                   min={2}
                   onChange={setRxHeightM}
@@ -352,7 +358,7 @@ export function PhysicsSandbox({
                 />
                 <div className="oat-lab-btn-row">
                   <button
-                    aria-label="Toggle Rx between LoS and NLoS test spot (arrow keys move Rx)"
+                    aria-label="Move Rx between LoS and NLoS test positions (arrow keys move Rx)"
                     className="oat-lab-action-btn"
                     data-testid="lab-handle-rx"
                     onClick={toggleSampleRxSpot}
@@ -360,7 +366,7 @@ export function PhysicsSandbox({
                     type="button"
                   >
                     <Crosshair size={14} />
-                    <span>{linkSim.losVisible ? "NLoS Spot" : "LoS Spot"}</span>
+                    <span>{linkSim.losVisible ? "Move to NLoS" : "Move to LoS"}</span>
                   </button>
                   <Button
                     icon={<RotateCcw size={13} />}
@@ -381,7 +387,7 @@ export function PhysicsSandbox({
               <>
                 <Slider
                   formatValue={(v) => `${Math.round(v * 100)}%`}
-                  label="Trajectory Progress"
+                  label="Route Progress"
                   max={1}
                   min={0}
                   onChange={(val: number) => {
@@ -395,7 +401,7 @@ export function PhysicsSandbox({
                 />
                 <Slider
                   formatValue={(v) => `${v.toFixed(1)} GHz`}
-                  label="Carrier Frequency"
+                  label="Frequency"
                   max={28}
                   min={2.4}
                   onChange={setFreqGhz}
@@ -406,7 +412,7 @@ export function PhysicsSandbox({
                 />
                 <Slider
                   formatValue={(v) => `${v.toFixed(0)} m`}
-                  label="Tx Base Height"
+                  label="Tx Height"
                   max={44}
                   min={14}
                   onChange={setTxHeightM}
@@ -432,7 +438,7 @@ export function PhysicsSandbox({
               <>
                 <Slider
                   formatValue={(v) => `${v.toFixed(1)} GHz`}
-                  label="Carrier Frequency"
+                  label="Frequency"
                   max={28}
                   min={2.4}
                   onChange={setFreqGhz}
@@ -443,7 +449,7 @@ export function PhysicsSandbox({
                 />
                 <Slider
                   formatValue={(v) => `${v.toFixed(0)} m`}
-                  label="Tx Base Height"
+                  label="Tx Height"
                   max={44}
                   min={14}
                   onChange={setTxHeightM}
@@ -453,7 +459,7 @@ export function PhysicsSandbox({
                   width="100%"
                 />
                 <div>
-                  <div className="oat-lab-sublabel">Colormap Scale</div>
+                  <div className="oat-lab-sublabel">Colormap</div>
                   <div className="oat-colormap-picker">
                     {COLORMAP_NAMES.map((name) => (
                       <button
@@ -490,7 +496,7 @@ export function PhysicsSandbox({
                 />
                 <Slider
                   formatValue={(v) => `${v} m`}
-                  label="Rx Grid Spacing"
+                  label="Grid Spacing"
                   max={36}
                   min={12}
                   onChange={setRxSpacingM}
@@ -500,7 +506,7 @@ export function PhysicsSandbox({
                   width="100%"
                 />
                 <Switch
-                  label="Trace User 3D Rays"
+                  label="Show User Rays"
                   labelPosition="start"
                   labelSpacing="spread"
                   onChange={setDeepMimoTraceRays}
@@ -535,7 +541,7 @@ export function PhysicsSandbox({
             {activeModeId === "radar" ? (
               <>
                 <Switch
-                  label="Bistatic Radar Geometry"
+                  label="Bistatic Mode"
                   labelPosition="start"
                   labelSpacing="spread"
                   onChange={setBistatic}
@@ -544,7 +550,7 @@ export function PhysicsSandbox({
                   width="100%"
                 />
                 <Switch
-                  label="Zero-Doppler Clutter Notch"
+                  label="Clutter Filter"
                   labelPosition="start"
                   labelSpacing="spread"
                   onChange={setClutterSuppression}
@@ -646,10 +652,10 @@ export function PhysicsSandbox({
             {activeModeId === "mobility" ? (
               <div className="oat-lab-chart-box">
                 <div className="oat-lab-chart-head">
-                  <span>Rx Power vs. Route</span>
+                  <span>Rx Power Along Route</span>
                   <span className="oat-tabular">
                     {activeMobilitySample.losVisible ? "LoS" : "NLoS"} ·{" "}
-                    {activeMobilitySample.rxPowerDbm.toFixed(1)} dBm
+                    {formatSigned(activeMobilitySample.rxPowerDbm)} dBm
                   </span>
                 </div>
                 <svg
@@ -711,43 +717,96 @@ export function PhysicsSandbox({
             {activeModeId === "radiomap" ? (
               <div className="oat-lab-chart-box">
                 <div className="oat-lab-chart-head">
-                  <span>Spatial Path Gain Scale</span>
+                  <span>Coverage Breakdown</span>
                   <span className="oat-tabular">Tx {txHeightM.toFixed(0)} m</span>
                 </div>
-                <div className="oat-colorbar-legend">
-                  <span>−120 dBm</span>
-                  <div
-                    className="oat-colorbar-track"
-                    style={{ background: colormapGradient(colormap) }}
-                  />
-                  <span>−48 dBm</span>
-                </div>
+                {(() => {
+                  const losPct = radioMap.losPct;
+                  const nlosCovPct = Math.max(0, radioMap.coveragePct - losPct);
+                  const outagePct = Math.max(0, 100 - radioMap.coveragePct);
+                  return (
+                    <>
+                      <div className="oat-split-bar" role="img" aria-label="Coverage distribution bar">
+                        <span
+                          className="oat-split-seg oat-split-seg--los"
+                          style={{ width: `${losPct.toFixed(1)}%` }}
+                        />
+                        <span
+                          className="oat-split-seg oat-split-seg--nlos"
+                          style={{ width: `${nlosCovPct.toFixed(1)}%` }}
+                        />
+                        <span
+                          className="oat-split-seg oat-split-seg--outage"
+                          style={{ width: `${outagePct.toFixed(1)}%` }}
+                        />
+                      </div>
+                      <div className="oat-split-legend oat-tabular">
+                        <span>
+                          <i className="oat-split-dot oat-split-seg--los" />
+                          LoS {losPct.toFixed(0)}%
+                        </span>
+                        <span>
+                          <i className="oat-split-dot oat-split-seg--nlos" />
+                          NLoS {nlosCovPct.toFixed(0)}%
+                        </span>
+                        <span>
+                          <i className="oat-split-dot oat-split-seg--outage" />
+                          Outage {outagePct.toFixed(0)}%
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             ) : null}
 
             {activeModeId === "deepmimo" ? (
               <div className="oat-lab-chart-box">
                 <div className="oat-lab-chart-head">
-                  <span>DeepMIMO v4 Tensor Shape</span>
+                  <span>Grid Sampling</span>
                   <span className="oat-tabular">
                     {deepMimo.cols}×{deepMimo.rows} grid
                   </span>
                 </div>
-                <div className="oat-pill-wrap">
-                  <code className="oat-code-pill">
-                    rx: [{deepMimo.outdoorCount}, 3]
-                  </code>
-                  <code className="oat-code-pill">
-                    los: [{deepMimo.outdoorCount}]
-                  </code>
-                </div>
+                {(() => {
+                  const total = Math.max(
+                    1,
+                    deepMimo.outdoorCount + deepMimo.maskedCount,
+                  );
+                  const outdoorPct = (deepMimo.outdoorCount / total) * 100;
+                  const maskedPct = 100 - outdoorPct;
+                  return (
+                    <>
+                      <div className="oat-split-bar" role="img" aria-label="Grid sampling split bar">
+                        <span
+                          className="oat-split-seg oat-split-seg--los"
+                          style={{ width: `${outdoorPct.toFixed(1)}%` }}
+                        />
+                        <span
+                          className="oat-split-seg oat-split-seg--outage"
+                          style={{ width: `${maskedPct.toFixed(1)}%` }}
+                        />
+                      </div>
+                      <div className="oat-split-legend oat-tabular">
+                        <span>
+                          <i className="oat-split-dot oat-split-seg--los" />
+                          Outdoor {deepMimo.outdoorCount} ({outdoorPct.toFixed(0)}%)
+                        </span>
+                        <span>
+                          <i className="oat-split-dot oat-split-seg--outage" />
+                          Masked {deepMimo.maskedCount} ({maskedPct.toFixed(0)}%)
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             ) : null}
 
             {activeModeId === "radar" ? (
               <div className="oat-lab-chart-box">
                 <div className="oat-lab-chart-head">
-                  <span>Range–Doppler + CA-CFAR</span>
+                  <span>Range–Doppler · CA-CFAR</span>
                   <span className="oat-tabular">
                     {radarSim.detections.length}/3 UAVs
                   </span>
@@ -812,16 +871,14 @@ export function PhysicsSandbox({
                   <div className="oat-telemetry-row">
                     <dt>Channel</dt>
                     <dd>
-                      {linkSim.losVisible ? "Line-of-Sight" : "NLoS Blocked"}
+                      {linkSim.losVisible
+                        ? "Line-of-Sight"
+                        : "Non-Line-of-Sight"}
                     </dd>
                   </div>
                   <div className="oat-telemetry-row">
                     <dt>Rx Power</dt>
-                    <dd>{linkSim.rxPowerDbm.toFixed(1)} dBm</dd>
-                  </div>
-                  <div className="oat-telemetry-row">
-                    <dt>Ray Paths</dt>
-                    <dd>{linkSim.paths.length}</dd>
+                    <dd>{formatSigned(linkSim.rxPowerDbm)} dBm</dd>
                   </div>
                   <div className="oat-telemetry-row">
                     <dt>Delay Spread</dt>
@@ -833,20 +890,16 @@ export function PhysicsSandbox({
               {activeModeId === "mobility" ? (
                 <>
                   <div className="oat-telemetry-row">
-                    <dt>Progress</dt>
-                    <dd>{Math.round(mobilityProgress * 100)}%</dd>
-                  </div>
-                  <div className="oat-telemetry-row">
                     <dt>Link State</dt>
                     <dd>
                       {activeMobilitySample.losVisible
                         ? "Line-of-Sight"
-                        : "NLoS Shadowed"}
+                        : "Non-Line-of-Sight"}
                     </dd>
                   </div>
                   <div className="oat-telemetry-row">
                     <dt>Rx Power</dt>
-                    <dd>{activeMobilitySample.rxPowerDbm.toFixed(1)} dBm</dd>
+                    <dd>{formatSigned(activeMobilitySample.rxPowerDbm)} dBm</dd>
                   </div>
                   <div className="oat-telemetry-row">
                     <dt>Ray Paths</dt>
@@ -859,7 +912,7 @@ export function PhysicsSandbox({
                 <>
                   <div className="oat-telemetry-row">
                     <dt>Mean Gain</dt>
-                    <dd>{radioMap.meanDbm.toFixed(1)} dBm</dd>
+                    <dd>{formatSigned(radioMap.meanDbm)} dBm</dd>
                   </div>
                   <div className="oat-telemetry-row">
                     <dt>Coverage (&ge; −95 dBm)</dt>
@@ -869,35 +922,26 @@ export function PhysicsSandbox({
                     <dt>LoS Area</dt>
                     <dd>{radioMap.losPct.toFixed(1)}%</dd>
                   </div>
-                  <div className="oat-telemetry-row">
-                    <dt>Colormap</dt>
-                    <dd style={{ textTransform: "capitalize" }}>{colormap}</dd>
-                  </div>
                 </>
               ) : null}
 
               {activeModeId === "deepmimo" ? (
                 <>
                   <div className="oat-telemetry-row">
-                    <dt>Selected User</dt>
+                    <dt>User Rx Power</dt>
                     <dd>
-                      User #{clampedDeepMimoIndex + 1} (
+                      #{clampedDeepMimoIndex + 1} ·{" "}
                       {deepMimoUserSim
-                        ? `${deepMimoUserSim.rxPowerDbm.toFixed(1)} dBm`
+                        ? `${formatSigned(deepMimoUserSim.rxPowerDbm)} dBm`
                         : "—"}
-                      )
                     </dd>
                   </div>
                   <div className="oat-telemetry-row">
-                    <dt>Outdoor Rx</dt>
-                    <dd>{deepMimo.outdoorCount}</dd>
+                    <dt>Active Grid</dt>
+                    <dd>{deepMimo.outdoorCount} outdoor users</dd>
                   </div>
                   <div className="oat-telemetry-row">
-                    <dt>Masked Indoor</dt>
-                    <dd>{deepMimo.maskedCount}</dd>
-                  </div>
-                  <div className="oat-telemetry-row">
-                    <dt>Export Size</dt>
+                    <dt>Dataset Size</dt>
                     <dd>{deepMimo.estimatedSizeMb.toFixed(1)} MB</dd>
                   </div>
                 </>
@@ -917,7 +961,7 @@ export function PhysicsSandbox({
                     <dt>Peak SNR</dt>
                     <dd>
                       {radarSim.detections.length > 0
-                        ? `${Math.max(...radarSim.detections.map((d) => d.snrDb)).toFixed(1)} dB SNR`
+                        ? `${Math.max(...radarSim.detections.map((d) => d.snrDb)).toFixed(1)} dB`
                         : "—"}
                     </dd>
                   </div>

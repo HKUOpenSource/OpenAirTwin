@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RotateCcw } from "lucide-react";
-import { Badge } from "@astryxdesign/core/Badge";
 
 import type { LabModeSpec } from "../data/siteData";
 import {
@@ -246,28 +245,44 @@ function addUavMesh(
   const sy = toSceneY(altitudeM);
   const accentHex = detected ? 0xc0262c : 0x6b7280;
 
-  // Ground shadow disc
+  let baseElevM = 0;
+  for (const b of URBAN_BUILDINGS) {
+    if (
+      pos.x >= b.x &&
+      pos.x <= b.x + b.w &&
+      pos.y >= b.y &&
+      pos.y <= b.y + b.h
+    ) {
+      baseElevM = Math.max(baseElevM, b.heightM);
+    }
+  }
+  const baseY = toSceneY(baseElevM) + 0.14;
+
+  // Footprint shadow disc resting cleanly on street or rooftop surface
   const shadowDisc = new THREE.Mesh(
     new THREE.CircleGeometry(1.8, 20),
     new THREE.MeshBasicMaterial({
       color: accentHex,
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.24,
+      toneMapped: false,
     }),
   );
   shadowDisc.rotation.x = -Math.PI / 2;
-  shadowDisc.position.set(sx, 0.14, sz);
+  shadowDisc.position.set(sx, baseY, sz);
   group.add(shadowDisc);
 
-  // Drop stem to show 3D altitude
-  addSegmentCylinder(
-    group,
-    new THREE.Vector3(sx, 0.14, sz),
-    new THREE.Vector3(sx, sy, sz),
-    0.11,
-    accentHex,
-    0.35,
-  );
+  // Drop stem to show 3D altitude above street or rooftop
+  if (sy > baseY + 0.2) {
+    addSegmentCylinder(
+      group,
+      new THREE.Vector3(sx, baseY, sz),
+      new THREE.Vector3(sx, sy, sz),
+      0.11,
+      accentHex,
+      0.38,
+    );
+  }
 
   // Quadrotor body
   const uavGroup = new THREE.Group();
@@ -285,7 +300,7 @@ function addUavMesh(
 
   const beacon = new THREE.Mesh(
     new THREE.SphereGeometry(0.95, 16, 12),
-    new THREE.MeshBasicMaterial({ color: accentHex }),
+    new THREE.MeshBasicMaterial({ color: accentHex, toneMapped: false }),
   );
   beacon.position.y = 0.55;
   uavGroup.add(beacon);
@@ -311,7 +326,8 @@ function addUavMesh(
         color: accentHex,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.88,
+        toneMapped: false,
       }),
     );
     rotorRing.rotation.x = -Math.PI / 2;
@@ -920,29 +936,40 @@ export function UrbanScene3D({
         }
       }
     } else if (modeSpec.id === "radar") {
-      addTransceiverPin(dynamicGroup, radarSim.tx, 12, 0x0074e2, 1.0);
+      addTransceiverPin(
+        dynamicGroup,
+        radarSim.tx,
+        radarSim.txHeightM,
+        0x0074e2,
+        1.0,
+      );
       if (radarBistatic) {
-        addTransceiverPin(dynamicGroup, radarSim.rx, 12, 0x0d9488, 1.0);
-        addSegmentCylinder(
+        addTransceiverPin(
           dynamicGroup,
-          toSceneVec3({ x: radarSim.tx.x, y: radarSim.tx.y, zM: 0.6 }),
-          toSceneVec3({ x: radarSim.rx.x, y: radarSim.rx.y, zM: 0.6 }),
-          0.24,
+          radarSim.rx,
+          radarSim.rxHeightM,
           0x0d9488,
-          0.6,
+          1.0,
         );
       }
 
-      // Subtle radar illumination sector fanning over the district
-      const sectorGeom = new THREE.CircleGeometry(108, 36, -0.58, 1.16);
+      // Radar illumination sector synchronized to radarSim.sector boundaries
+      const { radiusUnits, startAngleRad, endAngleRad } = radarSim.sector;
+      const sectorGeom = new THREE.CircleGeometry(
+        radiusUnits,
+        40,
+        -endAngleRad,
+        endAngleRad - startAngleRad,
+      );
       const sectorMesh = new THREE.Mesh(
         sectorGeom,
         new THREE.MeshBasicMaterial({
           color: 0x0074e2,
           transparent: true,
-          opacity: 0.08,
+          opacity: 0.085,
           side: THREE.DoubleSide,
           depthWrite: false,
+          toneMapped: false,
         }),
       );
       sectorMesh.rotation.x = -Math.PI / 2;
@@ -953,18 +980,60 @@ export function UrbanScene3D({
       );
       dynamicGroup.add(sectorMesh);
 
+      const txSceneX = toSceneX(radarSim.tx.x);
+      const txSceneZ = toSceneZ(radarSim.tx.y);
+      const outlinePts: THREE.Vector3[] = [
+        new THREE.Vector3(txSceneX, 0.14, txSceneZ),
+      ];
+      const arcSteps = 32;
+      for (let step = 0; step <= arcSteps; step += 1) {
+        const ang =
+          startAngleRad + (step / arcSteps) * (endAngleRad - startAngleRad);
+        outlinePts.push(
+          new THREE.Vector3(
+            txSceneX + radiusUnits * Math.cos(ang),
+            0.14,
+            txSceneZ + radiusUnits * Math.sin(ang),
+          ),
+        );
+      }
+      const sectorOutline = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(outlinePts),
+        new THREE.LineBasicMaterial({
+          color: 0x0074e2,
+          transparent: true,
+          opacity: 0.3,
+          toneMapped: false,
+        }),
+      );
+      dynamicGroup.add(sectorOutline);
+
       const txVec = toSceneVec3({
         x: radarSim.tx.x,
         y: radarSim.tx.y,
-        zM: 12,
+        zM: radarSim.txHeightM,
       });
       const rxVec = toSceneVec3({
         x: radarSim.rx.x,
         y: radarSim.rx.y,
-        zM: 12,
+        zM: radarSim.rxHeightM,
       });
 
       for (const target of radarSim.targets) {
+        if (target.orbitPath.length >= 3) {
+          const orbitPts = target.orbitPath.map((pt) => toSceneVec3(pt));
+          const orbitLoop = new THREE.LineLoop(
+            new THREE.BufferGeometry().setFromPoints(orbitPts),
+            new THREE.LineBasicMaterial({
+              color: 0x64748b,
+              transparent: true,
+              opacity: 0.28,
+              toneMapped: false,
+            }),
+          );
+          dynamicGroup.add(orbitLoop);
+        }
+
         const detected = radarSim.detections.some(
           (d) => d.targetId === target.id,
         );
@@ -975,24 +1044,27 @@ export function UrbanScene3D({
           y: target.pos.y,
           zM: target.altitudeM,
         });
-        const txColor = detected ? 0xc0262c : 0x8b95a5;
-        addSegmentCylinder(
-          dynamicGroup,
-          txVec,
-          tgtVec,
-          detected ? 0.26 : 0.16,
-          txColor,
-          detected ? 0.72 : 0.35,
-        );
 
-        if (radarBistatic) {
+        // Only render physically unobstructed line-of-sight radar beams
+        if (target.txLos) {
+          addSegmentCylinder(
+            dynamicGroup,
+            txVec,
+            tgtVec,
+            detected ? 0.28 : 0.18,
+            detected ? 0xc0262c : 0x6b7280,
+            detected ? 0.82 : 0.45,
+          );
+        }
+
+        if (radarBistatic && target.txLos && target.rxLos) {
           addSegmentCylinder(
             dynamicGroup,
             tgtVec,
             rxVec,
-            detected ? 0.24 : 0.15,
-            detected ? 0x0d9488 : 0x8b95a5,
-            detected ? 0.7 : 0.35,
+            detected ? 0.24 : 0.16,
+            detected ? 0x0d9488 : 0x6b7280,
+            detected ? 0.78 : 0.42,
           );
         }
       }
@@ -1019,29 +1091,25 @@ export function UrbanScene3D({
   ]);
 
   const legendSpec = useMemo(() => {
+    const formatBound = (n: number) => (n < 0 ? `−${Math.abs(n)}` : `${n}`);
     if (modeSpec.id === "radiomap") {
       return {
         title: "Path Gain (dBm)",
-        minLabel: `${radioMap.minDbm}`,
-        maxLabel: `${radioMap.maxDbm}`,
+        minLabel: formatBound(radioMap.minDbm),
+        maxLabel: formatBound(radioMap.maxDbm),
         gradient: colormapGradient(colormap),
       };
     }
     if (modeSpec.id === "deepmimo") {
       return {
-        title: deepMimoTraceRays ? "User Power (dBm)" : "Rx Grid Power (dBm)",
-        minLabel: `${deepMimo.minDbm}`,
-        maxLabel: `${deepMimo.maxDbm}`,
+        title: deepMimoTraceRays ? "User Power (dBm)" : "Grid Power (dBm)",
+        minLabel: formatBound(deepMimo.minDbm),
+        maxLabel: formatBound(deepMimo.maxDbm),
         gradient: colormapGradient("viridis"),
       };
     }
     if (modeSpec.id === "radar") {
-      return {
-        title: "Target Return (dB)",
-        minLabel: "−98",
-        maxLabel: "−42",
-        gradient: colormapGradient("turbo"),
-      };
+      return null;
     }
     return {
       title: "Path Power (dBm)",
@@ -1055,16 +1123,15 @@ export function UrbanScene3D({
     <div className="oat-lab-viewport" ref={containerRef}>
       {webglError ? (
         <div className="oat-lab-webgl-fallback" role="status">
-          <strong>3D WebGL viewport unavailable in this browser context.</strong>
+          <strong>WebGL 3D view is unavailable in this browser.</strong>
           <span>
-            Interactive controls and telemetry remain active in the inspector.
+            Controls and live metrics remain interactive in the panel.
           </span>
         </div>
       ) : null}
 
-      {/* Top-Left Mode Hint Pill (Astryx frosted HUD) */}
+      {/* Top-Left Gesture Hint Pill (Astryx frosted HUD) */}
       <div className="oat-hud-top-left">
-        <Badge label={modeSpec.shortLabel} variant={modeSpec.badgeVariant} />
         <span className="oat-hud-hint">{modeSpec.stageHint}</span>
       </div>
 
@@ -1096,17 +1163,45 @@ export function UrbanScene3D({
         </button>
       </div>
 
-      {/* Bottom-Left Colorbar Legend Card (DeepMIMO Visualizer homage) */}
+      {/* Bottom-Left Colorbar or 3D Radar Legend */}
       <div className="oat-hud-legend" data-testid="lab-colorbar-legend">
-        <div className="oat-hud-legend-title">{legendSpec.title}</div>
-        <div
-          className="oat-hud-legend-bar"
-          style={{ background: legendSpec.gradient }}
-        />
-        <div className="oat-hud-legend-ticks oat-tabular">
-          <span>{legendSpec.minLabel}</span>
-          <span>{legendSpec.maxLabel}</span>
-        </div>
+        {legendSpec ? (
+          <>
+            <div className="oat-hud-legend-title">{legendSpec.title}</div>
+            <div
+              className="oat-hud-legend-bar"
+              style={{ background: legendSpec.gradient }}
+            />
+            <div className="oat-hud-legend-ticks oat-tabular">
+              <span>{legendSpec.minLabel}</span>
+              <span>{legendSpec.maxLabel}</span>
+            </div>
+          </>
+        ) : (
+          <div className="oat-hud-radar-legend">
+            <div className="oat-hud-legend-title">Airspace Legend</div>
+            <div className="oat-hud-radar-items">
+              <span className="oat-hud-radar-item">
+                <span className="oat-hud-swatch oat-hud-swatch--tx" />
+                Tx
+              </span>
+              {radarBistatic ? (
+                <span className="oat-hud-radar-item">
+                  <span className="oat-hud-swatch oat-hud-swatch--rx" />
+                  Rx
+                </span>
+              ) : null}
+              <span className="oat-hud-radar-item">
+                <span className="oat-hud-swatch oat-hud-swatch--los" />
+                LoS Link
+              </span>
+              <span className="oat-hud-radar-item">
+                <span className="oat-hud-swatch oat-hud-swatch--sector" />
+                Sector
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

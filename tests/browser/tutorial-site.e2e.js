@@ -94,7 +94,10 @@ test("supports URL deep links, legacy ?mode=map & ?tutorial= links, and browser 
     "true",
   );
   await expect(page.locator('[data-testid="lab-telemetry"]')).toContainText(
-    "dB SNR",
+    "Peak SNR",
+  );
+  await expect(page.locator('[data-testid="lab-telemetry"]')).toContainText(
+    "dB",
   );
 
   await page.getByRole("tab", { name: "DeepMIMO" }).click();
@@ -126,7 +129,7 @@ test("updates 3D simulation physics and camera presets interactively across all 
   await expect(telemetry).toContainText("Line-of-Sight");
   const rxToggleBtn = page.locator('[data-testid="lab-handle-rx"]');
   await rxToggleBtn.click();
-  await expect(telemetry).toContainText("NLoS Blocked");
+  await expect(telemetry).toContainText("Non-Line-of-Sight");
 
   // Camera presets switch aria-pressed cleanly
   const topBtn = page.getByRole("button", { name: "Top", exact: true });
@@ -137,12 +140,14 @@ test("updates 3D simulation physics and camera presets interactively across all 
     page.getByRole("button", { name: "Iso", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
 
-  // 2. Radio Map mode: switches colormap & updates telemetry
+  // 2. Radio Map mode: switches colormap & preserves telemetry
   await page.getByRole("tab", { name: "Radio Map" }).click();
-  await page.getByRole("button", { name: "plasma" }).click();
-  await expect(telemetry).toContainText("plasma");
+  const plasmaBtn = page.getByRole("button", { name: "plasma" });
+  await plasmaBtn.click();
+  await expect(plasmaBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(telemetry).toContainText("Mean Gain");
 
-  // 3. DeepMIMO mode: stepping User # updates Selected User telemetry
+  // 3. DeepMIMO mode: stepping User # updates User Rx Power telemetry
   await page.getByRole("tab", { name: "DeepMIMO" }).click();
   const initialUserText = await telemetry.textContent();
   await page.getByRole("button", { name: "Next sampled Rx user" }).click();
@@ -152,7 +157,7 @@ test("updates 3D simulation physics and camera presets interactively across all 
   await page.getByRole("tab", { name: "Radar" }).click();
   await expect(page.locator('[data-testid="radar-rd-canvas"]')).toHaveCount(1);
   await expect(telemetry).toContainText("Monostatic");
-  await page.getByLabel("Bistatic Radar Geometry").click();
+  await page.getByLabel("Bistatic Mode").click();
   await expect(telemetry).toContainText("Bistatic");
 });
 

@@ -84,7 +84,10 @@ export interface RadarTargetState {
   readonly radialVelocityMs: number;
   readonly rangeM: number;
   readonly rcsDbsm: number;
+  readonly txLos: boolean;
+  readonly rxLos: boolean;
   readonly occluded: boolean;
+  readonly orbitPath: readonly Point3D[];
 }
 
 export interface RadarDetection {
@@ -96,9 +99,18 @@ export interface RadarDetection {
   readonly snrDb: number;
 }
 
+export interface RadarSectorSpec {
+  readonly radiusUnits: number;
+  readonly startAngleRad: number;
+  readonly endAngleRad: number;
+}
+
 export interface RadarSimulationResult {
   readonly tx: Point2D;
   readonly rx: Point2D;
+  readonly txHeightM: number;
+  readonly rxHeightM: number;
+  readonly sector: RadarSectorSpec;
   readonly targets: readonly RadarTargetState[];
   readonly detections: readonly RadarDetection[];
   readonly rdCols: number;
@@ -245,39 +257,42 @@ function segmentIntersectsRect3D(
   b: Point3D,
   rect: BuildingRect,
   inset = 0.05,
+  heightPadM = 0,
 ): boolean {
-  const x0 = rect.x + inset;
-  const y0 = rect.y + inset;
-  const x1 = rect.x + rect.w - inset;
-  const y1 = rect.y + rect.h - inset;
-  const corners: readonly Point2D[] = [
-    { x: x0, y: y0 },
-    { x: x1, y: y0 },
-    { x: x1, y: y1 },
-    { x: x0, y: y1 },
+  const minX = rect.x + inset;
+  const maxX = rect.x + rect.w - inset;
+  const minY = rect.y + inset;
+  const maxY = rect.y + rect.h - inset;
+  const minZ = 0;
+  const maxZ = rect.heightM + heightPadM;
+
+  let tMin = 0;
+  let tMax = 1;
+
+  const slabs: Array<[number, number, number, number]> = [
+    [a.x, b.x - a.x, minX, maxX],
+    [a.y, b.y - a.y, minY, maxY],
+    [a.zM, b.zM - a.zM, minZ, maxZ],
   ];
-  const hitTs: number[] = [];
-  for (let i = 0; i < 4; i += 1) {
-    const hit = segmentsIntersectParam(a, b, corners[i], corners[(i + 1) % 4]);
-    if (hit) hitTs.push(hit.t);
+
+  for (const [origin, dir, lo, hi] of slabs) {
+    if (Math.abs(dir) < 1e-8) {
+      if (origin < lo || origin > hi) return false;
+    } else {
+      let t1 = (lo - origin) / dir;
+      let t2 = (hi - origin) / dir;
+      if (t1 > t2) {
+        const tmp = t1;
+        t1 = t2;
+        t2 = tmp;
+      }
+      tMin = Math.max(tMin, t1);
+      tMax = Math.min(tMax, t2);
+      if (tMin > tMax) return false;
+    }
   }
-  if (hitTs.length > 0) {
-    const minT = Math.min(...hitTs);
-    const maxT = Math.max(...hitTs);
-    const zMin = a.zM + minT * (b.zM - a.zM);
-    const zMax = a.zM + maxT * (b.zM - a.zM);
-    return Math.min(zMin, zMax) < rect.heightM;
-  }
-  const midX = (a.x + b.x) / 2;
-  const midY = (a.y + b.y) / 2;
-  const midZ = (a.zM + b.zM) / 2;
-  return (
-    midX > x0 &&
-    midX < x1 &&
-    midY > y0 &&
-    midY < y1 &&
-    midZ < rect.heightM
-  );
+
+  return tMax > 1e-4 && tMin < 1 - 1e-4;
 }
 
 export function isLineOfSightClear(
@@ -296,10 +311,12 @@ export function isLineOfSightClear3D(
   a: Point3D,
   b: Point3D,
   skipBuildingId?: string,
+  inset = 0.05,
+  heightPadM = 0,
 ): boolean {
   for (const building of URBAN_BUILDINGS) {
     if (building.id === skipBuildingId) continue;
-    if (segmentIntersectsRect3D(a, b, building)) return false;
+    if (segmentIntersectsRect3D(a, b, building, inset, heightPadM)) return false;
   }
   return true;
 }
@@ -746,14 +763,57 @@ export function computeDeepMimoGrid(
   };
 }
 
+export function hasUavBuildingCollision(
+  pos: Point2D,
+  altitudeM: number,
+  horizontalPad = 3.6,
+  verticalPadM = 5.0,
+): boolean {
+  return URBAN_BUILDINGS.some(
+    (b) =>
+      pos.x >= b.x - horizontalPad &&
+      pos.x <= b.x + b.w + horizontalPad &&
+      pos.y >= b.y - horizontalPad &&
+      pos.y <= b.y + b.h + horizontalPad &&
+      altitudeM < b.heightM + verticalPadM,
+  );
+}
+
+export function resolveSafeUavAltitude(
+  pos: Point2D,
+  altitudeM: number,
+  horizontalPad = 3.6,
+  verticalPadM = 5.0,
+): number {
+  let safeAltitude = altitudeM;
+  for (const b of URBAN_BUILDINGS) {
+    if (
+      pos.x >= b.x - horizontalPad &&
+      pos.x <= b.x + b.w + horizontalPad &&
+      pos.y >= b.y - horizontalPad &&
+      pos.y <= b.y + b.h + horizontalPad
+    ) {
+      safeAltitude = Math.max(safeAltitude, b.heightM + verticalPadM);
+    }
+  }
+  return safeAltitude;
+}
+
 export function computeRadarScene(
   bistatic: boolean,
   velocityScale: number,
   cfarThresholdDb: number,
   phase: number,
 ): RadarSimulationResult {
-  const tx: Point2D = { x: 22, y: 38 };
-  const rx: Point2D = bistatic ? { x: 42, y: 62 } : { x: 22, y: 38 };
+  const tx: Point2D = { x: 18, y: 40 };
+  const rx: Point2D = bistatic ? { x: 138, y: 61 } : { x: 18, y: 40 };
+  const txHeightM = 40;
+  const rxHeightM = bistatic ? 38 : 40;
+  const sector: RadarSectorSpec = {
+    radiusUnits: 112,
+    startAngleRad: -0.34,
+    endAngleRad: 0.54,
+  };
 
   const baseTargets = [
     {
@@ -761,11 +821,11 @@ export function computeRadarScene(
       label: "UAV-01 · Quad",
       shortLabel: "U1",
       model: "Quadcopter",
-      cx: 96,
-      cy: 30,
-      rxRadius: 12,
-      ryRadius: 6,
-      altitudeM: 28,
+      cx: 95,
+      cy: 21.5,
+      rxRadius: 8.5,
+      ryRadius: 3.0,
+      altitudeM: 56,
       speedBase: 14.5,
       phaseOffset: 0.2,
       rcsDbsm: -9.5,
@@ -775,12 +835,12 @@ export function computeRadarScene(
       label: "UAV-02 · Hex",
       shortLabel: "U2",
       model: "Hexacopter",
-      cx: 122,
-      cy: 50,
-      rxRadius: 10,
-      ryRadius: 12,
-      altitudeM: 36,
-      speedBase: -18.2,
+      cx: 115,
+      cy: 37.5,
+      rxRadius: 8.0,
+      ryRadius: 3.0,
+      altitudeM: 41,
+      speedBase: 21.0,
       phaseOffset: 2.1,
       rcsDbsm: -6.2,
     },
@@ -789,27 +849,21 @@ export function computeRadarScene(
       label: "UAV-03 · Wing",
       shortLabel: "U3",
       model: "Fixed Wing",
-      cx: 86,
-      cy: 68,
-      rxRadius: 14,
-      ryRadius: 5,
-      altitudeM: 44,
+      cx: 81.5,
+      cy: 66.0,
+      rxRadius: 11.5,
+      ryRadius: 3.5,
+      altitudeM: 25,
       speedBase: 9.8,
-      phaseOffset: 4.3,
+      phaseOffset: 1.5,
       rcsDbsm: -11.8,
     },
   ] as const;
 
-  const maxRangeM = 520;
-  const maxVelocityMs = 30;
-  const rdCols = 36;
-  const rdRows = 36;
-
-  const tx3: Point3D = { x: tx.x, y: tx.y, zM: 12 };
-  const rx3: Point3D = { x: rx.x, y: rx.y, zM: 12 };
-
-  const targets: RadarTargetState[] = baseTargets.map((spec) => {
-    const theta = phase * Math.PI * 2 + spec.phaseOffset;
+  const sampleOrbitPoint = (
+    spec: (typeof baseTargets)[number],
+    theta: number,
+  ): Point3D => {
     const x = Math.max(
       46,
       Math.min(WORLD_W - 10, spec.cx + Math.cos(theta) * spec.rxRadius),
@@ -818,28 +872,57 @@ export function computeRadarScene(
       10,
       Math.min(WORLD_H - 10, spec.cy + Math.sin(theta) * spec.ryRadius),
     );
-    const altitudeM = spec.altitudeM + Math.sin(theta * 2) * 1.8;
-    const tgt3: Point3D = { x, y, zM: altitudeM };
+    const zM = resolveSafeUavAltitude(
+      { x, y },
+      spec.altitudeM + Math.sin(theta * 2) * 1.5,
+    );
+    return { x, y, zM };
+  };
+
+  const maxRangeM = 520;
+  const maxVelocityMs = 30;
+  const rdCols = 36;
+  const rdRows = 36;
+
+  const tx3: Point3D = { x: tx.x, y: tx.y, zM: txHeightM };
+  const rx3: Point3D = { x: rx.x, y: rx.y, zM: rxHeightM };
+
+  const targets: RadarTargetState[] = baseTargets.map((spec) => {
+    const theta = phase * Math.PI * 2 + spec.phaseOffset;
+    const tgt3 = sampleOrbitPoint(spec, theta);
+    const pos = { x: tgt3.x, y: tgt3.y };
+    const altitudeM = tgt3.zM;
+    const orbitPath: Point3D[] = [];
+    for (let k = 0; k < 48; k += 1) {
+      orbitPath.push(sampleOrbitPoint(spec, (k / 48) * Math.PI * 2));
+    }
     const d1 = polylineDistance3DM([tx3, tgt3]);
     const d2 = polylineDistance3DM([rx3, tgt3]);
     const rangeM = 0.5 * (d1 + d2);
     const radialVelocityMs =
       spec.speedBase * velocityScale * Math.cos(theta * 0.5 + 0.4);
     const headingDeg = ((theta * 180) / Math.PI + 90) % 360;
-    const occluded =
-      !isLineOfSightClear3D(tx3, tgt3) && !isLineOfSightClear3D(rx3, tgt3);
+    // Enforce conservative visual + physical 3D clearance so beams never clip building edges
+    const txLos = isLineOfSightClear3D(tx3, tgt3, undefined, -0.35, 1.0);
+    const rxLos = bistatic
+      ? isLineOfSightClear3D(rx3, tgt3, undefined, -0.35, 1.0)
+      : txLos;
+    const occluded = !(txLos && rxLos);
     return {
       id: spec.id,
       label: spec.label,
       shortLabel: spec.shortLabel,
       model: spec.model,
-      pos: { x, y },
+      pos,
       altitudeM,
       headingDeg,
       radialVelocityMs,
       rangeM,
       rcsDbsm: spec.rcsDbsm,
+      txLos,
+      rxLos,
       occluded,
+      orbitPath,
     };
   });
 
@@ -863,7 +946,7 @@ export function computeRadarScene(
         const dr = (rangeM - target.rangeM) / 18;
         const dv = (velMs - target.radialVelocityMs) / 2.6;
         const peakAmp =
-          (target.occluded ? 25 : 40) + (target.rcsDbsm + 10) * 0.85;
+          (target.occluded ? 10 : 40) + (target.rcsDbsm + 10) * 0.85;
         signal = Math.max(
           signal,
           -92 + peakAmp * Math.exp(-(dr * dr + dv * dv)) + noise * 0.4,
@@ -875,10 +958,10 @@ export function computeRadarScene(
 
   for (const target of targets) {
     const snrDb =
-      (target.occluded ? 13.4 : 21.8) +
+      (target.occluded ? 4.5 : 21.8) +
       (target.rcsDbsm + 10) * 0.6 -
       (target.rangeM - 240) * 0.018;
-    if (snrDb >= cfarThresholdDb) {
+    if (!target.occluded && snrDb >= cfarThresholdDb) {
       detections.push({
         targetId: target.id,
         label: target.label,
@@ -893,6 +976,9 @@ export function computeRadarScene(
   return {
     tx,
     rx,
+    txHeightM,
+    rxHeightM,
+    sector,
     targets,
     detections,
     rdCols,
